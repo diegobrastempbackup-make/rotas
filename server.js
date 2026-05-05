@@ -59,9 +59,15 @@ app.post("/registro", async (req, res) => {
 // 🔥 LISTAR
 app.get("/registros", async (req, res) => {
   try {
+    if (!db) {
+      return res.status(500).json({ erro: "Banco não conectado ainda" });
+    }
+
     const dados = await db.collection("registros").find().toArray();
     res.json(dados);
+
   } catch (err) {
+    console.error("ERRO REAL:", err);
     res.status(500).json({ erro: "Erro ao buscar" });
   }
 });
