@@ -5,15 +5,15 @@ const { MongoClient } = require("mongodb");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔐 usar variável de ambiente (OBRIGATÓRIO em produção)
 const uri = process.env.MONGO_URI;
-
 const client = new MongoClient(uri);
+
 let db;
 
 app.use(cors());
 app.use(express.json());
 
+// 🔥 Conectar ao Mongo
 async function conectar() {
   try {
     await client.connect();
@@ -26,25 +26,44 @@ async function conectar() {
 
 conectar();
 
+// 🔥 Rota principal
 app.get("/", (req, res) => {
   res.send("Servidor online 🚀");
 });
 
+// 🔥 SALVAR (aceita 1 ou vários)
 app.post("/registro", async (req, res) => {
-  const { km, valor } = req.body;
+  try {
+    const collection = db.collection("registros");
 
-  await db.collection("registros").insertOne({
-    km: Number(km),
-    valor: Number(valor),
-    data: new Date()
-  });
+    // 👉 se vier lista
+    if (req.body.dados && Array.isArray(req.body.dados)) {
+      await collection.insertMany(req.body.dados);
+    } 
+    // 👉 se vier individual
+    else {
+      await collection.insertOne({
+        km: Number(req.body.km),
+        valor: Number(req.body.valor),
+        data: new Date()
+      });
+    }
 
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao salvar" });
+  }
 });
 
+// 🔥 LISTAR
 app.get("/registros", async (req, res) => {
-  const dados = await db.collection("registros").find().toArray();
-  res.json(dados);
+  try {
+    const dados = await db.collection("registros").find().toArray();
+    res.json(dados);
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao buscar" });
+  }
 });
 
 app.listen(PORT, () => {
