@@ -5,7 +5,14 @@ const { MongoClient } = require("mongodb");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 🔐 URI do Mongo (vem do Railway)
 const uri = process.env.MONGO_URI;
+
+if (!uri) {
+  console.error("❌ MONGO_URI não definida!");
+  process.exit(1);
+}
+
 const client = new MongoClient(uri);
 
 let db;
@@ -18,7 +25,7 @@ app.get("/", (req, res) => {
   res.send("Servidor online 🚀");
 });
 
-// 🔥 SALVAR (aceita 1 ou vários)
+// 🔥 SALVAR (1 ou vários registros)
 app.post("/registro", async (req, res) => {
   try {
     const collection = db.collection("registros");
@@ -53,7 +60,7 @@ app.get("/registros", async (req, res) => {
   }
 });
 
-// 🔥 INICIAR SERVIDOR SÓ DEPOIS DE CONECTAR
+// 🔥 INICIAR SERVIDOR (SÓ DEPOIS DE CONECTAR)
 async function iniciarServidor() {
   try {
     await client.connect();
@@ -61,12 +68,13 @@ async function iniciarServidor() {
 
     console.log("🔥 Conectado ao MongoDB");
 
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Rodando na porta ${PORT}`);
     });
 
   } catch (err) {
-    console.error("Erro ao conectar:", err);
+    console.error("❌ Erro ao conectar no MongoDB:", err);
+    process.exit(1);
   }
 }
 
