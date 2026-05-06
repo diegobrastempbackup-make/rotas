@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <title>Dashboard</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
+
 <style>
 body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 .container { display:flex; }
@@ -17,15 +20,18 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 .grafico { background:#1F2937; border-radius:10px; padding:10px; flex:1; height:300px; }
 </style>
 </head>
+
 <body>
 
 <input type="date" id="inicio">
 <input type="date" id="fim">
 <button onclick="filtrarData()">Filtrar</button>
+<button onclick="gerarPDF()">Gerar PDF</button>
 
 <div class="container">
 <div class="sidebar">
 <h2>⛽ Km Diário</h2>
+
 <p onclick="filtrar('TODOS')">Geral</p>
 <p onclick="filtrar('Sibele')">Sibele</p>
 <p onclick="filtrar('Empresa')">Empresa</p>
@@ -58,17 +64,43 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 
 <script>
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
-let g1,g2;
+
+let g1, g2;
+let dadosGlobais = [];
 
 function acessar(){
   if(document.getElementById("senha").value==="Brastemp1234"){
-    window.location.href="dados.html";
+    window.location.href="/dados.html";
   } else alert("Senha incorreta");
 }
 
+// 🔥 BUSCAR DADOS DO BACKEND
+async function carregar(){
+  const res = await fetch("/registros");
+  const dados = await res.json();
+
+  // converter data
+  return dados.map(d => ({
+    ...d,
+    data: new Date(d.data)
+  }));
+}
+
 function filtrar(tecnico){
-  let dados = JSON.parse(localStorage.getItem("dados")) || [];
-  processar(dados, tecnico);
+  processar(dadosGlobais, tecnico);
+}
+
+// 🔥 FILTRO POR DATA
+function filtrarData(){
+  let inicio = new Date(document.getElementById("inicio").value);
+  let fim = new Date(document.getElementById("fim").value);
+
+  let filtrado = dadosGlobais.filter(d => {
+    if(!document.getElementById("inicio").value) return true;
+    return d.data >= inicio && d.data <= fim;
+  });
+
+  processar(filtrado, "TODOS");
 }
 
 function processar(dados, tecnico){
@@ -106,34 +138,37 @@ function atualizar(valores,kms,tecnico){
 
   g1 = new Chart(document.getElementById("g1"),{
     type:"bar",
-    data:{
-      labels:tecnicos,
-      datasets:[{label:"Gastos",data:valores}]
-    },
+    data:{ labels:tecnicos, datasets:[{label:"Gastos",data:valores}] },
     options:{responsive:true,maintainAspectRatio:false}
   });
 
   g2 = new Chart(document.getElementById("g2"),{
     type:"bar",
-    data:{
-      labels:tecnicos,
-      datasets:[{label:"KM",data:kms}]
-    },
+    data:{ labels:tecnicos, datasets:[{label:"KM",data:kms}] },
     options:{responsive:true,maintainAspectRatio:false}
   });
 }
 
-window.addEventListener("focus",()=>filtrar("TODOS"));
+// 🔥 GERAR PDF
+function gerarPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
 
-filtrar("TODOS");
+  doc.text("Relatório de Km e Gastos", 10, 10);
 
-async function filtrarData(){
-  let inicio = document.getElementById("inicio").value;
-  let fim = document.getElementById("fim").value;
+  doc.text(document.getElementById("gastoTotal").innerText, 10, 30);
+  doc.text(document.getElementById("kmTotal").innerText, 10, 40);
 
-  let dados = await carregar({inicio,fim});
-  processar(dados, "TODOS");
+  doc.save("relatorio.pdf");
 }
+
+// 🔥 INICIAR
+async function init(){
+  dadosGlobais = await carregar();
+  processar(dadosGlobais, "TODOS");
+}
+
+init();
 </script>
 
 </body>

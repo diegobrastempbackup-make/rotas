@@ -22,16 +22,20 @@ button { margin-top:5px; padding:5px; background:#3A8DFF; border:none; color:whi
 </div>
 
 <script>
-const API = "https://rotas-2.onrender.com";
-
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
+
+// 🔥 usar mesma URL do servidor
+const API = "";
+
+// 🔥 evitar salvar várias vezes seguidas
+let salvando = false;
 
 function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
 function voltar(){
-  window.location.href = "dashboard.html";
+  window.location.href = "/index.html";
 }
 
 function criar(){
@@ -59,7 +63,7 @@ function criar(){
 function linha(dados={}){
   return `
   <tr>
-  <td><input type="date" value="${dados.data || hoje()}" onchange="salvar()"></td>
+  <td><input type="date" value="${dados.data ? dados.data.split("T")[0] : hoje()}" onchange="salvar()"></td>
   <td><input value="${dados.kmIni || ''}" oninput="calc(this)"></td>
   <td><input value="${dados.kmFim || ''}" oninput="calc(this)"></td>
   <td><input readonly value="${dados.km || ''}"></td>
@@ -102,8 +106,11 @@ function remover(btn){
   salvar();
 }
 
-// 🔥 SALVAR NO BACKEND
+// 🔥 SALVAR (AGORA CORRETO)
 async function salvar(){
+  if(salvando) return;
+  salvando = true;
+
   let dados = [];
 
   tecnicos.forEach(nome=>{
@@ -112,25 +119,36 @@ async function salvar(){
     linhas.forEach(l=>{
       let i = l.querySelectorAll("input");
 
-      dados.push({
-        tecnico: nome,
-        data: i[0].value,
-        km: Number(i[3].value),
-        valor: Number(i[8].value)
-      });
+      let km = Number(i[3].value);
+      let valor = Number(i[8].value);
+
+      if(km > 0 || valor > 0){
+        dados.push({
+          tecnico: nome,
+          data: i[0].value,
+          km,
+          valor
+        });
+      }
     });
   });
 
-  await fetch(API + "/registro", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dados })
-  });
+  try{
+    await fetch("/registro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dados })
+    });
+  } catch(e){
+    console.error("Erro ao salvar", e);
+  }
+
+  salvando = false;
 }
 
-// 🔥 CARREGAR DO BANCO
+// 🔥 CARREGAR
 async function carregar(){
-  const res = await fetch(API + "/registros");
+  const res = await fetch("/registros");
   const lista = await res.json();
 
   lista.forEach(item=>{
@@ -143,7 +161,7 @@ async function carregar(){
   });
 }
 
-// INICIAR
+// iniciar
 criar();
 </script>
 
