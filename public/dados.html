@@ -25,17 +25,15 @@ button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:whi
 <script>
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
-let carregando = false; // 🔥 CONTROLE ANTI-DUPLICAÇÃO
-
 function voltar(){
-  window.location.href="/";
+  window.location.href = "/";
 }
 
 function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
-// 🔥 CRIAR TABELAS
+// 🔥 CRIAR ESTRUTURA
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
@@ -69,11 +67,11 @@ function criar(){
   });
 }
 
-// 🔥 LINHA
+// 🔥 TEMPLATE DE LINHA
 function linha(d = {}){
   return `
   <tr>
-    <td><input type="date" value="${d.data || hoje()}"></td>
+    <td><input type="date" value="${d.data ? d.data.split("T")[0] : hoje()}"></td>
     <td><input value="${d.kmIni || ''}" oninput="calc(this)"></td>
     <td><input value="${d.kmFim || ''}" oninput="calc(this)"></td>
     <td><input readonly value="${d.km || ''}"></td>
@@ -87,7 +85,7 @@ function linha(d = {}){
   `;
 }
 
-// 🔥 ADD LINHA
+// 🔥 ADD LINHA (SEM BUG)
 function addLinha(nome){
   const tbody = document.getElementById(nome);
   const tr = document.createElement("tr");
@@ -116,7 +114,7 @@ function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🔥 SALVAR
+// 🔥 SALVAR (SÓ O QUE TEM DADO)
 async function salvar(){
   let dados = [];
 
@@ -133,20 +131,18 @@ async function salvar(){
         kmFim: Number(i[2].value),
         km: Number(i[3].value),
         consumo: Number(i[4].value),
-        abastAnt: i[5].value.trim(),
-        abastAtual: i[6].value.trim(),
+        abastAnt: i[5].value,
+        abastAtual: i[6].value,
         litros: Number(i[7].value),
         valor: parseFloat(i[8].value.replace(",", ".")) || 0
       };
 
       const temDado =
-        registro.kmIni > 0 ||
-        registro.kmFim > 0 ||
         registro.km > 0 ||
         registro.valor > 0 ||
         registro.litros > 0 ||
-        registro.abastAnt !== "" ||
-        registro.abastAtual !== "";
+        registro.abastAnt ||
+        registro.abastAtual;
 
       if(temDado){
         dados.push(registro);
@@ -159,8 +155,6 @@ async function salvar(){
     return;
   }
 
-  console.log("SALVANDO:", dados);
-
   await fetch("/registro", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
@@ -170,24 +164,17 @@ async function salvar(){
   alert("Salvo com sucesso!");
 }
 
-// 🔥 CARREGAR (ANTI DUPLICAÇÃO REAL)
+// 🔥 CARREGAR (SEM DUPLICAR)
 async function carregar(){
-  if(carregando) return; // 🔥 trava duplicação
-  carregando = true;
-
   const res = await fetch("/registros");
   const lista = await res.json();
 
-  // limpa
   tecnicos.forEach(nome=>{
     const tbody = document.getElementById(nome);
     if(tbody) tbody.innerHTML = "";
   });
 
-  // renderiza
   lista.forEach(item=>{
-    if(!item.tecnico) return;
-
     const tbody = document.getElementById(item.tecnico);
 
     if(tbody){
@@ -196,11 +183,9 @@ async function carregar(){
       tbody.appendChild(tr);
     }
   });
-
-  carregando = false;
 }
 
-// INIT
+// 🔥 INIT
 async function iniciar(){
   criar();
   await carregar();

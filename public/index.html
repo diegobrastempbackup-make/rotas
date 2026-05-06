@@ -49,10 +49,6 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 <div class="cards">
 <div class="card"><h3>Gasto Total</h3><p id="gastoTotal">R$ 0</p></div>
 <div class="card"><h3>Km Total</h3><p id="kmTotal">0 Km</p></div>
-<div class="card"><h3>Individual</h3>
-<p id="gastoIndividual">R$ 0</p>
-<p id="kmIndividual">0 Km</p>
-</div>
 </div>
 
 <div class="graficos">
@@ -66,7 +62,6 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
 let dadosGlobais = [];
-let g1,g2;
 
 function acessar(){
   if(document.getElementById("senha").value==="Brastemp1234"){
@@ -77,7 +72,42 @@ function acessar(){
 async function carregar(){
   const res = await fetch("/registros");
   const dados = await res.json();
-  return dados.map(d => ({ ...d, data:new Date(d.data) }));
+  return dados;
+}
+
+function processar(dados){
+  let totalGasto = 0;
+  let totalKm = 0;
+
+  let valores = Array(tecnicos.length).fill(0);
+  let kms = Array(tecnicos.length).fill(0);
+
+  dados.forEach(d=>{
+    let i = tecnicos.indexOf(d.tecnico);
+    if(i >= 0){
+      let v = parseFloat(d.valor) || 0;
+      let k = parseFloat(d.km) || 0;
+
+      valores[i] += v;
+      kms[i] += k;
+
+      totalGasto += v;
+      totalKm += k;
+    }
+  });
+
+  document.getElementById("gastoTotal").innerText = "R$ " + totalGasto.toFixed(2);
+  document.getElementById("kmTotal").innerText = totalKm + " Km";
+
+  new Chart(document.getElementById("g1"), {
+    type:"bar",
+    data:{ labels:tecnicos, datasets:[{label:"Gasto",data:valores}] }
+  });
+
+  new Chart(document.getElementById("g2"), {
+    type:"bar",
+    data:{ labels:tecnicos, datasets:[{label:"KM",data:kms}] }
+  });
 }
 
 function filtrarData(){
@@ -85,58 +115,20 @@ function filtrarData(){
   let fim = document.getElementById("fim").value;
 
   let filtrado = dadosGlobais.filter(d=>{
-    if(inicio && d.data < new Date(inicio)) return false;
-    if(fim && d.data > new Date(fim)) return false;
+    let data = new Date(d.data);
+    if(inicio && data < new Date(inicio)) return false;
+    if(fim && data > new Date(fim)) return false;
     return true;
   });
 
-  processar(filtrado,"TODOS");
-}
-
-function filtrar(tecnico){
-  processar(dadosGlobais, tecnico);
-}
-
-function processar(dados, tecnico){
-  let valores = Array(tecnicos.length).fill(0);
-  let kms = Array(tecnicos.length).fill(0);
-
-  dados.forEach(d=>{
-    if(tecnico==="TODOS" || d.tecnico===tecnico){
-      let i = tecnicos.indexOf(d.tecnico);
-      if(i>=0){
-        valores[i]+= Number(d.valor || 0);
-        kms[i]+= Number(d.km || 0);
-      }
-    }
-  });
-
-  atualizar(valores,kms,tecnico);
-}
-
-function atualizar(valores,kms,tecnico){
-  document.getElementById("gastoTotal").innerText="R$ "+valores.reduce((a,b)=>a+b,0).toFixed(2);
-  document.getElementById("kmTotal").innerText=kms.reduce((a,b)=>a+b,0)+" Km";
-
-  if(g1) g1.destroy();
-  if(g2) g2.destroy();
-
-  g1 = new Chart(document.getElementById("g1"),{
-    type:"bar",
-    data:{ labels:tecnicos, datasets:[{label:"Gastos",data:valores}] }
-  });
-
-  g2 = new Chart(document.getElementById("g2"),{
-    type:"bar",
-    data:{ labels:tecnicos, datasets:[{label:"KM",data:kms}] }
-  });
+  processar(filtrado);
 }
 
 function gerarPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  doc.text("Relatório", 10, 10);
+  doc.text("Relatório de Gastos", 10, 10);
   doc.text(document.getElementById("gastoTotal").innerText, 10, 20);
   doc.text(document.getElementById("kmTotal").innerText, 10, 30);
 
@@ -145,8 +137,9 @@ function gerarPDF(){
 
 async function init(){
   dadosGlobais = await carregar();
-  processar(dadosGlobais,"TODOS");
+  processar(dadosGlobais);
 }
+
 init();
 </script>
 
