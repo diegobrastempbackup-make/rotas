@@ -5,7 +5,7 @@
 <title>Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
 <style>
 body { margin:0; font-family:Arial; background:#0F172A; color:white; }
@@ -26,7 +26,7 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 <input type="date" id="inicio">
 <input type="date" id="fim">
 <button onclick="filtrarData()">Filtrar</button>
-<button onclick="gerarPDF()">Gerar PDF</button>
+<button onclick="gerarPDF()">📄 PDF</button>
 
 <div class="container">
 <div class="sidebar">
@@ -65,8 +65,8 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 <script>
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
-let g1, g2;
 let dadosGlobais = [];
+let g1, g2;
 
 function acessar(){
   if(document.getElementById("senha").value==="Brastemp1234"){
@@ -74,33 +74,33 @@ function acessar(){
   } else alert("Senha incorreta");
 }
 
-// 🔥 BUSCAR DADOS DO BACKEND
+// 🔥 CARREGAR DO BANCO
 async function carregar(){
   const res = await fetch("/registros");
   const dados = await res.json();
 
-  // converter data
   return dados.map(d => ({
     ...d,
     data: new Date(d.data)
   }));
 }
 
-function filtrar(tecnico){
-  processar(dadosGlobais, tecnico);
-}
-
 // 🔥 FILTRO POR DATA
 function filtrarData(){
-  let inicio = new Date(document.getElementById("inicio").value);
-  let fim = new Date(document.getElementById("fim").value);
+  let inicio = document.getElementById("inicio").value;
+  let fim = document.getElementById("fim").value;
 
-  let filtrado = dadosGlobais.filter(d => {
-    if(!document.getElementById("inicio").value) return true;
-    return d.data >= inicio && d.data <= fim;
+  let filtrado = dadosGlobais.filter(d=>{
+    if(inicio && d.data < new Date(inicio)) return false;
+    if(fim && d.data > new Date(fim)) return false;
+    return true;
   });
 
   processar(filtrado, "TODOS");
+}
+
+function filtrar(tecnico){
+  processar(dadosGlobais, tecnico);
 }
 
 function processar(dados, tecnico){
@@ -128,9 +128,6 @@ function atualizar(valores,kms,tecnico){
     let i = tecnicos.indexOf(tecnico);
     document.getElementById("gastoIndividual").innerText="R$ "+valores[i].toFixed(2);
     document.getElementById("kmIndividual").innerText=kms[i]+" Km";
-  } else {
-    document.getElementById("gastoIndividual").innerText="R$ 0";
-    document.getElementById("kmIndividual").innerText="0 Km";
   }
 
   if(g1) g1.destroy();
@@ -138,36 +135,32 @@ function atualizar(valores,kms,tecnico){
 
   g1 = new Chart(document.getElementById("g1"),{
     type:"bar",
-    data:{ labels:tecnicos, datasets:[{label:"Gastos",data:valores}] },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{ labels:tecnicos, datasets:[{label:"Gastos",data:valores}] }
   });
 
   g2 = new Chart(document.getElementById("g2"),{
     type:"bar",
-    data:{ labels:tecnicos, datasets:[{label:"KM",data:kms}] },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{ labels:tecnicos, datasets:[{label:"KM",data:kms}] }
   });
 }
 
-// 🔥 GERAR PDF
+// 🔥 PDF FUNCIONANDO
 function gerarPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  doc.text("Relatório de Km e Gastos", 10, 10);
-
-  doc.text(document.getElementById("gastoTotal").innerText, 10, 30);
-  doc.text(document.getElementById("kmTotal").innerText, 10, 40);
+  doc.text("Relatório", 10, 10);
+  doc.text("Gasto Total: " + document.getElementById("gastoTotal").innerText, 10, 20);
+  doc.text("KM Total: " + document.getElementById("kmTotal").innerText, 10, 30);
 
   doc.save("relatorio.pdf");
 }
 
-// 🔥 INICIAR
+// INIT
 async function init(){
   dadosGlobais = await carregar();
-  processar(dadosGlobais, "TODOS");
+  processar(dadosGlobais,"TODOS");
 }
-
 init();
 </script>
 
