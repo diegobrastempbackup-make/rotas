@@ -66,7 +66,7 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
 let dadosGlobais = [];
-let g1, g2;
+let g1,g2;
 
 function acessar(){
   if(document.getElementById("senha").value==="Brastemp1234"){
@@ -74,18 +74,12 @@ function acessar(){
   } else alert("Senha incorreta");
 }
 
-// 🔥 CARREGAR DO BANCO
 async function carregar(){
   const res = await fetch("/registros");
   const dados = await res.json();
-
-  return dados.map(d => ({
-    ...d,
-    data: new Date(d.data)
-  }));
+  return dados.map(d => ({ ...d, data:new Date(d.data) }));
 }
 
-// 🔥 FILTRO POR DATA
 function filtrarData(){
   let inicio = document.getElementById("inicio").value;
   let fim = document.getElementById("fim").value;
@@ -96,7 +90,7 @@ function filtrarData(){
     return true;
   });
 
-  processar(filtrado, "TODOS");
+  processar(filtrado,"TODOS");
 }
 
 function filtrar(tecnico){
@@ -111,8 +105,8 @@ function processar(dados, tecnico){
     if(tecnico==="TODOS" || d.tecnico===tecnico){
       let i = tecnicos.indexOf(d.tecnico);
       if(i>=0){
-        valores[i]+= d.valor;
-        kms[i]+= d.km;
+        valores[i]+= Number(d.valor || 0);
+        kms[i]+= Number(d.km || 0);
       }
     }
   });
@@ -123,12 +117,6 @@ function processar(dados, tecnico){
 function atualizar(valores,kms,tecnico){
   document.getElementById("gastoTotal").innerText="R$ "+valores.reduce((a,b)=>a+b,0).toFixed(2);
   document.getElementById("kmTotal").innerText=kms.reduce((a,b)=>a+b,0)+" Km";
-
-  if(tecnico!=="TODOS"){
-    let i = tecnicos.indexOf(tecnico);
-    document.getElementById("gastoIndividual").innerText="R$ "+valores[i].toFixed(2);
-    document.getElementById("kmIndividual").innerText=kms[i]+" Km";
-  }
 
   if(g1) g1.destroy();
   if(g2) g2.destroy();
@@ -144,19 +132,17 @@ function atualizar(valores,kms,tecnico){
   });
 }
 
-// 🔥 PDF FUNCIONANDO
 function gerarPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
   doc.text("Relatório", 10, 10);
-  doc.text("Gasto Total: " + document.getElementById("gastoTotal").innerText, 10, 20);
-  doc.text("KM Total: " + document.getElementById("kmTotal").innerText, 10, 30);
+  doc.text(document.getElementById("gastoTotal").innerText, 10, 20);
+  doc.text(document.getElementById("kmTotal").innerText, 10, 30);
 
   doc.save("relatorio.pdf");
 }
 
-// INIT
 async function init(){
   dadosGlobais = await carregar();
   processar(dadosGlobais,"TODOS");

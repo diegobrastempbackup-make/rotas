@@ -10,7 +10,7 @@ body { background:#0F172A; color:white; font-family:Arial; }
 table { width:100%; border-collapse:collapse; margin-top:10px; }
 th,td { border:1px solid #333; padding:5px; text-align:center; }
 input { width:100%; background:#1F2937; border:none; color:white; }
-button { margin-top:5px; padding:5px; background:#3A8DFF; border:none; color:white; cursor:pointer; }
+button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:white; cursor:pointer; }
 </style>
 </head>
 
@@ -33,7 +33,7 @@ function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
-// 🔥 CRIA TABELAS SEM BUG
+// 🔥 CRIAR TABELAS (SEM BUG)
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
@@ -65,11 +65,9 @@ function criar(){
 
     container.appendChild(bloco);
   });
-
-  carregar();
 }
 
-// 🔥 LINHA COMPLETA
+// 🔥 LINHA
 function linha(d = {}){
   return `
   <tr>
@@ -87,7 +85,7 @@ function linha(d = {}){
   `;
 }
 
-// 🔥 ADICIONAR LINHA (SEM LOOP)
+// 🔥 ADD LINHA (SEM LOOP)
 function addLinha(nome){
   const tbody = document.getElementById(nome);
   const tr = document.createElement("tr");
@@ -95,7 +93,7 @@ function addLinha(nome){
   tbody.appendChild(tr);
 }
 
-// 🔥 CALCULO CORRETO
+// 🔥 CALCULAR
 function calc(el){
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
@@ -107,7 +105,7 @@ function calc(el){
   const km = kmFim - kmIni;
   i[3].value = km > 0 ? km : "";
 
-  const consumo = km > 0 && litros > 0 ? (km / litros).toFixed(2) : "";
+  const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
   i[4].value = consumo;
 }
 
@@ -116,7 +114,7 @@ function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🔥 SALVAR COMPLETO
+// 🔥 SALVAR (INTELIGENTE)
 async function salvar(){
   let dados = [];
 
@@ -133,21 +131,31 @@ async function salvar(){
         kmFim: Number(i[2].value),
         km: Number(i[3].value),
         consumo: Number(i[4].value),
-        abastAnt: i[5].value,
-        abastAtual: i[6].value,
+        abastAnt: i[5].value.trim(),
+        abastAtual: i[6].value.trim(),
         litros: Number(i[7].value),
         valor: Number(i[8].value)
       };
 
-      // 🔥 evita lixo
-      if(registro.km > 0 || registro.valor > 0){
+      const temDado =
+        registro.kmIni > 0 ||
+        registro.kmFim > 0 ||
+        registro.km > 0 ||
+        registro.valor > 0 ||
+        registro.litros > 0 ||
+        registro.abastAnt !== "" ||
+        registro.abastAtual !== "";
+
+      if(temDado){
         dados.push(registro);
       }
     });
   });
 
+  console.log("SALVANDO:", dados);
+
   if(dados.length === 0){
-    alert("Nada para salvar");
+    alert("Nenhum dado preenchido");
     return;
   }
 
@@ -174,7 +182,12 @@ async function carregar(){
   });
 }
 
-criar();
+// INIT
+async function iniciar(){
+  criar();
+  await carregar();
+}
+iniciar();
 </script>
 
 </body>
