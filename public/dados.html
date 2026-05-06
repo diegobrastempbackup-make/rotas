@@ -23,8 +23,8 @@ button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:whi
 </div>
 
 <script>
-
-const tecnicos = ["Sibele","Empresa","Danilo","Jose Cicero","Welisson","Danilo BH","Thiago BH"];
+const API = "";
+const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
 function voltar(){
   window.location.href="/";
@@ -35,29 +35,35 @@ function hoje(){
 }
 
 function criar(){
-  const container = document.getElementById("tabelas");
-  container.innerHTML = "";
+  const c = document.getElementById("tabelas");
+  c.innerHTML = "";
 
   tecnicos.forEach(nome=>{
-    const bloco = document.createElement("div");
+    const div = document.createElement("div");
 
-    bloco.innerHTML = `
+    div.innerHTML = `
       <h2>${nome}</h2>
       <table>
         <thead>
           <tr>
-            <th>Data</th><th>KM Ini</th><th>KM Fim</th>
-            <th>KM</th><th>Consumo</th>
-            <th>Abast Ant</th><th>Abast Atual</th>
-            <th>Litros</th><th>Valor</th><th></th>
+            <th>Data</th>
+            <th>KM Ini</th>
+            <th>KM Fim</th>
+            <th>KM</th>
+            <th>Consumo</th>
+            <th>Abast Ant</th>
+            <th>Abast Atual</th>
+            <th>Litros</th>
+            <th>Valor</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="${nome}"></tbody>
       </table>
-      <button onclick="addLinha('${nome}')">+ Linha</button>
+      <button onclick="add('${nome}')">+ Linha</button>
     `;
 
-    container.appendChild(bloco);
+    c.appendChild(div);
   });
 }
 
@@ -74,11 +80,10 @@ function linha(d = {}){
     <td><input value="${d.litros || ''}" oninput="calc(this)"></td>
     <td><input value="${d.valor || ''}"></td>
     <td><button onclick="remover(this)">🗑️</button></td>
-  </tr>
-  `;
+  </tr>`;
 }
 
-function addLinha(nome){
+function add(nome){
   const tbody = document.getElementById(nome);
   const tr = document.createElement("tr");
   tr.innerHTML = linha();
@@ -104,31 +109,36 @@ function remover(btn){
   btn.closest("tr").remove();
 }
 
+// 🔥 SALVAR CORRETO
 async function salvar(){
   let dados = [];
 
   tecnicos.forEach(nome=>{
-    const linhas = document.querySelectorAll(`#${nome} tr`);
-
-    linhas.forEach(l=>{
+    document.querySelectorAll(`#${nome} tr`).forEach(l=>{
       const i = l.querySelectorAll("input");
 
-      let km = Number(i[3].value);
-      let valor = parseFloat(i[8].value.replace(",", ".")) || 0;
+      const registro = {
+        tecnico: nome,
+        data: i[0].value,
+        kmIni: Number(i[1].value),
+        kmFim: Number(i[2].value),
+        km: Number(i[3].value),
+        consumo: Number(i[4].value),
+        abastAnt: i[5].value,
+        abastAtual: i[6].value,
+        litros: Number(i[7].value),
+        valor: parseFloat(i[8].value) || 0
+      };
 
-      if(km > 0 || valor > 0){
-        dados.push({
-          tecnico: nome,
-          data: i[0].value,
-          km: km,
-          valor: valor
-        });
+      // IGNORA LINHA VAZIA
+      if(registro.km > 0 || registro.valor > 0){
+        dados.push(registro);
       }
     });
   });
 
   if(dados.length === 0){
-    alert("Nenhum dado");
+    alert("Nada para salvar");
     return;
   }
 
@@ -141,6 +151,7 @@ async function salvar(){
   alert("Salvo com sucesso!");
 }
 
+// 🔥 CARREGAR SEM DUPLICAR
 async function carregar(){
   const res = await fetch("/registros");
   const lista = await res.json();
@@ -149,25 +160,22 @@ async function carregar(){
     document.getElementById(nome).innerHTML = "";
   });
 
-  lista.forEach(d=>{
-    const tbody = document.getElementById(d.tecnico);
-
+  lista.forEach(item=>{
+    const tbody = document.getElementById(item.tecnico);
     if(tbody){
       const tr = document.createElement("tr");
-      tr.innerHTML = linha(d);
+      tr.innerHTML = linha(item);
       tbody.appendChild(tr);
     }
   });
 }
 
-async function iniciar(){
+async function init(){
   criar();
   await carregar();
 }
 
-iniciar();
-
+init();
 </script>
-
 </body>
 </html>
