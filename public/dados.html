@@ -23,7 +23,6 @@ button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:whi
 </div>
 
 <script>
-const API = "";
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
 function voltar(){
@@ -34,14 +33,15 @@ function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
+// 🔥 CRIAR TABELAS (SEM BUG)
 function criar(){
-  const c = document.getElementById("tabelas");
-  c.innerHTML = "";
+  const container = document.getElementById("tabelas");
+  container.innerHTML = "";
 
   tecnicos.forEach(nome=>{
-    const div = document.createElement("div");
+    const bloco = document.createElement("div");
 
-    div.innerHTML = `
+    bloco.innerHTML = `
       <h2>${nome}</h2>
       <table>
         <thead>
@@ -58,15 +58,16 @@ function criar(){
             <th></th>
           </tr>
         </thead>
-        <tbody id="${nome}"></tbody>
+        <tbody data-tecnico="${nome}"></tbody>
       </table>
-      <button onclick="add('${nome}')">+ Linha</button>
+      <button onclick="addLinha('${nome}')">+ Linha</button>
     `;
 
-    c.appendChild(div);
+    container.appendChild(bloco);
   });
 }
 
+// 🔥 LINHA
 function linha(d = {}){
   return `
   <tr>
@@ -80,16 +81,19 @@ function linha(d = {}){
     <td><input value="${d.litros || ''}" oninput="calc(this)"></td>
     <td><input value="${d.valor || ''}"></td>
     <td><button onclick="remover(this)">🗑️</button></td>
-  </tr>`;
+  </tr>
+  `;
 }
 
-function add(nome){
-  const tbody = document.getElementById(nome);
+// 🔥 ADD LINHA
+function addLinha(nome){
+  const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
   const tr = document.createElement("tr");
   tr.innerHTML = linha();
   tbody.appendChild(tr);
 }
 
+// 🔥 CALCULAR
 function calc(el){
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
@@ -105,16 +109,19 @@ function calc(el){
   i[4].value = consumo;
 }
 
+// 🔥 REMOVER
 function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🔥 SALVAR CORRETO
+// 🔥 SALVAR (CORRIGIDO DE VERDADE)
 async function salvar(){
   let dados = [];
 
   tecnicos.forEach(nome=>{
-    document.querySelectorAll(`#${nome} tr`).forEach(l=>{
+    const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
+
+    linhas.forEach(l=>{
       const i = l.querySelectorAll("input");
 
       const registro = {
@@ -127,18 +134,26 @@ async function salvar(){
         abastAnt: i[5].value,
         abastAtual: i[6].value,
         litros: Number(i[7].value),
-        valor: parseFloat(i[8].value) || 0
+        valor: parseFloat(i[8].value.replace(",", ".")) || 0
       };
 
-      // IGNORA LINHA VAZIA
-      if(registro.km > 0 || registro.valor > 0){
+      const temDado =
+        registro.km > 0 ||
+        registro.valor > 0 ||
+        registro.litros > 0 ||
+        registro.abastAnt ||
+        registro.abastAtual;
+
+      if(temDado){
         dados.push(registro);
       }
     });
   });
 
+  console.log("ENVIANDO:", dados);
+
   if(dados.length === 0){
-    alert("Nada para salvar");
+    alert("Nenhum dado");
     return;
   }
 
@@ -151,17 +166,19 @@ async function salvar(){
   alert("Salvo com sucesso!");
 }
 
-// 🔥 CARREGAR SEM DUPLICAR
+// 🔥 CARREGAR
 async function carregar(){
   const res = await fetch("/registros");
   const lista = await res.json();
 
   tecnicos.forEach(nome=>{
-    document.getElementById(nome).innerHTML = "";
+    const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+    if(tbody) tbody.innerHTML = "";
   });
 
   lista.forEach(item=>{
-    const tbody = document.getElementById(item.tecnico);
+    const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
+
     if(tbody){
       const tr = document.createElement("tr");
       tr.innerHTML = linha(item);
@@ -170,12 +187,13 @@ async function carregar(){
   });
 }
 
-async function init(){
+// INIT
+async function iniciar(){
   criar();
   await carregar();
 }
-
-init();
+iniciar();
 </script>
+
 </body>
 </html>
