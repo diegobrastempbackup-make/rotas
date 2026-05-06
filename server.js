@@ -19,9 +19,12 @@ let db = null;
 app.use(cors());
 app.use(express.json());
 
-// 🔥 Rota principal
-app.get("/", (req, res) => {
-  res.send("Servidor online 🚀");
+// 🔥 SERVIR FRONTEND (IMPORTANTE)
+app.use(express.static("public"));
+
+// 🔥 Rota principal (opcional - pode remover se quiser abrir só o HTML)
+app.get("/api", (req, res) => {
+  res.send("API online 🚀");
 });
 
 // 🔥 SALVAR
@@ -47,7 +50,7 @@ app.post("/registro", async (req, res) => {
 
   } catch (err) {
     console.error("Erro ao salvar:", err);
-    res.status(500).json({ erro: "Erro ao salvar" });
+    res.status(500).json({ erro: err.message });
   }
 });
 
@@ -58,20 +61,24 @@ app.get("/registros", async (req, res) => {
       return res.status(500).json({ erro: "Banco não conectado" });
     }
 
-    const dados = await db.collection("registros").find().toArray();
+    const dados = await db.collection("registros")
+      .find()
+      .sort({ data: -1 })
+      .toArray();
+
     res.json(dados);
 
   } catch (err) {
     console.error("Erro ao buscar:", err);
-    res.status(500).json({ erro: "Erro ao buscar" });
+    res.status(500).json({ erro: err.message });
   }
 });
 
-// 🔥 CONECTAR MONGO (SEM DERRUBAR O APP)
+// 🔥 CONECTAR MONGO
 async function conectarMongo() {
   try {
     await client.connect();
-    db = client.db("rotas"); // 🔴 IMPORTANTE: use o mesmo nome da sua string
+    db = client.db("rotas");
 
     console.log("✅ Conectado ao MongoDB");
 
@@ -80,7 +87,7 @@ async function conectarMongo() {
   }
 }
 
-// 🔥 INICIA SERVIDOR SEMPRE
+// 🔥 INICIAR SERVIDOR
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });

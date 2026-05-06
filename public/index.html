@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { margin:0; font-family:Arial; background:#0F172A; color:white; }
+.container { display:flex; }
+.sidebar { width:220px; background:#111827; height:100vh; padding:20px; }
+.sidebar p { cursor:pointer; padding:8px; border-radius:5px; }
+.sidebar p:hover { background:#1F2937; }
+.main { flex:1; padding:20px; }
+.cards { display:flex; gap:20px; }
+.card { background:#1F2937; padding:20px; border-radius:10px; flex:1; }
+.graficos { display:flex; gap:20px; margin-top:30px; }
+.grafico { background:#1F2937; border-radius:10px; padding:10px; flex:1; height:300px; }
+</style>
+</head>
+<body>
+
+<input type="date" id="inicio">
+<input type="date" id="fim">
+<button onclick="filtrarData()">Filtrar</button>
+
+<div class="container">
+<div class="sidebar">
+<h2>⛽ Km Diário</h2>
+<p onclick="filtrar('TODOS')">Geral</p>
+<p onclick="filtrar('Sibele')">Sibele</p>
+<p onclick="filtrar('Empresa')">Empresa</p>
+<p onclick="filtrar('Danilo')">Danilo</p>
+<p onclick="filtrar('José Cicero')">José Cicero</p>
+<p onclick="filtrar('Welisson')">Welisson</p>
+<p onclick="filtrar('Danilo BH')">Danilo BH</p>
+<p onclick="filtrar('Thiago BH')">Thiago BH</p>
+
+<input type="password" id="senha" placeholder="Senha">
+<button onclick="acessar()">Ir para Dados</button>
+</div>
+
+<div class="main">
+<div class="cards">
+<div class="card"><h3>Gasto Total</h3><p id="gastoTotal">R$ 0</p></div>
+<div class="card"><h3>Km Total</h3><p id="kmTotal">0 Km</p></div>
+<div class="card"><h3>Individual</h3>
+<p id="gastoIndividual">R$ 0</p>
+<p id="kmIndividual">0 Km</p>
+</div>
+</div>
+
+<div class="graficos">
+<div class="grafico"><canvas id="g1"></canvas></div>
+<div class="grafico"><canvas id="g2"></canvas></div>
+</div>
+</div>
+</div>
+
+<script>
+const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
+let g1,g2;
+
+function acessar(){
+  if(document.getElementById("senha").value==="Brastemp1234"){
+    window.location.href="dados.html";
+  } else alert("Senha incorreta");
+}
+
+function filtrar(tecnico){
+  let dados = JSON.parse(localStorage.getItem("dados")) || [];
+  processar(dados, tecnico);
+}
+
+function processar(dados, tecnico){
+  let valores = Array(tecnicos.length).fill(0);
+  let kms = Array(tecnicos.length).fill(0);
+
+  dados.forEach(d=>{
+    if(tecnico==="TODOS" || d.tecnico===tecnico){
+      let i = tecnicos.indexOf(d.tecnico);
+      if(i>=0){
+        valores[i]+= d.valor;
+        kms[i]+= d.km;
+      }
+    }
+  });
+
+  atualizar(valores,kms,tecnico);
+}
+
+function atualizar(valores,kms,tecnico){
+  document.getElementById("gastoTotal").innerText="R$ "+valores.reduce((a,b)=>a+b,0).toFixed(2);
+  document.getElementById("kmTotal").innerText=kms.reduce((a,b)=>a+b,0)+" Km";
+
+  if(tecnico!=="TODOS"){
+    let i = tecnicos.indexOf(tecnico);
+    document.getElementById("gastoIndividual").innerText="R$ "+valores[i].toFixed(2);
+    document.getElementById("kmIndividual").innerText=kms[i]+" Km";
+  } else {
+    document.getElementById("gastoIndividual").innerText="R$ 0";
+    document.getElementById("kmIndividual").innerText="0 Km";
+  }
+
+  if(g1) g1.destroy();
+  if(g2) g2.destroy();
+
+  g1 = new Chart(document.getElementById("g1"),{
+    type:"bar",
+    data:{
+      labels:tecnicos,
+      datasets:[{label:"Gastos",data:valores}]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+
+  g2 = new Chart(document.getElementById("g2"),{
+    type:"bar",
+    data:{
+      labels:tecnicos,
+      datasets:[{label:"KM",data:kms}]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
+
+window.addEventListener("focus",()=>filtrar("TODOS"));
+
+filtrar("TODOS");
+
+async function filtrarData(){
+  let inicio = document.getElementById("inicio").value;
+  let fim = document.getElementById("fim").value;
+
+  let dados = await carregar({inicio,fim});
+  processar(dados, "TODOS");
+}
+</script>
+
+</body>
+</html>

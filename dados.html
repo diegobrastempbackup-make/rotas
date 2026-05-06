@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Dados</title>
+
+<style>
+body { background:#0F172A; color:white; font-family:Arial; }
+.container { padding:20px; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th,td { border:1px solid #333; padding:5px; text-align:center; }
+input { width:100%; background:#1F2937; border:none; color:white; }
+button { margin-top:5px; padding:5px; background:#3A8DFF; border:none; color:white; cursor:pointer; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<button onclick="voltar()">⬅ Voltar</button>
+<div id="tabelas"></div>
+</div>
+
+<script>
+const API = "https://rotas-2.onrender.com";
+
+const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
+
+function hoje(){
+  return new Date().toISOString().split("T")[0];
+}
+
+function voltar(){
+  window.location.href = "dashboard.html";
+}
+
+function criar(){
+  let c = document.getElementById("tabelas");
+  c.innerHTML = "";
+
+  tecnicos.forEach(nome=>{
+    c.innerHTML += `
+    <h2>${nome}</h2>
+    <table>
+    <tr>
+    <th>Data</th><th>KM Ini</th><th>KM Fim</th><th>KM</th>
+    <th>Consumo</th><th>Abast Ant</th><th>Abast Atual</th>
+    <th>Litros</th><th>Valor</th><th></th>
+    </tr>
+    <tbody id="${nome}"></tbody>
+    </table>
+    <button onclick="add('${nome}')">+ Linha</button>
+    `;
+  });
+
+  carregar();
+}
+
+function linha(dados={}){
+  return `
+  <tr>
+  <td><input type="date" value="${dados.data || hoje()}" onchange="salvar()"></td>
+  <td><input value="${dados.kmIni || ''}" oninput="calc(this)"></td>
+  <td><input value="${dados.kmFim || ''}" oninput="calc(this)"></td>
+  <td><input readonly value="${dados.km || ''}"></td>
+  <td><input readonly value="${dados.consumo || ''}"></td>
+  <td><input></td>
+  <td><input></td>
+  <td><input value="${dados.litros || ''}" oninput="calc(this)"></td>
+  <td><input value="${dados.valor || ''}" oninput="salvar()"></td>
+  <td><button onclick="remover(this)">🗑️</button></td>
+  </tr>
+  `;
+}
+
+function add(nome){
+  let tbody = document.getElementById(nome);
+  let tr = document.createElement("tr");
+  tr.innerHTML = linha();
+  tbody.appendChild(tr);
+}
+
+function calc(el){
+  let l = el.closest("tr");
+  let i = l.querySelectorAll("input");
+
+  let kmInicial = Number(i[1].value);
+  let kmFinal = Number(i[2].value);
+  let litros = Number(i[7].value);
+
+  let km = kmFinal - kmInicial;
+  i[3].value = km > 0 ? km : "";
+
+  let consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
+  i[4].value = consumo;
+
+  salvar();
+}
+
+function remover(btn){
+  btn.closest("tr").remove();
+  salvar();
+}
+
+// 🔥 SALVAR NO BACKEND
+async function salvar(){
+  let dados = [];
+
+  tecnicos.forEach(nome=>{
+    let linhas = document.querySelectorAll(`#${nome} tr`);
+
+    linhas.forEach(l=>{
+      let i = l.querySelectorAll("input");
+
+      dados.push({
+        tecnico: nome,
+        data: i[0].value,
+        km: Number(i[3].value),
+        valor: Number(i[8].value)
+      });
+    });
+  });
+
+  await fetch(API + "/registro", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dados })
+  });
+}
+
+// 🔥 CARREGAR DO BANCO
+async function carregar(){
+  const res = await fetch(API + "/registros");
+  const lista = await res.json();
+
+  lista.forEach(item=>{
+    let tbody = document.getElementById(item.tecnico);
+    if(tbody){
+      let tr = document.createElement("tr");
+      tr.innerHTML = linha(item);
+      tbody.appendChild(tr);
+    }
+  });
+}
+
+// INICIAR
+criar();
+</script>
+
+</body>
+</html>
