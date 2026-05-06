@@ -23,55 +23,40 @@ button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:whi
 </div>
 
 <script>
-const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
+const tecnicos = ["Sibele","Empresa","Danilo","Jose Cicero","Welisson","Danilo BH","Thiago BH"];
 
 function voltar(){
-  window.location.href = "/";
+  window.location.href="/";
 }
 
 function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
-// 🔥 CRIAR ESTRUTURA
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
 
   tecnicos.forEach(nome=>{
-    const bloco = document.createElement("div");
-
-    bloco.innerHTML = `
+    container.innerHTML += `
       <h2>${nome}</h2>
       <table>
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>KM Ini</th>
-            <th>KM Fim</th>
-            <th>KM</th>
-            <th>Consumo</th>
-            <th>Abast Ant</th>
-            <th>Abast Atual</th>
-            <th>Litros</th>
-            <th>Valor</th>
-            <th></th>
-          </tr>
-        </thead>
+        <tr>
+          <th>Data</th><th>KM Ini</th><th>KM Fim</th><th>KM</th>
+          <th>Consumo</th><th>Abast Ant</th><th>Abast Atual</th>
+          <th>Litros</th><th>Valor</th><th></th>
+        </tr>
         <tbody id="${nome}"></tbody>
       </table>
-      <button onclick="addLinha('${nome}')">+ Linha</button>
+      <button onclick="add('${nome}')">+ Linha</button>
     `;
-
-    container.appendChild(bloco);
   });
 }
 
-// 🔥 TEMPLATE DE LINHA
-function linha(d = {}){
+function linha(d={}){
   return `
   <tr>
-    <td><input type="date" value="${d.data ? d.data.split("T")[0] : hoje()}"></td>
+    <td><input type="date" value="${d.data || hoje()}"></td>
     <td><input value="${d.kmIni || ''}" oninput="calc(this)"></td>
     <td><input value="${d.kmFim || ''}" oninput="calc(this)"></td>
     <td><input readonly value="${d.km || ''}"></td>
@@ -85,36 +70,28 @@ function linha(d = {}){
   `;
 }
 
-// 🔥 ADD LINHA (SEM BUG)
-function addLinha(nome){
+function add(nome){
   const tbody = document.getElementById(nome);
   const tr = document.createElement("tr");
   tr.innerHTML = linha();
   tbody.appendChild(tr);
 }
 
-// 🔥 CALCULAR
 function calc(el){
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
 
-  const kmIni = Number(i[1].value);
-  const kmFim = Number(i[2].value);
-  const litros = Number(i[7].value);
-
-  const km = kmFim - kmIni;
+  const km = Number(i[2].value) - Number(i[1].value);
   i[3].value = km > 0 ? km : "";
 
-  const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
+  const consumo = (km > 0 && i[7].value) ? (km / i[7].value).toFixed(2) : "";
   i[4].value = consumo;
 }
 
-// 🔥 REMOVER
 function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🔥 SALVAR (SÓ O QUE TEM DADO)
 async function salvar(){
   let dados = [];
 
@@ -127,71 +104,54 @@ async function salvar(){
       const registro = {
         tecnico: nome,
         data: i[0].value,
-        kmIni: Number(i[1].value),
-        kmFim: Number(i[2].value),
         km: Number(i[3].value),
-        consumo: Number(i[4].value),
-        abastAnt: i[5].value,
-        abastAtual: i[6].value,
-        litros: Number(i[7].value),
-        valor: parseFloat(i[8].value.replace(",", ".")) || 0
+        valor: Number(i[8].value)
       };
 
-      const temDado =
-        registro.km > 0 ||
-        registro.valor > 0 ||
-        registro.litros > 0 ||
-        registro.abastAnt ||
-        registro.abastAtual;
-
-      if(temDado){
+      if(registro.km || registro.valor){
         dados.push(registro);
       }
     });
   });
 
-  if(dados.length === 0){
-    alert("Nenhum dado preenchido");
+  if(dados.length===0){
+    alert("Nenhum dado");
     return;
   }
 
-  await fetch("/registro", {
+  await fetch("/registro",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ dados })
   });
 
-  alert("Salvo com sucesso!");
+  alert("Salvo");
 }
 
-// 🔥 CARREGAR (SEM DUPLICAR)
 async function carregar(){
   const res = await fetch("/registros");
   const lista = await res.json();
 
   tecnicos.forEach(nome=>{
-    const tbody = document.getElementById(nome);
-    if(tbody) tbody.innerHTML = "";
+    document.getElementById(nome).innerHTML="";
   });
 
-  lista.forEach(item=>{
-    const tbody = document.getElementById(item.tecnico);
-
+  lista.forEach(d=>{
+    const tbody = document.getElementById(d.tecnico);
     if(tbody){
       const tr = document.createElement("tr");
-      tr.innerHTML = linha(item);
+      tr.innerHTML = linha(d);
       tbody.appendChild(tr);
     }
   });
 }
 
-// 🔥 INIT
-async function iniciar(){
+async function init(){
   criar();
   await carregar();
 }
 
-iniciar();
+init();
 </script>
 
 </body>

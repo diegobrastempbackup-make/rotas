@@ -5,7 +5,6 @@
 <title>Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
 <style>
 body { margin:0; font-family:Arial; background:#0F172A; color:white; }
@@ -16,19 +15,13 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 .main { flex:1; padding:20px; }
 .cards { display:flex; gap:20px; }
 .card { background:#1F2937; padding:20px; border-radius:10px; flex:1; }
-.graficos { display:flex; gap:20px; margin-top:30px; }
-.grafico { background:#1F2937; border-radius:10px; padding:10px; flex:1; height:300px; }
 </style>
 </head>
 
 <body>
 
-<input type="date" id="inicio">
-<input type="date" id="fim">
-<button onclick="filtrarData()">Filtrar</button>
-<button onclick="gerarPDF()">📄 PDF</button>
-
 <div class="container">
+
 <div class="sidebar">
 <h2>⛽ Km Diário</h2>
 
@@ -36,7 +29,7 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 <p onclick="filtrar('Sibele')">Sibele</p>
 <p onclick="filtrar('Empresa')">Empresa</p>
 <p onclick="filtrar('Danilo')">Danilo</p>
-<p onclick="filtrar('José Cicero')">José Cicero</p>
+<p onclick="filtrar('Jose Cicero')">José Cicero</p>
 <p onclick="filtrar('Welisson')">Welisson</p>
 <p onclick="filtrar('Danilo BH')">Danilo BH</p>
 <p onclick="filtrar('Thiago BH')">Thiago BH</p>
@@ -50,16 +43,12 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 <div class="card"><h3>Gasto Total</h3><p id="gastoTotal">R$ 0</p></div>
 <div class="card"><h3>Km Total</h3><p id="kmTotal">0 Km</p></div>
 </div>
+</div>
 
-<div class="graficos">
-<div class="grafico"><canvas id="g1"></canvas></div>
-<div class="grafico"><canvas id="g2"></canvas></div>
-</div>
-</div>
 </div>
 
 <script>
-const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
+const tecnicos = ["Sibele","Empresa","Danilo","Jose Cicero","Welisson","Danilo BH","Thiago BH"];
 
 let dadosGlobais = [];
 
@@ -71,68 +60,26 @@ function acessar(){
 
 async function carregar(){
   const res = await fetch("/registros");
-  const dados = await res.json();
-  return dados;
+  return await res.json();
 }
 
-function processar(dados){
+function processar(dados, tecnico="TODOS"){
   let totalGasto = 0;
   let totalKm = 0;
 
-  let valores = Array(tecnicos.length).fill(0);
-  let kms = Array(tecnicos.length).fill(0);
-
   dados.forEach(d=>{
-    let i = tecnicos.indexOf(d.tecnico);
-    if(i >= 0){
-      let v = parseFloat(d.valor) || 0;
-      let k = parseFloat(d.km) || 0;
-
-      valores[i] += v;
-      kms[i] += k;
-
-      totalGasto += v;
-      totalKm += k;
+    if(tecnico==="TODOS" || d.tecnico===tecnico){
+      totalGasto += Number(d.valor) || 0;
+      totalKm += Number(d.km) || 0;
     }
   });
 
   document.getElementById("gastoTotal").innerText = "R$ " + totalGasto.toFixed(2);
   document.getElementById("kmTotal").innerText = totalKm + " Km";
-
-  new Chart(document.getElementById("g1"), {
-    type:"bar",
-    data:{ labels:tecnicos, datasets:[{label:"Gasto",data:valores}] }
-  });
-
-  new Chart(document.getElementById("g2"), {
-    type:"bar",
-    data:{ labels:tecnicos, datasets:[{label:"KM",data:kms}] }
-  });
 }
 
-function filtrarData(){
-  let inicio = document.getElementById("inicio").value;
-  let fim = document.getElementById("fim").value;
-
-  let filtrado = dadosGlobais.filter(d=>{
-    let data = new Date(d.data);
-    if(inicio && data < new Date(inicio)) return false;
-    if(fim && data > new Date(fim)) return false;
-    return true;
-  });
-
-  processar(filtrado);
-}
-
-function gerarPDF(){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  doc.text("Relatório de Gastos", 10, 10);
-  doc.text(document.getElementById("gastoTotal").innerText, 10, 20);
-  doc.text(document.getElementById("kmTotal").innerText, 10, 30);
-
-  doc.save("relatorio.pdf");
+function filtrar(t){
+  processar(dadosGlobais, t);
 }
 
 async function init(){

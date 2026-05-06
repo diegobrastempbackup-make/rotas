@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
-// 🔥 CONECTA
+// conectar
 async function conectar(){
   await client.connect();
   db = client.db("rotas");
@@ -22,12 +22,11 @@ async function conectar(){
 }
 conectar();
 
-// 🔥 SALVAR (SUBSTITUI TUDO)
+// salvar (substitui tudo)
 app.post("/registro", async (req, res) => {
   try {
     const collection = db.collection("registros");
 
-    // 🔥 LIMPA E SALVA NOVO (CONSISTÊNCIA TOTAL)
     await collection.deleteMany({});
     await collection.insertMany(req.body.dados);
 
@@ -38,13 +37,12 @@ app.post("/registro", async (req, res) => {
   }
 });
 
-// 🔥 LISTAR
+// listar
 app.get("/registros", async (req, res) => {
   const dados = await db.collection("registros").find().toArray();
   res.json(dados);
 });
 
-// 🔥 START
 app.listen(PORT, "0.0.0.0", ()=>{
   console.log("🚀 Rodando na porta", PORT);
 });
