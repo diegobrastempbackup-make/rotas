@@ -23,6 +23,7 @@ button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:whi
 </div>
 
 <script>
+
 const tecnicos = ["Sibele","Empresa","Danilo","Jose Cicero","Welisson","Danilo BH","Thiago BH"];
 
 function voltar(){
@@ -38,22 +39,29 @@ function criar(){
   container.innerHTML = "";
 
   tecnicos.forEach(nome=>{
-    container.innerHTML += `
+    const bloco = document.createElement("div");
+
+    bloco.innerHTML = `
       <h2>${nome}</h2>
       <table>
-        <tr>
-          <th>Data</th><th>KM Ini</th><th>KM Fim</th><th>KM</th>
-          <th>Consumo</th><th>Abast Ant</th><th>Abast Atual</th>
-          <th>Litros</th><th>Valor</th><th></th>
-        </tr>
+        <thead>
+          <tr>
+            <th>Data</th><th>KM Ini</th><th>KM Fim</th>
+            <th>KM</th><th>Consumo</th>
+            <th>Abast Ant</th><th>Abast Atual</th>
+            <th>Litros</th><th>Valor</th><th></th>
+          </tr>
+        </thead>
         <tbody id="${nome}"></tbody>
       </table>
-      <button onclick="add('${nome}')">+ Linha</button>
+      <button onclick="addLinha('${nome}')">+ Linha</button>
     `;
+
+    container.appendChild(bloco);
   });
 }
 
-function linha(d={}){
+function linha(d = {}){
   return `
   <tr>
     <td><input type="date" value="${d.data || hoje()}"></td>
@@ -70,7 +78,7 @@ function linha(d={}){
   `;
 }
 
-function add(nome){
+function addLinha(nome){
   const tbody = document.getElementById(nome);
   const tr = document.createElement("tr");
   tr.innerHTML = linha();
@@ -81,10 +89,14 @@ function calc(el){
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
 
-  const km = Number(i[2].value) - Number(i[1].value);
+  const kmIni = Number(i[1].value);
+  const kmFim = Number(i[2].value);
+  const litros = Number(i[7].value);
+
+  const km = kmFim - kmIni;
   i[3].value = km > 0 ? km : "";
 
-  const consumo = (km > 0 && i[7].value) ? (km / i[7].value).toFixed(2) : "";
+  const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
   i[4].value = consumo;
 }
 
@@ -101,31 +113,32 @@ async function salvar(){
     linhas.forEach(l=>{
       const i = l.querySelectorAll("input");
 
-      const registro = {
-        tecnico: nome,
-        data: i[0].value,
-        km: Number(i[3].value),
-        valor: Number(i[8].value)
-      };
+      let km = Number(i[3].value);
+      let valor = parseFloat(i[8].value.replace(",", ".")) || 0;
 
-      if(registro.km || registro.valor){
-        dados.push(registro);
+      if(km > 0 || valor > 0){
+        dados.push({
+          tecnico: nome,
+          data: i[0].value,
+          km: km,
+          valor: valor
+        });
       }
     });
   });
 
-  if(dados.length===0){
+  if(dados.length === 0){
     alert("Nenhum dado");
     return;
   }
 
-  await fetch("/registro",{
+  await fetch("/registro", {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ dados })
   });
 
-  alert("Salvo");
+  alert("Salvo com sucesso!");
 }
 
 async function carregar(){
@@ -133,11 +146,12 @@ async function carregar(){
   const lista = await res.json();
 
   tecnicos.forEach(nome=>{
-    document.getElementById(nome).innerHTML="";
+    document.getElementById(nome).innerHTML = "";
   });
 
   lista.forEach(d=>{
     const tbody = document.getElementById(d.tecnico);
+
     if(tbody){
       const tr = document.createElement("tr");
       tr.innerHTML = linha(d);
@@ -146,12 +160,13 @@ async function carregar(){
   });
 }
 
-async function init(){
+async function iniciar(){
   criar();
   await carregar();
 }
 
-init();
+iniciar();
+
 </script>
 
 </body>

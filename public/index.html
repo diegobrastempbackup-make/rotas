@@ -5,6 +5,7 @@
 <title>Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body { margin:0; font-family:Arial; background:#0F172A; color:white; }
@@ -23,72 +24,132 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 <div class="container">
 
 <div class="sidebar">
-<h2>⛽ Km Diário</h2>
+<h2>Dashboard</h2>
 
 <p onclick="filtrar('TODOS')">Geral</p>
 <p onclick="filtrar('Sibele')">Sibele</p>
 <p onclick="filtrar('Empresa')">Empresa</p>
 <p onclick="filtrar('Danilo')">Danilo</p>
-<p onclick="filtrar('Jose Cicero')">José Cicero</p>
+<p onclick="filtrar('Jose Cicero')">Jose Cicero</p>
 <p onclick="filtrar('Welisson')">Welisson</p>
 <p onclick="filtrar('Danilo BH')">Danilo BH</p>
 <p onclick="filtrar('Thiago BH')">Thiago BH</p>
 
+<br>
+
+<input type="date" id="inicio">
+<input type="date" id="fim">
+<button onclick="filtrarData()">Filtrar Data</button>
+
+<br><br>
+
+<button onclick="gerarPDF()">📄 Relatório</button>
+
+<br><br>
+
 <input type="password" id="senha" placeholder="Senha">
 <button onclick="acessar()">Ir para Dados</button>
+
 </div>
 
 <div class="main">
+
 <div class="cards">
 <div class="card"><h3>Gasto Total</h3><p id="gastoTotal">R$ 0</p></div>
-<div class="card"><h3>Km Total</h3><p id="kmTotal">0 Km</p></div>
+<div class="card"><h3>Km Total</h3><p id="kmTotal">0</p></div>
+<div class="card">
+<h3>Individual</h3>
+<p id="gastoIndividual">R$ 0</p>
+<p id="kmIndividual">0</p>
 </div>
 </div>
 
+</div>
 </div>
 
 <script>
-const tecnicos = ["Sibele","Empresa","Danilo","Jose Cicero","Welisson","Danilo BH","Thiago BH"];
 
-let dadosGlobais = [];
-
-function acessar(){
-  if(document.getElementById("senha").value==="Brastemp1234"){
-    window.location.href="/dados.html";
-  } else alert("Senha incorreta");
-}
+let dadosGlobal = [];
 
 async function carregar(){
   const res = await fetch("/registros");
-  return await res.json();
+  dadosGlobal = await res.json();
+  processar(dadosGlobal, "TODOS");
 }
 
-function processar(dados, tecnico="TODOS"){
+function acessar(){
+  if(document.getElementById("senha").value === "Brastemp1234"){
+    window.location.href="dados.html";
+  } else alert("Senha incorreta");
+}
+
+function filtrar(tecnico){
+  processar(dadosGlobal, tecnico);
+}
+
+function processar(dados, tecnico){
+
   let totalGasto = 0;
   let totalKm = 0;
 
+  let gastoInd = 0;
+  let kmInd = 0;
+
   dados.forEach(d=>{
-    if(tecnico==="TODOS" || d.tecnico===tecnico){
-      totalGasto += Number(d.valor) || 0;
-      totalKm += Number(d.km) || 0;
+    let valor = Number(d.valor) || 0;
+    let km = Number(d.km) || 0;
+
+    totalGasto += valor;
+    totalKm += km;
+
+    if(tecnico !== "TODOS" && d.tecnico === tecnico){
+      gastoInd += valor;
+      kmInd += km;
     }
   });
 
   document.getElementById("gastoTotal").innerText = "R$ " + totalGasto.toFixed(2);
-  document.getElementById("kmTotal").innerText = totalKm + " Km";
+  document.getElementById("kmTotal").innerText = totalKm;
+
+  document.getElementById("gastoIndividual").innerText =
+    tecnico === "TODOS" ? "R$ 0" : "R$ " + gastoInd.toFixed(2);
+
+  document.getElementById("kmIndividual").innerText =
+    tecnico === "TODOS" ? "0" : kmInd;
 }
 
-function filtrar(t){
-  processar(dadosGlobais, t);
+function filtrarData(){
+  let inicio = document.getElementById("inicio").value;
+  let fim = document.getElementById("fim").value;
+
+  let filtrado = dadosGlobal.filter(d=>{
+    return (!inicio || d.data >= inicio) &&
+           (!fim || d.data <= fim);
+  });
+
+  processar(filtrado, "TODOS");
 }
 
-async function init(){
-  dadosGlobais = await carregar();
-  processar(dadosGlobais);
+// 🔥 PDF FUNCIONANDO
+function gerarPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  let y = 10;
+
+  doc.text("Relatório de Gastos", 10, y);
+  y += 10;
+
+  dadosGlobal.forEach(d=>{
+    doc.text(`${d.tecnico} | KM: ${d.km} | R$: ${d.valor}`, 10, y);
+    y += 7;
+  });
+
+  doc.save("relatorio.pdf");
 }
 
-init();
+carregar();
+
 </script>
-
 </body>
 </html>
