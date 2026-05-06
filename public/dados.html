@@ -25,6 +25,8 @@ button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:whi
 <script>
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
+let carregando = false; // 🔥 CONTROLE ANTI-DUPLICAÇÃO
+
 function voltar(){
   window.location.href="/";
 }
@@ -33,7 +35,7 @@ function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
-// 🔥 CRIAR TABELAS (SEM BUG)
+// 🔥 CRIAR TABELAS
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
@@ -85,7 +87,7 @@ function linha(d = {}){
   `;
 }
 
-// 🔥 ADD LINHA (SEM LOOP)
+// 🔥 ADD LINHA
 function addLinha(nome){
   const tbody = document.getElementById(nome);
   const tr = document.createElement("tr");
@@ -114,7 +116,7 @@ function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🔥 SALVAR (INTELIGENTE)
+// 🔥 SALVAR
 async function salvar(){
   let dados = [];
 
@@ -134,7 +136,7 @@ async function salvar(){
         abastAnt: i[5].value.trim(),
         abastAtual: i[6].value.trim(),
         litros: Number(i[7].value),
-        valor: Number(i[8].value)
+        valor: parseFloat(i[8].value.replace(",", ".")) || 0
       };
 
       const temDado =
@@ -152,12 +154,12 @@ async function salvar(){
     });
   });
 
-  console.log("SALVANDO:", dados);
-
   if(dados.length === 0){
     alert("Nenhum dado preenchido");
     return;
   }
+
+  console.log("SALVANDO:", dados);
 
   await fetch("/registro", {
     method:"POST",
@@ -168,18 +170,34 @@ async function salvar(){
   alert("Salvo com sucesso!");
 }
 
-// 🔥 CARREGAR
+// 🔥 CARREGAR (ANTI DUPLICAÇÃO REAL)
 async function carregar(){
+  if(carregando) return; // 🔥 trava duplicação
+  carregando = true;
+
   const res = await fetch("/registros");
   const lista = await res.json();
 
+  // limpa
+  tecnicos.forEach(nome=>{
+    const tbody = document.getElementById(nome);
+    if(tbody) tbody.innerHTML = "";
+  });
+
+  // renderiza
   lista.forEach(item=>{
-    const tr = document.createElement("tr");
-    tr.innerHTML = linha(item);
+    if(!item.tecnico) return;
 
     const tbody = document.getElementById(item.tecnico);
-    if(tbody) tbody.appendChild(tr);
+
+    if(tbody){
+      const tr = document.createElement("tr");
+      tr.innerHTML = linha(item);
+      tbody.appendChild(tr);
+    }
   });
+
+  carregando = false;
 }
 
 // INIT
@@ -187,6 +205,7 @@ async function iniciar(){
   criar();
   await carregar();
 }
+
 iniciar();
 </script>
 
