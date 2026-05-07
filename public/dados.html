@@ -5,45 +5,138 @@
 <title>Dados</title>
 
 <style>
-body { background:#0F172A; color:white; font-family:Arial; }
-.container { padding:20px; }
-table { width:100%; border-collapse:collapse; margin-top:10px; }
-th,td { border:1px solid #333; padding:5px; text-align:center; }
-input { width:100%; background:#1F2937; border:none; color:white; }
-button { margin-top:5px; padding:6px; background:#3A8DFF; border:none; color:white; cursor:pointer; }
+
+body{
+  background:#0F172A;
+  color:white;
+  font-family:Arial;
+  margin:0;
+}
+
+.container{
+  padding:20px;
+}
+
+.topo{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:20px;
+}
+
+button{
+  padding:8px 15px;
+  background:#3A8DFF;
+  border:none;
+  border-radius:5px;
+  color:white;
+  cursor:pointer;
+}
+
+button:hover{
+  opacity:0.9;
+}
+
+input{
+  background:#1F2937;
+  border:none;
+  color:white;
+  padding:6px;
+  width:100%;
+  box-sizing:border-box;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+  margin-bottom:20px;
+}
+
+th,td{
+  border:1px solid #333;
+  padding:5px;
+  text-align:center;
+}
+
+h2{
+  background:#111827;
+  padding:10px;
+  border-radius:5px;
+}
+
 </style>
 </head>
 
 <body>
 
 <div class="container">
-<button onclick="voltar()">⬅ Voltar</button>
-<button onclick="salvar()">💾 Salvar</button>
+
+<div class="topo">
+
+<button onclick="voltar()">
+⬅ Voltar
+</button>
+
+<button onclick="salvar()">
+💾 Salvar
+</button>
+
+<input type="month" id="mesFiltro">
+
+<button onclick="filtrarMes()">
+🔍 Buscar
+</button>
+
+<button onclick="mostrarTudo()">
+♻ Mostrar Tudo
+</button>
+
+</div>
+
 <div id="tabelas"></div>
+
 </div>
 
 <script>
-const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
 
+const tecnicos = [
+  "Sibele",
+  "Empresa",
+  "Danilo",
+  "José Cicero",
+  "Welisson",
+  "Danilo BH",
+  "Thiago BH"
+];
+
+// 🔥 VOLTAR
 function voltar(){
-  window.location.href="/";
+  window.location.href = "/";
 }
 
+// 🔥 DATA HOJE
 function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
-// 🔥 CRIAR TABELAS (SEM BUG)
+// 🔥 CRIAR TABELAS
 function criar(){
+
   const container = document.getElementById("tabelas");
+
   container.innerHTML = "";
 
   tecnicos.forEach(nome=>{
+
     const bloco = document.createElement("div");
 
     bloco.innerHTML = `
+
       <h2>${nome}</h2>
+
       <table>
+
         <thead>
           <tr>
             <th>Data</th>
@@ -58,141 +151,316 @@ function criar(){
             <th></th>
           </tr>
         </thead>
-        <tbody data-tecnico="${nome}"></tbody>
+
+        <tbody id="${nome}"></tbody>
+
       </table>
-      <button onclick="addLinha('${nome}')">+ Linha</button>
+
+      <button onclick="addLinha('${nome}')">
+      + Linha
+      </button>
+
+      <hr>
+
     `;
 
     container.appendChild(bloco);
+
   });
+
 }
 
 // 🔥 LINHA
 function linha(d = {}){
+
   return `
+
   <tr>
-    <td><input type="date" value="${d.data || hoje()}"></td>
-    <td><input value="${d.kmIni || ''}" oninput="calc(this)"></td>
-    <td><input value="${d.kmFim || ''}" oninput="calc(this)"></td>
-    <td><input readonly value="${d.km || ''}"></td>
-    <td><input readonly value="${d.consumo || ''}"></td>
-    <td><input value="${d.abastAnt || ''}"></td>
-    <td><input value="${d.abastAtual || ''}"></td>
-    <td><input value="${d.litros || ''}" oninput="calc(this)"></td>
-    <td><input value="${d.valor || ''}"></td>
-    <td><button onclick="remover(this)">🗑️</button></td>
+
+    <td>
+      <input type="date"
+      value="${d.data || hoje()}">
+    </td>
+
+    <td>
+      <input
+      value="${d.kmIni || ''}"
+      oninput="calc(this)">
+    </td>
+
+    <td>
+      <input
+      value="${d.kmFim || ''}"
+      oninput="calc(this)">
+    </td>
+
+    <td>
+      <input
+      readonly
+      value="${d.km || ''}">
+    </td>
+
+    <td>
+      <input
+      readonly
+      value="${d.consumo || ''}">
+    </td>
+
+    <td>
+      <input
+      value="${d.abastAnt || ''}">
+    </td>
+
+    <td>
+      <input
+      value="${d.abastAtual || ''}">
+    </td>
+
+    <td>
+      <input
+      value="${d.litros || ''}"
+      oninput="calc(this)">
+    </td>
+
+    <td>
+      <input
+      value="${d.valor || ''}">
+    </td>
+
+    <td>
+      <button onclick="remover(this)">
+      🗑️
+      </button>
+    </td>
+
   </tr>
+
   `;
+
 }
 
-// 🔥 ADD LINHA
+// 🔥 ADICIONAR LINHA
 function addLinha(nome){
-  const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+
+  const tbody = document.getElementById(nome);
+
   const tr = document.createElement("tr");
+
   tr.innerHTML = linha();
+
   tbody.appendChild(tr);
+
 }
 
 // 🔥 CALCULAR
 function calc(el){
+
   const tr = el.closest("tr");
+
   const i = tr.querySelectorAll("input");
 
   const kmIni = Number(i[1].value);
+
   const kmFim = Number(i[2].value);
+
   const litros = Number(i[7].value);
 
   const km = kmFim - kmIni;
+
   i[3].value = km > 0 ? km : "";
 
-  const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
+  const consumo =
+    (km > 0 && litros > 0)
+    ? (km / litros).toFixed(2)
+    : "";
+
   i[4].value = consumo;
+
 }
 
 // 🔥 REMOVER
 function remover(btn){
+
   btn.closest("tr").remove();
+
 }
 
-// 🔥 SALVAR (CORRIGIDO DE VERDADE)
+// 🔥 SALVAR
 async function salvar(){
+
   let dados = [];
 
   tecnicos.forEach(nome=>{
-    const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
+
+    const linhas = document.querySelectorAll(`#${nome} tr`);
 
     linhas.forEach(l=>{
+
       const i = l.querySelectorAll("input");
 
       const registro = {
+
         tecnico: nome,
+
         data: i[0].value,
-        kmIni: Number(i[1].value),
-        kmFim: Number(i[2].value),
-        km: Number(i[3].value),
-        consumo: Number(i[4].value),
-        abastAnt: i[5].value,
-        abastAtual: i[6].value,
-        litros: Number(i[7].value),
-        valor: parseFloat(i[8].value.replace(",", ".")) || 0
+
+        kmIni: Number(i[1].value) || 0,
+
+        kmFim: Number(i[2].value) || 0,
+
+        km: Number(i[3].value) || 0,
+
+        consumo: Number(i[4].value) || 0,
+
+        abastAnt: i[5].value || "",
+
+        abastAtual: i[6].value || "",
+
+        litros: Number(i[7].value) || 0,
+
+        valor: parseFloat(
+          i[8].value.replace(",", ".")
+        ) || 0
+
       };
 
-      const temDado =
+      // 🔥 IGNORA LINHAS VAZIAS
+      const temDados =
+
+        registro.kmIni > 0 ||
+        registro.kmFim > 0 ||
         registro.km > 0 ||
         registro.valor > 0 ||
         registro.litros > 0 ||
-        registro.abastAnt ||
-        registro.abastAtual;
+        registro.abastAnt !== "" ||
+        registro.abastAtual !== "";
 
-      if(temDado){
+      if(temDados){
+
         dados.push(registro);
-      }
-    });
-  });
 
-  console.log("ENVIANDO:", dados);
+      }
+
+    });
+
+  });
 
   if(dados.length === 0){
-    alert("Nenhum dado");
+
+    alert("Nenhum dado preenchido");
+
     return;
+
   }
 
-  await fetch("/registro", {
+  const res = await fetch("/registro", {
+
     method:"POST",
-    headers:{ "Content-Type":"application/json" },
+
+    headers:{
+      "Content-Type":"application/json"
+    },
+
     body: JSON.stringify({ dados })
+
   });
 
-  alert("Salvo com sucesso!");
+  if(res.ok){
+
+    alert("Salvo com sucesso!");
+
+    carregar();
+
+  }else{
+
+    alert("Erro ao salvar");
+
+  }
+
 }
 
 // 🔥 CARREGAR
-async function carregar(){
+async function carregar(mes = ""){
+
   const res = await fetch("/registros");
-  const lista = await res.json();
 
+  let lista = await res.json();
+
+  // 🔥 FILTRO POR MÊS
+  if(mes){
+
+    lista = lista.filter(item=>{
+
+      if(!item.data) return false;
+
+      return item.data.startsWith(mes);
+
+    });
+
+  }
+
+  // 🔥 LIMPA TABELAS
   tecnicos.forEach(nome=>{
-    const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
-    if(tbody) tbody.innerHTML = "";
-  });
 
-  lista.forEach(item=>{
-    const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
+    const tbody = document.getElementById(nome);
 
     if(tbody){
-      const tr = document.createElement("tr");
-      tr.innerHTML = linha(item);
-      tbody.appendChild(tr);
+
+      tbody.innerHTML = "";
+
     }
+
   });
+
+  // 🔥 CARREGA REGISTROS
+  lista.forEach(item=>{
+
+    const tbody = document.getElementById(item.tecnico);
+
+    if(tbody){
+
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = linha(item);
+
+      tbody.appendChild(tr);
+
+    }
+
+  });
+
 }
 
-// INIT
-async function iniciar(){
-  criar();
-  await carregar();
+// 🔥 FILTRAR MÊS
+function filtrarMes(){
+
+  const mes =
+    document.getElementById("mesFiltro").value;
+
+  carregar(mes);
+
 }
+
+// 🔥 MOSTRAR TUDO
+function mostrarTudo(){
+
+  document.getElementById("mesFiltro").value = "";
+
+  carregar();
+
+}
+
+// 🔥 INICIAR
+async function iniciar(){
+
+  criar();
+
+  await carregar();
+
+}
+
 iniciar();
+
 </script>
 
 </body>
