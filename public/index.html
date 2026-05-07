@@ -3,9 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Dashboard</title>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body { margin:0; font-family:Arial; background:#0F172A; color:white; }
@@ -13,7 +11,6 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 .sidebar { width:220px; background:#111827; height:100vh; padding:20px; }
 .sidebar p { cursor:pointer; padding:8px; border-radius:5px; }
 .sidebar p:hover { background:#1F2937; }
-
 .main { flex:1; padding:20px; }
 
 .cards { display:flex; gap:20px; }
@@ -21,18 +18,6 @@ body { margin:0; font-family:Arial; background:#0F172A; color:white; }
 
 .graficos { display:flex; gap:20px; margin-top:30px; }
 .grafico { background:#1F2937; border-radius:10px; padding:10px; flex:1; height:300px; }
-
-input, button {
-  margin-top:5px;
-  padding:5px;
-  border:none;
-}
-
-button {
-  background:#3A8DFF;
-  color:white;
-  cursor:pointer;
-}
 </style>
 </head>
 
@@ -53,37 +38,15 @@ button {
 <p onclick="filtrar('Thiago BH')">Thiago BH</p>
 
 <br>
-
-<input type="date" id="inicio">
-<input type="date" id="fim">
-<button onclick="filtrarData()">Filtrar Data</button>
-
-<br><br>
-
-<button onclick="gerarPDF()">📄 Relatório</button>
-
-<br><br>
-
-<input type="password" id="senha" placeholder="Senha">
-<button onclick="acessar()">Ir para Dados</button>
-
+<button onclick="irDados()">Ir para Dados</button>
 </div>
 
 <div class="main">
 
 <div class="cards">
-<div class="card">
-<h3>Gasto Total</h3>
-<p id="gastoTotal">R$ 0</p>
-</div>
-
-<div class="card">
-<h3>Km Total</h3>
-<p id="kmTotal">0</p>
-</div>
-
-<div class="card">
-<h3>Individual</h3>
+<div class="card"><h3>Gasto Total</h3><p id="gastoTotal">R$ 0</p></div>
+<div class="card"><h3>Km Total</h3><p id="kmTotal">0</p></div>
+<div class="card"><h3>Individual</h3>
 <p id="gastoIndividual">R$ 0</p>
 <p id="kmIndividual">0</p>
 </div>
@@ -98,60 +61,33 @@ button {
 </div>
 
 <script>
-const API = "";
 const tecnicos = ["Sibele","Empresa","Danilo","José Cicero","Welisson","Danilo BH","Thiago BH"];
-
 let dadosGlobal = [];
-let tecnicoAtual = "TODOS";
-let g1, g2;
+let g1,g2;
 
-// 🔥 IR PARA DADOS
-function acessar(){
-  if(document.getElementById("senha").value==="Brastemp1234"){
-    window.location.href="/dados.html";
-  } else {
-    alert("Senha incorreta");
-  }
+function irDados(){
+  window.location.href = "dados.html";
 }
 
-// 🔥 BUSCAR DO BACKEND
+// 🔥 CARREGAR
 async function carregar(){
   const res = await fetch("/registros");
   dadosGlobal = await res.json();
-  processar(dadosGlobal, tecnicoAtual);
+  processar(dadosGlobal, "TODOS");
 }
 
-// 🔥 FILTRO POR TÉCNICO
-function filtrar(nome){
-  tecnicoAtual = nome;
-  processar(dadosGlobal, nome);
-}
-
-// 🔥 FILTRO POR DATA
-function filtrarData(){
-  const inicio = document.getElementById("inicio").value;
-  const fim = document.getElementById("fim").value;
-
-  let filtrado = dadosGlobal.filter(d=>{
-    if(!inicio || !fim) return true;
-    return d.data >= inicio && d.data <= fim;
-  });
-
-  processar(filtrado, tecnicoAtual);
-}
-
-// 🔥 PROCESSAMENTO
+// 🔥 PROCESSAR (CORRIGIDO)
 function processar(dados, tecnico){
   let valores = Array(tecnicos.length).fill(0);
   let kms = Array(tecnicos.length).fill(0);
 
   dados.forEach(d=>{
-    let i = tecnicos.indexOf(d.tecnico);
+    if(tecnico==="TODOS" || d.tecnico===tecnico){
+      let i = tecnicos.indexOf(d.tecnico);
 
-    if(i >= 0){
-      if(tecnico==="TODOS" || d.tecnico === tecnico){
-        valores[i] += Number(d.valor) || 0;
+      if(i >= 0){
         kms[i] += Number(d.km) || 0;
+        valores[i] += Number(d.valor) || 0;
       }
     }
   });
@@ -159,71 +95,42 @@ function processar(dados, tecnico){
   atualizar(valores, kms, tecnico);
 }
 
-// 🔥 ATUALIZA DASHBOARD
-function atualizar(valores, kms, tecnico){
+function atualizar(valores,kms,tecnico){
+  document.getElementById("gastoTotal").innerText =
+    "R$ " + valores.reduce((a,b)=>a+b,0).toFixed(2);
 
-  const totalValor = valores.reduce((a,b)=>a+b,0);
-  const totalKm = kms.reduce((a,b)=>a+b,0);
-
-  document.getElementById("gastoTotal").innerText = "R$ " + totalValor.toFixed(2);
-  document.getElementById("kmTotal").innerText = totalKm;
+  document.getElementById("kmTotal").innerText =
+    kms.reduce((a,b)=>a+b,0);
 
   if(tecnico !== "TODOS"){
     let i = tecnicos.indexOf(tecnico);
-    document.getElementById("gastoIndividual").innerText = "R$ " + valores[i].toFixed(2);
-    document.getElementById("kmIndividual").innerText = kms[i];
-  } else {
-    document.getElementById("gastoIndividual").innerText = "R$ 0";
-    document.getElementById("kmIndividual").innerText = "0";
+
+    document.getElementById("gastoIndividual").innerText =
+      "R$ " + (valores[i] || 0).toFixed(2);
+
+    document.getElementById("kmIndividual").innerText =
+      kms[i] || 0;
   }
 
   if(g1) g1.destroy();
   if(g2) g2.destroy();
 
-  g1 = new Chart(document.getElementById("g1"),{
+  g1 = new Chart(g1Canvas, {
     type:"bar",
-    data:{
-      labels:tecnicos,
-      datasets:[{label:"Gastos",data:valores}]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{ labels:tecnicos, datasets:[{label:"Gasto", data:valores}] }
   });
 
-  g2 = new Chart(document.getElementById("g2"),{
+  g2 = new Chart(g2Canvas, {
     type:"bar",
-    data:{
-      labels:tecnicos,
-      datasets:[{label:"KM",data:kms}]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{ labels:tecnicos, datasets:[{label:"KM", data:kms}] }
   });
 }
 
-// 🔥 PDF
-function gerarPDF(){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  let y = 10;
-
-  doc.text("RELATÓRIO", 10, y);
-  y += 10;
-
-  dadosGlobal.forEach(d=>{
-    doc.text(
-      `${d.tecnico} | ${d.data} | KM: ${d.km} | R$: ${d.valor}`,
-      10,
-      y
-    );
-    y += 8;
-  });
-
-  doc.save("relatorio.pdf");
+function filtrar(nome){
+  processar(dadosGlobal, nome);
 }
 
-// INIT
 carregar();
-
 </script>
 
 </body>

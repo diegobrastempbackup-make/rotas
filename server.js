@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -17,20 +18,26 @@ let db;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
 
-// HOME
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/public/index.html");
+// 🔥 SERVIR FRONTEND
+app.use(express.static(path.join(__dirname, "public")));
+
+// 🔥 TESTE
+app.get("/api", (req, res) => {
+  res.send("API ONLINE 🚀");
 });
 
-// 🔥 SALVAR (SUBSTITUI TUDO)
+// 🔥 SALVAR (DEFINITIVO)
 app.post("/registro", async (req, res) => {
   try {
+    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
+
     const collection = db.collection("registros");
 
-    // LIMPA e salva novo (EVITA DUPLICAÇÃO)
+    // 🔥 LIMPA TUDO (resolve duplicação e troca de técnico)
     await collection.deleteMany({});
+
+    // 🔥 INSERE NOVO
     await collection.insertMany(req.body.dados);
 
     res.json({ ok: true });
@@ -51,14 +58,15 @@ app.get("/registros", async (req, res) => {
   }
 });
 
-// START
-async function start() {
+// 🔥 CONECTAR
+async function iniciar() {
   await client.connect();
   db = client.db("rotas");
+  console.log("✅ Mongo conectado");
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log("🚀 Rodando na porta", PORT);
+  app.listen(PORT, () => {
+    console.log("🚀 Rodando na porta " + PORT);
   });
 }
 
-start();
+iniciar();
