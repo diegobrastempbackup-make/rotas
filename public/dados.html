@@ -5,7 +5,6 @@
 <title>Dados</title>
 
 <style>
-
 body{
   background:#0F172A;
   color:white;
@@ -20,37 +19,14 @@ body{
 .topo{
   display:flex;
   gap:10px;
-  flex-wrap:wrap;
   margin-bottom:20px;
-}
-
-button{
-  padding:8px 15px;
-  background:#3A8DFF;
-  border:none;
-  border-radius:5px;
-  color:white;
-  cursor:pointer;
-}
-
-button:hover{
-  opacity:0.9;
-}
-
-input{
-  background:#1F2937;
-  border:none;
-  color:white;
-  padding:6px;
-  width:100%;
-  box-sizing:border-box;
+  flex-wrap:wrap;
 }
 
 table{
   width:100%;
   border-collapse:collapse;
   margin-top:10px;
-  margin-bottom:20px;
 }
 
 th,td{
@@ -59,12 +35,35 @@ th,td{
   text-align:center;
 }
 
+input{
+  width:100%;
+  background:#1F2937;
+  border:none;
+  color:white;
+  padding:5px;
+  box-sizing:border-box;
+}
+
+button{
+  margin-top:5px;
+  padding:8px 12px;
+  background:#3A8DFF;
+  border:none;
+  color:white;
+  cursor:pointer;
+  border-radius:5px;
+}
+
+button:hover{
+  opacity:0.9;
+}
+
 h2{
+  margin-top:40px;
   background:#111827;
   padding:10px;
   border-radius:5px;
 }
-
 </style>
 </head>
 
@@ -100,39 +99,22 @@ h2{
 
 <script>
 
-// 🔥 TÉCNICOS COM ID LIMPO
 const tecnicos = [
-
-  { nome:"Sibele", id:"sibele" },
-
-  { nome:"Empresa", id:"empresa" },
-
-  { nome:"Danilo", id:"danilo" },
-
-  { nome:"José Cicero", id:"jose_cicero" },
-
-  { nome:"Welisson", id:"welisson" },
-
-  { nome:"Danilo BH", id:"danilo_bh" },
-
-  { nome:"Thiago BH", id:"thiago_bh" }
-
+  "Sibele",
+  "Empresa",
+  "Danilo",
+  "José Cicero",
+  "Welisson",
+  "Danilo BH",
+  "Thiago BH"
 ];
 
-// 🔥 VOLTAR
 function voltar(){
-
-  window.location.href = "/";
-
+  window.location.href="/";
 }
 
-// 🔥 DATA ATUAL
 function hoje(){
-
-  return new Date()
-    .toISOString()
-    .split("T")[0];
-
+  return new Date().toISOString().split("T")[0];
 }
 
 // 🔥 CRIAR TABELAS
@@ -143,56 +125,41 @@ function criar(){
 
   container.innerHTML = "";
 
-  tecnicos.forEach(t=>{
+  tecnicos.forEach(nome=>{
 
     const bloco =
       document.createElement("div");
 
     bloco.innerHTML = `
 
-      <h2>${t.nome}</h2>
+      <h2>${nome}</h2>
 
       <table>
 
         <thead>
 
           <tr>
-
             <th>Data</th>
-
             <th>KM Ini</th>
-
             <th>KM Fim</th>
-
             <th>KM</th>
-
             <th>Consumo</th>
-
             <th>Abast Ant</th>
-
             <th>Abast Atual</th>
-
             <th>Litros</th>
-
             <th>Valor</th>
-
             <th></th>
-
           </tr>
 
         </thead>
 
-        <tbody id="${t.id}"></tbody>
+        <tbody data-tecnico="${nome}"></tbody>
 
       </table>
 
-      <button onclick="addLinha('${t.id}')">
-
+      <button onclick="addLinha('${nome}')">
       + Linha
-
       </button>
-
-      <hr>
 
     `;
 
@@ -202,101 +169,83 @@ function criar(){
 
 }
 
-// 🔥 TEMPLATE LINHA
+// 🔥 LINHA
 function linha(d = {}){
 
   return `
 
-    <tr>
+  <tr>
 
-      <td>
+    <td>
+      <input
+      type="date"
+      value="${d.data || hoje()}">
+    </td>
 
-        <input
-        type="date"
-        value="${d.data || hoje()}">
+    <td>
+      <input
+      value="${d.kmIni || ''}"
+      oninput="calc(this)">
+    </td>
 
-      </td>
+    <td>
+      <input
+      value="${d.kmFim || ''}"
+      oninput="calc(this)">
+    </td>
 
-      <td>
+    <td>
+      <input
+      readonly
+      value="${d.km || ''}">
+    </td>
 
-        <input
-        value="${d.kmIni || ''}"
-        oninput="calc(this)">
+    <td>
+      <input
+      readonly
+      value="${d.consumo || ''}">
+    </td>
 
-      </td>
+    <td>
+      <input
+      value="${d.abastAnt || ''}">
+    </td>
 
-      <td>
+    <td>
+      <input
+      value="${d.abastAtual || ''}">
+    </td>
 
-        <input
-        value="${d.kmFim || ''}"
-        oninput="calc(this)">
+    <td>
+      <input
+      value="${d.litros || ''}"
+      oninput="calc(this)">
+    </td>
 
-      </td>
+    <td>
+      <input
+      value="${d.valor || ''}">
+    </td>
 
-      <td>
+    <td>
+      <button onclick="remover(this)">
+      🗑️
+      </button>
+    </td>
 
-        <input
-        readonly
-        value="${d.km || ''}">
-
-      </td>
-
-      <td>
-
-        <input
-        readonly
-        value="${d.consumo || ''}">
-
-      </td>
-
-      <td>
-
-        <input
-        value="${d.abastAnt || ''}">
-
-      </td>
-
-      <td>
-
-        <input
-        value="${d.abastAtual || ''}">
-
-      </td>
-
-      <td>
-
-        <input
-        value="${d.litros || ''}"
-        oninput="calc(this)">
-
-      </td>
-
-      <td>
-
-        <input
-        value="${d.valor || ''}">
-
-      </td>
-
-      <td>
-
-        <button onclick="remover(this)">
-        🗑️
-        </button>
-
-      </td>
-
-    </tr>
+  </tr>
 
   `;
 
 }
 
 // 🔥 ADD LINHA
-function addLinha(id){
+function addLinha(nome){
 
   const tbody =
-    document.getElementById(id);
+    document.querySelector(
+      `[data-tecnico="${nome}"]`
+    );
 
   const tr =
     document.createElement("tr");
@@ -310,9 +259,11 @@ function addLinha(id){
 // 🔥 CALCULAR
 function calc(el){
 
-  const tr = el.closest("tr");
+  const tr =
+    el.closest("tr");
 
-  const i = tr.querySelectorAll("input");
+  const i =
+    tr.querySelectorAll("input");
 
   const kmIni =
     Number(i[1].value);
@@ -323,7 +274,8 @@ function calc(el){
   const litros =
     Number(i[7].value);
 
-  const km = kmFim - kmIni;
+  const km =
+    kmFim - kmIni;
 
   i[3].value =
     km > 0 ? km : "";
@@ -352,12 +304,12 @@ async function salvar(){
 
   let dados = [];
 
-  tecnicos.forEach(t=>{
+  tecnicos.forEach(nome=>{
 
     const linhas =
 
       document.querySelectorAll(
-        `#${t.id} tr`
+        `[data-tecnico="${nome}"] tr`
       );
 
     linhas.forEach(l=>{
@@ -367,7 +319,7 @@ async function salvar(){
 
       const registro = {
 
-        tecnico: t.nome,
+        tecnico: nome,
 
         data: i[0].value,
 
@@ -394,18 +346,12 @@ async function salvar(){
 
         valor:
           parseFloat(
-            i[8].value
-              .replace(",", ".")
+            i[8].value.replace(",", ".")
           ) || 0
 
       };
 
-      // 🔥 IGNORA LINHAS VAZIAS
-      const temDados =
-
-        registro.kmIni > 0 ||
-
-        registro.kmFim > 0 ||
+      const temDado =
 
         registro.km > 0 ||
 
@@ -417,7 +363,7 @@ async function salvar(){
 
         registro.abastAtual !== "";
 
-      if(temDados){
+      if(temDado){
 
         dados.push(registro);
 
@@ -427,15 +373,17 @@ async function salvar(){
 
   });
 
+  console.log("ENVIANDO:", dados);
+
   if(dados.length === 0){
 
-    alert("Nenhum dado preenchido");
+    alert("Nenhum dado");
 
     return;
 
   }
 
-  const res = await fetch("/registro", {
+  await fetch("/registro", {
 
     method:"POST",
 
@@ -447,17 +395,7 @@ async function salvar(){
 
   });
 
-  if(res.ok){
-
-    alert("Salvo com sucesso!");
-
-    carregar();
-
-  }else{
-
-    alert("Erro ao salvar");
-
-  }
+  alert("Salvo com sucesso!");
 
 }
 
@@ -470,7 +408,7 @@ async function carregar(mes = ""){
   let lista =
     await res.json();
 
-  // 🔥 FILTRO MÊS
+  // 🔥 FILTRAR MÊS
   if(mes){
 
     lista = lista.filter(item=>{
@@ -478,18 +416,20 @@ async function carregar(mes = ""){
       if(!item.data)
         return false;
 
-      return item.data
-        .startsWith(mes);
+      return item.data.startsWith(mes);
 
     });
 
   }
 
-  // 🔥 LIMPA TABELAS
-  tecnicos.forEach(t=>{
+  // 🔥 LIMPA TUDO
+  tecnicos.forEach(nome=>{
 
     const tbody =
-      document.getElementById(t.id);
+
+      document.querySelector(
+        `[data-tecnico="${nome}"]`
+      );
 
     if(tbody){
 
@@ -499,20 +439,13 @@ async function carregar(mes = ""){
 
   });
 
-  // 🔥 CARREGA REGISTROS
+  // 🔥 CARREGA
   lista.forEach(item=>{
 
-    const tecnico = tecnicos.find(
-
-      t => t.nome === item.tecnico
-
-    );
-
-    if(!tecnico) return;
-
     const tbody =
-      document.getElementById(
-        tecnico.id
+
+      document.querySelector(
+        `[data-tecnico="${item.tecnico}"]`
       );
 
     if(tbody){
@@ -520,8 +453,7 @@ async function carregar(mes = ""){
       const tr =
         document.createElement("tr");
 
-      tr.innerHTML =
-        linha(item);
+      tr.innerHTML = linha(item);
 
       tbody.appendChild(tr);
 
@@ -555,7 +487,7 @@ function mostrarTudo(){
 
 }
 
-// 🔥 INIT
+// INIT
 async function iniciar(){
 
   criar();
