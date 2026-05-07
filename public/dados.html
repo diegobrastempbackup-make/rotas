@@ -1,3 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Dados</title>
+
+<style>
+body{
+  background:#0F172A;
+  color:white;
+  font-family:Arial;
+  margin:0;
+}
+
+.container{
+  padding:20px;
+}
+
+.topo{
+  display:flex;
+  gap:10px;
+  margin-bottom:20px;
+  flex-wrap:wrap;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+th,td{
+  border:1px solid #333;
+  padding:5px;
+  text-align:center;
+}
+
+input{
+  width:100%;
+  background:#1F2937;
+  border:none;
+  color:white;
+  padding:5px;
+  box-sizing:border-box;
+}
+
+button{
+  margin-top:5px;
+  padding:8px 12px;
+  background:#3A8DFF;
+  border:none;
+  color:white;
+  cursor:pointer;
+  border-radius:5px;
+}
+
+button:hover{
+  opacity:0.9;
+}
+
+h2{
+  margin-top:40px;
+  background:#111827;
+  padding:10px;
+  border-radius:5px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="topo">
+
+<button onclick="voltar()">
+⬅ Voltar
+</button>
+
+<button onclick="salvar()">
+💾 Salvar
+</button>
+
+<input type="month" id="mesFiltro">
+
+<button onclick="filtrarMes()">
+🔍 Buscar
+</button>
+
+<button onclick="mostrarTudo()">
+♻ Mostrar Tudo
+</button>
+
+</div>
+
+<div id="tabelas"></div>
+
+</div>
+
 <script>
 
 const tecnicos = [
@@ -140,7 +239,7 @@ function linha(d = {}){
 
 }
 
-// 🔥 ADD LINHA COM ABASTECIMENTO AUTOMÁTICO
+// 🔥 ADD LINHA
 function addLinha(nome){
 
   const tbody =
@@ -148,83 +247,10 @@ function addLinha(nome){
       `[data-tecnico="${nome}"]`
     );
 
-  const linhas =
-    tbody.querySelectorAll("tr");
-
-  let ultimoAbastecimento = "";
-
-  // 🔥 PEGA O ABASTECIMENTO ATUAL DA ÚLTIMA LINHA
-  if(linhas.length > 0){
-
-    const ultimaLinha =
-      linhas[linhas.length - 1];
-
-    const inputs =
-      ultimaLinha.querySelectorAll("input");
-
-    ultimoAbastecimento =
-      inputs[6].value || "";
-
-  }
-
   const tr =
     document.createElement("tr");
 
-  tr.innerHTML = `
-
-  <tr>
-
-    <td>
-      <input
-      type="date"
-      value="${hoje()}">
-    </td>
-
-    <td>
-      <input
-      oninput="calc(this)">
-    </td>
-
-    <td>
-      <input
-      oninput="calc(this)">
-    </td>
-
-    <td>
-      <input readonly>
-    </td>
-
-    <td>
-      <input readonly>
-    </td>
-
-    <td>
-      <input
-      value="${ultimoAbastecimento}">
-    </td>
-
-    <td>
-      <input>
-    </td>
-
-    <td>
-      <input
-      oninput="calc(this)">
-    </td>
-
-    <td>
-      <input>
-    </td>
-
-    <td>
-      <button onclick="remover(this)">
-      🗑️
-      </button>
-    </td>
-
-  </tr>
-
-  `;
+  tr.innerHTML = linha();
 
   tbody.appendChild(tr);
 
@@ -347,6 +373,8 @@ async function salvar(){
 
   });
 
+  console.log("ENVIANDO:", dados);
+
   if(dados.length === 0){
 
     alert("Nenhum dado");
@@ -380,7 +408,7 @@ async function carregar(mes = ""){
   let lista =
     await res.json();
 
-  // 🔥 FILTRO MÊS
+  // 🔥 FILTRAR MÊS
   if(mes){
 
     lista = lista.filter(item=>{
@@ -394,7 +422,7 @@ async function carregar(mes = ""){
 
   }
 
-  // 🔥 LIMPA
+  // 🔥 LIMPA TUDO
   tecnicos.forEach(nome=>{
 
     const tbody =
@@ -471,3 +499,6 @@ async function iniciar(){
 iniciar();
 
 </script>
+
+</body>
+</html>
