@@ -100,64 +100,96 @@ h2{
 
 <script>
 
+// 🔥 TÉCNICOS COM ID LIMPO
 const tecnicos = [
-  "Sibele",
-  "Empresa",
-  "Danilo",
-  "José Cicero",
-  "Welisson",
-  "Danilo BH",
-  "Thiago BH"
+
+  { nome:"Sibele", id:"sibele" },
+
+  { nome:"Empresa", id:"empresa" },
+
+  { nome:"Danilo", id:"danilo" },
+
+  { nome:"José Cicero", id:"jose_cicero" },
+
+  { nome:"Welisson", id:"welisson" },
+
+  { nome:"Danilo BH", id:"danilo_bh" },
+
+  { nome:"Thiago BH", id:"thiago_bh" }
+
 ];
 
 // 🔥 VOLTAR
 function voltar(){
+
   window.location.href = "/";
+
 }
 
-// 🔥 DATA HOJE
+// 🔥 DATA ATUAL
 function hoje(){
-  return new Date().toISOString().split("T")[0];
+
+  return new Date()
+    .toISOString()
+    .split("T")[0];
+
 }
 
 // 🔥 CRIAR TABELAS
 function criar(){
 
-  const container = document.getElementById("tabelas");
+  const container =
+    document.getElementById("tabelas");
 
   container.innerHTML = "";
 
-  tecnicos.forEach(nome=>{
+  tecnicos.forEach(t=>{
 
-    const bloco = document.createElement("div");
+    const bloco =
+      document.createElement("div");
 
     bloco.innerHTML = `
 
-      <h2>${nome}</h2>
+      <h2>${t.nome}</h2>
 
       <table>
 
         <thead>
+
           <tr>
+
             <th>Data</th>
+
             <th>KM Ini</th>
+
             <th>KM Fim</th>
+
             <th>KM</th>
+
             <th>Consumo</th>
+
             <th>Abast Ant</th>
+
             <th>Abast Atual</th>
+
             <th>Litros</th>
+
             <th>Valor</th>
+
             <th></th>
+
           </tr>
+
         </thead>
 
-        <tbody id="${nome}"></tbody>
+        <tbody id="${t.id}"></tbody>
 
       </table>
 
-      <button onclick="addLinha('${nome}')">
+      <button onclick="addLinha('${t.id}')">
+
       + Linha
+
       </button>
 
       <hr>
@@ -170,81 +202,104 @@ function criar(){
 
 }
 
-// 🔥 LINHA
+// 🔥 TEMPLATE LINHA
 function linha(d = {}){
 
   return `
 
-  <tr>
+    <tr>
 
-    <td>
-      <input type="date"
-      value="${d.data || hoje()}">
-    </td>
+      <td>
 
-    <td>
-      <input
-      value="${d.kmIni || ''}"
-      oninput="calc(this)">
-    </td>
+        <input
+        type="date"
+        value="${d.data || hoje()}">
 
-    <td>
-      <input
-      value="${d.kmFim || ''}"
-      oninput="calc(this)">
-    </td>
+      </td>
 
-    <td>
-      <input
-      readonly
-      value="${d.km || ''}">
-    </td>
+      <td>
 
-    <td>
-      <input
-      readonly
-      value="${d.consumo || ''}">
-    </td>
+        <input
+        value="${d.kmIni || ''}"
+        oninput="calc(this)">
 
-    <td>
-      <input
-      value="${d.abastAnt || ''}">
-    </td>
+      </td>
 
-    <td>
-      <input
-      value="${d.abastAtual || ''}">
-    </td>
+      <td>
 
-    <td>
-      <input
-      value="${d.litros || ''}"
-      oninput="calc(this)">
-    </td>
+        <input
+        value="${d.kmFim || ''}"
+        oninput="calc(this)">
 
-    <td>
-      <input
-      value="${d.valor || ''}">
-    </td>
+      </td>
 
-    <td>
-      <button onclick="remover(this)">
-      🗑️
-      </button>
-    </td>
+      <td>
 
-  </tr>
+        <input
+        readonly
+        value="${d.km || ''}">
+
+      </td>
+
+      <td>
+
+        <input
+        readonly
+        value="${d.consumo || ''}">
+
+      </td>
+
+      <td>
+
+        <input
+        value="${d.abastAnt || ''}">
+
+      </td>
+
+      <td>
+
+        <input
+        value="${d.abastAtual || ''}">
+
+      </td>
+
+      <td>
+
+        <input
+        value="${d.litros || ''}"
+        oninput="calc(this)">
+
+      </td>
+
+      <td>
+
+        <input
+        value="${d.valor || ''}">
+
+      </td>
+
+      <td>
+
+        <button onclick="remover(this)">
+        🗑️
+        </button>
+
+      </td>
+
+    </tr>
 
   `;
 
 }
 
-// 🔥 ADICIONAR LINHA
-function addLinha(nome){
+// 🔥 ADD LINHA
+function addLinha(id){
 
-  const tbody = document.getElementById(nome);
+  const tbody =
+    document.getElementById(id);
 
-  const tr = document.createElement("tr");
+  const tr =
+    document.createElement("tr");
 
   tr.innerHTML = linha();
 
@@ -259,19 +314,26 @@ function calc(el){
 
   const i = tr.querySelectorAll("input");
 
-  const kmIni = Number(i[1].value);
+  const kmIni =
+    Number(i[1].value);
 
-  const kmFim = Number(i[2].value);
+  const kmFim =
+    Number(i[2].value);
 
-  const litros = Number(i[7].value);
+  const litros =
+    Number(i[7].value);
 
   const km = kmFim - kmIni;
 
-  i[3].value = km > 0 ? km : "";
+  i[3].value =
+    km > 0 ? km : "";
 
   const consumo =
+
     (km > 0 && litros > 0)
+
     ? (km / litros).toFixed(2)
+
     : "";
 
   i[4].value = consumo;
@@ -290,37 +352,51 @@ async function salvar(){
 
   let dados = [];
 
-  tecnicos.forEach(nome=>{
+  tecnicos.forEach(t=>{
 
-    const linhas = document.querySelectorAll(`#${nome} tr`);
+    const linhas =
+
+      document.querySelectorAll(
+        `#${t.id} tr`
+      );
 
     linhas.forEach(l=>{
 
-      const i = l.querySelectorAll("input");
+      const i =
+        l.querySelectorAll("input");
 
       const registro = {
 
-        tecnico: nome,
+        tecnico: t.nome,
 
         data: i[0].value,
 
-        kmIni: Number(i[1].value) || 0,
+        kmIni:
+          Number(i[1].value) || 0,
 
-        kmFim: Number(i[2].value) || 0,
+        kmFim:
+          Number(i[2].value) || 0,
 
-        km: Number(i[3].value) || 0,
+        km:
+          Number(i[3].value) || 0,
 
-        consumo: Number(i[4].value) || 0,
+        consumo:
+          Number(i[4].value) || 0,
 
-        abastAnt: i[5].value || "",
+        abastAnt:
+          i[5].value || "",
 
-        abastAtual: i[6].value || "",
+        abastAtual:
+          i[6].value || "",
 
-        litros: Number(i[7].value) || 0,
+        litros:
+          Number(i[7].value) || 0,
 
-        valor: parseFloat(
-          i[8].value.replace(",", ".")
-        ) || 0
+        valor:
+          parseFloat(
+            i[8].value
+              .replace(",", ".")
+          ) || 0
 
       };
 
@@ -328,11 +404,17 @@ async function salvar(){
       const temDados =
 
         registro.kmIni > 0 ||
+
         registro.kmFim > 0 ||
+
         registro.km > 0 ||
+
         registro.valor > 0 ||
+
         registro.litros > 0 ||
+
         registro.abastAnt !== "" ||
+
         registro.abastAtual !== "";
 
       if(temDados){
@@ -382,27 +464,32 @@ async function salvar(){
 // 🔥 CARREGAR
 async function carregar(mes = ""){
 
-  const res = await fetch("/registros");
+  const res =
+    await fetch("/registros");
 
-  let lista = await res.json();
+  let lista =
+    await res.json();
 
-  // 🔥 FILTRO POR MÊS
+  // 🔥 FILTRO MÊS
   if(mes){
 
     lista = lista.filter(item=>{
 
-      if(!item.data) return false;
+      if(!item.data)
+        return false;
 
-      return item.data.startsWith(mes);
+      return item.data
+        .startsWith(mes);
 
     });
 
   }
 
   // 🔥 LIMPA TABELAS
-  tecnicos.forEach(nome=>{
+  tecnicos.forEach(t=>{
 
-    const tbody = document.getElementById(nome);
+    const tbody =
+      document.getElementById(t.id);
 
     if(tbody){
 
@@ -415,13 +502,26 @@ async function carregar(mes = ""){
   // 🔥 CARREGA REGISTROS
   lista.forEach(item=>{
 
-    const tbody = document.getElementById(item.tecnico);
+    const tecnico = tecnicos.find(
+
+      t => t.nome === item.tecnico
+
+    );
+
+    if(!tecnico) return;
+
+    const tbody =
+      document.getElementById(
+        tecnico.id
+      );
 
     if(tbody){
 
-      const tr = document.createElement("tr");
+      const tr =
+        document.createElement("tr");
 
-      tr.innerHTML = linha(item);
+      tr.innerHTML =
+        linha(item);
 
       tbody.appendChild(tr);
 
@@ -435,7 +535,10 @@ async function carregar(mes = ""){
 function filtrarMes(){
 
   const mes =
-    document.getElementById("mesFiltro").value;
+
+    document
+      .getElementById("mesFiltro")
+      .value;
 
   carregar(mes);
 
@@ -444,13 +547,15 @@ function filtrarMes(){
 // 🔥 MOSTRAR TUDO
 function mostrarTudo(){
 
-  document.getElementById("mesFiltro").value = "";
+  document
+    .getElementById("mesFiltro")
+    .value = "";
 
   carregar();
 
 }
 
-// 🔥 INICIAR
+// 🔥 INIT
 async function iniciar(){
 
   criar();
