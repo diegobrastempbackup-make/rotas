@@ -46,7 +46,9 @@ conectarMongo();
 // 🔥 HOME
 app.get("/", (req,res)=>{
 
-  res.sendFile(__dirname + "/public/index.html");
+  res.sendFile(
+    __dirname + "/public/index.html"
+  );
 
 });
 
@@ -66,6 +68,7 @@ app.get("/registros", async (req,res)=>{
     const dados = await db
       .collection("registros")
       .find()
+      .sort({ data: 1 }) // 🔥 ORDENA POR DATA
       .toArray();
 
     res.json(dados);
@@ -114,7 +117,8 @@ app.post("/registro", async (req,res)=>{
 
     dados = dados.filter(item=>{
 
-      const chave = JSON.stringify(item);
+      const chave =
+        JSON.stringify(item);
 
       if(mapa.has(chave)){
 
@@ -128,7 +132,7 @@ app.post("/registro", async (req,res)=>{
 
     });
 
-    // 🔥 PEGA TODOS OS MESES ENVIADOS
+    // 🔥 PEGA MESES ENVIADOS
     const meses = [
       ...new Set(
         dados.map(item =>
@@ -137,7 +141,7 @@ app.post("/registro", async (req,res)=>{
       )
     ];
 
-    // 🔥 REMOVE APENAS OS MESES ENVIADOS
+    // 🔥 REMOVE APENAS O MÊS ENVIADO
     for(const mes of meses){
 
       await collection.deleteMany({

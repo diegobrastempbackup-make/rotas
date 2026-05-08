@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -471,6 +470,16 @@ async function carregar(mes = ""){
   let lista =
     await res.json();
 
+  // 🔥 ORDENA POR DATA
+  lista.sort((a,b)=>{
+
+    if(!a.data || !b.data)
+      return 0;
+
+    return new Date(a.data) - new Date(b.data);
+
+  });
+
   // 🔥 FILTRA POR MÊS
   if(mes){
 
@@ -575,4 +584,3 @@ iniciar();
 
 </body>
 </html>
-```

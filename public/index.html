@@ -196,11 +196,13 @@ let grafico2;
 // 🔥 IR PARA DADOS
 function acessar(){
 
-  const senha = document.getElementById("senha").value;
+  const senha =
+    document.getElementById("senha").value;
 
   if(senha === "Brastemp1234"){
 
-    window.location.href = "/dados.html";
+    window.location.href =
+      "/dados.html";
 
   }else{
 
@@ -241,17 +243,30 @@ function dadosPorMes(mes){
 // 🔥 CARREGAR DADOS
 async function carregarDados(){
 
-  const res = await fetch("/registros");
+  const res =
+    await fetch("/registros");
 
-  dadosGlobal = await res.json();
+  dadosGlobal =
+    await res.json();
+
+  // 🔥 ORDENA POR DATA
+  dadosGlobal.sort((a,b)=>{
+
+    return new Date(a.data)
+      - new Date(b.data);
+
+  });
 
   // 🔥 DEFINE MÊS ATUAL
-  const mesAtual = obterMesAtual();
+  const mesAtual =
+    obterMesAtual();
 
-  document.getElementById("mesFiltro").value = mesAtual;
+  document.getElementById("mesFiltro")
+    .value = mesAtual;
 
   // 🔥 MOSTRA APENAS O MÊS ATUAL
-  const filtrado = dadosPorMes(mesAtual);
+  const filtrado =
+    dadosPorMes(mesAtual);
 
   processar(filtrado, tecnicoAtual);
 
@@ -262,9 +277,12 @@ function filtrar(nome){
 
   tecnicoAtual = nome;
 
-  const mes = document.getElementById("mesFiltro").value;
+  const mes =
+    document.getElementById("mesFiltro")
+      .value;
 
-  const filtrado = dadosPorMes(mes);
+  const filtrado =
+    dadosPorMes(mes);
 
   processar(filtrado, tecnicoAtual);
 
@@ -273,16 +291,20 @@ function filtrar(nome){
 // 🔥 FILTRAR MÊS
 function filtrarMes(){
 
-  const mes = document.getElementById("mesFiltro").value;
+  const mes =
+    document.getElementById("mesFiltro")
+      .value;
 
-  // 🔥 SE NÃO ESCOLHER MÊS
   if(!mes){
 
-    const mesAtual = obterMesAtual();
+    const mesAtual =
+      obterMesAtual();
 
-    document.getElementById("mesFiltro").value = mesAtual;
+    document.getElementById("mesFiltro")
+      .value = mesAtual;
 
-    const filtrado = dadosPorMes(mesAtual);
+    const filtrado =
+      dadosPorMes(mesAtual);
 
     processar(filtrado, tecnicoAtual);
 
@@ -290,7 +312,8 @@ function filtrarMes(){
 
   }
 
-  const filtrado = dadosPorMes(mes);
+  const filtrado =
+    dadosPorMes(mes);
 
   processar(filtrado, tecnicoAtual);
 
@@ -299,11 +322,14 @@ function filtrarMes(){
 // 🔥 LIMPAR FILTRO
 function limparFiltro(){
 
-  const mesAtual = obterMesAtual();
+  const mesAtual =
+    obterMesAtual();
 
-  document.getElementById("mesFiltro").value = mesAtual;
+  document.getElementById("mesFiltro")
+    .value = mesAtual;
 
-  const filtrado = dadosPorMes(mesAtual);
+  const filtrado =
+    dadosPorMes(mesAtual);
 
   processar(filtrado, tecnicoAtual);
 
@@ -312,9 +338,11 @@ function limparFiltro(){
 // 🔥 PROCESSAR DADOS
 function processar(dados, tecnico){
 
-  let valores = Array(tecnicos.length).fill(0);
+  let valores =
+    Array(tecnicos.length).fill(0);
 
-  let kms = Array(tecnicos.length).fill(0);
+  let kms =
+    Array(tecnicos.length).fill(0);
 
   dados.forEach(d=>{
 
@@ -323,7 +351,8 @@ function processar(dados, tecnico){
       d.tecnico === tecnico
     ){
 
-      const i = tecnicos.indexOf(d.tecnico);
+      const i =
+        tecnicos.indexOf(d.tecnico);
 
       if(i >= 0){
 
@@ -337,46 +366,61 @@ function processar(dados, tecnico){
 
   });
 
-  atualizarDashboard(valores, kms, tecnico);
+  atualizarDashboard(
+    valores,
+    kms,
+    tecnico
+  );
 
 }
 
 // 🔥 ATUALIZAR DASHBOARD
-function atualizarDashboard(valores, kms, tecnico){
+function atualizarDashboard(
+  valores,
+  kms,
+  tecnico
+){
 
-  const totalValor = valores.reduce(
-    (a,b)=>a+b,
-    0
-  );
+  const totalValor =
+    valores.reduce((a,b)=>a+b,0);
 
-  const totalKm = kms.reduce(
-    (a,b)=>a+b,
-    0
-  );
+  const totalKm =
+    kms.reduce((a,b)=>a+b,0);
 
-  document.getElementById("gastoTotal").innerText =
+  document.getElementById("gastoTotal")
+    .innerText =
     "R$ " + totalValor.toFixed(2);
 
-  document.getElementById("kmTotal").innerText =
+  document.getElementById("kmTotal")
+    .innerText =
     totalKm + " KM";
 
   // 🔥 INDIVIDUAL
   if(tecnico !== "TODOS"){
 
-    const i = tecnicos.indexOf(tecnico);
+    const i =
+      tecnicos.indexOf(tecnico);
 
-    document.getElementById("gastoIndividual").innerText =
+    document.getElementById(
+      "gastoIndividual"
+    ).innerText =
       "R$ " + valores[i].toFixed(2);
 
-    document.getElementById("kmIndividual").innerText =
+    document.getElementById(
+      "kmIndividual"
+    ).innerText =
       kms[i] + " KM";
 
   }else{
 
-    document.getElementById("gastoIndividual").innerText =
+    document.getElementById(
+      "gastoIndividual"
+    ).innerText =
       "R$ 0,00";
 
-    document.getElementById("kmIndividual").innerText =
+    document.getElementById(
+      "kmIndividual"
+    ).innerText =
       "0 KM";
 
   }
@@ -434,30 +478,170 @@ function gerarPDF(){
 
   let y = 10;
 
+  doc.setFontSize(16);
+
   doc.text("RELATÓRIO DE KM", 10, y);
 
-  y += 10;
+  y += 12;
 
   // 🔥 PEGA MÊS FILTRADO
-  const mes = document.getElementById("mesFiltro").value;
+  const mes =
+    document.getElementById("mesFiltro")
+      .value;
 
-  const filtrado = dadosPorMes(mes);
+  const filtrado =
+    dadosPorMes(mes);
 
-  filtrado.forEach(d=>{
+  // 🔥 RELATÓRIO GERAL
+  if(tecnicoAtual === "TODOS"){
 
-    if(
-      tecnicoAtual === "TODOS" ||
-      d.tecnico === tecnicoAtual
-    ){
+    tecnicos.forEach(nome=>{
+
+      const dadosTecnico =
+        filtrado.filter(
+          d => d.tecnico === nome
+        );
+
+      if(dadosTecnico.length === 0)
+        return;
+
+      doc.setFontSize(13);
 
       doc.text(
-        `${d.tecnico} | ${d.data} | KM: ${d.km} | Valor: R$ ${d.valor}`,
+        "===================================",
         10,
         y
       );
 
       y += 8;
 
+      doc.text(nome, 10, y);
+
+      y += 8;
+
+      doc.text(
+        "===================================",
+        10,
+        y
+      );
+
+      y += 10;
+
+      let totalKm = 0;
+      let totalValor = 0;
+      let totalLitros = 0;
+
+      dadosTecnico.forEach(d=>{
+
+        totalKm +=
+          Number(d.km) || 0;
+
+        totalValor +=
+          Number(d.valor) || 0;
+
+        totalLitros +=
+          Number(d.litros) || 0;
+
+        doc.setFontSize(10);
+
+        doc.text(
+
+`${d.data} | KM: ${d.km} | Litros: ${d.litros} | Valor: R$ ${Number(d.valor).toFixed(2)}`,
+
+          10,
+
+          y
+
+        );
+
+        y += 7;
+
+        // 🔥 NOVA PÁGINA
+        if(y > 280){
+
+          doc.addPage();
+
+          y = 10;
+
+        }
+
+      });
+
+      y += 3;
+
+      doc.setFontSize(11);
+
+      doc.text(
+        `TOTAL KM: ${totalKm} KM`,
+        10,
+        y
+      );
+
+      y += 7;
+
+      doc.text(
+        `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
+        10,
+        y
+      );
+
+      y += 7;
+
+      doc.text(
+        `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
+        10,
+        y
+      );
+
+      y += 15;
+
+    });
+
+  }else{
+
+    // 🔥 RELATÓRIO INDIVIDUAL
+
+    const dadosTecnico =
+      filtrado.filter(
+        d => d.tecnico === tecnicoAtual
+      );
+
+    let totalKm = 0;
+    let totalValor = 0;
+    let totalLitros = 0;
+
+    doc.setFontSize(14);
+
+    doc.text(tecnicoAtual, 10, y);
+
+    y += 12;
+
+    dadosTecnico.forEach(d=>{
+
+      totalKm +=
+        Number(d.km) || 0;
+
+      totalValor +=
+        Number(d.valor) || 0;
+
+      totalLitros +=
+        Number(d.litros) || 0;
+
+      doc.setFontSize(10);
+
+      doc.text(
+
+`${d.data} | KM: ${d.km} | Litros: ${d.litros} | Valor: R$ ${Number(d.valor).toFixed(2)}`,
+
+        10,
+
+        y
+
+      );
+
+      y += 8;
+
+      // 🔥 NOVA PÁGINA
       if(y > 280){
 
         doc.addPage();
@@ -466,9 +650,35 @@ function gerarPDF(){
 
       }
 
-    }
+    });
 
-  });
+    y += 5;
+
+    doc.setFontSize(12);
+
+    doc.text(
+      `TOTAL KM: ${totalKm} KM`,
+      10,
+      y
+    );
+
+    y += 8;
+
+    doc.text(
+      `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
+      10,
+      y
+    );
+
+    y += 8;
+
+    doc.text(
+      `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
+      10,
+      y
+    );
+
+  }
 
   doc.save("relatorio.pdf");
 
