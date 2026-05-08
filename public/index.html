@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
+
 body{
   margin:0;
   font-family:Arial;
@@ -83,6 +84,7 @@ body{
   flex:1;
   height:320px;
 }
+
 </style>
 </head>
 
@@ -146,7 +148,7 @@ body{
 
 <div class="card">
 <h3>🛣 KM Total</h3>
-<p id="kmTotal">0</p>
+<p id="kmTotal">0 KM</p>
 </div>
 
 <div class="card">
@@ -174,6 +176,7 @@ body{
 
 <script>
 
+// 🔥 TÉCNICOS
 const tecnicos = [
   "Sibele",
   "Empresa",
@@ -196,10 +199,42 @@ function acessar(){
   const senha = document.getElementById("senha").value;
 
   if(senha === "Brastemp1234"){
+
     window.location.href = "/dados.html";
+
   }else{
+
     alert("Senha incorreta");
+
   }
+
+}
+
+// 🔥 PEGAR MÊS ATUAL
+function obterMesAtual(){
+
+  const hoje = new Date();
+
+  const ano = hoje.getFullYear();
+
+  const mes = String(
+    hoje.getMonth() + 1
+  ).padStart(2,"0");
+
+  return `${ano}-${mes}`;
+
+}
+
+// 🔥 FILTRAR DADOS POR MÊS
+function dadosPorMes(mes){
+
+  return dadosGlobal.filter(d=>{
+
+    if(!d.data) return false;
+
+    return d.data.startsWith(mes);
+
+  });
 
 }
 
@@ -210,7 +245,15 @@ async function carregarDados(){
 
   dadosGlobal = await res.json();
 
-  processar(dadosGlobal, tecnicoAtual);
+  // 🔥 DEFINE MÊS ATUAL
+  const mesAtual = obterMesAtual();
+
+  document.getElementById("mesFiltro").value = mesAtual;
+
+  // 🔥 MOSTRA APENAS O MÊS ATUAL
+  const filtrado = dadosPorMes(mesAtual);
+
+  processar(filtrado, tecnicoAtual);
 
 }
 
@@ -219,7 +262,11 @@ function filtrar(nome){
 
   tecnicoAtual = nome;
 
-  processar(dadosGlobal, tecnicoAtual);
+  const mes = document.getElementById("mesFiltro").value;
+
+  const filtrado = dadosPorMes(mes);
+
+  processar(filtrado, tecnicoAtual);
 
 }
 
@@ -228,18 +275,22 @@ function filtrarMes(){
 
   const mes = document.getElementById("mesFiltro").value;
 
+  // 🔥 SE NÃO ESCOLHER MÊS
   if(!mes){
-    processar(dadosGlobal, tecnicoAtual);
+
+    const mesAtual = obterMesAtual();
+
+    document.getElementById("mesFiltro").value = mesAtual;
+
+    const filtrado = dadosPorMes(mesAtual);
+
+    processar(filtrado, tecnicoAtual);
+
     return;
+
   }
 
-  const filtrado = dadosGlobal.filter(d=>{
-
-    if(!d.data) return false;
-
-    return d.data.startsWith(mes);
-
-  });
+  const filtrado = dadosPorMes(mes);
 
   processar(filtrado, tecnicoAtual);
 
@@ -248,21 +299,29 @@ function filtrarMes(){
 // 🔥 LIMPAR FILTRO
 function limparFiltro(){
 
-  document.getElementById("mesFiltro").value = "";
+  const mesAtual = obterMesAtual();
 
-  processar(dadosGlobal, tecnicoAtual);
+  document.getElementById("mesFiltro").value = mesAtual;
+
+  const filtrado = dadosPorMes(mesAtual);
+
+  processar(filtrado, tecnicoAtual);
 
 }
 
-// 🔥 PROCESSAR
+// 🔥 PROCESSAR DADOS
 function processar(dados, tecnico){
 
   let valores = Array(tecnicos.length).fill(0);
+
   let kms = Array(tecnicos.length).fill(0);
 
   dados.forEach(d=>{
 
-    if(tecnico === "TODOS" || d.tecnico === tecnico){
+    if(
+      tecnico === "TODOS" ||
+      d.tecnico === tecnico
+    ){
 
       const i = tecnicos.indexOf(d.tecnico);
 
@@ -285,9 +344,15 @@ function processar(dados, tecnico){
 // 🔥 ATUALIZAR DASHBOARD
 function atualizarDashboard(valores, kms, tecnico){
 
-  const totalValor = valores.reduce((a,b)=>a+b,0);
+  const totalValor = valores.reduce(
+    (a,b)=>a+b,
+    0
+  );
 
-  const totalKm = kms.reduce((a,b)=>a+b,0);
+  const totalKm = kms.reduce(
+    (a,b)=>a+b,
+    0
+  );
 
   document.getElementById("gastoTotal").innerText =
     "R$ " + totalValor.toFixed(2);
@@ -295,6 +360,7 @@ function atualizarDashboard(valores, kms, tecnico){
   document.getElementById("kmTotal").innerText =
     totalKm + " KM";
 
+  // 🔥 INDIVIDUAL
   if(tecnico !== "TODOS"){
 
     const i = tecnicos.indexOf(tecnico);
@@ -315,11 +381,11 @@ function atualizarDashboard(valores, kms, tecnico){
 
   }
 
-  // 🔥 DESTROI GRÁFICOS
+  // 🔥 DESTRUIR GRÁFICOS
   if(grafico1) grafico1.destroy();
   if(grafico2) grafico2.destroy();
 
-  // 🔥 GRÁFICO VALORES
+  // 🔥 GRÁFICO GASTOS
   grafico1 = new Chart(
     document.getElementById("g1"),
     {
@@ -359,7 +425,7 @@ function atualizarDashboard(valores, kms, tecnico){
 
 }
 
-// 🔥 PDF
+// 🔥 GERAR PDF
 function gerarPDF(){
 
   const { jsPDF } = window.jspdf;
@@ -372,19 +438,34 @@ function gerarPDF(){
 
   y += 10;
 
-  dadosGlobal.forEach(d=>{
+  // 🔥 PEGA MÊS FILTRADO
+  const mes = document.getElementById("mesFiltro").value;
 
-    doc.text(
-      `${d.tecnico} | ${d.data} | KM: ${d.km} | Valor: R$ ${d.valor}`,
-      10,
-      y
-    );
+  const filtrado = dadosPorMes(mes);
 
-    y += 8;
+  filtrado.forEach(d=>{
 
-    if(y > 280){
-      doc.addPage();
-      y = 10;
+    if(
+      tecnicoAtual === "TODOS" ||
+      d.tecnico === tecnicoAtual
+    ){
+
+      doc.text(
+        `${d.tecnico} | ${d.data} | KM: ${d.km} | Valor: R$ ${d.valor}`,
+        10,
+        y
+      );
+
+      y += 8;
+
+      if(y > 280){
+
+        doc.addPage();
+
+        y = 10;
+
+      }
+
     }
 
   });
