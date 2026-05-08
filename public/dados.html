@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -5,6 +6,7 @@
 <title>Dados</title>
 
 <style>
+
 body{
   background:#0F172A;
   color:white;
@@ -64,6 +66,7 @@ h2{
   padding:10px;
   border-radius:5px;
 }
+
 </style>
 </head>
 
@@ -88,7 +91,7 @@ h2{
 </button>
 
 <button onclick="mostrarTudo()">
-♻ Mostrar Tudo
+♻ Mostrar Mês Atual
 </button>
 
 </div>
@@ -104,17 +107,40 @@ const tecnicos = [
   "Empresa",
   "Danilo",
   "José Cicero",
-  "Welisson",
+  "Alex",
   "Danilo BH",
   "Thiago BH"
 ];
 
-function voltar(){
-  window.location.href="/";
+// 🔥 PEGAR MÊS ATUAL
+function obterMesAtual(){
+
+  const hoje = new Date();
+
+  const ano = hoje.getFullYear();
+
+  const mes = String(
+    hoje.getMonth() + 1
+  ).padStart(2,"0");
+
+  return `${ano}-${mes}`;
+
 }
 
+// 🔥 VOLTAR
+function voltar(){
+
+  window.location.href="/";
+
+}
+
+// 🔥 DATA HOJE
 function hoje(){
-  return new Date().toISOString().split("T")[0];
+
+  return new Date()
+    .toISOString()
+    .split("T")[0];
+
 }
 
 // 🔥 CRIAR TABELAS
@@ -239,7 +265,7 @@ function linha(d = {}){
 
 }
 
-// 🔥 ADD LINHA
+// 🔥 ADICIONAR LINHA
 function addLinha(nome){
 
   const tbody =
@@ -302,6 +328,19 @@ function remover(btn){
 // 🔥 SALVAR
 async function salvar(){
 
+  const mesAtual =
+    document
+      .getElementById("mesFiltro")
+      .value;
+
+  if(!mesAtual){
+
+    alert("Selecione um mês");
+
+    return;
+
+  }
+
   let dados = [];
 
   tecnicos.forEach(nome=>{
@@ -317,11 +356,23 @@ async function salvar(){
       const i =
         l.querySelectorAll("input");
 
+      const data =
+        i[0].value;
+
+      // 🔥 IGNORA OUTROS MESES
+      if(
+        !data.startsWith(mesAtual)
+      ){
+
+        return;
+
+      }
+
       const registro = {
 
         tecnico: nome,
 
-        data: i[0].value,
+        data: data,
 
         kmIni:
           Number(i[1].value) || 0,
@@ -373,15 +424,27 @@ async function salvar(){
 
   });
 
-  console.log("ENVIANDO:", dados);
+  // 🔥 REMOVE DUPLICADOS
+  const mapa = new Set();
 
-  if(dados.length === 0){
+  dados = dados.filter(item=>{
 
-    alert("Nenhum dado");
+    const chave =
+      JSON.stringify(item);
 
-    return;
+    if(mapa.has(chave)){
 
-  }
+      return false;
+
+    }
+
+    mapa.add(chave);
+
+    return true;
+
+  });
+
+  console.log("SALVANDO:", dados);
 
   await fetch("/registro", {
 
@@ -408,7 +471,7 @@ async function carregar(mes = ""){
   let lista =
     await res.json();
 
-  // 🔥 FILTRAR MÊS
+  // 🔥 FILTRA POR MÊS
   if(mes){
 
     lista = lista.filter(item=>{
@@ -422,7 +485,7 @@ async function carregar(mes = ""){
 
   }
 
-  // 🔥 LIMPA TUDO
+  // 🔥 LIMPA TABELAS
   tecnicos.forEach(nome=>{
 
     const tbody =
@@ -439,7 +502,7 @@ async function carregar(mes = ""){
 
   });
 
-  // 🔥 CARREGA
+  // 🔥 CARREGA DADOS
   lista.forEach(item=>{
 
     const tbody =
@@ -476,23 +539,33 @@ function filtrarMes(){
 
 }
 
-// 🔥 MOSTRAR TUDO
+// 🔥 MOSTRAR MÊS ATUAL
 function mostrarTudo(){
+
+  const mesAtual =
+    obterMesAtual();
 
   document
     .getElementById("mesFiltro")
-    .value = "";
+    .value = mesAtual;
 
-  carregar();
+  carregar(mesAtual);
 
 }
 
-// INIT
+// 🔥 INICIAR
 async function iniciar(){
 
   criar();
 
-  await carregar();
+  const mesAtual =
+    obterMesAtual();
+
+  document
+    .getElementById("mesFiltro")
+    .value = mesAtual;
+
+  await carregar(mesAtual);
 
 }
 
@@ -502,3 +575,4 @@ iniciar();
 
 </body>
 </html>
+```

@@ -16,7 +16,9 @@ let db = null;
 // 🔥 MIDDLEWARES
 app.use(cors());
 
-app.use(express.json());
+app.use(express.json({
+  limit:"10mb"
+}));
 
 app.use(express.static("public"));
 
@@ -96,7 +98,7 @@ app.post("/registro", async (req,res)=>{
     const collection =
       db.collection("registros");
 
-    const dados =
+    let dados =
       req.body.dados || [];
 
     if(dados.length === 0){
@@ -107,18 +109,46 @@ app.post("/registro", async (req,res)=>{
 
     }
 
-    // 🔥 PEGA O MÊS
-    const mes =
-      dados[0].data.substring(0,7);
+    // 🔥 REMOVE DUPLICADOS
+    const mapa = new Set();
 
-    // 🔥 REMOVE APENAS O MÊS ATUAL
-    await collection.deleteMany({
+    dados = dados.filter(item=>{
 
-      data:{
-        $regex:`^${mes}`
+      const chave = JSON.stringify(item);
+
+      if(mapa.has(chave)){
+
+        return false;
+
       }
 
+      mapa.add(chave);
+
+      return true;
+
     });
+
+    // 🔥 PEGA TODOS OS MESES ENVIADOS
+    const meses = [
+      ...new Set(
+        dados.map(item =>
+          item.data.substring(0,7)
+        )
+      )
+    ];
+
+    // 🔥 REMOVE APENAS OS MESES ENVIADOS
+    for(const mes of meses){
+
+      await collection.deleteMany({
+
+        data:{
+          $regex:`^${mes}`
+        }
+
+      });
+
+    }
 
     // 🔥 INSERE NOVAMENTE
     await collection.insertMany(dados);
