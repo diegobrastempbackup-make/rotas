@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
+
 <meta charset="UTF-8">
 
-<title>Dashboard</title>
+<title>NERI Dashboard</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -18,7 +20,9 @@
 }
 
 body{
+
   margin:0;
+
   font-family:Arial;
 
   background:
@@ -36,11 +40,11 @@ body{
   display:flex;
 }
 
-/* MENU */
+/* SIDEBAR */
 
 .sidebar{
 
-  width:240px;
+  width:250px;
 
   background:
     rgba(15,23,42,0.95);
@@ -58,16 +62,61 @@ body{
 
   box-shadow:
     5px 0 20px rgba(0,0,0,0.4);
+
+  display:flex;
+
+  flex-direction:column;
+}
+
+/* LOGO */
+
+.logo-area{
+
+  display:flex;
+
+  flex-direction:column;
+
+  align-items:center;
+
+  margin-bottom:25px;
+}
+
+.logo{
+
+  width:120px;
+
+  margin-bottom:10px;
+
+  transition:0.4s;
+
+  filter:
+    drop-shadow(
+      0 0 15px
+      rgba(59,130,246,0.5)
+    );
+}
+
+.logo:hover{
+
+  transform:scale(1.05);
+
+  filter:
+    drop-shadow(
+      0 0 25px
+      rgba(59,130,246,0.8)
+    );
 }
 
 .sidebar h2{
 
-  text-align:center;
-
-  margin-bottom:25px;
+  margin:0;
 
   color:#60A5FA;
+
+  font-size:28px;
 }
+
+/* MENU */
 
 .sidebar p{
 
@@ -143,18 +192,40 @@ body{
     0 0 15px rgba(59,130,246,0.5);
 }
 
-/* CONTEÚDO */
+/* FOOTER */
+
+.footer{
+
+  margin-top:auto;
+
+  text-align:center;
+
+  font-size:12px;
+
+  color:#94A3B8;
+
+  opacity:0.8;
+
+  padding-top:30px;
+}
+
+/* MAIN */
 
 .main{
+
   flex:1;
+
   padding:25px;
 }
 
 /* CARDS */
 
 .cards{
+
   display:flex;
+
   gap:20px;
+
   flex-wrap:wrap;
 }
 
@@ -248,37 +319,79 @@ body{
 }
 
 canvas{
+
   width:100% !important;
+
   height:100% !important;
 }
 
 </style>
+
 </head>
 
 <body>
 
 <div class="container">
 
-<!-- MENU -->
+<!-- SIDEBAR -->
 
 <div class="sidebar">
 
+<!-- LOGO -->
+
+<div class="logo-area">
+
+<img
+  src="logo.png"
+  class="logo"
+/>
+
 <h2>Dashboard</h2>
 
-<p onclick="filtrar('TODOS')">📊 Geral</p>
-<p onclick="filtrar('Sibele')">Sibele</p>
-<p onclick="filtrar('Empresa')">Empresa</p>
-<p onclick="filtrar('Danilo')">Danilo</p>
-<p onclick="filtrar('José Cicero')">José Cicero</p>
-<p onclick="filtrar('Alex')">Alex</p>
-<p onclick="filtrar('Danilo BH')">Danilo BH</p>
-<p onclick="filtrar('Thiago BH')">Thiago BH</p>
+</div>
+
+<!-- MENU -->
+
+<p onclick="filtrar('TODOS')">
+📊 Geral
+</p>
+
+<p onclick="filtrar('Sibele')">
+Sibele
+</p>
+
+<p onclick="filtrar('Empresa')">
+Empresa
+</p>
+
+<p onclick="filtrar('Danilo')">
+Danilo
+</p>
+
+<p onclick="filtrar('José Cicero')">
+José Cicero
+</p>
+
+<p onclick="filtrar('Alex')">
+Alex
+</p>
+
+<p onclick="filtrar('Danilo BH')">
+Danilo BH
+</p>
+
+<p onclick="filtrar('Thiago BH')">
+Thiago BH
+</p>
 
 <hr>
 
 <h3>Filtrar por mês</h3>
 
-<input type="month" id="mesFiltro">
+<input
+  type="month"
+  id="mesFiltro"
+>
 
 <button onclick="filtrarMes()">
 🔍 Buscar
@@ -306,11 +419,21 @@ canvas{
 📂 Ir para Dados
 </button>
 
+<!-- FOOTER -->
+
+<div class="footer">
+
+© Diego Neri
+
 </div>
 
-<!-- CONTEÚDO -->
+</div>
+
+<!-- MAIN -->
 
 <div class="main">
+
+<!-- CARDS -->
 
 <div class="cards">
 
@@ -350,6 +473,8 @@ R$ 0,00
 
 </div>
 
+<!-- GRÁFICOS -->
+
 <div class="graficos">
 
 <div class="grafico">
@@ -368,7 +493,7 @@ R$ 0,00
 
 <script>
 
-// 🔥 TÉCNICOS
+// TÉCNICOS
 
 const tecnicos = [
 
@@ -389,12 +514,14 @@ let tecnicoAtual = "TODOS";
 let grafico1;
 let grafico2;
 
-// 🔥 IR PARA DADOS
+// ACESSAR
 
 function acessar(){
 
   const senha =
-    document.getElementById("senha").value;
+    document.getElementById(
+      "senha"
+    ).value;
 
   if(senha === "Brastemp1234"){
 
@@ -409,13 +536,14 @@ function acessar(){
 
 }
 
-// 🔥 MÊS ATUAL
+// MÊS ATUAL
 
 function obterMesAtual(){
 
   const hoje = new Date();
 
-  const ano = hoje.getFullYear();
+  const ano =
+    hoje.getFullYear();
 
   const mes = String(
     hoje.getMonth() + 1
@@ -425,13 +553,14 @@ function obterMesAtual(){
 
 }
 
-// 🔥 DADOS POR MÊS
+// FILTRO MÊS
 
 function dadosPorMes(mes){
 
   return dadosGlobal.filter(d=>{
 
-    if(!d.data) return false;
+    if(!d.data)
+      return false;
 
     return d.data.startsWith(mes);
 
@@ -439,7 +568,7 @@ function dadosPorMes(mes){
 
 }
 
-// 🔥 CARREGAR DADOS
+// CARREGAR
 
 async function carregarDados(){
 
@@ -473,7 +602,7 @@ async function carregarDados(){
 
 }
 
-// 🔥 FILTRAR TÉCNICO
+// FILTRAR TÉCNICO
 
 function filtrar(nome){
 
@@ -494,7 +623,7 @@ function filtrar(nome){
 
 }
 
-// 🔥 FILTRAR MÊS
+// FILTRAR MÊS
 
 function filtrarMes(){
 
@@ -502,14 +631,6 @@ function filtrarMes(){
     document.getElementById(
       "mesFiltro"
     ).value;
-
-  if(!mes){
-
-    limparFiltro();
-
-    return;
-
-  }
 
   const filtrado =
     dadosPorMes(mes);
@@ -521,7 +642,7 @@ function filtrarMes(){
 
 }
 
-// 🔥 LIMPAR FILTRO
+// LIMPAR FILTRO
 
 function limparFiltro(){
 
@@ -542,15 +663,20 @@ function limparFiltro(){
 
 }
 
-// 🔥 PROCESSAR DADOS
+// PROCESSAR
 
-function processar(dados, tecnico){
+function processar(
+  dados,
+  tecnico
+){
 
   let valores =
-    Array(tecnicos.length).fill(0);
+    Array(tecnicos.length)
+    .fill(0);
 
   let kms =
-    Array(tecnicos.length).fill(0);
+    Array(tecnicos.length)
+    .fill(0);
 
   dados.forEach(d=>{
 
@@ -560,7 +686,9 @@ function processar(dados, tecnico){
     ){
 
       const i =
-        tecnicos.indexOf(d.tecnico);
+        tecnicos.indexOf(
+          d.tecnico
+        );
 
       if(i >= 0){
 
@@ -584,7 +712,7 @@ function processar(dados, tecnico){
 
 }
 
-// 🔥 DASHBOARD
+// DASHBOARD
 
 function atualizarDashboard(
   valores,
@@ -610,8 +738,6 @@ function atualizarDashboard(
   ).innerText =
 
     totalKm + " KM";
-
-  // 🔥 INDIVIDUAL
 
   if(tecnico !== "TODOS"){
 
@@ -647,35 +773,32 @@ function atualizarDashboard(
 
   }
 
-  // 🔥 DESTRUIR GRÁFICOS
-
   if(grafico1) grafico1.destroy();
   if(grafico2) grafico2.destroy();
 
-  // 🔥 GRADIENTE 1
+  // GRÁFICO 1
 
   const ctx1 =
     document.getElementById("g1")
     .getContext("2d");
 
-  const gradiente1 =
+  const grad1 =
     ctx1.createLinearGradient(
       0,0,0,400
     );
 
-  gradiente1.addColorStop(
+  grad1.addColorStop(
     0,
     "#60A5FA"
   );
 
-  gradiente1.addColorStop(
+  grad1.addColorStop(
     1,
-    "#1D4ED8"
+    "#2563EB"
   );
 
-  // 🔥 GRÁFICO 1
-
-  grafico1 = new Chart(ctx1, {
+  grafico1 =
+    new Chart(ctx1,{
 
     type:"bar",
 
@@ -689,159 +812,7 @@ function atualizarDashboard(
 
         data:valores,
 
-        backgroundColor:
-          gradiente1,
-
-        borderRadius:10,
-
-        borderSkipped:false,
-
-        hoverBackgroundColor:
-          "#93C5FD"
-
-      }]
-
-    },
-
-    plugins:[ChartDataLabels],
-
-    options:{
-
-      responsive:true,
-
-      maintainAspectRatio:false,
-
-      animation:{
-        duration:1500
-      },
-
-      plugins:{
-
-        legend:{
-          labels:{
-            color:"#fff"
-          }
-        },
-
-        title:{
-
-          display:true,
-
-          text:
-            "💰 CONSUMO GERAL POR NOME",
-
-          color:"#fff",
-
-          font:{
-            size:20,
-            weight:"bold"
-          },
-
-          padding:20
-        },
-
-        datalabels:{
-
-          color:"#fff",
-
-          anchor:"end",
-
-          align:"top",
-
-          font:{
-            weight:"bold",
-            size:12
-          },
-
-          formatter:(value)=>{
-
-            return "R$ " +
-              value.toFixed(0);
-
-          }
-
-        }
-
-      },
-
-      scales:{
-
-        x:{
-
-          ticks:{
-
-            color:"#E5E7EB",
-
-            font:{
-              size:12
-            }
-
-          },
-
-          grid:{
-            display:false
-          }
-
-        },
-
-        y:{
-
-          ticks:{
-            color:"#CBD5E1"
-          },
-
-          grid:{
-            color:
-              "rgba(255,255,255,0.08)"
-          }
-
-        }
-
-      }
-
-    }
-
-  });
-
-  // 🔥 GRADIENTE 2
-
-  const ctx2 =
-    document.getElementById("g2")
-    .getContext("2d");
-
-  const gradiente2 =
-    ctx2.createLinearGradient(
-      0,0,0,400
-    );
-
-  gradiente2.addColorStop(
-    0,
-    "#34D399"
-  );
-
-  gradiente2.addColorStop(
-    1,
-    "#059669"
-  );
-
-  // 🔥 GRÁFICO 2
-
-  grafico2 = new Chart(ctx2, {
-
-    type:"bar",
-
-    data:{
-
-      labels:tecnicos,
-
-      datasets:[{
-
-        label:"KM",
-
-        data:kms,
-
-        backgroundColor:
-          gradiente2,
+        backgroundColor:grad1,
 
         borderRadius:10,
 
@@ -859,9 +830,135 @@ function atualizarDashboard(
 
       maintainAspectRatio:false,
 
-      animation:{
-        duration:1500
+      plugins:{
+
+        legend:{
+          labels:{
+            color:"#fff"
+          }
+        },
+
+        title:{
+
+          display:true,
+
+          text:
+            "💰 CONSUMO GERAL",
+
+          color:"#fff",
+
+          font:{
+            size:20,
+            weight:"bold"
+          }
+
+        },
+
+        datalabels:{
+
+          color:"#fff",
+
+          anchor:"end",
+
+          align:"top",
+
+          formatter:(value)=>{
+
+            return "R$ " +
+              value.toFixed(0);
+
+          }
+
+        }
+
       },
+
+      scales:{
+
+        x:{
+
+          ticks:{
+            color:"#fff"
+          },
+
+          grid:{
+            display:false
+          }
+
+        },
+
+        y:{
+
+          ticks:{
+            color:"#CBD5E1"
+          },
+
+          grid:{
+            color:
+              "rgba(255,255,255,0.08)"
+          }
+
+        }
+
+      }
+
+    }
+
+  });
+
+  // GRÁFICO 2
+
+  const ctx2 =
+    document.getElementById("g2")
+    .getContext("2d");
+
+  const grad2 =
+    ctx2.createLinearGradient(
+      0,0,0,400
+    );
+
+  grad2.addColorStop(
+    0,
+    "#34D399"
+  );
+
+  grad2.addColorStop(
+    1,
+    "#059669"
+  );
+
+  grafico2 =
+    new Chart(ctx2,{
+
+    type:"bar",
+
+    data:{
+
+      labels:tecnicos,
+
+      datasets:[{
+
+        label:"KM",
+
+        data:kms,
+
+        backgroundColor:grad2,
+
+        borderRadius:10,
+
+        borderSkipped:false
+
+      }]
+
+    },
+
+    plugins:[ChartDataLabels],
+
+    options:{
+
+      responsive:true,
+
+      maintainAspectRatio:false,
 
       plugins:{
 
@@ -876,16 +973,15 @@ function atualizarDashboard(
           display:true,
 
           text:
-            "🛣 KM GERAL POR NOME",
+            "🛣 KM GERAL",
 
           color:"#fff",
 
           font:{
             size:20,
             weight:"bold"
-          },
+          }
 
-          padding:20
         },
 
         datalabels:{
@@ -895,11 +991,6 @@ function atualizarDashboard(
           anchor:"end",
 
           align:"top",
-
-          font:{
-            weight:"bold",
-            size:12
-          },
 
           formatter:(value)=>{
 
@@ -916,7 +1007,7 @@ function atualizarDashboard(
         x:{
 
           ticks:{
-            color:"#E5E7EB"
+            color:"#fff"
           },
 
           grid:{
@@ -946,13 +1037,15 @@ function atualizarDashboard(
 
 }
 
-// 🔥 PDF
+// PDF
 
 function gerarPDF(){
 
-  const { jsPDF } = window.jspdf;
+  const { jsPDF } =
+    window.jspdf;
 
-  const doc = new jsPDF();
+  const doc =
+    new jsPDF();
 
   doc.text(
     "RELATÓRIO",
@@ -960,11 +1053,13 @@ function gerarPDF(){
     10
   );
 
-  doc.save("relatorio.pdf");
+  doc.save(
+    "relatorio.pdf"
+  );
 
 }
 
-// 🔥 INICIAR
+// INICIAR
 
 carregarDados();
 
