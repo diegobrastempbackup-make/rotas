@@ -26,23 +26,14 @@ body{
   font-family:Arial;
 
   background:
-    radial-gradient(
-      circle at top left,
-      rgba(37,99,235,0.15),
-      transparent 25%
-    ),
-
-    radial-gradient(
-      circle at bottom right,
-      rgba(59,130,246,0.12),
-      transparent 20%
-    ),
-
-    #020617;
+    linear-gradient(
+      135deg,
+      #020617,
+      #0F172A,
+      #111827
+    );
 
   color:white;
-
-  overflow-x:hidden;
 }
 
 .container{
@@ -53,33 +44,28 @@ body{
 
 .sidebar{
 
-  width:270px;
+  width:250px;
 
   background:
-    linear-gradient(
-      180deg,
-      #020617,
-      #071227,
-      #020617
-    );
+    rgba(15,23,42,0.95);
+
+  backdrop-filter:blur(10px);
 
   height:100vh;
 
-  padding:25px;
+  padding:20px;
 
   overflow:auto;
 
   border-right:
-    1px solid rgba(59,130,246,0.25);
+    1px solid rgba(255,255,255,0.05);
 
   box-shadow:
-    5px 0 30px rgba(0,0,0,0.5);
+    5px 0 20px rgba(0,0,0,0.4);
 
   display:flex;
 
   flex-direction:column;
-
-  position:relative;
 }
 
 /* LOGO */
@@ -92,16 +78,27 @@ body{
 
   align-items:center;
 
-  margin-bottom:30px;
+  margin-bottom:25px;
 }
 
 .logo{
 
-  width:170px;
+  width:120px;
 
-  margin-bottom:5px;
+  margin-bottom:10px;
 
   transition:0.4s;
+
+  filter:
+    drop-shadow(
+      0 0 15px
+      rgba(59,130,246,0.5)
+    );
+}
+
+.logo:hover{
+
+  transform:scale(1.05);
 
   filter:
     drop-shadow(
@@ -110,23 +107,13 @@ body{
     );
 }
 
-.logo:hover{
-
-  transform:scale(1.05);
-}
-
-.logo-area h2{
-
-  font-size:55px;
+.sidebar h2{
 
   margin:0;
 
-  color:#3B82F6;
+  color:#60A5FA;
 
-  font-weight:900;
-
-  text-shadow:
-    0 0 20px rgba(59,130,246,0.6);
+  font-size:28px;
 }
 
 /* MENU */
@@ -135,23 +122,15 @@ body{
 
   cursor:pointer;
 
-  padding:16px 18px;
+  padding:12px;
 
-  border-radius:18px;
+  border-radius:10px;
 
-  margin:8px 0;
+  margin:5px 0;
 
   transition:0.3s;
 
   font-weight:bold;
-
-  font-size:17px;
-
-  display:flex;
-
-  align-items:center;
-
-  gap:12px;
 }
 
 .sidebar p:hover{
@@ -159,14 +138,11 @@ body{
   background:
     linear-gradient(
       90deg,
-      rgba(37,99,235,0.35),
-      rgba(59,130,246,0.15)
+      #2563EB,
+      #3B82F6
     );
 
-  transform:translateX(6px);
-
-  box-shadow:
-    0 0 20px rgba(59,130,246,0.2);
+  transform:translateX(5px);
 }
 
 .sidebar input,
@@ -176,21 +152,18 @@ body{
 
   margin-top:10px;
 
-  padding:14px;
+  padding:12px;
 
   border:none;
 
-  border-radius:14px;
+  border-radius:10px;
 }
 
 .sidebar input{
 
-  background:#111827;
+  background:#1E293B;
 
   color:white;
-
-  border:
-    1px solid rgba(255,255,255,0.05);
 }
 
 .sidebar button{
@@ -216,7 +189,7 @@ body{
   transform:scale(1.03);
 
   box-shadow:
-    0 0 20px rgba(59,130,246,0.5);
+    0 0 15px rgba(59,130,246,0.5);
 }
 
 /* FOOTER */
@@ -242,7 +215,7 @@ body{
 
   flex:1;
 
-  padding:30px;
+  padding:25px;
 }
 
 /* CARDS */
@@ -251,7 +224,7 @@ body{
 
   display:flex;
 
-  gap:25px;
+  gap:20px;
 
   flex-wrap:wrap;
 }
@@ -261,76 +234,49 @@ body{
   background:
     linear-gradient(
       145deg,
-      rgba(20,30,55,0.95),
-      rgba(10,20,40,0.98)
+      rgba(30,41,59,0.95),
+      rgba(15,23,42,0.95)
     );
 
-  border-radius:28px;
+  border-radius:20px;
 
-  padding:30px;
+  padding:25px;
 
   flex:1;
 
-  min-width:260px;
+  min-width:220px;
 
   border:
     1px solid rgba(255,255,255,0.05);
 
   box-shadow:
-    0 15px 40px rgba(0,0,0,0.45);
+    0 10px 25px rgba(0,0,0,0.4);
 
-  transition:0.4s;
-
-  position:relative;
-
-  overflow:hidden;
-}
-
-.card::before{
-
-  content:"";
-
-  position:absolute;
-
-  width:200px;
-
-  height:200px;
-
-  background:
-    radial-gradient(
-      rgba(59,130,246,0.15),
-      transparent
-    );
-
-  top:-80px;
-
-  right:-80px;
+  transition:0.3s;
 }
 
 .card:hover{
 
-  transform:translateY(-6px);
+  transform:translateY(-5px);
 
   box-shadow:
-    0 20px 50px rgba(0,0,0,0.55);
+    0 15px 35px rgba(0,0,0,0.5);
 }
 
 .card h3{
 
   margin-top:0;
 
-  color:#60A5FA;
-
-  font-size:18px;
+  color:#93C5FD;
 }
 
 .card p{
 
-  font-size:50px;
+  font-size:28px;
 
   font-weight:bold;
 
-  margin-top:20px;
+  margin-top:15px;
 }
 
 /* GRÁFICOS */
@@ -339,9 +285,9 @@ body{
 
   display:flex;
 
-  gap:25px;
+  gap:20px;
 
-  margin-top:35px;
+  margin-top:30px;
 
   flex-wrap:wrap;
 }
@@ -351,29 +297,25 @@ body{
   background:
     linear-gradient(
       145deg,
-      rgba(20,30,55,0.98),
-      rgba(10,20,40,0.98)
+      rgba(30,41,59,0.95),
+      rgba(15,23,42,0.95)
     );
 
-  border-radius:30px;
+  border-radius:20px;
 
-  padding:25px;
+  padding:20px;
 
   flex:1;
 
-  min-width:400px;
+  min-width:350px;
 
-  height:520px;
+  height:450px;
 
   border:
-    1px solid rgba(255,255,255,0.04);
+    1px solid rgba(255,255,255,0.05);
 
   box-shadow:
-    0 20px 50px rgba(0,0,0,0.5);
-
-  position:relative;
-
-  overflow:hidden;
+    0 10px 30px rgba(0,0,0,0.45);
 }
 
 canvas{
@@ -415,31 +357,31 @@ canvas{
 </p>
 
 <p onclick="filtrar('Sibele')">
-👤 Sibele
+Sibele
 </p>
 
 <p onclick="filtrar('Empresa')">
-🏢 Empresa
+Empresa
 </p>
 
 <p onclick="filtrar('Danilo')">
-👤 Danilo
+Danilo
 </p>
 
 <p onclick="filtrar('José Cicero')">
-👤 José Cicero
+José Cicero
 </p>
 
 <p onclick="filtrar('Alex')">
-👤 Alex
+Alex
 </p>
 
 <p onclick="filtrar('Danilo BH')">
-👤 Danilo BH
+Danilo BH
 </p>
 
 <p onclick="filtrar('Thiago BH')">
-👤 Thiago BH
+Thiago BH
 </p>
 
 <hr>
@@ -551,6 +493,8 @@ R$ 0,00
 
 <script>
 
+// TÉCNICOS
+
 const tecnicos = [
 
   "Sibele",
@@ -570,12 +514,14 @@ let tecnicoAtual = "TODOS";
 let grafico1;
 let grafico2;
 
-/* ACESSAR */
+// ACESSAR
 
 function acessar(){
 
   const senha =
-    document.getElementById("senha").value;
+    document.getElementById(
+      "senha"
+    ).value;
 
   if(senha === "Brastemp1234"){
 
@@ -590,13 +536,14 @@ function acessar(){
 
 }
 
-/* MÊS ATUAL */
+// MÊS ATUAL
 
 function obterMesAtual(){
 
   const hoje = new Date();
 
-  const ano = hoje.getFullYear();
+  const ano =
+    hoje.getFullYear();
 
   const mes = String(
     hoje.getMonth() + 1
@@ -606,13 +553,14 @@ function obterMesAtual(){
 
 }
 
-/* FILTRO */
+// FILTRO MÊS
 
 function dadosPorMes(mes){
 
   return dadosGlobal.filter(d=>{
 
-    if(!d.data) return false;
+    if(!d.data)
+      return false;
 
     return d.data.startsWith(mes);
 
@@ -620,7 +568,7 @@ function dadosPorMes(mes){
 
 }
 
-/* CARREGAR */
+// CARREGAR
 
 async function carregarDados(){
 
@@ -654,7 +602,7 @@ async function carregarDados(){
 
 }
 
-/* FILTRAR */
+// FILTRAR TÉCNICO
 
 function filtrar(nome){
 
@@ -675,6 +623,8 @@ function filtrar(nome){
 
 }
 
+// FILTRAR MÊS
+
 function filtrarMes(){
 
   const mes =
@@ -691,6 +641,8 @@ function filtrarMes(){
   );
 
 }
+
+// LIMPAR FILTRO
 
 function limparFiltro(){
 
@@ -711,7 +663,7 @@ function limparFiltro(){
 
 }
 
-/* PROCESSAR */
+// PROCESSAR
 
 function processar(
   dados,
@@ -719,10 +671,12 @@ function processar(
 ){
 
   let valores =
-    Array(tecnicos.length).fill(0);
+    Array(tecnicos.length)
+    .fill(0);
 
   let kms =
-    Array(tecnicos.length).fill(0);
+    Array(tecnicos.length)
+    .fill(0);
 
   dados.forEach(d=>{
 
@@ -732,7 +686,9 @@ function processar(
     ){
 
       const i =
-        tecnicos.indexOf(d.tecnico);
+        tecnicos.indexOf(
+          d.tecnico
+        );
 
       if(i >= 0){
 
@@ -756,7 +712,7 @@ function processar(
 
 }
 
-/* DASHBOARD */
+// DASHBOARD
 
 function atualizarDashboard(
   valores,
@@ -820,7 +776,7 @@ function atualizarDashboard(
   if(grafico1) grafico1.destroy();
   if(grafico2) grafico2.destroy();
 
-  /* GRÁFICO 1 */
+  // GRÁFICO 1
 
   const ctx1 =
     document.getElementById("g1")
@@ -858,7 +814,7 @@ function atualizarDashboard(
 
         backgroundColor:grad1,
 
-        borderRadius:14,
+        borderRadius:10,
 
         borderSkipped:false
 
@@ -892,7 +848,7 @@ function atualizarDashboard(
           color:"#fff",
 
           font:{
-            size:22,
+            size:20,
             weight:"bold"
           }
 
@@ -950,7 +906,7 @@ function atualizarDashboard(
 
   });
 
-  /* GRÁFICO 2 */
+  // GRÁFICO 2
 
   const ctx2 =
     document.getElementById("g2")
@@ -988,7 +944,7 @@ function atualizarDashboard(
 
         backgroundColor:grad2,
 
-        borderRadius:14,
+        borderRadius:10,
 
         borderSkipped:false
 
@@ -1022,7 +978,7 @@ function atualizarDashboard(
           color:"#fff",
 
           font:{
-            size:22,
+            size:20,
             weight:"bold"
           }
 
@@ -1081,7 +1037,7 @@ function atualizarDashboard(
 
 }
 
-/* PDF */
+// PDF
 
 function gerarPDF(){
 
@@ -1101,6 +1057,8 @@ function gerarPDF(){
 
   y += 15;
 
+  // MÊS FILTRADO
+
   const mes =
     document.getElementById(
       "mesFiltro"
@@ -1108,6 +1066,8 @@ function gerarPDF(){
 
   const filtrado =
     dadosPorMes(mes);
+
+  // GERAL
 
   if(tecnicoAtual === "TODOS"){
 
@@ -1120,6 +1080,8 @@ function gerarPDF(){
 
       if(dadosTecnico.length === 0)
         return;
+
+      // TÍTULO
 
       doc.setFontSize(14);
 
@@ -1175,6 +1137,8 @@ function gerarPDF(){
 
         y += 7;
 
+        // NOVA PÁGINA
+
         if(y > 280){
 
           doc.addPage();
@@ -1186,6 +1150,8 @@ function gerarPDF(){
       });
 
       y += 5;
+
+      // TOTAIS
 
       doc.setFontSize(11);
 
@@ -1216,6 +1182,8 @@ function gerarPDF(){
     });
 
   }else{
+
+    // INDIVIDUAL
 
     const dadosTecnico =
       filtrado.filter(
@@ -1260,6 +1228,8 @@ function gerarPDF(){
 
       y += 8;
 
+      // NOVA PÁGINA
+
       if(y > 280){
 
         doc.addPage();
@@ -1271,6 +1241,8 @@ function gerarPDF(){
     });
 
     y += 5;
+
+    // TOTAIS
 
     doc.setFontSize(12);
 
@@ -1302,7 +1274,7 @@ function gerarPDF(){
 
 }
 
-/* INICIAR */
+// INICIAR
 
 carregarDados();
 
