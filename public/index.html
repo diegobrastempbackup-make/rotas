@@ -1064,7 +1064,7 @@ const filtrado =
 
 function desenharCabecalho() {
 
-    doc.setFillColor(0, 84, 180);
+    doc.setFillColor(15, 23, 42);
 
     doc.rect(
         0,
@@ -1141,11 +1141,10 @@ function desenharCabecalho() {
 
 function desenharTabela() {
 
-    // Azul corporativo estilo Excel
     doc.setFillColor(
-        0,
-        84,
-        180
+        15,
+        23,
+        42
     );
 
     doc.rect(
@@ -1163,11 +1162,6 @@ function desenharTabela() {
     );
 
     doc.setFontSize(9);
-
-    doc.setFont(
-        undefined,
-        "bold"
-    );
 
     doc.text(
         "DATA",
@@ -1197,11 +1191,6 @@ function desenharTabela() {
         "KM/L",
         165,
         y + 5
-    );
-
-    doc.setFont(
-        undefined,
-        "normal"
     );
 
     doc.setTextColor(
