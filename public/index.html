@@ -1056,45 +1056,135 @@ function gerarPDF() {
     const filtrado = dadosPorMes(mes);
 
     function desenharCabecalho() {
-        // SUGESTÃO: Azul Marinho Premium - Integra perfeitamente com a logo
-        doc.setFillColor(26, 54, 93);
+        // NOVO: Azul Real idêntico ao da imagem enviada (RGB: 10, 61, 196)
+        doc.setFillColor(10, 61, 196);
 
-        doc.rect(0, 0, 210, 30, "F");
+        doc.rect(
+            0,
+            0,
+            210,
+            30,
+            "F"
+        );
 
         if (logo && logo.complete) {
-            doc.addImage(logo, "PNG", 8, 4, 20, 20);
+            doc.addImage(
+                logo,
+                "PNG",
+                8,
+                4,
+                20,
+                20
+            );
         }
 
-        doc.setTextColor(255, 255, 255);
+        doc.setTextColor(
+            255,
+            255,
+            255
+        );
+
         doc.setFontSize(18);
-        doc.setFont(undefined, "bold");
-        doc.text("NERI", 35, 13);
+        doc.setFont(
+            undefined,
+            "bold"
+        );
+
+        doc.text(
+            "NERI",
+            35,
+            13
+        );
 
         doc.setFontSize(10);
-        doc.setFont(undefined, "normal");
-        doc.text("Relatório de Consumo e Quilometragem", 35, 21);
-        doc.text(`Mês: ${mes}`, 145, 13);
-        doc.text(new Date().toLocaleString("pt-BR"), 120, 21);
+        doc.setFont(
+            undefined,
+            "normal"
+        );
 
-        doc.setTextColor(0, 0, 0);
+        doc.text(
+            "Relatório de Consumo e Quilometragem",
+            35,
+            21
+        );
+
+        doc.text(
+            `Mês: ${mes}`,
+            145,
+            13
+        );
+
+        doc.text(
+            new Date().toLocaleString("pt-BR"),
+            120,
+            21
+        );
+
+        doc.setTextColor(
+            0,
+            0,
+            0
+        );
+
         y = 40;
     }
 
     function desenharTabela() {
-        // SUGESTÃO: Azul comercial moderno para a tabela (excelente contraste)
-        doc.setFillColor(37, 99, 235);
+        // NOVO: Mesmo Azul Real aplicado uniformemente no cabeçalho da tabela
+        doc.setFillColor(10, 61, 196);
 
-        doc.rect(10, y, 190, 8, "F");
-        doc.setTextColor(255, 255, 255);
+        doc.rect(
+            10,
+            y,
+            190,
+            8,
+            "F"
+        );
+
+        doc.setTextColor(
+            255,
+            255,
+            255
+        );
+
         doc.setFontSize(9);
 
-        doc.text("DATA", 15, y + 5);
-        doc.text("KM", 55, y + 5);
-        doc.text("LITROS", 85, y + 5);
-        doc.text("VALOR", 120, y + 5);
-        doc.text("KM/L", 165, y + 5);
+        doc.text(
+            "DATA",
+            15,
+            y + 5
+        );
 
-        doc.setTextColor(0, 0, 0);
+        doc.text(
+            "KM",
+            55,
+            y + 5
+        );
+
+        doc.text(
+            "LITROS",
+            85,
+            y + 5
+        );
+
+        doc.text(
+            "VALOR",
+            120,
+            y + 5
+        );
+
+        doc.text(
+            "KM/L",
+            165,
+            y + 5
+        );
+
+        doc.setTextColor(
+            0,
+            0,
+            0
+        );
+
         y += 12;
     }
 
@@ -1110,13 +1200,26 @@ function gerarPDF() {
 
     if (tecnicoAtual === "TODOS") {
         tecnicos.forEach(nome => {
-            const dadosTecnico = filtrado.filter(d => d.tecnico === nome);
+            const dadosTecnico = filtrado.filter(
+                d => d.tecnico === nome
+            );
+
             if (!dadosTecnico.length) return;
 
             verificarPagina();
+
             doc.setFontSize(13);
-            doc.setFont(undefined, "bold");
-            doc.text(nome, 10, y);
+            doc.setFont(
+                undefined,
+                "bold"
+            );
+
+            doc.text(
+                nome,
+                10,
+                y
+            );
+
             y += 8;
 
             desenharTabela();
@@ -1129,6 +1232,7 @@ function gerarPDF() {
                 const km = Number(d.km) || 0;
                 const litros = Number(d.litros) || 0;
                 const valor = Number(d.valor) || 0;
+
                 const media = litros > 0 ? km / litros : 0;
 
                 totalKm += km;
@@ -1136,43 +1240,138 @@ function gerarPDF() {
                 totalValor += valor;
 
                 const cor = indice % 2 === 0 ? 255 : 245;
-                doc.setFillColor(cor, cor, cor);
-                doc.rect(10, y - 5, 190, 8, "F");
-                doc.rect(10, y - 5, 190, 8);
 
-                doc.text(String(d.data), 15, y);
-                doc.text(km.toFixed(0), 55, y);
-                doc.text(litros.toFixed(2), 85, y);
-                doc.text(valor.toFixed(2), 120, y);
-                doc.text(media.toFixed(2), 165, y);
+                doc.setFillColor(
+                    cor,
+                    cor,
+                    cor
+                );
+
+                doc.rect(
+                    10,
+                    y - 5,
+                    190,
+                    8,
+                    "F"
+                );
+
+                doc.rect(
+                    10,
+                    y - 5,
+                    190,
+                    8
+                );
+
+                doc.text(
+                    String(d.data),
+                    15,
+                    y
+                );
+
+                doc.text(
+                    km.toFixed(0),
+                    55,
+                    y
+                );
+
+                doc.text(
+                    litros.toFixed(2),
+                    85,
+                    y
+                );
+
+                doc.text(
+                    valor.toFixed(2),
+                    120,
+                    y
+                );
+
+                doc.text(
+                    media.toFixed(2),
+                    165,
+                    y
+                );
 
                 y += 8;
                 verificarPagina();
             });
 
             const mediaKmL = totalLitros > 0 ? totalKm / totalLitros : 0;
-            const valorLitro = totalLitros > 0 ? totalValor / totalLitros : 0;
+            const valorLitro = totalValor > 0 ? totalValor / totalLitros : 0;
 
-            // Fundo dos totais ligeiramente azulado (suave)
-            doc.setFillColor(239, 246, 255);
-            doc.roundedRect(10, y, 190, 40, 3, 3, "FD");
+            // Mantido o fundo dos totais num azul bem clarinho para contrastar com o novo azul forte
+            doc.setFillColor(
+                230,
+                236,
+                245
+            );
+
+            doc.roundedRect(
+                10,
+                y,
+                190,
+                40,
+                3,
+                3,
+                "FD"
+            );
 
             doc.setFontSize(10);
-            doc.setFont(undefined, "bold");
-            doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10);
-            doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20);
-            doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-            doc.text(`MÉDIA KM/L: ${mediaKmL.toFixed(2)}`, 110, y + 10);
-            doc.text(`VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`, 110, y + 20);
+            doc.setFont(
+                undefined,
+                "bold"
+            );
+
+            doc.text(
+                `TOTAL KM: ${totalKm.toFixed(0)} KM`,
+                15,
+                y + 10
+            );
+
+            doc.text(
+                `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
+                15,
+                y + 20
+            );
+
+            doc.text(
+                `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
+                15,
+                y + 30
+            );
+
+            doc.text(
+                `MÉDIA KM/L: ${mediaKmL.toFixed(2)}`,
+                110,
+                y + 10
+            );
+
+            doc.text(
+                `VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`,
+                110,
+                y + 20
+            );
 
             y += 50;
         });
+
     } else {
-        const dadosTecnico = filtrado.filter(d => d.tecnico === tecnicoAtual);
+        const dadosTecnico = filtrado.filter(
+            d => d.tecnico === tecnicoAtual
+        );
 
         doc.setFontSize(13);
-        doc.setFont(undefined, "bold");
-        doc.text(tecnicoAtual, 10, y);
+        doc.setFont(
+            undefined,
+            "bold"
+        );
+
+        doc.text(
+            tecnicoAtual,
+            10,
+            y
+        );
+
         y += 8;
 
         desenharTabela();
@@ -1185,6 +1384,7 @@ function gerarPDF() {
             const km = Number(d.km) || 0;
             const litros = Number(d.litros) || 0;
             const valor = Number(d.valor) || 0;
+
             const media = litros > 0 ? km / litros : 0;
 
             totalKm += km;
@@ -1192,15 +1392,57 @@ function gerarPDF() {
             totalValor += valor;
 
             const cor = indice % 2 === 0 ? 255 : 245;
-            doc.setFillColor(cor, cor, cor);
-            doc.rect(10, y - 5, 190, 8, "F");
-            doc.rect(10, y - 5, 190, 8);
 
-            doc.text(String(d.data), 15, y);
-            doc.text(km.toFixed(0), 55, y);
-            doc.text(litros.toFixed(2), 85, y);
-            doc.text(valor.toFixed(2), 120, y);
-            doc.text(media.toFixed(2), 165, y);
+            doc.setFillColor(
+                cor,
+                cor,
+                cor
+            );
+
+            doc.rect(
+                10,
+                y - 5,
+                190,
+                8,
+                "F"
+            );
+
+            doc.rect(
+                10,
+                y - 5,
+                190,
+                8
+            );
+
+            doc.text(
+                String(d.data),
+                15,
+                y
+            );
+
+            doc.text(
+                km.toFixed(0),
+                55,
+                y
+            );
+
+            doc.text(
+                litros.toFixed(2),
+                85,
+                y
+            );
+
+            doc.text(
+                valor.toFixed(2),
+                120,
+                y
+            );
+
+            doc.text(
+                media.toFixed(2),
+                165,
+                y
+            );
 
             y += 8;
             verificarPagina();
@@ -1209,28 +1451,82 @@ function gerarPDF() {
         const mediaKmL = totalLitros > 0 ? totalKm / totalLitros : 0;
         const valorLitro = totalLitros > 0 ? totalValor / totalLitros : 0;
 
-        doc.setFillColor(239, 246, 255);
-        doc.roundedRect(10, y, 190, 40, 3, 3, "FD");
+        doc.setFillColor(
+            230,
+            236,
+            245
+        );
+
+        doc.roundedRect(
+            10,
+            y,
+            190,
+            40,
+            3,
+            3,
+            "FD"
+        );
 
         doc.setFontSize(10);
-        doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10);
-        doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20);
-        doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-        doc.text(`MÉDIA KM/L: ${mediaKmL.toFixed(2)}`, 110, y + 10);
-        doc.text(`VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`, 110, y + 20);
+
+        doc.text(
+            `TOTAL KM: ${totalKm.toFixed(0)} KM`,
+            15,
+            y + 10
+        );
+
+        doc.text(
+            `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
+            15,
+            y + 20
+        );
+
+        doc.text(
+            `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
+            15,
+            y + 30
+        );
+
+        doc.text(
+            `MÉDIA KM/L: ${mediaKmL.toFixed(2)}`,
+            110,
+            y + 10
+        );
+
+        doc.text(
+            `VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`,
+            110,
+            y + 20
+        );
     }
 
     const paginas = doc.getNumberOfPages();
+
     for (let i = 1; i <= paginas; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text("Sistema NERI © 2026", 10, 290);
-        doc.text(`Página ${i} de ${paginas}`, 170, 290);
+        doc.setTextColor(
+            120,
+            120,
+            120
+        );
+
+        doc.text(
+            "Sistema NERI © 2026",
+            10,
+            290
+        );
+
+        doc.text(
+            `Página ${i} de ${paginas}`,
+            170,
+            290
+        );
     }
 
     doc.save("relatorio.pdf");
 }
+
 // INICIAR
 
 carregarDados();
