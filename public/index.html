@@ -1056,8 +1056,8 @@ function gerarPDF() {
     const filtrado = dadosPorMes(mes);
 
     function desenharCabecalho() {
-        // NOVO: Azul médio mais claro e uniforme com letras brancas (RGB: 41, 128, 185)
-        doc.setFillColor(41, 128, 185);
+        // NOVO: Azul Real idêntico ao da imagem enviada (RGB: 10, 61, 196)
+        doc.setFillColor(10, 61, 196);
 
         doc.rect(
             0,
@@ -1085,7 +1085,6 @@ function gerarPDF() {
         );
 
         doc.setFontSize(18);
-
         doc.setFont(
             undefined,
             "bold"
@@ -1098,7 +1097,6 @@ function gerarPDF() {
         );
 
         doc.setFontSize(10);
-
         doc.setFont(
             undefined,
             "normal"
@@ -1132,8 +1130,8 @@ function gerarPDF() {
     }
 
     function desenharTabela() {
-        // NOVO: Alinhando a cor do cabeçalho da tabela com o topo do PDF
-        doc.setFillColor(41, 128, 185);
+        // NOVO: Mesmo Azul Real aplicado uniformemente no cabeçalho da tabela
+        doc.setFillColor(10, 61, 196);
 
         doc.rect(
             10,
@@ -1299,8 +1297,9 @@ function gerarPDF() {
             });
 
             const mediaKmL = totalLitros > 0 ? totalKm / totalLitros : 0;
-            const valorLitro = totalLitros > 0 ? totalValor / totalLitros : 0;
+            const valorLitro = totalValor > 0 ? totalValor / totalLitros : 0;
 
+            // Mantido o fundo dos totais num azul bem clarinho para contrastar com o novo azul forte
             doc.setFillColor(
                 230,
                 236,
