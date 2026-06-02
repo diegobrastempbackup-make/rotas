@@ -491,6 +491,12 @@ R$ 0,00
 
 </div>
 
+<img
+    id="logoNERI"
+    src="/logo.png"
+    style="display:none;"
+>
+
 <script>
 
 // TÉCNICOS
@@ -1039,240 +1045,564 @@ function atualizarDashboard(
 
 // PDF
 
-function gerarPDF(){
+function gerarPDF() {
 
-  const { jsPDF } = window.jspdf;
 
-  const doc = new jsPDF();
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF();
 
-  let y = 10;
+const logo =
+    document.getElementById("logoNERI");
 
-  doc.setFontSize(18);
+let y = 40;
 
-  doc.text(
-    "RELATÓRIO DE KM",
-    10,
-    y
-  );
+const mes =
+    document.getElementById("mesFiltro").value;
 
-  y += 15;
-
-  // MÊS FILTRADO
-
-  const mes =
-    document.getElementById(
-      "mesFiltro"
-    ).value;
-
-  const filtrado =
+const filtrado =
     dadosPorMes(mes);
 
-  // GERAL
+function desenharCabecalho() {
 
-  if(tecnicoAtual === "TODOS"){
+    doc.setFillColor(15, 23, 42);
 
-    tecnicos.forEach(nome=>{
+    doc.rect(
+        0,
+        0,
+        210,
+        30,
+        "F"
+    );
 
-      const dadosTecnico =
-        filtrado.filter(
-          d => d.tecnico === nome
+    if (logo && logo.complete) {
+
+        doc.addImage(
+            logo,
+            "PNG",
+            8,
+            4,
+            20,
+            20
         );
+    }
 
-      if(dadosTecnico.length === 0)
-        return;
+    doc.setTextColor(
+        255,
+        255,
+        255
+    );
 
-      // TÍTULO
+    doc.setFontSize(18);
 
-      doc.setFontSize(14);
-
-      doc.text(
-        "===================================",
-        10,
-        y
-      );
-
-      y += 8;
-
-      doc.text(
-        nome,
-        10,
-        y
-      );
-
-      y += 8;
-
-      doc.text(
-        "===================================",
-        10,
-        y
-      );
-
-      y += 10;
-
-      let totalKm = 0;
-      let totalValor = 0;
-      let totalLitros = 0;
-
-      dadosTecnico.forEach(d=>{
-
-        totalKm +=
-          Number(d.km) || 0;
-
-        totalValor +=
-          Number(d.valor) || 0;
-
-        totalLitros +=
-          Number(d.litros) || 0;
-
-        doc.setFontSize(10);
-
-        doc.text(
-
-`${d.data} | KM: ${d.km} | Litros: ${d.litros} | Valor: R$ ${Number(d.valor).toFixed(2)}`,
-
-          10,
-          y
-
-        );
-
-        y += 7;
-
-        // NOVA PÁGINA
-
-        if(y > 280){
-
-          doc.addPage();
-
-          y = 10;
-
-        }
-
-      });
-
-      y += 5;
-
-      // TOTAIS
-
-      doc.setFontSize(11);
-
-      doc.text(
-        `TOTAL KM: ${totalKm} KM`,
-        10,
-        y
-      );
-
-      y += 7;
-
-      doc.text(
-        `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
-        10,
-        y
-      );
-
-      y += 7;
-
-      doc.text(
-        `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
-        10,
-        y
-      );
-
-      y += 15;
-
-    });
-
-  }else{
-
-    // INDIVIDUAL
-
-    const dadosTecnico =
-      filtrado.filter(
-        d => d.tecnico === tecnicoAtual
-      );
-
-    let totalKm = 0;
-    let totalValor = 0;
-    let totalLitros = 0;
-
-    doc.setFontSize(14);
+    doc.setFont(
+        undefined,
+        "bold"
+    );
 
     doc.text(
-      tecnicoAtual,
-      10,
-      y
+        "NERI",
+        35,
+        13
+    );
+
+    doc.setFontSize(10);
+
+    doc.setFont(
+        undefined,
+        "normal"
+    );
+
+    doc.text(
+        "Relatório de Consumo e Quilometragem",
+        35,
+        21
+    );
+
+    doc.text(
+        `Mês: ${mes}`,
+        145,
+        13
+    );
+
+    doc.text(
+        new Date().toLocaleString("pt-BR"),
+        120,
+        21
+    );
+
+    doc.setTextColor(
+        0,
+        0,
+        0
+    );
+
+    y = 40;
+}
+
+function desenharTabela() {
+
+    doc.setFillColor(
+        15,
+        23,
+        42
+    );
+
+    doc.rect(
+        10,
+        y,
+        190,
+        8,
+        "F"
+    );
+
+    doc.setTextColor(
+        255,
+        255,
+        255
+    );
+
+    doc.setFontSize(9);
+
+    doc.text(
+        "DATA",
+        15,
+        y + 5
+    );
+
+    doc.text(
+        "KM",
+        55,
+        y + 5
+    );
+
+    doc.text(
+        "LITROS",
+        85,
+        y + 5
+    );
+
+    doc.text(
+        "VALOR",
+        120,
+        y + 5
+    );
+
+    doc.text(
+        "KM/L",
+        165,
+        y + 5
+    );
+
+    doc.setTextColor(
+        0,
+        0,
+        0
     );
 
     y += 12;
+}
 
-    dadosTecnico.forEach(d=>{
+function verificarPagina() {
 
-      totalKm +=
-        Number(d.km) || 0;
-
-      totalValor +=
-        Number(d.valor) || 0;
-
-      totalLitros +=
-        Number(d.litros) || 0;
-
-      doc.setFontSize(10);
-
-      doc.text(
-
-`${d.data} | KM: ${d.km} | Litros: ${d.litros} | Valor: R$ ${Number(d.valor).toFixed(2)}`,
-
-        10,
-        y
-
-      );
-
-      y += 8;
-
-      // NOVA PÁGINA
-
-      if(y > 280){
+    if (y > 270) {
 
         doc.addPage();
 
-        y = 10;
+        desenharCabecalho();
 
-      }
+        desenharTabela();
+    }
+}
 
+desenharCabecalho();
+
+if (tecnicoAtual === "TODOS") {
+
+    tecnicos.forEach(nome => {
+
+        const dadosTecnico =
+            filtrado.filter(
+                d => d.tecnico === nome
+            );
+
+        if (!dadosTecnico.length)
+            return;
+
+        verificarPagina();
+
+        doc.setFontSize(13);
+
+        doc.setFont(
+            undefined,
+            "bold"
+        );
+
+        doc.text(
+            nome,
+            10,
+            y
+        );
+
+        y += 8;
+
+        desenharTabela();
+
+        let totalKm = 0;
+        let totalLitros = 0;
+        let totalValor = 0;
+
+        dadosTecnico.forEach((d, indice) => {
+
+            const km =
+                Number(d.km) || 0;
+
+            const litros =
+                Number(d.litros) || 0;
+
+            const valor =
+                Number(d.valor) || 0;
+
+            const media =
+                litros > 0
+                    ? km / litros
+                    : 0;
+
+            totalKm += km;
+            totalLitros += litros;
+            totalValor += valor;
+
+            const cor =
+                indice % 2 === 0
+                    ? 255
+                    : 245;
+
+            doc.setFillColor(
+                cor,
+                cor,
+                cor
+            );
+
+            doc.rect(
+                10,
+                y - 5,
+                190,
+                8,
+                "F"
+            );
+
+            doc.rect(
+                10,
+                y - 5,
+                190,
+                8
+            );
+
+            doc.text(
+                String(d.data),
+                15,
+                y
+            );
+
+            doc.text(
+                km.toFixed(0),
+                55,
+                y
+            );
+
+            doc.text(
+                litros.toFixed(2),
+                85,
+                y
+            );
+
+            doc.text(
+                valor.toFixed(2),
+                120,
+                y
+            );
+
+            doc.text(
+                media.toFixed(2),
+                165,
+                y
+            );
+
+            y += 8;
+
+            verificarPagina();
+        });
+
+        const mediaKmL =
+            totalLitros > 0
+                ? totalKm / totalLitros
+                : 0;
+
+        const valorLitro =
+            totalLitros > 0
+                ? totalValor / totalLitros
+                : 0;
+
+        doc.setFillColor(
+            230,
+            236,
+            245
+        );
+
+        doc.roundedRect(
+            10,
+            y,
+            190,
+            40,
+            3,
+            3,
+            "FD"
+        );
+
+        doc.setFontSize(10);
+
+        doc.setFont(
+            undefined,
+            "bold"
+        );
+
+        doc.text(
+            `TOTAL KM: ${totalKm.toFixed(0)} KM`,
+            15,
+            y + 10
+        );
+
+        doc.text(
+            `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
+            15,
+            y + 20
+        );
+
+        doc.text(
+            `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
+            15,
+            y + 30
+        );
+
+        doc.text(
+            `MÉDIA KM/L: ${mediaKmL.toFixed(2)}`,
+            110,
+            y + 10
+        );
+
+        doc.text(
+            `VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`,
+            110,
+            y + 20
+        );
+
+        y += 50;
     });
 
-    y += 5;
+} else {
 
-    // TOTAIS
+    const dadosTecnico =
+        filtrado.filter(
+            d => d.tecnico === tecnicoAtual
+        );
 
-    doc.setFontSize(12);
+    doc.setFontSize(13);
+
+    doc.setFont(
+        undefined,
+        "bold"
+    );
 
     doc.text(
-      `TOTAL KM: ${totalKm} KM`,
-      10,
-      y
+        tecnicoAtual,
+        10,
+        y
     );
 
     y += 8;
 
-    doc.text(
-      `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
-      10,
-      y
+    desenharTabela();
+
+    let totalKm = 0;
+    let totalLitros = 0;
+    let totalValor = 0;
+
+    dadosTecnico.forEach((d, indice) => {
+
+        const km =
+            Number(d.km) || 0;
+
+        const litros =
+            Number(d.litros) || 0;
+
+        const valor =
+            Number(d.valor) || 0;
+
+        const media =
+            litros > 0
+                ? km / litros
+                : 0;
+
+        totalKm += km;
+        totalLitros += litros;
+        totalValor += valor;
+
+        const cor =
+            indice % 2 === 0
+                ? 255
+                : 245;
+
+        doc.setFillColor(
+            cor,
+            cor,
+            cor
+        );
+
+        doc.rect(
+            10,
+            y - 5,
+            190,
+            8,
+            "F"
+        );
+
+        doc.rect(
+            10,
+            y - 5,
+            190,
+            8
+        );
+
+        doc.text(
+            String(d.data),
+            15,
+            y
+        );
+
+        doc.text(
+            km.toFixed(0),
+            55,
+            y
+        );
+
+        doc.text(
+            litros.toFixed(2),
+            85,
+            y
+        );
+
+        doc.text(
+            valor.toFixed(2),
+            120,
+            y
+        );
+
+        doc.text(
+            media.toFixed(2),
+            165,
+            y
+        );
+
+        y += 8;
+
+        verificarPagina();
+    });
+
+    const mediaKmL =
+        totalLitros > 0
+            ? totalKm / totalLitros
+            : 0;
+
+    const valorLitro =
+        totalLitros > 0
+            ? totalValor / totalLitros
+            : 0;
+
+    doc.setFillColor(
+        230,
+        236,
+        245
     );
 
-    y += 8;
-
-    doc.text(
-      `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
-      10,
-      y
+    doc.roundedRect(
+        10,
+        y,
+        190,
+        40,
+        3,
+        3,
+        "FD"
     );
 
-  }
+    doc.setFontSize(10);
 
-  doc.save("relatorio.pdf");
+    doc.text(
+        `TOTAL KM: ${totalKm.toFixed(0)} KM`,
+        15,
+        y + 10
+    );
+
+    doc.text(
+        `TOTAL LITROS: ${totalLitros.toFixed(2)} L`,
+        15,
+        y + 20
+    );
+
+    doc.text(
+        `TOTAL GASTO: R$ ${totalValor.toFixed(2)}`,
+        15,
+        y + 30
+    );
+
+    doc.text(
+        `MÉDIA KM/L: ${mediaKmL.toFixed(2)}`,
+        110,
+        y + 10
+    );
+
+    doc.text(
+        `VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`,
+        110,
+        y + 20
+    );
+}
+
+const paginas =
+    doc.getNumberOfPages();
+
+for (
+    let i = 1;
+    i <= paginas;
+    i++
+) {
+
+    doc.setPage(i);
+
+    doc.setFontSize(8);
+
+    doc.setTextColor(
+        120,
+        120,
+        120
+    );
+
+    doc.text(
+        "Sistema NERI © 2026",
+        10,
+        290
+    );
+
+    doc.text(
+        `Página ${i} de ${paginas}`,
+        170,
+        290
+    );
+}
+
+doc.save("relatorio.pdf");
+
 
 }
+
 
 // INICIAR
 
