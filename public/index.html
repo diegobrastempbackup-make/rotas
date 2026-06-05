@@ -325,6 +325,150 @@ canvas{
   height:100% !important;
 }
 
+/*ESTILO DO BOTÃO SENHA*/
+/* MODAL */
+
+.modal{
+
+  position:fixed;
+
+  inset:0;
+
+  background:
+    rgba(0,0,0,0.7);
+
+  display:none;
+
+  justify-content:center;
+
+  align-items:center;
+
+  z-index:9999;
+
+  backdrop-filter:blur(5px);
+
+}
+
+.modal.show{
+
+  display:flex;
+
+}
+
+.modal-box{
+
+  width:350px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #1E293B,
+      #0F172A
+    );
+
+  border-radius:20px;
+
+  padding:25px;
+
+  text-align:center;
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 20px 50px
+    rgba(0,0,0,0.5);
+
+  animation:
+    aparecer 0.25s ease;
+
+}
+
+@keyframes aparecer{
+
+  from{
+
+    opacity:0;
+
+    transform:
+      translateY(-20px);
+
+  }
+
+  to{
+
+    opacity:1;
+
+    transform:
+      translateY(0);
+
+  }
+
+}
+
+.modal-box h2{
+
+  margin-top:0;
+
+  color:#60A5FA;
+
+}
+
+.modal-box p{
+
+  color:#CBD5E1;
+
+  margin-bottom:20px;
+
+}
+
+.modal-box input{
+
+  width:100%;
+
+  padding:12px;
+
+  border:none;
+
+  border-radius:10px;
+
+  background:#1E293B;
+
+  color:white;
+
+  margin-bottom:20px;
+
+}
+
+.modal-botoes{
+
+  display:flex;
+
+  gap:10px;
+
+}
+
+.btn-cancelar{
+
+  flex:1;
+
+  background:#475569;
+
+}
+
+.btn-entrar{
+
+  flex:1;
+
+  background:
+    linear-gradient(
+      90deg,
+      #2563EB,
+      #3B82F6
+    );
+
+}
+
 </style>
 
 </head>
@@ -409,11 +553,19 @@ Thiago BH
 
 <hr>
 
-<input
+<!--NOVO BOTÃO COM SENHA POSTERIOR-->
+
+<!---
+ <input
   type="password"
   id="senha"
   placeholder="Senha"
 >
+
+<button onclick="acessar()">
+📂 Ir para Dados
+</button> */
+-->
 
 <button onclick="acessar()">
 📂 Ir para Dados
@@ -522,6 +674,7 @@ let grafico2;
 
 // ACESSAR
 
+/*
 function acessar(){
 
   const senha =
@@ -530,6 +683,78 @@ function acessar(){
     ).value;
 
   if(senha === "Brastemp1234"){
+
+    window.location.href =
+      "/dados.html";
+
+  }else{
+
+    alert("Senha incorreta");
+
+  }
+
+}
+  */
+/*
+  function acessar(){
+
+  const senha = prompt(
+    "Digite a senha para acessar os dados:"
+  );
+
+  if(senha === null){
+    return;
+  }
+
+  if(senha === "Brastemp1234"){
+
+    window.location.href =
+      "/dados.html";
+
+  }else{
+
+    alert("Senha incorreta");
+
+  }
+
+}
+  */
+// NOVA FUNÇÃO
+  function acessar(){
+
+  document
+    .getElementById("modalSenha")
+    .classList.add("show");
+
+  document
+    .getElementById("senhaModal")
+    .focus();
+
+}
+
+function fecharModal(){
+
+  document
+    .getElementById("modalSenha")
+    .classList.remove("show");
+
+  document
+    .getElementById("senhaModal")
+    .value = "";
+
+}
+
+function validarSenha(){
+
+  const senha =
+
+    document
+      .getElementById("senhaModal")
+      .value;
+
+  if(
+    senha === "Brastemp1234"
+  ){
 
     window.location.href =
       "/dados.html";
@@ -1533,5 +1758,80 @@ carregarDados();
 
 </script>
 
+<!-- MODAL SENHA -->
+
+<div id="modalSenha" class="modal">
+
+  <div class="modal-box">
+
+    <h2>🔒 Acesso Restrito</h2>
+
+    <p>Digite a senha para acessar os dados</p>
+
+    <input
+      type="password"
+      id="senhaModal"
+      placeholder="Senha"
+      onkeydown="if(event.key==='Enter') validarSenha()"
+    >
+
+    <div class="modal-botoes">
+
+      <button
+        class="btn-cancelar"
+        onclick="fecharModal()"
+      >
+        Cancelar
+      </button>
+
+      <button
+        class="btn-entrar"
+        onclick="validarSenha()"
+      >
+        Entrar
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+<div id="modalSenha" class="modal">
+
+  <div class="modal-box">
+
+    <h2>🔒 Acesso Restrito</h2>
+
+    <p>Digite a senha para acessar os dados</p>
+
+    <input
+      type="password"
+      id="senhaModal"
+      placeholder="Senha"
+      onkeydown="if(event.key==='Enter') validarSenha()"
+    >
+
+    <div class="modal-botoes">
+
+      <button
+        class="btn-cancelar"
+        onclick="fecharModal()">
+        Cancelar
+      </button>
+
+      <button
+        class="btn-entrar"
+        onclick="validarSenha()">
+        Entrar
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
 </body>
+
 </html>
