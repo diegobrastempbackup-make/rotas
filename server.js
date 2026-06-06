@@ -21,8 +21,30 @@ app.use(express.json({
 }));
 
 // 🔥 HOME (Interpõe a rota raiz para entregar sempre a tela de login)
+// 🔥 HOME (Entrega a tela de login)
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
+});
+
+// 🔒 BLINDAGEM NO SERVIDOR: Protege o arquivo dados.html de acessos diretos pela URL
+app.get("/dados.html", (req, res) => {
+  // Pegamos o token que pode vir na URL como parâmetro de segurança
+  const token = req.query.token;
+
+  if (!token) {
+    // Se tentarem acessar direto sem token, o servidor barra e joga de volta pro login
+    return res.redirect("/login.html");
+  }
+
+  try {
+    // Valida se o token é legítimo e não expirou
+    jwt.verify(token, JWT_SECRET);
+    // Se o token for válido, aí sim o servidor entrega a página de dados
+    res.sendFile(__dirname + "/public/dados.html");
+  } catch (err) {
+    // Se o token for falso ou antigo, expulsa
+    res.redirect("/login.html");
+  }
 });
 
 // 🔥 CONECTAR MONGO
