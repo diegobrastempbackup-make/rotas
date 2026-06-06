@@ -1,22 +1,18 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
-// adcionado para cadastro
+// adicionado para cadastro
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const app = express();
 
 const PORT = process.env.PORT || 10000;
-// adcionado para cadastro
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "NERI_SECRET_2026";
+// adicionado para cadastro
+const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // 🔥 MONGO
 const uri = process.env.MONGO_URI;
-
-
 
 const client = new MongoClient(uri);
 
@@ -26,62 +22,34 @@ let db = null;
 app.use(cors());
 
 app.use(express.json({
-  limit:"10mb"
+  limit: "10mb"
 }));
 
 app.use(express.static("public"));
 
 // 🔥 CONECTAR MONGO
-async function conectarMongo(){
-
-  try{
-
+async function conectarMongo() {
+  try {
     await client.connect();
-
     db = client.db("rotas");
-
     console.log("✅ Mongo conectado");
-
-  }catch(err){
-
+  } catch (err) {
     console.log(err);
-
   }
-
 }
 
 conectarMongo();
 
 // 🔥 HOME
-/*
-app.get("/", (req,res)=>{
-
-  res.sendFile(
-    __dirname + "/public/index.html"
-  );
-
-});
-*/
-
-app.get("/", (req,res)=>{
-
-  res.sendFile(
-    __dirname + "/public/login.html"
-  );
-
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/public/login.html");
 });
 
 // 🔥 LISTAR REGISTROS
-app.get("/registros", async (req,res)=>{
-
-  try{
-
-    if(!db){
-
-      return res.status(500).json({
-        erro:"Banco não conectado"
-      });
-
+app.get("/registros", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ erro: "Banco não conectado" });
     }
 
     const dados = await db
@@ -91,170 +59,108 @@ app.get("/registros", async (req,res)=>{
       .toArray();
 
     res.json(dados);
-
-  }catch(err){
-
+  } catch (err) {
     console.log(err);
-
-    res.status(500).json({
-      erro:"Erro ao buscar"
-    });
-
+    res.status(500).json({ erro: "Erro ao buscar" });
   }
-
 });
 
-// 🔥 SALVAR REGISTROS
-app.post("/registro", async (req,res)=>{
-
-  try{
-
-    if(!db){
-
-      return res.status(500).json({
-        erro:"Banco não conectado"
-      });
-
+// 🔥 SALVAR REGISTROS (CORRIGIDO: NÃO APAGA MAIS NADA)
+app.post("/registro", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ erro: "Banco não conectado" });
     }
 
-    const collection =
-      db.collection("registros");
+    const collection = db.collection("registros");
+    let dados = req.body.dados || [];
 
-    let dados =
-      req.body.dados || [];
-
-    if(dados.length === 0){
-
-      return res.status(400).json({
-        erro:"Nenhum dado"
-      });
-
+    if (dados.length === 0) {
+      return res.status(400).json({ erro: "Nenhum dado" });
     }
 
-    // 🔥 REMOVE DUPLICADOS
+    // 🔥 REMOVE DUPLICADOS APENAS DO CORPO DA REQUISIÇÃO ATUAL
     const mapa = new Set();
-
-    dados = dados.filter(item=>{
-
-      const chave =
-        JSON.stringify(item);
-
-      if(mapa.has(chave)){
-
-        return false;
-
-      }
-
+    dados = dados.filter(item => {
+      const chave = JSON.stringify(item);
+      if (mapa.has(chave)) return false;
       mapa.add(chave);
-
       return true;
-
     });
 
-    // 🔥 PEGA MESES ENVIADOS
-    const meses = [
-      ...new Set(
-        dados.map(item =>
-          item.data.substring(0,7)
-        )
-      )
-    ];
-
-    // 🔥 REMOVE APENAS O MÊS ENVIADO
-    for(const mes of meses){
-
-      await collection.deleteMany({
-
-        data:{
-          $regex:`^${mes}`
-        }
-
-      });
-
-    }
-
-    // 🔥 INSERE NOVAMENTE
+    // 🔥 INSERE OS NOVOS DADOS SEM DELETAR OS ANTIGOS
     await collection.insertMany(dados);
 
-    res.json({
-      ok:true
-    });
-
-  }catch(err){
-
+    res.json({ ok: true });
+  } catch (err) {
     console.log(err);
-
-    res.status(500).json({
-      erro:"Erro ao salvar"
-    });
-
+    res.status(500).json({ erro: "Erro ao salvar" });
   }
-
 });
- // adcionado para cadastro
- app.get("/criar-admin", async (req,res)=>{
 
-  try{
+// 🔥 CRIAR ADMIN
+app.get("/criar-admin", async (req, res) => {
+  try {
+    const usuarios = db.collection("usuarios");
+    const existe = await usuarios.findOne({ usuario: "diego" });
 
-    const usuarios =
-      db.collection("usuarios");
-
-    const existe =
-      await usuarios.findOne({
-        usuario:"diego"
-      });
-
-    if(existe){
-
-      return res.json({
-        mensagem:"Admin já existe"
-      });
-
+    if (existe) {
+      return res.json({ mensagem: "Admin já existe" });
     }
 
-    const senhaHash =
-      await bcrypt.hash(
-        "123456",
-        10
-      );
+    const senhaHash = await bcrypt.hash("123456", 10);
 
     await usuarios.insertOne({
-
-      nome:"Diego Silva",
-
-      usuario:"diego",
-
-      senha:senhaHash,
-
-      tipo:"admin",
-
-      ativo:true,
-
-      criadoEm:new Date()
-
+      nome: "Diego Silva",
+      usuario: "diego",
+      senha: senhaHash,
+      tipo: "admin",
+      ativo: true,
+      criadoEm: new Date()
     });
+
+    res.json({ mensagem: "Admin criado com sucesso" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao criar admin" });
+  }
+});
+
+// 🔥 LOGIN
+app.post("/login", async (req, res) => {
+  try {
+    const { usuario, senha } = req.body;
+    const usuarioBanco = await db.collection("usuarios").findOne({ usuario });
+
+    if (!usuarioBanco) {
+      return res.status(401).json({ erro: "Usuário não encontrado" });
+    }
+
+    const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
+
+    if (!senhaValida) {
+      return res.status(401).json({ erro: "Senha incorreta" });
+    }
+
+    const token = jwt.sign(
+      { id: usuarioBanco._id, tipo: usuarioBanco.tipo },
+      JWT_SECRET,
+      { expiresIn: "12h" }
+    );
 
     res.json({
-      mensagem:"Admin criado com sucesso"
+      ok: true,
+      token,
+      nome: usuarioBanco.nome,
+      tipo: usuarioBanco.tipo
     });
-
-  }catch(err){
-
+  } catch (err) {
     console.log(err);
-
-    res.status(500).json({
-      erro:"Erro ao criar admin"
-    });
-
+    res.status(500).json({ erro: "Erro ao realizar login" });
   }
-
 });
 
 // 🔥 SERVIDOR
-app.listen(PORT, ()=>{
-
-  console.log(
-    `🚀 Servidor rodando porta ${PORT}`
-  );
-
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando porta ${PORT}`);
 });

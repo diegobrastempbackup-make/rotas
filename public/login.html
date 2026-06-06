@@ -129,11 +129,92 @@ button:hover{
     placeholder="Senha"
   >
 
-  <button>
-    Entrar
-  </button>
+ <button onclick="entrar()">
+  Entrar
+</button>
 
 </div>
+
+<script>
+
+async function entrar(){
+
+  const usuario =
+    document.getElementById("usuario").value.trim();
+
+  const senha =
+    document.getElementById("senha").value;
+
+  if(!usuario || !senha){
+
+    alert("Preencha usuário e senha");
+    return;
+
+  }
+
+  try{
+
+    const resposta =
+      await fetch("/login",{
+
+        method:"POST",
+
+        headers:{
+          "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+          usuario,
+          senha
+        })
+
+      });
+
+    const dados =
+      await resposta.json();
+
+    if(!resposta.ok){
+
+      alert(
+        dados.erro ||
+        "Erro ao fazer login"
+      );
+
+      return;
+
+    }
+
+    localStorage.setItem(
+      "token",
+      dados.token
+    );
+
+    localStorage.setItem(
+      "usuarioNome",
+      dados.nome
+    );
+
+    localStorage.setItem(
+      "usuarioTipo",
+      dados.tipo
+    );
+
+    window.location.href =
+      "/index.html";
+
+  }catch(err){
+
+    console.log(err);
+
+    alert(
+      "Erro ao conectar ao servidor"
+    );
+
+  }
+
+}
+
+</script>
 
 </body>
 </html>
