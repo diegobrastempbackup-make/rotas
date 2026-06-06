@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login NERI</title>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  background:#0F172A;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-family:Arial, sans-serif;
+}
+
+.card{
+
+  width:420px;
+
+  background:#1E293B;
+
+  padding:40px;
+
+  border-radius:20px;
+
+  box-shadow:0 0 25px rgba(0,0,0,.4);
+
+  text-align:center;
+}
+
+.logo{
+
+  width:280px;
+
+  max-width:100%;
+
+  margin-bottom:30px;
+}
+
+input{
+
+  width:100%;
+
+  padding:14px;
+
+  margin:10px 0;
+
+  border:none;
+
+  border-radius:10px;
+
+  outline:none;
+
+  font-size:15px;
+}
+
+button{
+
+  width:100%;
+
+  padding:14px;
+
+  margin-top:10px;
+
+  background:#22C55E;
+
+  color:white;
+
+  border:none;
+
+  border-radius:10px;
+
+  cursor:pointer;
+
+  font-size:16px;
+
+  font-weight:bold;
+}
+
+button:hover{
+
+  opacity:.9;
+
+}
+
+.titulo{
+
+  color:white;
+
+  margin-bottom:20px;
+
+  font-size:22px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <img
+    src="logo.png"
+    class="logo"
+    alt="NERI"
+  >
+
+  <div class="titulo">
+    Sistema de Gestão
+  </div>
+
+  <input
+    id="usuario"
+    placeholder="Usuário"
+  >
+
+  <input
+    id="senha"
+    type="password"
+    placeholder="Senha"
+  >
+
+  <button>
+    Entrar
+  </button>
+
+</div>
+
+</body>
+</html>

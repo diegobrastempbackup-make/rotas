@@ -1,13 +1,22 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
+// adcionado para cadastro
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 
 const PORT = process.env.PORT || 10000;
+// adcionado para cadastro
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  "NERI_SECRET_2026";
 
 // 🔥 MONGO
 const uri = process.env.MONGO_URI;
+
+
 
 const client = new MongoClient(uri);
 
@@ -44,10 +53,20 @@ async function conectarMongo(){
 conectarMongo();
 
 // 🔥 HOME
+/*
 app.get("/", (req,res)=>{
 
   res.sendFile(
     __dirname + "/public/index.html"
+  );
+
+});
+*/
+
+app.get("/", (req,res)=>{
+
+  res.sendFile(
+    __dirname + "/public/login.html"
   );
 
 });
@@ -171,6 +190,14 @@ app.post("/registro", async (req,res)=>{
 
   }
 
+});
+ // adcionado para cadastro
+app.get("/criar-admin", async (req,res)=>{
+   
+});
+
+app.post("/login", async (req,res)=>{
+   
 });
 
 // 🔥 SERVIDOR
