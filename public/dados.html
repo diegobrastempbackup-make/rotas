@@ -5,7 +5,6 @@
 <title>Dados</title>
 
 <style>
-
 body{
   background:#0F172A;
   color:white;
@@ -65,41 +64,47 @@ h2{
   padding:10px;
   border-radius:5px;
 }
-
 </style>
 </head>
 
 <body>
 
 <div class="container">
+  <div class="topo">
+    <button onclick="voltar()">⬅ Voltar</button>
+    <button onclick="salvar()">💾 Salvar</button>
+    <input type="month" id="mesFiltro">
+    <button onclick="filtrarMes()">🔍 Buscar</button>
+    <button onclick="mostrarTudo()">♻ Mostrar Mês Atual</button>
+  </div>
 
-<div class="topo">
-
-<button onclick="voltar()">
-⬅ Voltar
-</button>
-
-<button onclick="salvar()">
-💾 Salvar
-</button>
-
-<input type="month" id="mesFiltro">
-
-<button onclick="filtrarMes()">
-🔍 Buscar
-</button>
-
-<button onclick="mostrarTudo()">
-♻ Mostrar Mês Atual
-</button>
-
-</div>
-
-<div id="tabelas"></div>
-
+  <div id="tabelas"></div>
 </div>
 
 <script>
+// ⏱️ SISTEMA DE CONTROLE DE INATIVIDADE (5 MINUTOS)
+let temporizadorInatividade;
+
+function resetarTemporizador() {
+  clearTimeout(temporizadorInatividade);
+  temporizadorInatividade = setTimeout(efetuarAutoLogout, 5 * 60 * 1000); // 5 minutos
+}
+
+function efetuarAutoLogout() {
+  alert("Sessão expirada por inatividade. Por favor, faça login novamente.");
+  localStorage.removeItem("token");
+  localStorage.removeItem("usuarioLogado");
+  localStorage.removeItem("usuarioTipo");
+  window.location.replace("/login.html");
+}
+
+// Ouvintes para resetar o tempo em qualquer sinal de movimento
+window.onload = resetarTemporizador;
+window.onmousemove = resetarTemporizador;
+window.onmousedown = resetarTemporizador;
+window.ontouchstart = resetarTemporizador;
+window.onclick = resetarTemporizador;     
+window.onkeydown = resetarTemporizador;   
 
 const tecnicos = [
   "Sibele",
@@ -113,56 +118,33 @@ const tecnicos = [
 
 // 🔥 PEGAR MÊS ATUAL
 function obterMesAtual(){
-
   const hoje = new Date();
-
   const ano = hoje.getFullYear();
-
-  const mes = String(
-    hoje.getMonth() + 1
-  ).padStart(2,"0");
-
+  const mes = String(hoje.getMonth() + 1).padStart(2,"0");
   return `${ano}-${mes}`;
-
 }
 
-// 🔥 VOLTAR
+// 🔥 VOLTAR PARA O DASHBOARD (Direto sem re-autenticar)
 function voltar(){
-
-  window.location.href="/";
-
+  window.location.href = "/";
 }
 
 // 🔥 DATA HOJE
 function hoje(){
-
-  return new Date()
-    .toISOString()
-    .split("T")[0];
-
+  return new Date().toISOString().split("T")[0];
 }
 
 // 🔥 CRIAR TABELAS
 function criar(){
-
-  const container =
-    document.getElementById("tabelas");
-
+  const container = document.getElementById("tabelas");
   container.innerHTML = "";
 
   tecnicos.forEach(nome=>{
-
-    const bloco =
-      document.createElement("div");
-
+    const bloco = document.createElement("div");
     bloco.innerHTML = `
-
       <h2>${nome}</h2>
-
       <table>
-
         <thead>
-
           <tr>
             <th>Data</th>
             <th>KM Ini</th>
@@ -175,411 +157,212 @@ function criar(){
             <th>Valor</th>
             <th></th>
           </tr>
-
         </thead>
-
         <tbody data-tecnico="${nome}"></tbody>
-
       </table>
-
-      <button onclick="addLinha('${nome}')">
-      + Linha
-      </button>
-
+      <button onclick="addLinha('${nome}')">+ Linha</button>
     `;
-
     container.appendChild(bloco);
-
   });
-
 }
 
 // 🔥 LINHA
 function linha(d = {}){
-
   return `
-
   <tr>
-
     <td>
-      <input
-      type="date"
-      value="${d.data || hoje()}">
+      <input type="date" value="${d.data || hoje()}">
     </td>
-
     <td>
-      <input
-      value="${d.kmIni || ''}"
-      oninput="calc(this)">
+      <input value="${d.kmIni || ''}" oninput="calc(this)">
     </td>
-
     <td>
-      <input
-      value="${d.kmFim || ''}"
-      oninput="calc(this)">
+      <input value="${d.kmFim || ''}" oninput="calc(this)">
     </td>
-
     <td>
-      <input
-      readonly
-      value="${d.km || ''}">
+      <input readonly value="${d.km || ''}">
     </td>
-
     <td>
-      <input
-      readonly
-      value="${d.consumo || ''}">
+      <input readonly value="${d.consumo || ''}">
     </td>
-
     <td>
-      <input
-      value="${d.abastAnt || ''}">
+      <input value="${d.abastAnt || ''}">
     </td>
-
     <td>
-      <input
-      value="${d.abastAtual || ''}">
+      <input value="${d.abastAtual || ''}">
     </td>
-
     <td>
-      <input
-      value="${d.litros || ''}"
-      oninput="calc(this)">
+      <input value="${d.litros || ''}" oninput="calc(this)">
     </td>
-
     <td>
-      <input
-      value="${d.valor || ''}">
+      <input value="${d.valor || ''}">
     </td>
-
     <td>
-      <button onclick="remover(this)">
-      🗑️
-      </button>
+      <button onclick="remover(this)">🗑️</button>
     </td>
-
   </tr>
-
   `;
-
 }
 
 // 🔥 ADICIONAR LINHA
 function addLinha(nome){
-
-  const tbody =
-    document.querySelector(
-      `[data-tecnico="${nome}"]`
-    );
-
-  const tr =
-    document.createElement("tr");
-
+  const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+  const tr = document.createElement("tr");
   tr.innerHTML = linha();
-
   tbody.appendChild(tr);
-
 }
 
 // 🔥 CALCULAR
 function calc(el){
+  const tr = el.closest("tr");
+  const i = tr.querySelectorAll("input");
+  const kmIni = Number(i[1].value);
+  const kmFim = Number(i[2].value);
+  const litros = Number(i[7].value);
 
-  const tr =
-    el.closest("tr");
+  const km = kmFim - kmIni;
+  i[3].value = km > 0 ? km : "";
 
-  const i =
-    tr.querySelectorAll("input");
-
-  const kmIni =
-    Number(i[1].value);
-
-  const kmFim =
-    Number(i[2].value);
-
-  const litros =
-    Number(i[7].value);
-
-  const km =
-    kmFim - kmIni;
-
-  i[3].value =
-    km > 0 ? km : "";
-
-  const consumo =
-
-    (km > 0 && litros > 0)
-
-    ? (km / litros).toFixed(2)
-
-    : "";
-
+  const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
   i[4].value = consumo;
-
 }
 
 // 🔥 REMOVER
 function remover(btn){
-
   btn.closest("tr").remove();
-
 }
 
 // 🔥 SALVAR
 async function salvar(){
-
-  const mesAtual =
-    document
-      .getElementById("mesFiltro")
-      .value;
-
+  const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
-
     alert("Selecione um mês");
-
     return;
-
   }
 
   let dados = [];
 
   tecnicos.forEach(nome=>{
-
-    const linhas =
-
-      document.querySelectorAll(
-        `[data-tecnico="${nome}"] tr`
-      );
-
+    const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
     linhas.forEach(l=>{
-
-      const i =
-        l.querySelectorAll("input");
-
-      const data =
-        i[0].value;
+      const i = l.querySelectorAll("input");
+      const data = i[0].value;
 
       // 🔥 IGNORA OUTROS MESES
-      if(
-        !data.startsWith(mesAtual)
-      ){
-
+      if(!data.startsWith(mesAtual)){
         return;
-
       }
 
       const registro = {
-
         tecnico: nome,
-
         data: data,
-
-        kmIni:
-          Number(i[1].value) || 0,
-
-        kmFim:
-          Number(i[2].value) || 0,
-
-        km:
-          Number(i[3].value) || 0,
-
-        consumo:
-          Number(i[4].value) || 0,
-
-        abastAnt:
-          i[5].value || "",
-
-        abastAtual:
-          i[6].value || "",
-
-        litros:
-          Number(i[7].value) || 0,
-
-        valor:
-          parseFloat(
-            i[8].value.replace(",", ".")
-          ) || 0
-
+        kmIni: Number(i[1].value) || 0,
+        kmFim: Number(i[2].value) || 0,
+        km: Number(i[3].value) || 0,
+        consumo: Number(i[4].value) || 0,
+        abastAnt: i[5].value || "",
+        abastAtual: i[6].value || "",
+        litros: Number(i[7].value) || 0,
+        valor: parseFloat(i[8].value.replace(",", ".")) || 0
       };
 
       const temDado =
-
         registro.km > 0 ||
-
         registro.valor > 0 ||
-
         registro.litros > 0 ||
-
         registro.abastAnt !== "" ||
-
         registro.abastAtual !== "";
 
       if(temDado){
-
         dados.push(registro);
-
       }
-
     });
-
   });
 
   // 🔥 REMOVE DUPLICADOS
   const mapa = new Set();
-
   dados = dados.filter(item=>{
-
-    const chave =
-      JSON.stringify(item);
-
+    const chave = JSON.stringify(item);
     if(mapa.has(chave)){
-
       return false;
-
     }
-
     mapa.add(chave);
-
     return true;
-
   });
 
   console.log("SALVANDO:", dados);
 
   await fetch("/registro", {
-
     method:"POST",
-
     headers:{
       "Content-Type":"application/json"
     },
-
     body: JSON.stringify({ dados })
-
   });
 
   alert("Salvo com sucesso!");
-
 }
 
 // 🔥 CARREGAR
 async function carregar(mes = ""){
-
-  const res =
-    await fetch("/registros");
-
-  let lista =
-    await res.json();
+  const res = await fetch("/registros");
+  let lista = await res.json();
 
   // 🔥 ORDENA POR DATA
   lista.sort((a,b)=>{
-
-    if(!a.data || !b.data)
-      return 0;
-
+    if(!a.data || !b.data) return 0;
     return new Date(a.data) - new Date(b.data);
-
   });
 
   // 🔥 FILTRA POR MÊS
   if(mes){
-
     lista = lista.filter(item=>{
-
-      if(!item.data)
-        return false;
-
+      if(!item.data) return false;
       return item.data.startsWith(mes);
-
     });
-
   }
 
   // 🔥 LIMPA TABELAS
   tecnicos.forEach(nome=>{
-
-    const tbody =
-
-      document.querySelector(
-        `[data-tecnico="${nome}"]`
-      );
-
+    const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
     if(tbody){
-
       tbody.innerHTML = "";
-
     }
-
   });
 
   // 🔥 CARREGA DADOS
   lista.forEach(item=>{
-
-    const tbody =
-
-      document.querySelector(
-        `[data-tecnico="${item.tecnico}"]`
-      );
-
+    const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
     if(tbody){
-
-      const tr =
-        document.createElement("tr");
-
+      const tr = document.createElement("tr");
       tr.innerHTML = linha(item);
-
       tbody.appendChild(tr);
-
     }
-
   });
-
 }
 
 // 🔥 FILTRAR MÊS
 function filtrarMes(){
-
-  const mes =
-
-    document
-      .getElementById("mesFiltro")
-      .value;
-
+  const mes = document.getElementById("mesFiltro").value;
   carregar(mes);
-
 }
 
 // 🔥 MOSTRAR MÊS ATUAL
 function mostrarTudo(){
-
-  const mesAtual =
-    obterMesAtual();
-
-  document
-    .getElementById("mesFiltro")
-    .value = mesAtual;
-
+  const mesAtual = obterMesAtual();
+  document.getElementById("mesFiltro").value = mesAtual;
   carregar(mesAtual);
-
 }
 
 // 🔥 INICIAR
 async function iniciar(){
-
   criar();
-
-  const mesAtual =
-    obterMesAtual();
-
-  document
-    .getElementById("mesFiltro")
-    .value = mesAtual;
-
+  const mesAtual = obterMesAtual();
+  document.getElementById("mesFiltro").value = mesAtual;
   await carregar(mesAtual);
-
 }
 
 iniciar();
-
 </script>
 
 </body>
