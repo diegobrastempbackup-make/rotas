@@ -396,7 +396,7 @@
 
     <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
     
-    <button id="btnMenuCadastro" class="btn-cadastro" onclick="abrirModalCadastro()">👤 Criar Usuário</button>
+    <button id="btnMenuCadastro" class="btn-cadastro" onclick="abrirModalGerenciamento()">👤 Gerenciar Usuários</button>
 
     <hr>
     
@@ -485,51 +485,143 @@
     }
   }
 
-  // FUNÇÕES DO MODAL DE CADASTRO DE NOVO COLABORADOR
-  function abrirModalCadastro() {
-    document.getElementById("modalCadastro").classList.add("show");
-    document.getElementById("cadNome").focus();
+  // ========================================================
+// 👤 SISTEMA INTEGRADO DE GERENCIAMENTO DE USUÁRIOS
+// ========================================================
+
+// Abre o modal principal trazendo a lista de usuários do banco
+async function abrirModalGerenciamento() {
+  document.getElementById("modalCadastro").classList.add("show");
+  document.getElementById("secaoListaUsuarios").style.display = "block";
+  document.getElementById("formUsuario").style.display = "none";
+  document.getElementById("btnSalvarUsuario").style.display = "none";
+  await atualizarListaUsuarios();
+}
+
+// Busca os usuários no Back-end e renderiza a lista na tela
+async function atualizarListaUsuarios() {
+  const container = document.getElementById("listaUsuariosContainer");
+  container.innerHTML = "<p style='text-align:center;'>Carregando usuários...</p>";
+  
+  try {
+    const res = await fetch("/usuarios");
+    const usuarios = await res.json();
+    
+    container.innerHTML = "";
+    usuarios.forEach(u => {
+      const div = document.createElement("div");
+      div.style = "display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);";
+      
+      const badge = u.tipo === "admin" ? "<span style='color:#60A5FA; font-size:11px;'>[Admin]</span>" : "<span style='color:#94A3B8; font-size:11px;'>[Comum]</span>";
+      
+      div.innerHTML = `
+        <div>
+          <strong>${u.nome}</strong> <br> ${badge} <span style='color:#64748B; font-size:12px;'>(${u.usuario})</span>
+        </div>
+        <button onclick="prepararEdicao('${u._id}', '${u.nome}', '${u.usuario}', '${u.tipo}')" style="width: auto; margin: 0; padding: 5px 10px; background: #3b82f6; font-size: 12px;">Editar</button>
+      `;
+      container.appendChild(div);
+    });
+  } catch (err) {
+    container.innerHTML = "<p style='color:red;'>Erro ao carregar lista.</p>";
+  }
+}
+
+// Prepara o formulário limpo para cadastrar um NOVO usuário
+function mostrarFormularioCadastro() {
+  document.getElementById("formTitulo").innerText = "Novo Usuário";
+  document.getElementById("editId").value = "";
+  document.getElementById("cadNome").value = "";
+  document.getElementById("cadUsuario").value = "";
+  document.getElementById("cadUsuario").disabled = false; 
+  document.getElementById("cadSenha").value = "";
+  document.getElementById("lblSenha").innerText = "Senha:";
+  document.getElementById("cadSenha").placeholder = "Senha de acesso";
+  
+  document.getElementById("secaoListaUsuarios").style.display = "none";
+  document.getElementById("formUsuario").style.display = "block";
+  document.getElementById("btnSalvarUsuario").style.display = "block";
+}
+
+// Prepara o formulário preenchido para EDITAR um usuário existente (ou você mesmo)
+function prepararEdicao(id, nome, usuario, tipo) {
+  document.getElementById("formTitulo").innerText = `Editar: ${usuario}`;
+  document.getElementById("editId").value = id;
+  document.getElementById("cadNome").value = nome;
+  document.getElementById("cadUsuario").value = usuario;
+  document.getElementById("cadUsuario").disabled = true; // Protege o "username" único no banco
+  document.getElementById("cadSenha").value = "";
+  document.getElementById("lblSenha").innerText = "Nova Senha (deixe em branco para manter a atual):";
+  document.getElementById("cadSenha").placeholder = "Preencha apenas se for alterar";
+  document.getElementById("cadTipo").value = tipo;
+
+  document.getElementById("secaoListaUsuarios").style.display = "none";
+  document.getElementById("formUsuario").style.display = "block";
+  document.getElementById("btnSalvarUsuario").style.display = "block";
+}
+
+// Fecha o modal
+function fecharModalCadastro() {
+  document.getElementById("modalCadastro").classList.remove("show");
+}
+
+// Processa o envio tanto para criação quanto para edição (PUT ou POST)
+async function salvarUsuario() {
+  const id = document.getElementById("editId").value;
+  const nome = document.getElementById("cadNome").value.trim();
+  const usuario = document.getElementById("cadUsuario").value.trim();
+  const senha = document.getElementById("cadSenha").value;
+  const tipo = document.getElementById("cadTipo").value;
+
+  if (!nome || !usuario) {
+    alert("Nome e Usuário são obrigatórios!");
+    return;
   }
 
-  function fecharModalCadastro() {
-    document.getElementById("modalCadastro").classList.remove("show");
-    document.getElementById("cadNome").value = "";
-    document.getElementById("cadUsuario").value = "";
-    document.getElementById("cadSenha").value = "";
-  }
-
-  async function salvarUsuario() {
-    const nome = document.getElementById("cadNome").value.trim();
-    const usuario = document.getElementById("cadUsuario").value.trim();
-    const senha = document.getElementById("cadSenha").value;
-    const tipo = document.getElementById("cadTipo").value;
-
-    if(!nome || !usuario || !senha) {
-      alert("Por favor, preencha todos os campos!");
-      return;
+  // Modo: EDIÇÃO (Envia requisição PUT para o back-end usando o ID)
+  if (id) {
+    try {
+      const resposta = await fetch(`/usuario/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, tipo, novaSenha: senha })
+      });
+      const resultado = await resposta.json();
+      
+      if (!resposta.ok) return alert(resultado.erro || "Erro ao atualizar");
+      
+      alert("Alterações salvas com sucesso!");
+      
+      if(usuario === localStorage.getItem("usuarioLogado")) {
+        localStorage.setItem("usuarioTipo", tipo);
+      }
+      
+      abrirModalGerenciamento(); 
+    } catch (err) {
+      alert("Erro ao conectar com o servidor.");
     }
-
+  } 
+  // Modo: NOVO CADASTRO (Envia requisição POST para criar usuário)
+  else {
+    if (!senha) return alert("A senha é obrigatória para novos usuários!");
+    
     try {
       const resposta = await fetch("/cadastro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome, usuario, senha, tipo })
       });
-
       const dados = await resposta.json();
 
-      if(!resposta.ok) {
-        alert(dados.erro || "Erro interno ao tentar cadastrar.");
-        return;
-      }
+      if (!resposta.ok) return alert(dados.erro || "Erro ao cadastrar");
 
-      alert("Usuário registrado com sucesso no banco!");
-      fecharModalCadastro();
-    } catch(err) {
-      console.error(err);
+      alert("Novo usuário cadastrado!");
+      abrirModalGerenciamento(); 
+    } catch (err) {
       alert("Erro de comunicação com o servidor.");
     }
   }
+}
 
   // PARTE RESTRITA DE PROCESSAMENTO DE DADOS DO DASHBOARD
   function obterMesAtual(){
@@ -888,23 +980,42 @@
 </div>
 
 <div id="modalCadastro" class="modal">
-  <div class="modal-box">
-    <h2>👤 Novo Usuário</h2>
-    <p>Cadastre um novo funcionário no sistema</p>
+  <div class="modal-box" style="width: 450px; max-height: 85vh; overflow-y: auto;">
+    <h2>👤 Gerenciar Usuários</h2>
+    <p>Cadastre, altere permissões ou mude senhas.</p>
     
-    <input type="text" id="cadNome" placeholder="Nome Completo">
-    <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
-    <input type="password" id="cadSenha" placeholder="Senha">
-    
-    <select id="cadTipo" style="width:100%; padding:12px; border-radius:10px; background:#1E293B; color:white; border:none; margin-bottom:20px;">
-      <option value="usuario">Acesso Comum (Bloqueia Dados)</option>
-      <option value="admin">Administrador (Acesso Total)</option>
-    </select>
+    <div id="secaoListaUsuarios">
+      <div id="listaUsuariosContainer" style="text-align: left; margin-bottom: 20px; background: #1E293B; padding: 10px; border-radius: 10px; max-height: 200px; overflow-y: auto;">
+        </div>
+      <button onclick="mostrarFormularioCadastro()" style="background: #10b981; color: white; padding: 10px; width: 100%; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 15px;">+ Criar Novo Usuário</button>
+    </div>
+
+    <div id="formUsuario" style="display: none; text-align: left;">
+      <h3 id="formTitulo" style="color: #60A5FA; margin-bottom: 10px;">Novo Usuário</h3>
+      <input type="hidden" id="editId">
+      
+      <label style="font-size: 12px; color: #94A3B8;">Nome Completo:</label>
+      <input type="text" id="cadNome" placeholder="Nome Completo">
+      
+      <label style="font-size: 12px; color: #94A3B8;">Nome de Usuário (Login):</label>
+      <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
+      
+      <label id="lblSenha" style="font-size: 12px; color: #94A3B8;">Senha:</label>
+      <input type="password" id="cadSenha" placeholder="Digite a senha">
+      
+      <label style="font-size: 12px; color: #94A3B8;">Nível de Acesso:</label>
+      <select id="cadTipo" style="width:100%; padding:12px; border-radius:10px; background:#1E293B; color:white; border:none; margin-bottom:20px;">
+        <option value="usuario">Acesso Comum (Bloqueia Dados)</option>
+        <option value="admin">Administrador (Acesso Total)</option>
+      </select>
+    </div>
 
     <div class="modal-botoes">
-      <button class="btn-cancelar" onclick="fecharModalCadastro()">Cancelar</button>
-      <button class="btn-entrar" onclick="salvarUsuario()">Salvar</button>
+      <button class="btn-cancelar" onclick="fecharModalCadastro()">Fechar</button>
+      <button id="btnSalvarUsuario" class="btn-entrar" onclick="salvarUsuario()" style="display: none;">Salvar</button>
     </div>
+  </div>
+</div>
   </div>
 </div>
 

@@ -163,6 +163,53 @@ app.post("/cadastro", async (req, res) => {
   }
 });
 
+// 🔥 LISTAR TODOS OS USUÁRIOS (Para o Admin gerenciar)
+app.get("/usuarios", async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
+
+    // Retorna todos os usuários, mas esconde o campo da senha por segurança (.project)
+    const lista = await db.collection("usuarios")
+      .find()
+      .project({ senha: 0 })
+      .toArray();
+
+    res.json(lista);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao listar usuários" });
+  }
+});
+
+// 🔥 ATUALIZAR USUÁRIO (Alterar permissão ou senha)
+app.put("/usuario/:id", async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
+
+    const { id } = req.params;
+    const { nome, tipo, novaSenha } = req.body;
+    const { ObjectId } = require("mongodb");
+
+    let dadosAtualizados = { nome, tipo };
+
+    // Se o admin digitou uma nova senha, criptografa ela antes de salvar
+    if (novaSenha && novaSenha.trim() !== "") {
+      const senhaHash = await bcrypt.hash(novaSenha, 10);
+      dadosAtualizados.senha = senhaHash;
+    }
+
+    await db.collection("usuarios").updateOne(
+      { _id: new ObjectId(id) },
+      { $set: dadosAtualizados }
+    );
+
+    res.json({ ok: true, mensagem: "Usuário atualizado com sucesso!" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao atualizar usuário" });
+  }
+});
+
 // 🔥 LOGIN
 app.post("/login", async (req, res) => {
   try {
