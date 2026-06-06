@@ -192,12 +192,62 @@ app.post("/registro", async (req,res)=>{
 
 });
  // adcionado para cadastro
-app.get("/criar-admin", async (req,res)=>{
-   
-});
+ app.get("/criar-admin", async (req,res)=>{
 
-app.post("/login", async (req,res)=>{
-   
+  try{
+
+    const usuarios =
+      db.collection("usuarios");
+
+    const existe =
+      await usuarios.findOne({
+        usuario:"diego"
+      });
+
+    if(existe){
+
+      return res.json({
+        mensagem:"Admin já existe"
+      });
+
+    }
+
+    const senhaHash =
+      await bcrypt.hash(
+        "123456",
+        10
+      );
+
+    await usuarios.insertOne({
+
+      nome:"Diego Silva",
+
+      usuario:"diego",
+
+      senha:senhaHash,
+
+      tipo:"admin",
+
+      ativo:true,
+
+      criadoEm:new Date()
+
+    });
+
+    res.json({
+      mensagem:"Admin criado com sucesso"
+    });
+
+  }catch(err){
+
+    console.log(err);
+
+    res.status(500).json({
+      erro:"Erro ao criar admin"
+    });
+
+  }
+
 });
 
 // 🔥 SERVIDOR
