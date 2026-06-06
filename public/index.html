@@ -4,13 +4,27 @@
 <head>
 
   <script>
-    // 🔒 BLINDAGEM: Verifica se o token de login existe
+    // 🔒 BLINDAGEM AGRESSIVA: Verifica se o token de login existe
     const token = localStorage.getItem("token");
+    const usuarioTipo = localStorage.getItem("usuarioTipo");
 
     if (!token) {
-      // Se não tiver token, manda direto de volta para a tela de login
-      window.location.href = "/login.html";
+      // Se não tiver token, expulsa e limpa o histórico para não burlar voltando a página
+      window.location.replace("/login.html");
     }
+
+    // Executa as permissões assim que a estrutura do HTML estiver pronta na tela
+    window.addEventListener("DOMContentLoaded", () => {
+      if (usuarioTipo !== "admin") {
+        // Esconde o botão de "Ir Para Dados" para usuários de nível comum
+        const btnDados = document.getElementById("btnIrParaDados");
+        if (btnDados) btnDados.style.display = "none";
+        
+        // Esconde o botão de "Criar Usuário" para usuários comuns
+        const btnCadastrar = document.getElementById("btnMenuCadastro");
+        if (btnCadastrar) btnCadastrar.style.display = "none";
+      }
+    });
   </script>
 
   <meta charset="UTF-8">
@@ -147,7 +161,16 @@
         0 0 15px rgba(59,130,246,0.5);
     }
 
-    /* BOTÃO SAIR */
+    /* ESTILO BOTÃO DE CADASTRO VERDE */
+    .btn-cadastro {
+      background: linear-gradient(90deg, #10b981, #059669) !important;
+      margin-top: 10px;
+    }
+    .btn-cadastro:hover {
+      box-shadow: 0 0 15px rgba(5, 150, 105, 0.5) !important;
+    }
+
+    /* ESTILO BOTÃO SAIR VERMELHO */
     .btn-sair {
       background: linear-gradient(90deg, #dc2626, #ef4444) !important;
       margin-top: 15px;
@@ -371,9 +394,12 @@
 
     <hr>
 
-    <button onclick="acessar()">📂 Ir para Dados</button>
+    <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
+    
+    <button id="btnMenuCadastro" class="btn-cadastro" onclick="abrirModalCadastro()">👤 Criar Usuário</button>
 
     <hr>
+    
     <button class="btn-sair" onclick="sair()">🚪 Sair do Sistema</button>
 
     <div class="footer">
@@ -435,13 +461,11 @@
 
   // FUNÇÃO DE LOGOUT (SAIR)
   function sair() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuarioNome");
-    localStorage.removeItem("usuarioTipo");
-    window.location.href = "/login.html";
+    localStorage.clear(); // Limpa tudo de uma vez (token, nome, tipo)
+    window.location.replace("/login.html");
   }
 
-  // MODAL SENHA PARA DADOS
+  // MODAL SENHA PARA DADOS (BRANSTEMP1234)
   function acessar(){
     document.getElementById("modalSenha").classList.add("show");
     document.getElementById("senhaModal").focus();
@@ -461,6 +485,53 @@
     }
   }
 
+  // FUNÇÕES DO MODAL DE CADASTRO DE NOVO COLABORADOR
+  function abrirModalCadastro() {
+    document.getElementById("modalCadastro").classList.add("show");
+    document.getElementById("cadNome").focus();
+  }
+
+  function fecharModalCadastro() {
+    document.getElementById("modalCadastro").classList.remove("show");
+    document.getElementById("cadNome").value = "";
+    document.getElementById("cadUsuario").value = "";
+    document.getElementById("cadSenha").value = "";
+  }
+
+  async function salvarUsuario() {
+    const nome = document.getElementById("cadNome").value.trim();
+    const usuario = document.getElementById("cadUsuario").value.trim();
+    const senha = document.getElementById("cadSenha").value;
+    const tipo = document.getElementById("cadTipo").value;
+
+    if(!nome || !usuario || !senha) {
+      alert("Por favor, preencha todos os campos!");
+      return;
+    }
+
+    try {
+      const resposta = await fetch("/cadastro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, usuario, senha, tipo })
+      });
+
+      const dados = await resposta.json();
+
+      if(!resposta.ok) {
+        alert(dados.erro || "Erro interno ao tentar cadastrar.");
+        return;
+      }
+
+      alert("Usuário registrado com sucesso no banco!");
+      fecharModalCadastro();
+    } catch(err) {
+      console.error(err);
+      alert("Erro de comunicação com o servidor.");
+    }
+  }
+
+  // PARTE RESTRITA DE PROCESSAMENTO DE DADOS DO DASHBOARD
   function obterMesAtual(){
     const hoje = new Date();
     const ano = hoje.getFullYear();
@@ -543,7 +614,7 @@
     if(grafico1) grafico1.destroy();
     if(grafico2) grafico2.destroy();
 
-    // GRÁFICOS (Mantidos iguais)
+    // GRÁFICOS
     const ctx1 = document.getElementById("g1").getContext("2d");
     const grad1 = ctx1.createLinearGradient(0,0,0,400);
     grad1.addColorStop(0, "#60A5FA");
@@ -631,7 +702,7 @@
     });
   }
 
-  // GERAR PDF (Mantido original)
+  // CONVERSOR DE PDF
   function gerarPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -812,6 +883,27 @@
     <div class="modal-botoes">
       <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
       <button class="btn-entrar" onclick="validarSenha()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalCadastro" class="modal">
+  <div class="modal-box">
+    <h2>👤 Novo Usuário</h2>
+    <p>Cadastre um novo funcionário no sistema</p>
+    
+    <input type="text" id="cadNome" placeholder="Nome Completo">
+    <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
+    <input type="password" id="cadSenha" placeholder="Senha">
+    
+    <select id="cadTipo" style="width:100%; padding:12px; border-radius:10px; background:#1E293B; color:white; border:none; margin-bottom:20px;">
+      <option value="usuario">Acesso Comum (Bloqueia Dados)</option>
+      <option value="admin">Administrador (Acesso Total)</option>
+    </select>
+
+    <div class="modal-botoes">
+      <button class="btn-cancelar" onclick="fecharModalCadastro()">Cancelar</button>
+      <button class="btn-entrar" onclick="salvarUsuario()">Salvar</button>
     </div>
   </div>
 </div>

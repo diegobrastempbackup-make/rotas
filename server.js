@@ -1,36 +1,29 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
-// adicionado para cadastro
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const app = express();
 
 const PORT = process.env.PORT || 10000;
-// adicionado para cadastro
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // 🔥 MONGO
 const uri = process.env.MONGO_URI;
-
 const client = new MongoClient(uri);
-
 let db = null;
 
 // 🔥 MIDDLEWARES
 app.use(cors());
-
 app.use(express.json({
   limit: "10mb"
 }));
 
-// 🔥 HOME
+// 🔥 HOME (Interpõe a rota raiz para entregar sempre a tela de login)
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
 });
-
-app.use(express.static("public"));
 
 // 🔥 CONECTAR MONGO
 async function conectarMongo() {
@@ -42,13 +35,11 @@ async function conectarMongo() {
     console.log(err);
   }
 }
-
 conectarMongo();
 
-// 🔥 HOME
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/public/login.html");
-});
+// ========================================================
+// 🛠 ROTAS DO SISTEMA
+// ========================================================
 
 // 🔥 LISTAR REGISTROS
 app.get("/registros", async (req, res) => {
@@ -60,7 +51,7 @@ app.get("/registros", async (req, res) => {
     const dados = await db
       .collection("registros")
       .find()
-      .sort({ data: 1 }) // 🔥 ORDENA POR DATA
+      .sort({ data: 1 }) // Ordena por data
       .toArray();
 
     res.json(dados);
@@ -70,7 +61,7 @@ app.get("/registros", async (req, res) => {
   }
 });
 
-// 🔥 SALVAR REGISTROS (CORRIGIDO: NÃO APAGA MAIS NADA)
+// 🔥 SALVAR REGISTROS
 app.post("/registro", async (req, res) => {
   try {
     if (!db) {
@@ -84,7 +75,7 @@ app.post("/registro", async (req, res) => {
       return res.status(400).json({ erro: "Nenhum dado" });
     }
 
-    // 🔥 REMOVE DUPLICADOS APENAS DO CORPO DA REQUISIÇÃO ATUAL
+    // Remove duplicados apenas do corpo da requisição atual
     const mapa = new Set();
     dados = dados.filter(item => {
       const chave = JSON.stringify(item);
@@ -93,7 +84,7 @@ app.post("/registro", async (req, res) => {
       return true;
     });
 
-    // 🔥 INSERE OS NOVOS DADOS SEM DELETAR OS ANTIGOS
+    // Insere os novos dados sem deletar os antigos
     await collection.insertMany(dados);
 
     res.json({ ok: true });
@@ -103,7 +94,7 @@ app.post("/registro", async (req, res) => {
   }
 });
 
-// 🔥 CRIAR ADMIN
+// 🔥 CRIAR ADMIN INICIAL (Usa "diego")
 app.get("/criar-admin", async (req, res) => {
   try {
     const usuarios = db.collection("usuarios");
@@ -131,11 +122,54 @@ app.get("/criar-admin", async (req, res) => {
   }
 });
 
+// 🔥 NOVA ROTA: CADASTRO DE NOVOS USUÁRIOS (GERENCIADO PELO ADMIN)
+app.post("/cadastro", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ erro: "Banco não conectado" });
+    }
+
+    const { nome, usuario, senha, tipo } = req.body;
+
+    if (!nome || !usuario || !senha || !tipo) {
+      return res.status(400).json({ erro: "Preencha todos os campos obrigatórios" });
+    }
+
+    const usuarios = db.collection("usuarios");
+    
+    // Evita duplicidade convertendo para minúsculas e limpando espaços em branco
+    const existe = await usuarios.findOne({ usuario: usuario.toLowerCase().trim() });
+
+    if (existe) {
+      return res.status(400).json({ erro: "Este nome de usuário já está cadastrado" });
+    }
+
+    // Criptografa a nova senha usando o bcryptjs
+    const senhaHash = await bcrypt.hash(senha, 10);
+
+    await usuarios.insertOne({
+      nome,
+      usuario: usuario.toLowerCase().trim(),
+      senha: senhaHash,
+      tipo, // "admin" ou "usuario"
+      ativo: true,
+      criadoEm: new Date()
+    });
+
+    res.json({ ok: true, mensagem: "Usuário criado com sucesso!" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao cadastrar usuário" });
+  }
+});
+
 // 🔥 LOGIN
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
-    const usuarioBanco = await db.collection("usuarios").findOne({ usuario });
+    
+    // Busca ignorando diferenças de caixa alta/baixa se o input vier bagunçado
+    const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
 
     if (!usuarioBanco) {
       return res.status(401).json({ erro: "Usuário não encontrado" });
@@ -165,7 +199,12 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// 🔥 SERVIDOR
+// ========================================================
+// ⚡ SERVIR ARQUIVOS ESTÁTICOS (DEVE FICAR SEMPRE ABAIXO DAS ROTAS)
+// ========================================================
+app.use(express.static("public"));
+
+// 🔥 START DO SERVIDOR
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando porta ${PORT}`);
 });
