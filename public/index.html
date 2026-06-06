@@ -466,26 +466,17 @@
   }
 
   // MODAL SENHA PARA DADOS (BRANSTEMP1234)
-  function acessar(){
-    document.getElementById("modalSenha").classList.add("show");
-    document.getElementById("senhaModal").focus();
-  }
-
-  function fecharModal(){
-    document.getElementById("modalSenha").classList.remove("show");
-    document.getElementById("senhaModal").value = "";
-  }
-
-  function validarSenha(){
-  const senha = document.getElementById("senhaModal").value;
-  if(senha === "Brastemp1234"){
-    // Pega o token de login que já salvamos no localStorage quando o usuário entrou no sistema
-    const tokenLogin = localStorage.getItem("token");
-    
-    // Passa o token com segurança na URL para o servidor liberar o acesso
+  // 🔥 ACESSAR DIRETO: Como só o Admin vê o botão, entra direto sem pedir senha
+function acessar() {
+  // Pega o token de login que já está salvo no navegador
+  const tokenLogin = localStorage.getItem("token");
+  
+  if (tokenLogin) {
+    // Redireciona direto passando o token para o servidor liberar o arquivo dados.html
     window.location.href = `/dados.html?token=${tokenLogin}`;
-  }else{
-    alert("Senha incorreta");
+  } else {
+    // Caso ocorra alguma falha com o token, manda pro login por segurança
+    window.location.replace("/login.html");
   }
 }
 
@@ -966,22 +957,6 @@ async function salvarUsuario() {
   carregarDados();
 </script>
 
-<div id="modalSenha" class="modal">
-  <div class="modal-box">
-    <h2>🔒 Acesso Restrito</h2>
-    <p>Digite a senha para acessar os dados</p>
-    <input
-      type="password"
-      id="senhaModal"
-      placeholder="Senha"
-      onkeydown="if(event.key==='Enter') validarSenha()"
-    >
-    <div class="modal-botoes">
-      <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
-      <button class="btn-entrar" onclick="validarSenha()">Entrar</button>
-    </div>
-  </div>
-</div>
 
 <div id="modalCadastro" class="modal">
   <div class="modal-box" style="width: 450px; max-height: 85vh; overflow-y: auto;">
