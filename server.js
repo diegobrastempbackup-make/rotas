@@ -25,6 +25,11 @@ app.use(express.json({
   limit: "10mb"
 }));
 
+// 🔥 HOME
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/public/login.html");
+});
+
 app.use(express.static("public"));
 
 // 🔥 CONECTAR MONGO
