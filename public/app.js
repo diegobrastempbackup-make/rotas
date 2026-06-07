@@ -242,56 +242,140 @@ function atualizarDashboard(valores, kms, tecnico){
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
 
-  document.getElementById("gastoTotal").innerText = "R$ " + totalValor.toFixed(2);
-  document.getElementById("kmTotal").innerText = totalKm + " KM";
+  // Formatação bonita para os cards
+  document.getElementById("gastoTotal").innerText = totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  document.getElementById("kmTotal").innerText = totalKm.toLocaleString("pt-BR") + " KM";
 
   if(tecnico !== "TODOS"){
     const i = tecnicos.indexOf(tecnico);
-    document.getElementById("gastoIndividual").innerText = "R$ " + valores[i].toFixed(2);
-    document.getElementById("kmIndividual").innerText = kms[i] + " KM";
+    document.getElementById("gastoIndividual").innerText = valores[i].toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    document.getElementById("kmIndividual").innerText = kms[i].toLocaleString("pt-BR") + " KM";
   }else{
     document.getElementById("gastoIndividual").innerText = "R$ 0,00";
     document.getElementById("kmIndividual").innerText = "0 KM";
   }
 
-  if(grafico1) grafico1.destroy();
-  if(grafico2) grafico2.destroy();
+  // 🎯 CORREÇÃO DO EFEITO FANTASMA (DESTRUIÇÃO COMPLETA)
+  if (grafico1) {
+    grafico1.destroy();
+    grafico1 = null;
+  }
+  if (grafico2) {
+    grafico2.destroy();
+    grafico2 = null;
+  }
 
+  // CONFIGURAÇÃO DO GRÁFICO 1: 💰 GASTOS
   const ctx1 = document.getElementById("g1").getContext("2d");
   const grad1 = ctx1.createLinearGradient(0,0,0,400);
-  grad1.addColorStop(0, "#60A5FA"); grad1.addColorStop(1, "#2563EB");
+  grad1.addColorStop(0, "#3B82F6"); // Azul Moderno
+  grad1.addColorStop(1, "#1D4ED8"); // Azul Escuro Profundo
 
   grafico1 = new Chart(ctx1,{
-    type:"bar",
-    data:{ labels:tecnicos, datasets:[{ label:"Gastos", data:valores, backgroundColor:grad1, borderRadius:10, borderSkipped:false }] },
-    plugins:[ChartDataLabels],
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{ labels:{ color:"#fff" } },
-        title:{ display:true, text: "💰 CONSUMO GERAL", color:"#fff", font:{ size:20, weight:"bold" } },
-        datalabels:{ color:"#fff", anchor:"end", align:"top", formatter:(val)=> "R$ " + val.toFixed(0) }
+    type: "bar",
+    data: { 
+      labels: tecnicos, 
+      datasets: [{ 
+        label: "Gastos no Mês", 
+        data: valores, 
+        backgroundColor: grad1, 
+        borderRadius: 8, 
+        borderSkipped: false,
+        hoverBackgroundColor: "#60A5FA" // Efeito de brilho ao passar o mouse
+      }] 
+    },
+    plugins: [ChartDataLabels],
+    options: {
+      responsive: true, 
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }, // Ocultado legenda repetitiva já que o título diz tudo
+        title: { 
+          display: true, 
+          text: "💰 INVESTIMENTO POR TÉCNICO", 
+          color: "#fff", 
+          font: { size: 16, weight: "bold", family: "Arial" },
+          padding: { bottom: 25 }
+        },
+        datalabels: { 
+          color: "#fff", 
+          anchor: "end", 
+          align: "top", 
+          offset: 4,
+          font: { weight: "bold", size: 11 },
+          // 🪙 Formatação de moeda profissional dentro das barras
+          formatter: (val) => val > 0 ? val.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : ""
+        }
       },
-      scales:{ x:{ ticks:{ color:"#fff" }, grid:{ display:false } }, y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } } }
+      scales: { 
+        x: { 
+          ticks: { color: "#94A3B8", font: { size: 11 } }, 
+          grid: { display: false } 
+        }, 
+        y: { 
+          grace: "15%", // 🪂 Cria um espaço de 15% no topo para os números nunca sumirem
+          ticks: { 
+            color: "#64748B",
+            formatter: (val) => "R$ " + val
+          }, 
+          grid: { color: "rgba(255,255,255,0.04)" } 
+        } 
+      }
     }
   });
 
+  // CONFIGURAÇÃO DO GRÁFICO 2: 🛣 KM GERAL
   const ctx2 = document.getElementById("g2").getContext("2d");
   const grad2 = ctx2.createLinearGradient(0,0,0,400);
-  grad2.addColorStop(0, "#34D399"); grad2.addColorStop(1, "#059669");
+  grad2.addColorStop(0, "#10B981"); // Verde Esmeralda
+  grad2.addColorStop(1, "#047857"); // Verde Escuro
 
   grafico2 = new Chart(ctx2,{
-    type:"bar",
-    data:{ labels:tecnicos, datasets:[{ label:"KM", data:kms, backgroundColor:grad2, borderRadius:10, borderSkipped:false }] },
-    plugins:[ChartDataLabels],
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{ labels:{ color:"#fff" } },
-        title:{ display:true, text: "🛣 KM GERAL", color:"#fff", font:{ size:20, weight:"bold" } },
-        datalabels:{ color:"#fff", anchor:"end", align:"top", formatter:(val)=> val + " KM" }
+    type: "bar",
+    data: { 
+      labels: tecnicos, 
+      datasets: [{ 
+        label: "Quilometragem", 
+        data: kms, 
+        backgroundColor: grad2, 
+        borderRadius: 8, 
+        borderSkipped: false,
+        hoverBackgroundColor: "#34D399" // Brilho ao passar o mouse
+      }] 
+    },
+    plugins: [ChartDataLabels],
+    options: {
+      responsive: true, 
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        title: { 
+          display: true, 
+          text: "🛣 QUILOMETRAGEM POR TÉCNICO", 
+          color: "#fff", 
+          font: { size: 16, weight: "bold", family: "Arial" },
+          padding: { bottom: 25 }
+        },
+        datalabels: { 
+          color: "#fff", 
+          anchor: "end", 
+          align: "top", 
+          offset: 4,
+          font: { weight: "bold", size: 11 },
+          formatter: (val) => val > 0 ? val.toLocaleString("pt-BR") + " KM" : ""
+        }
       },
-      scales:{ x:{ ticks:{ color:"#fff" }, grid:{ display:false } }, y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } } }
+      scales: { 
+        x: { 
+          ticks: { color: "#94A3B8", font: { size: 11 } }, 
+          grid: { display: false } 
+        }, 
+        y: { 
+          grace: "15%", // 🪂 Espaço no topo para os textos de KM respirarem
+          ticks: { color: "#64748B" }, 
+          grid: { color: "rgba(255,255,255,0.04)" } 
+        } 
+      }
     }
   });
 }
