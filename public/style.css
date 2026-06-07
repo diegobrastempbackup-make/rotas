@@ -39,152 +39,159 @@ body {
   margin-bottom: 25px;
 }
 
-.logo {
-  width: 120px;
-  margin-bottom: 10px;
-  transition: 0.4s;
-  filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.5));
-}
-
-.logo:hover {
-  transform: scale(1.05);
-  filter: drop-shadow(0 0 25px rgba(59, 130, 246, 0.8));
-}
-
-.sidebar h2 {
+.logo-area h1 {
+  font-size: 22px;
   margin: 0;
-  color: #60A5FA;
-  font-size: 28px;
+  background: linear-gradient(to right, #3B82F6, #60A5FA);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
 
-.sidebar p {
-  cursor: pointer;
-  padding: 12px;
-  border-radius: 10px;
-  margin: 5px 0;
-  transition: 0.3s;
+.user-badge {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: #93C5FD;
+  font-size: 11px;
   font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-top: 5px;
+  text-transform: uppercase;
 }
 
-.sidebar p:hover {
-  background: linear-gradient(90deg, #2563EB, #3B82F6);
-  transform: translateX(5px);
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-grow: 1;
 }
 
-.sidebar input,
 .sidebar button {
   width: 100%;
-  margin-top: 10px;
-  padding: 12px;
-  border: none;
+  padding: 12px 15px;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  color: #60A5FA;
   border-radius: 10px;
-}
-
-.sidebar input {
-  background: #1E293B;
-  color: white;
-}
-
-.sidebar button {
-  background: linear-gradient(90deg, #2563EB, #3B82F6);
-  color: white;
-  cursor: pointer;
+  font-size: 14px;
   font-weight: bold;
-  transition: 0.3s;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.sidebar button:hover {
+  background: #2563EB;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
 /* ========================================================
-   📊 CONTAINER PRINCIPAL (CONFORTO VISUAL)
+   🖥️ CONTEÚDO PRINCIPAL (Mantido)
    ======================================================== */
-.main {
-  flex: 1;
-  padding: 25px;
+.conteudo {
+  flex-grow: 1;
+  padding: 30px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 25px;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-/* LINHA SUPERIOR: Alinha os 3 blocos lado a lado perfeitamente */
-.cards {
-  display: flex;
-  gap: 20px;
-  width: 100%;
-  align-items: stretch;
-}
-
-/* Cards Gerais (Gasto Total e KM Total) */
-.card {
-  flex: 1;
-  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
-  border-radius: 20px;
-  padding: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
-}
-
-.card h3 {
-  margin-top: 0;
-  color: #93C5FD;
-  font-size: 16px;
-}
-
-.card p {
-  font-size: 32px;
-  font-weight: bold;
-  margin-top: 15px;
-  margin-bottom: 0;
-}
-
-/* CARD INDIVIDUAL UNIFICADO (Ocupa um espaço proporcional maior na linha) */
-.card-individual-unico {
-  flex: 2; /* Dá mais espaço para caber as 3 colunas de dados */
-  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
-  border-radius: 20px;
-  padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
-}
-
-.card-individual-unico h3 {
-  margin-top: 0;
-  color: #93C5FD;
-  font-size: 16px;
-  margin-bottom: 15px;
-}
-
-.container-dados-individuais {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-}
-
-.dado-ind {
-  flex: 1;
-  background: rgba(15, 23, 42, 0.5);
-  padding: 12px 15px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.02);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.label-ind {
-  color: #94A3B8;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.valor-ind {
-  color: #FFFFFF;
-  font-size: 22px;
-  font-weight: bold;
 }
 
 /* ========================================================
-   📉 LINHA INFERIOR: GRÁFICOS CENTRALIZADOS LADO A LADO
+   🎛️ FILTROS SUPERIORES (Mantidos)
+   ======================================================== */
+.filtros {
+  display: flex;
+  gap: 15px;
+  background: rgba(30, 41, 59, 0.5);
+  padding: 15px 25px;
+  border-radius: 15px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.filtros label {
+  font-size: 13px;
+  font-weight: bold;
+  color: #94A3B8;
+  text-transform: uppercase;
+}
+
+.filtros select, .filtros input {
+  background: #0F172A;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.filtros select:focus, .filtros input:focus {
+  border-color: #2563EB;
+}
+
+/* ========================================================
+   📊 CARDS INDICADORES EM GRADE (Mantidos)
+   ======================================================== */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.card {
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.7));
+  border-radius: 16px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 4px;
+  background: #2563EB;
+}
+
+.card.azul::before { background: #3B82F6; }
+.card.verde::before { background: #10B981; }
+.card.amarelo::before { background: #F59E0B; }
+.card.laranja::before { background: #EF4444; }
+
+.card-titulo {
+  font-size: 13px;
+  font-weight: bold;
+  color: #94A3B8;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.card-valor {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 10px 0 0 0;
+  color: #F8FAFC;
+}
+
+/* ========================================================
+   📉 INFERIOR: GRÁFICOS CENTRALIZADOS LADO A LADO
    ======================================================== */
 .graficos {
   display: flex;
@@ -217,27 +224,125 @@ canvas {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
-  display: none;
-  justify-content: center;
+  display: flex;
   align-items: center;
-  z-index: 9999;
-  backdrop-filter: blur(5px);
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
 }
 
-.modal.show { display: flex; }
-
-.modal-box {
-  width: 450px;
-  max-height: 85vh;
-  overflow-y: auto;
-  background: linear-gradient(145deg, #1E293B, #0F172A);
-  border-radius: 20px;
-  padding: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+.modal.ativo {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-/* Barra de rolagem discreta */
-.main::-webkit-scrollbar { width: 8px; }
-.main::-webkit-scrollbar-track { background: #0F172A; }
-.main::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 10px; }
+.modal-conteudo {
+  background: #1E293B;
+  border-radius: 16px;
+  padding: 30px;
+  width: 100%;
+  max-width: 500px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  transform: translateY(-20px);
+  transition: transform 0.3s ease;
+}
+
+.modal.ativo .modal-conteudo {
+  transform: translateY(0);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.fechar-modal {
+  background: none !important;
+  border: none !important;
+  color: #94A3B8 !important;
+  font-size: 24px !important;
+  cursor: pointer;
+  padding: 0 !important;
+  width: auto !important;
+}
+
+.fechar-modal:hover {
+  color: white !important;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: #94A3B8;
+  margin-bottom: 5px;
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 10px;
+  background: #0F172A;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  border-radius: 8px;
+  outline: none;
+}
+
+.btn-bloco {
+  width: 100%;
+  padding: 12px;
+  background: #2563EB;
+  border: none;
+  color: white;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.btn-bloco:hover {
+  background: #3B82F6;
+}
+
+/* ========================================================
+   🎨 BOTÕES DE DESTAQUE CUSTOMIZADOS (SIDEBAR)
+   ======================================================== */
+
+/* 👤 Botão Gerenciar Usuários (Verde Esmeralda) */
+.sidebar button.btn-gerenciar {
+  background: rgba(16, 185, 129, 0.1) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  color: #34D399 !important;
+}
+
+.sidebar button.btn-gerenciar:hover {
+  background: #10B981 !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+}
+
+/* 🚪 Botão Sair (Vermelho Vibrante) */
+.sidebar button.btn-sair {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: #F87171 !important;
+}
+
+.sidebar button.btn-sair:hover {
+  background: #EF4444 !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+}
