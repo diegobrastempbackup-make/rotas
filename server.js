@@ -1,6 +1,6 @@
 const express = require("express"); // Adicionado o express que faltava no topo do seu print
 const cors = require("cors");
-const { MongoClient } = require("mongodb");
+const { MongoClient, ObjectId } = require("mongodb"); // Adicionado ObjectId aqui para facilitar
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
@@ -104,6 +104,9 @@ app.post("/registro", async (req, res) => {
     const operacoes = dados.map(item => {
       const dataLimpa = item.data ? String(item.data).split('T')[0] : '';
       
+      // Remove o _id se ele for uma string vazia ou inválida para não quebrar o Mongo
+      if (item._id) delete item._id;
+
       return {
         updateOne: {
           // 🔎 CRITÉRIO: O banco procura se já existe este Técnico nesta Data específica
@@ -111,7 +114,7 @@ app.post("/registro", async (req, res) => {
             tecnico: item.tecnico, 
             data: dataLimpa 
           },
-          // 📝 CONTEÚDO: Modifica ou adiciona os campos que mudaram na tela (como KM Fim digitado depois)
+          // 📝 CONTEÚDO: Modifica ou adiciona os campos que mudaram na tela
           update: { $set: item }, 
           // 🔥 TRAVA: Se não achar cria um novo, se achar apenas atualiza sem duplicar!
           upsert: true 
@@ -126,6 +129,27 @@ app.post("/registro", async (req, res) => {
   } catch (err) {
     console.log(err);
     res.status(500).json({ erro: "Erro ao salvar" });
+  }
+});
+
+// 🗑️ ROTA DA LIXEIRA: DELETAR REGISTRO DEFINITIVAMENTE DO BANCO DO ATLAS
+app.delete("/registro/:id", async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
+
+    const { id } = req.params;
+
+    // Remove usando o identificador gerado pelo próprio MongoDB Atlas
+    const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(id) });
+
+    if (resultado.deletedCount === 1) {
+      res.json({ ok: true, mensagem: "Rota apagada com sucesso!" });
+    } else {
+      res.status(404).json({ erro: "Registro não encontrado no banco" });
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao deletar registro" });
   }
 });
 
@@ -219,7 +243,6 @@ app.put("/usuario/:id", async (req, res) => {
 
     const { id } = req.params;
     const { nome, tipo, novaSenha } = req.body;
-    const { ObjectId } = require("mongodb");
 
     let dadosAtualizados = { nome, tipo };
 
@@ -233,7 +256,7 @@ app.put("/usuario/:id", async (req, res) => {
       { $set: dadosAtualizados }
     );
 
-    res.json({ ok: true, mensagem: "Usuário atualizado com sucesso!" });
+    res.json({ ok: true, message: "Usuário atualizado com sucesso!" });
   } catch (err) {
     console.log(err);
     res.status(500).json({ erro: "Erro ao atualizar usuário" });

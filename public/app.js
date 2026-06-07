@@ -223,11 +223,9 @@ function limparFiltro(){
 }
 
 function processar(dados, tecnico){
-  // Independentemente do técnico clicado, geramos matrizes completas para os gráficos gerais
   let valoresGerais = Array(tecnicos.length).fill(0);
   let kmsGerais = Array(tecnicos.length).fill(0);
 
-  // Variáveis para extrair exclusivamente os dados reais do técnico isolado
   let gastoInd = 0;
   let kmInd = 0;
   let litrosInd = 0;
@@ -239,7 +237,6 @@ function processar(dados, tecnico){
       valoresGerais[idx] += Number(d.valor) || 0;
     }
 
-    // Se a linha corresponder ao técnico selecionado na barra de filtros, soma os individuais
     if (d.tecnico === tecnico) {
       gastoInd += Number(d.valor) || 0;
       kmInd += Number(d.km) || 0;
@@ -247,7 +244,6 @@ function processar(dados, tecnico){
     }
   });
 
-  // Renderiza a interface enviando a base geral dos gráficos e as métricas individuais separadas
   atualizarDashboard(valoresGerais, kmsGerais, tecnico, gastoInd, kmInd, litrosInd);
 }
 
@@ -255,11 +251,9 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
 
-  // Preenche permanentemente os cards master de cima com o total de toda a frota
   document.getElementById("gastoTotal").innerText = totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   document.getElementById("kmTotal").innerText = totalKm.toLocaleString("pt-BR") + " KM";
 
-  // Atualiza apenas as informações de texto dentro da moldura individual unificada
   if(tecnico !== "TODOS"){
     const mediaKM = litrosInd > 0 ? (kmInd / litrosInd) : 0;
 
@@ -274,7 +268,6 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
     document.getElementById("mediaIndividual").innerText = "0.0 KM/L";
   }
 
-  // 🎯 MANUTENÇÃO DOS GRÁFICOS (Eles não somem nem encolhem, mantém todas as barras fixas)
   if (grafico1) { grafico1.destroy(); grafico1 = null; }
   if (grafico2) { grafico2.destroy(); grafico2 = null; }
 
@@ -327,6 +320,48 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       scales: { x: { ticks: { color: "#94A3B8" }, grid: { display: false } }, y: { grace: "15%", ticks: { color: "#64748B" }, grid: { color: "rgba(255,255,255,0.04)" } } }
     }
   });
+}
+
+// 🗑️ NOVA FUNÇÃO: DISPARAR A LIXEIRA DIRETO NO SERVIDOR E ATUALIZAR A TELA
+async function deletarRegistro(id) {
+  if (!id || id === "undefined" || id === "") {
+    alert("Este registro é novo e ainda não está salvo no banco. Basta limpar os campos dele e clicar em Salvar.");
+    return;
+  }
+
+  if (!confirm("Tem certeza absoluta de que deseja excluir permanentemente esta linha do sistema?")) {
+    return;
+  }
+
+  try {
+    const resposta = await fetch(`/registro/${id}`, {
+      method: "DELETE"
+    });
+
+    const resultado = await respuesta.json();
+
+    if (resposta.ok) {
+      alert("Registro excluído com sucesso!");
+      
+      // Remove o item da lista global localmente para atualizar os gráficos sem recarregar tudo
+      dadosGlobal = dadosGlobal.filter(d => d._id !== id);
+      
+      // Atualiza os filtros e a tabela visível na mesma hora
+      const mesAtual = document.getElementById("mesFiltro").value;
+      processar(dadosPorMes(mesAtual), tecnicoAtual);
+      
+      // Se você tiver uma função que desenha as linhas da tabela, chame ela aqui para remontar.
+      // Exemplo: se sua função de carregar a tabela se chamar renderizarTabela(), coloque ela aqui!
+      if (typeof carregarDados === "function") {
+        await carregarDados(); // Recarrega os dados limpos do banco para sumir da tabela
+      }
+    } else {
+      alert(resultado.erro || "Erro ao tentar excluir.");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Erro de comunicação com o servidor ao excluir.");
+  }
 }
 
 function gerarPDF() {

@@ -164,7 +164,7 @@ h2 {
   <div id="tabelas"></div>
 </div>
 
-<script>
+<script src="/app.js"></script> <script>
 // ⏱️ SISTEMA DE CONTROLE DE INATIVIDADE (5 MINUTOS)
 let temporizadorInatividade;
 
@@ -201,7 +201,7 @@ const tecnicos = [
 // Memória em segundo plano para guardar o histórico completo vindo do banco (para cruzar km de meses anteriores)
 let cacheHistoricoCompleto = [];
 
-function obterMesAtual(){
+function obtenerMesAtual(){
   const hoje = new Date();
   const ano = hoje.getFullYear();
   const mes = String(hoje.getMonth() + 1).padStart(2,"0");
@@ -243,8 +243,10 @@ function criar(){
   });
 }
 
+// 🛠️ FUNÇÃO ATUALIZADA: Agora mapeia o _id do MongoDB no botão da lixeira
 function linha(d = {}) {
   const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
+  const idRegistro = d._id || "";
 
   return `
   <tr>
@@ -276,7 +278,7 @@ function linha(d = {}) {
       <input value="${d.valor || ''}">
     </td>
     <td>
-      <button onclick="remover(this)">🗑️</button>
+      <button data-id="${idRegistro}" onclick="remover(this)">🗑️</button>
     </td>
   </tr>
   `;
@@ -322,14 +324,13 @@ function calc(el) {
       }
     }
     
-    // 2. Se não achou na tela, busca no histórico completo do banco de dados (Meses passados como Maio, Abril...)
+    // 2. Se não achou na tela, busca no histórico completo do banco de dados (Meses passados)
     if (!encontrouAnterior) {
       const dataAtualDaLinha = i[0].value;
       
-      // Filtra registros salvos desse técnico que tenham data ANTERIOR à data digitada na linha
       const historicoFiltrado = cacheHistoricoCompleto
         .filter(item => item.tecnico === nomeTecnico && item.abastAtual && item.data && item.data < dataAtualDaLinha)
-        .sort((a, b) => new Date(b.data) - new Date(a.data)); // Ordena do mais recente para o mais antigo
+        .sort((a, b) => new Date(b.data) - new Date(a.data));
 
       if (historicoFiltrado.length > 0) {
         abastAntInput.value = historicoFiltrado[0].abastAtual;
@@ -348,11 +349,24 @@ function calc(el) {
   i[4].value = consumo;
 }
 
+// 🛠️ FUNÇÃO INTELIGENTE DA LIXEIRA: Remove na hora e apaga do banco de dados
 function remover(btn){
-  btn.closest("tr").remove();
+  const id = btn.getAttribute("data-id");
+
+  if (id && id !== "" && id !== "undefined") {
+    // Se o registro já tem ID do banco de dados, chama a rota de exclusão oficial do sistema
+    if (typeof deletarRegistro === "function") {
+      deletarRegistro(id);
+    } else {
+      alert("Função de exclusão do app.js não encontrada.");
+    }
+  } else {
+    // Se for apenas uma linha em branco criada na hora que ainda não foi salva, remove direto da tela
+    btn.closest("tr").remove();
+  }
 }
 
-function obterChaveRegistro(r) {
+function obtenerChaveRegistro(r) {
   const dataLimpa = String(r.data || '').split('T')[0];
   const kmIni = Number(r.kmIni) || 0;
   const kmFim = Number(r.kmFim) || 0;
@@ -437,7 +451,6 @@ async function carregar(mes = ""){
   const res = await fetch("/registros");
   const listaCompleta = await res.json();
   
-  // Alimenta o cache global em segundo plano para cruzar dados de quilometragem entre os meses
   cacheHistoricoCompleto = [...listaCompleta];
 
   let listaFiltrada = [...listaCompleta];
