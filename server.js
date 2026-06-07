@@ -1,4 +1,4 @@
-const express = require("express");
+const express = require("express"); // Adicionado o express que faltava no topo do seu print
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
 const bcrypt = require("bcryptjs");
@@ -9,45 +9,39 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
-// 🔥 MONGO
+// 🌍 MONGO
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
 
-// 🔥 MIDDLEWARES
+// ⚡ MIDDLEWARES
 app.use(cors());
 app.use(express.json({
   limit: "10mb"
 }));
 
-// 🔥 HOME (Interpõe a rota raiz para entregar sempre a tela de login)
-// 🔥 HOME (Entrega a tela de login)
+// 🏠 HOME (Entrega a tela de login)
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
 });
 
 // 🔒 BLINDAGEM NO SERVIDOR: Protege o arquivo dados.html de acessos diretos pela URL
 app.get("/dados.html", (req, res) => {
-  // Pegamos o token que pode vir na URL como parâmetro de segurança
   const token = req.query.token;
 
   if (!token) {
-    // Se tentarem acessar direto sem token, o servidor barra e joga de volta pro login
     return res.redirect("/login.html");
   }
 
   try {
-    // Valida se o token é legítimo e não expirou
     jwt.verify(token, JWT_SECRET);
-    // Se o token for válido, aí sim o servidor entrega a página de dados
     res.sendFile(__dirname + "/public/dados.html");
   } catch (err) {
-    // Se o token for falso ou antigo, expulsa
     res.redirect("/login.html");
   }
 });
 
-// 🔥 CONECTAR MONGO
+// 🔌 CONECTAR MONGO
 async function conectarMongo() {
   try {
     await client.connect();
@@ -60,10 +54,10 @@ async function conectarMongo() {
 conectarMongo();
 
 // ========================================================
-// 🛠 ROTAS DO SISTEMA
+// 🛠️ ROTAS DO SISTEMA
 // ========================================================
 
-// 🔥 LISTAR REGISTROS
+// 🔍 LISTAR REGISTROS
 app.get("/registros", async (req, res) => {
   try {
     if (!db) {
@@ -83,7 +77,7 @@ app.get("/registros", async (req, res) => {
   }
 });
 
-// 🔥 SALVAR REGISTROS
+// 💾 SALVAR REGISTROS (COM UPSERT INTELIGENTE - TRAVA ANTI-DUPLICADAS)
 app.post("/registro", async (req, res) => {
   try {
     if (!db) {
@@ -97,17 +91,36 @@ app.post("/registro", async (req, res) => {
       return res.status(400).json({ erro: "Nenhum dado" });
     }
 
-    // Remove duplicados apenas do corpo da requisição atual
+    // 1. Remove duplicados simples que possam vir na mesma requisição
     const mapa = new Set();
     dados = dados.filter(item => {
-      const chave = JSON.stringify(item);
+      const chave = `${item.tecnico}_${String(item.data).split('T')[0]}`;
       if (mapa.has(chave)) return false;
       mapa.add(chave);
       return true;
     });
 
-    // Insere os novos dados sem deletar os antigos
-    await collection.insertMany(dados);
+    // 2. Cria o lote de operações Upsert (Atualiza se existir, Cria se for novo)
+    const operacoes = dados.map(item => {
+      const dataLimpa = item.data ? String(item.data).split('T')[0] : '';
+      
+      return {
+        updateOne: {
+          // 🔎 CRITÉRIO: O banco procura se já existe este Técnico nesta Data específica
+          filter: { 
+            tecnico: item.tecnico, 
+            data: dataLimpa 
+          },
+          // 📝 CONTEÚDO: Modifica ou adiciona os campos que mudaram na tela (como KM Fim digitado depois)
+          update: { $set: item }, 
+          // 🔥 TRAVA: Se não achar cria um novo, se achar apenas atualiza sem duplicar!
+          upsert: true 
+        }
+      };
+    });
+
+    // Executa a operação em lote direto no MongoDB Atlas
+    await collection.bulkWrite(operacoes);
 
     res.json({ ok: true });
   } catch (err) {
@@ -116,7 +129,7 @@ app.post("/registro", async (req, res) => {
   }
 });
 
-// 🔥 CRIAR ADMIN INICIAL (Usa "diego")
+// 🔑 CRIAR ADMIN INICIAL (Usa "diego")
 app.get("/criar-admin", async (req, res) => {
   try {
     const usuarios = db.collection("usuarios");
@@ -144,7 +157,7 @@ app.get("/criar-admin", async (req, res) => {
   }
 });
 
-// 🔥 NOVA ROTA: CADASTRO DE NOVOS USUÁRIOS (GERENCIADO PELO ADMIN)
+// 👤 CADASTRO DE NOVOS USUÁRIOS (GERENCIADO PELO ADMIN)
 app.post("/cadastro", async (req, res) => {
   try {
     if (!db) {
@@ -158,22 +171,19 @@ app.post("/cadastro", async (req, res) => {
     }
 
     const usuarios = db.collection("usuarios");
-    
-    // Evita duplicidade convertendo para minúsculas e limpando espaços em branco
     const existe = await usuarios.findOne({ usuario: usuario.toLowerCase().trim() });
 
     if (existe) {
       return res.status(400).json({ erro: "Este nome de usuário já está cadastrado" });
     }
 
-    // Criptografa a nova senha usando o bcryptjs
     const senhaHash = await bcrypt.hash(senha, 10);
 
     await usuarios.insertOne({
       nome,
       usuario: usuario.toLowerCase().trim(),
       senha: senhaHash,
-      tipo, // "admin" ou "usuario"
+      tipo, 
       ativo: true,
       criadoEm: new Date()
     });
@@ -185,12 +195,11 @@ app.post("/cadastro", async (req, res) => {
   }
 });
 
-// 🔥 LISTAR TODOS OS USUÁRIOS (Para o Admin gerenciar)
+// 📋 LISTAR TODOS OS USUÁRIOS
 app.get("/usuarios", async (req, res) => {
   try {
     if (!db) return res.status(500).json({ erro: "Banco não conectado" });
 
-    // Retorna todos os usuários, mas esconde o campo da senha por segurança (.project)
     const lista = await db.collection("usuarios")
       .find()
       .project({ senha: 0 })
@@ -203,7 +212,7 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
-// 🔥 ATUALIZAR USUÁRIO (Alterar permissão ou senha)
+// 🔄 ATUALIZAR USUÁRIO
 app.put("/usuario/:id", async (req, res) => {
   try {
     if (!db) return res.status(500).json({ erro: "Banco não conectado" });
@@ -214,7 +223,6 @@ app.put("/usuario/:id", async (req, res) => {
 
     let dadosAtualizados = { nome, tipo };
 
-    // Se o admin digitou uma nova senha, criptografa ela antes de salvar
     if (novaSenha && novaSenha.trim() !== "") {
       const senhaHash = await bcrypt.hash(novaSenha, 10);
       dadosAtualizados.senha = senhaHash;
@@ -232,12 +240,10 @@ app.put("/usuario/:id", async (req, res) => {
   }
 });
 
-// 🔥 LOGIN
+// 🔓 LOGIN
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
-    
-    // Busca ignorando diferenças de caixa alta/baixa se o input vier bagunçado
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
 
     if (!usuarioBanco) {
@@ -269,11 +275,11 @@ app.post("/login", async (req, res) => {
 });
 
 // ========================================================
-// ⚡ SERVIR ARQUIVOS ESTÁTICOS (DEVE FICAR SEMPRE ABAIXO DAS ROTAS)
+// ⚡ SERVIR ARQUIVOS ESTÁTICOS
 // ========================================================
 app.use(express.static("public"));
 
-// 🔥 START DO SERVIDOR
+// 🚀 START DO SERVIDOR
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando porta ${PORT}`);
 });
