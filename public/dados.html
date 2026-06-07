@@ -155,7 +155,7 @@ h2 {
 <div class="container">
   <div class="topo">
     <button onclick="voltarAoDashboard()">⬅ Voltar</button>
-    <button onclick="salvar()">💾 Salvar e Limpar Duplicadas</button>
+    <button onclick="salvar()">💾 Salvar</button>
     <input type="month" id="mesFiltro" style="width: auto; display: inline-block;">
     <button onclick="filtrarMes()">🔍 Buscar</button>
     <button onclick="mostrarTudo()">♻ Mostrar Mês Atual</button>
@@ -170,7 +170,7 @@ let temporizadorInatividade;
 
 function resetarTemporizador() {
   clearTimeout(temporizadorInatividade);
-  temporizadorInatividade = setTimeout(efetuarAutoLogout, 5 * 60 * 1000); // 5 minutos
+  temporizadorInatividade = setTimeout(efetuarAutoLogout, 5 * 60 * 1000);
 }
 
 function efetuarAutoLogout() {
@@ -241,10 +241,13 @@ function criar(){
 }
 
 function linha(d = {}){
+  // Extrai estritamente apenas a parte YYYY-MM-DD da data para sumir com horários embutidos
+  const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
+
   return `
   <tr>
     <td>
-      <input type="date" value="${d.data || hoje()}">
+      <input type="date" value="${dataFormatada}">
     </td>
     <td>
       <input value="${d.kmIni || ''}" oninput="calc(this)">
@@ -327,7 +330,18 @@ function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🔥 SALVAR - AGORA COM REMOÇÃO ABSOLUTA DE DUPLICADAS ANTES DO ENVIO
+// 🛡️ TRAVA DE NORMALIZAÇÃO ABSOLUTA contra dízimas e formatos de data
+function obterChaveRegistro(r) {
+  const dataLimpa = String(r.data || '').split('T')[0];
+  const kmIni = Number(r.kmIni) || 0;
+  const kmFim = Number(r.kmFim) || 0;
+  const abastAtual = String(r.abastAtual || '').trim();
+  const litros = Number(r.litros) ? Number(r.litros).toFixed(2) : "0.00";
+  const valor = Number(r.valor) ? Number(r.valor).toFixed(2) : "0.00";
+  return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
+}
+
+// 🔥 SALVAR com Deduplicação Forçada
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -369,10 +383,8 @@ async function salvar(){
         registro.abastAtual !== "";
 
       if(temDado){
-        // Criamos uma string única baseada nas informações cruciais do registro
-        const tokenLinha = `${registro.tecnico}_${registro.data}_${registro.kmIni}_${registro.kmFim}_${registro.abastAtual}_${registro.litros}_${registro.valor}`;
+        const tokenLinha = obterChaveRegistro(registro);
         
-        // Só adiciona se essa linha exata ainda não tiver sido lida
         if(!mapaLimpeza.has(tokenLinha)){
           dados.push(registro);
           mapaLimpeza.add(tokenLinha);
@@ -381,9 +393,6 @@ async function salvar(){
     });
   });
 
-  console.log("ENVIANDO DADOS LIMPOS:", dados);
-
-  // Envia a lista 100% filtrada para substituir a tabela no banco
   await fetch("/registro", {
     method:"POST",
     headers:{
@@ -392,13 +401,11 @@ async function salvar(){
     body: JSON.stringify({ dados })
   });
 
-  alert("Dados salvos e duplicadas eliminadas com sucesso!");
-  
-  // Recarrega o estado atualizado do servidor
+  alert("Dados salvos e tabela limpa com sucesso!");
   await carregar(mesAtual);
 }
 
-// 🔥 CARREGAR
+// 🔥 CARREGAR com Filtro Anti-Fantasma
 async function carregar(mes = ""){
   const res = await fetch("/registros");
   let lista = await res.json();
@@ -427,7 +434,7 @@ async function carregar(mes = ""){
   lista.forEach(item=>{
     const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
     if(tbody){
-      const chaveItem = `${item.tecnico}_${item.data}_${item.kmIni}_${item.kmFim}_${item.abastAtual}_${item.litros}_${item.valor}`;
+      const chaveItem = obterChaveRegistro(item);
       
       if (!chavesRenderizadas.has(chaveItem)) {
         const tr = document.createElement("tr");
@@ -463,7 +470,6 @@ iniciar();
 <script>
   function voltarAoDashboard() {
     const token = localStorage.getItem("token");
-    
     if (token) {
       window.location.href = "/index.html";
     } else {
