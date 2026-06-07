@@ -167,7 +167,6 @@ h2 {
 <script src="/app.js"></script>
 
 <script>
-// Memória em segundo plano para guardar o histórico completo vindo do banco
 let cacheHistoricoCompleto = [];
 
 function obtenerMesAtual(){
@@ -178,14 +177,18 @@ function obtenerMesAtual(){
 }
 
 function hoje(){
-  return new Date().toISOString().split("T")[0];
+  // Correção para evitar que fusos horários mudem o dia corrente no celular
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = String(agora.getMonth() + 1).padStart(2, '0');
+  const dia = String(agora.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
 }
 
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
 
-  // Utiliza o array 'tecnicos' global que vem direto do app.js
   tecnicos.forEach(nome=>{
     const bloco = document.createElement("div");
     bloco.innerHTML = `
@@ -213,7 +216,6 @@ function criar(){
   });
 }
 
-// 🛠️ RENDERIZADOR DE LINHA COM ID DO BANCO
 function linha(d = {}) {
   const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
   const idRegistro = d._id || "";
@@ -282,7 +284,6 @@ function calc(el) {
     
     let encontrouAnterior = false;
     
-    // 1. Procura primeiro nas linhas superiores da tela atual
     for (let j = indexAtual - 1; j >= 0; j--) {
       const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
       const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
@@ -294,7 +295,6 @@ function calc(el) {
       }
     }
     
-    // 2. Se não encontrou, puxa do histórico cacheado do banco (meses anteriores)
     if (!encontrouAnterior) {
       const dataAtualDaLinha = i[0].value;
       
@@ -319,7 +319,6 @@ function calc(el) {
   i[4].value = consumo;
 }
 
-// 🗑️ CONTROLE DA LIXEIRA INTEGRADA com o app.js
 function remover(btn){
   const id = btn.getAttribute("data-id");
 
@@ -344,7 +343,7 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// 💾 FUNÇÃO SALVAR ATUALIZADA (COM ALERTA BLINDADO)
+// 💾 FUNÇÃO SALVAR ATUALIZADA (COM FEEDBACK DO QUE FOI ENVIADO)
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -359,10 +358,11 @@ async function salvar(){
     const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
     linhas.forEach(l=>{
       const i = l.querySelectorAll("input");
-      if (i.length < 9) return; // Segurança caso a linha esteja incompleta
+      if (i.length < 9) return; 
       
       const data = i[0].value;
 
+      // Se a linha não começar com o mês do filtro lá de cima, ela é ignorada para segurança
       if(!data.startsWith(mesAtual)){
         return;
       }
@@ -380,15 +380,17 @@ async function salvar(){
         valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
       };
 
+      // Modificação: Considera válido se tiver pelo menos KM Inicial ou se preencheu algum valor
       const temDado =
-        registro.km > 0 ||
+        registro.kmIni > 0 ||
+        registro.kmFim > 0 ||
         registro.valor > 0 ||
         registro.litros > 0 ||
         registro.abastAnt !== "" ||
         registro.abastAtual !== "";
 
       if(temDado){
-        const tokenLinha = obterChaveRegistro(registro);
+        const tokenLinha = obtenerChaveRegistro(registro);
         if(!mapaLimpeza.has(tokenLinha)){
           dados.push(registro);
           mapaLimpeza.add(tokenLinha);
@@ -396,6 +398,12 @@ async function salvar(){
       }
     });
   });
+
+  // Alerta de feedback imediato se você tentar salvar sem digitar nada válido nas colunas
+  if(dados.length === 0){
+    alert("⚠️ Nenhuma alteração ou dado preenchido foi detectado para este mês.");
+    return;
+  }
 
   try {
     const respuesta = await fetch("/registro", {
@@ -407,13 +415,10 @@ async function salvar(){
     });
 
     if (respuesta.ok) {
-      // O Alerta agora é disparado IMEDIATAMENTE após o servidor confirmar o salvamento
       alert("✅ Dados salvos com sucesso no banco de dados!");
-      
-      // Executa a atualização da tela em segundo plano, sem bloquear o alerta
       carregar(mesAtual); 
     } else {
-      alert("⚠️ O servidor recebeu a tentativa, mas não conseguiu salvar os dados.");
+      alert("⚠️ O servidor recusou a requisição ou falhou ao processar.");
     }
   } catch (err) {
     console.error("Erro ao salvar:", err);
@@ -421,13 +426,11 @@ async function salvar(){
   }
 }
 
-// 🔥 CARREGA OS DADOS LIMPOS DO BANCO
 async function carregar(mes = ""){
   const res = await fetch("/registros");
   const listaCompleta = await res.json();
   
   cacheHistoricoCompleto = [...listaCompleta];
-
   let listaFiltrada = [...listaCompleta];
 
   listaFiltrada.sort((a,b)=>{
