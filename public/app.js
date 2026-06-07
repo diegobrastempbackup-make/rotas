@@ -293,7 +293,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        title: { display: true, text: "💰 INVESTIMENTO POR TÉCNICO", color: "#fff", font: { size: 16, weight: "bold" } },
+        title: { display: true, text: "💰 Gasto total por veículo", color: "#fff", font: { size: 16, weight: "bold" } },
         datalabels: { 
           color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
           formatter: (val) => val > 0 ? val.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : ""
@@ -318,7 +318,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        title: { display: true, text: "🛣️ QUILOMETRAGEM POR TÉCNICO", color: "#fff", font: { size: 16, weight: "bold" } },
+        title: { display: true, text: "🛣️ QUILOMETRAGEM total por veículo", color: "#fff", font: { size: 16, weight: "bold" } },
         datalabels: { 
           color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
           formatter: (val) => val > 0 ? val.toLocaleString("pt-BR") + " KM" : ""
