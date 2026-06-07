@@ -167,11 +167,6 @@ h2 {
 <script src="/app.js"></script> 
 
 <script>
-// Sobrescreve a inicialização imediata do app.js para evitar crash de elementos de gráfico faltantes nesta tela
-if (typeof grafico1 !== 'undefined') {
-  console.log("Ambiente de dados isolado.");
-}
-
 // ⏱️ SISTEMA DE CONTROLE DE INATIVIDADE (5 MINUTOS)
 let temporizadorInatividade;
 
@@ -250,7 +245,7 @@ function criar(){
   });
 }
 
-// 🛠️ FUNÇÃO MAPRADA: Agora captura de verdade o ID exclusivo gerado pelo MongoDB
+// 🛠️ RENDERIZADOR DE LINHA COM ID DO BANCO
 function linha(d = {}) {
   const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
   const idRegistro = d._id || "";
@@ -319,7 +314,7 @@ function calc(el) {
     
     let encontrouAnterior = false;
     
-    // 1. Procura primeiro nas linhas de cima da própria tela
+    // 1. Procura primeiro nas linhas superiores da tela atual
     for (let j = indexAtual - 1; j >= 0; j--) {
       const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
       const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
@@ -331,7 +326,7 @@ function calc(el) {
       }
     }
     
-    // 2. Se não achou na tela, busca no histórico completo do banco de dados (Meses passados)
+    // 2. Se não encontrou, puxa do histórico cacheado do banco (meses anteriores)
     if (!encontrouAnterior) {
       const dataAtualDaLinha = i[0].value;
       
@@ -356,19 +351,17 @@ function calc(el) {
   i[4].value = consumo;
 }
 
-// 🛠️ FUNÇÃO DA LIXEIRA SINCRONIZADA COM O SERVIDOR
+// 🗑️ CONTROLE DA LIXEIRA INTEGRADA
 function remover(btn){
   const id = btn.getAttribute("data-id");
 
   if (id && id !== "" && id !== "undefined") {
-    // Se o registro possui ID vindo do MongoDB Atlas, chama a exclusão remota
     if (typeof deletarRegistro === "function") {
       deletarRegistro(id);
     } else {
-      alert("Função de exclusão remota não carregada completamente.");
+      alert("Ação de exclusão do app.js não pôde ser invocada.");
     }
   } else {
-    // Se for uma linha nova adicionada manualmente e vazia, só remove da tela
     btn.closest("tr").remove();
   }
 }
@@ -383,7 +376,7 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// 🔥 SALVAR SIMPLIFICADO
+// 💾 FUNÇÃO SALVAR ATUALIZADA
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -434,7 +427,7 @@ async function salvar(){
     });
   });
 
-  const resposta = await fetch("/registro", {
+  const respuesta = await fetch("/registro", {
     method:"POST",
     headers:{
       "Content-Type":"application/json"
@@ -444,13 +437,13 @@ async function salvar(){
 
   if (resposta.ok) {
     alert("Dados salvos com sucesso!");
-    await carregar(mesAtual); // Recarrega os dados para vincular os _ids novos gerados pelo banco
+    await carregar(mesAtual); 
   } else {
     alert("Erro ao salvar dados no servidor.");
   }
 }
 
-// 🔥 CARREGAR ATUALIZADO
+// 🔥 FUNÇÃO DE CORREÇÃO: CARREGA SEM FILTRO DE TRAVAMENTO DE TELA
 async function carregar(mes = ""){
   const res = await fetch("/registros");
   const listaCompleta = await res.json();
@@ -482,7 +475,7 @@ async function carregar(mes = ""){
     const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
     if(tbody){
       const tr = document.createElement("tr");
-      tr.innerHTML = linha(item); // Passa o item completo (incluindo o _id) para gerar a linha
+      tr.innerHTML = linha(item); 
       tbody.appendChild(tr);
     }
   });
@@ -494,14 +487,14 @@ function filtrarMes(){
 }
 
 function mostrarTudo(){
-  const mesAtual = obtenerMesAtual();
+  const mesAtual = obterMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   carregar(mesAtual);
 }
 
 async function iniciar(){
   criar();
-  const mesAtual = obtenerMesAtual();
+  const mesAtual = obterMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   await carregar(mesAtual);
 }
