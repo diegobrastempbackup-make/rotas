@@ -170,7 +170,7 @@ async function salvarUsuario() {
       const respuesta = await fetch("/cadastro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, usuario, senate: senha, tipo })
+        body: JSON.stringify({ nome, usuario, senha: senha, tipo }) // Corrigido de 'senate' para 'senha'
       });
       const dados = await respuesta.json();
       if (!respuesta.ok) return alert(dados.erro || "Erro ao cadastrar");
@@ -340,7 +340,7 @@ async function deletarRegistro(id) {
   }
 
   try {
-    const resposta = await fetch(`/registro/${id}`, {
+    const respuesta = await fetch(`/registro/${id}`, {
       method: "DELETE"
     });
 

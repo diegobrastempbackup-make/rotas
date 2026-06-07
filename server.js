@@ -1,6 +1,6 @@
-const express = require("express"); // Adicionado o express que faltava no topo do seu print
+const express = require("express"); 
 const cors = require("cors");
-const { MongoClient, ObjectId } = require("mongodb"); // Adicionado ObjectId aqui para facilitar
+const { MongoClient, ObjectId } = require("mongodb"); 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
@@ -67,7 +67,7 @@ app.get("/registros", async (req, res) => {
     const dados = await db
       .collection("registros")
       .find()
-      .sort({ data: 1 }) // Ordena por data
+      .sort({ data: 1 }) 
       .toArray();
 
     res.json(dados);
@@ -91,7 +91,6 @@ app.post("/registro", async (req, res) => {
       return res.status(400).json({ erro: "Nenhum dado" });
     }
 
-    // 1. Remove duplicados simples que possam vir na mesma requisição
     const mapa = new Set();
     dados = dados.filter(item => {
       const chave = `${item.tecnico}_${String(item.data).split('T')[0]}`;
@@ -100,29 +99,23 @@ app.post("/registro", async (req, res) => {
       return true;
     });
 
-    // 2. Cria o lote de operações Upsert (Atualiza se existir, Cria se for novo)
     const operacoes = dados.map(item => {
       const dataLimpa = item.data ? String(item.data).split('T')[0] : '';
       
-      // Remove o _id se ele for uma string vazia ou inválida para não quebrar o Mongo
       if (item._id) delete item._id;
 
       return {
         updateOne: {
-          // 🔎 CRITÉRIO: O banco procura se já existe este Técnico nesta Data específica
           filter: { 
             tecnico: item.tecnico, 
             data: dataLimpa 
           },
-          // 📝 CONTEÚDO: Modifica ou adiciona os campos que mudaram na tela
           update: { $set: item }, 
-          // 🔥 TRAVA: Se não achar cria um novo, se achar apenas atualiza sem duplicar!
           upsert: true 
         }
       };
     });
 
-    // Executa a operação em lote direto no MongoDB Atlas
     await collection.bulkWrite(operacoes);
 
     res.json({ ok: true });
@@ -139,7 +132,6 @@ app.delete("/registro/:id", async (req, res) => {
 
     const { id } = req.params;
 
-    // Remove usando o identificador gerado pelo próprio MongoDB Atlas
     const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(id) });
 
     if (resultado.deletedCount === 1) {
@@ -297,12 +289,10 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// ========================================================
-// ⚡ SERVIR ARQUIVOS ESTÁTICOS
-// ========================================================
+// SERVIR ARQUIVOS ESTÁTICOS
 app.use(express.static("public"));
 
-// 🚀 START DO SERVIDOR
+// START DO SERVIDOR
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando porta ${PORT}`);
 });
