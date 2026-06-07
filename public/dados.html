@@ -124,11 +124,6 @@ function obterMesAtual(){
   return `${ano}-${mes}`;
 }
 
-// 🔥 VOLTAR PARA O DASHBOARD (Direto sem re-autenticar)
-function voltar(){
-  window.location.href = "/";
-}
-
 // 🔥 DATA HOJE
 function hoje(){
   return new Date().toISOString().split("T")[0];
@@ -166,7 +161,7 @@ function criar(){
   });
 }
 
-// 🔥 LINHA
+// 🔥 LINHA (Atualizada com oninput no Abast Atual)
 function linha(d = {}){
   return `
   <tr>
@@ -189,7 +184,7 @@ function linha(d = {}){
       <input value="${d.abastAnt || ''}">
     </td>
     <td>
-      <input value="${d.abastAtual || ''}">
+      <input value="${d.abastAtual || ''}" oninput="calc(this)">
     </td>
     <td>
       <input value="${d.litros || ''}" oninput="calc(this)">
@@ -212,17 +207,49 @@ function addLinha(nome){
   tbody.appendChild(tr);
 }
 
-// 🔥 CALCULAR
+// 🔥 CALCULAR (Atualizada com a inteligência para buscar o Abast Ant automaticamente)
 function calc(el){
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
   const kmIni = Number(i[1].value);
   const kmFim = Number(i[2].value);
+  const abastAtualInput = i[6];
+  const abastAntInput = i[5];
   const litros = Number(i[7].value);
 
+  // 1. Cálculo de Quilometragem
   const km = kmFim - kmIni;
   i[3].value = km > 0 ? km : "";
 
+  // 2. Lógica Inteligente do Abastecimento Anterior (Pedido pelo Diego)
+  if (abastAtualInput.value.trim() !== "") {
+    // Se digitou no Abast Atual, varre as linhas acima para achar o último preenchido
+    const tbody = tr.closest("tbody");
+    const todasAsLinhas = Array.from(tbody.querySelectorAll("tr"));
+    const indexAtual = todasAsLinhas.indexOf(tr);
+    
+    let encontrouAnterior = false;
+    // Percorre de baixo para cima a partir da linha anterior à atual
+    for (let j = indexAtual - 1; j >= 0; j--) {
+      const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
+      const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
+      
+      if (valorAbastAtualLinhaAnt !== "") {
+        abastAntInput.value = valorAbastAtualLinhaAnt;
+        encontrouAnterior = true;
+        break;
+      }
+    }
+    // Se for o primeiro abastecimento do histórico e não tiver nada atrás, deixa limpo para digitação manual
+    if (!encontrouAnterior && abastAntInput.value === "") {
+      abastAntInput.value = "";
+    }
+  } else {
+    // Se o técnico apagar ou deixar o Abast Atual em branco, limpa obrigatoriamente o Abast Anterior
+    abastAntInput.value = "";
+  }
+
+  // 3. Cálculo do Consumo
   const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
   i[4].value = consumo;
 }
@@ -370,17 +397,12 @@ iniciar();
     const token = localStorage.getItem("token");
     
     if (token) {
-      // Se o token existe, volta para o painel principal sem deslogar
       window.location.href = "/index.html";
     } else {
-      // Caso de segurança: se sumiu o token, manda para o login
       window.location.replace("/login.html");
     }
   }
 </script>
-
-</body>
-</html>
 
 </body>
 </html>
