@@ -242,18 +242,40 @@ function atualizarDashboard(valores, kms, tecnico){
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
 
-  // Formatação bonita para os cards
+  // Preço médio do combustível configurado (ajuste o valor se necessário)
+  const PRECO_COMBUSTIVEL = 5.80; 
+
+  // Formatação bonita para os cards gerais
   document.getElementById("gastoTotal").innerText = totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   document.getElementById("kmTotal").innerText = totalKm.toLocaleString("pt-BR") + " KM";
 
+  // Se selecionar um técnico específico:
   if(tecnico !== "TODOS"){
     const i = tecnicos.indexOf(tecnico);
-    document.getElementById("gastoIndividual").innerText = valores[i].toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    document.getElementById("kmIndividual").innerText = kms[i].toLocaleString("pt-BR") + " KM";
-  }else{
+    const gastoInd = valores[i];
+    const kmInd = kms[i];
+
+    // Calcula os litros aproximados com base no valor gasto
+    const litrosEstimatva = gastoInd / PRECO_COMBUSTIVEL;
+    
+    // Calcula a média (KM dividido por Litros). Se litros for zero, a média é zero.
+    const mediaKM = litrosEstimatva > 0 ? (kmInd / litrosEstimatva) : 0;
+
+    // Atualiza os elementos na tela
+    document.getElementById("gastoIndividual").innerText = gastoInd.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    document.getElementById("kmIndividual").innerText = kmInd.toLocaleString("pt-BR") + " KM";
+    
+    // Mostra a média com 1 casa decimal (Ex: 10.5 KM/L)
+    document.getElementById("mediaIndividual").innerText = mediaKM.toFixed(1) + " KM/L";
+
+  } else {
+    // Se estiver em "TODOS", zera o painel individual
     document.getElementById("gastoIndividual").innerText = "R$ 0,00";
     document.getElementById("kmIndividual").innerText = "0 KM";
+    document.getElementById("mediaIndividual").innerText = "0.0 KM/L";
   }
+
+  // ... Daqui para baixo continua o resto do seu código com a criação dos gráficos (grafico1 e grafico2)
 
   // 🎯 CORREÇÃO DO EFEITO FANTASMA (DESTRUIÇÃO COMPLETA)
   if (grafico1) {

@@ -121,30 +121,38 @@ body {
 }
 
 /* MAIN CONTENT */
+/* ========================================================
+   🎯 LAYOUT EM GRID ULTRA-RESPONSIVO (ATUALIZADO)
+   ======================================================== */
+
 .main {
   flex: 1;
   padding: 25px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 25px;
+  height: 100vh;
+  overflow-y: auto; /* Rolagem suave se a tela for pequena */
 }
 
+/* CARDS: Alinhamento inteligente em Grid */
 .cards {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 20px;
-  flex-wrap: wrap;
 }
 
 .card {
   background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
   border-radius: 20px;
-  padding: 25px;
-  flex: 1;
-  min-width: 220px;
+  padding: 22px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
   transition: 0.3s;
 }
 
 .card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-3px);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
 }
 
@@ -159,23 +167,24 @@ body {
   margin-top: 15px;
 }
 
-/* GRÁFICOS */
+/* GRÁFICOS: Alinhamento simétrico 50% / 50% */
 .graficos {
-  display: flex;
-  gap: 20px;
-  margin-top: 30px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 25px;
+  align-items: stretch;
+  margin-top: 5px;
 }
 
 .grafico {
   background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
   border-radius: 20px;
-  padding: 20px;
-  flex: 1;
-  min-width: 350px;
-  height: 450px;
+  padding: 25px;
+  min-height: 480px; /* Mais espaço para as barras respirarem */
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
 }
 
 canvas {
