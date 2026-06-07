@@ -170,7 +170,7 @@ async function salvarUsuario() {
       const respuesta = await fetch("/cadastro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, usuario, senha, tipo })
+        body: JSON.stringify({ nome, usuario, senate: senha, tipo })
       });
       const dados = await respuesta.json();
       if (!respuesta.ok) return alert(dados.erro || "Erro ao cadastrar");
@@ -201,9 +201,12 @@ async function carregarDados(){
   dadosGlobal = await res.json();
   dadosGlobal.sort((a,b) => new Date(a.data) - new Date(b.data));
 
-  const mesAtual = obtenerMesAtual();
-  document.getElementById("mesFiltro").value = mesAtual;
-  processar(dadosPorMes(mesAtual), tecnicoAtual);
+  // 🔥 PROTEÇÃO INTELIGENTE: Só tenta manipular os elementos visuais se estiver de fato no Dashboard (index.html)
+  if (document.getElementById("mesFiltro") && document.getElementById("g1")) {
+    const mesAtual = obtenerMesAtual();
+    document.getElementById("mesFiltro").value = mesAtual;
+    processar(dadosPorMes(mesAtual), tecnicoAtual);
+  }
 }
 
 function filtrar(nome){
@@ -248,6 +251,9 @@ function processar(dados, tecnico){
 }
 
 function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
+  // 🔥 SEGURANÇA MÁXIMA: Se o gráfico g1 não estiver no HTML, sai da função na hora para evitar travamentos
+  if (!document.getElementById("g1")) return;
+
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
 
@@ -281,7 +287,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       labels: tecnicos, 
       datasets: [{ label: "Gastos", data: valores, backgroundColor: grad1, borderRadius: 10, borderSkipped: false }] 
     },
-    plugins: [ChartDataLabels],
+    plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [],
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -306,7 +312,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       labels: tecnicos, 
       datasets: [{ label: "KM", data: kms, backgroundColor: grad2, borderRadius: 10, borderSkipped: false }] 
     },
-    plugins: [ChartDataLabels],
+    plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [],
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -322,7 +328,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
   });
 }
 
-// 🗑️ NOVA FUNÇÃO: DISPARAR A LIXEIRA DIRETO NO SERVIDOR E ATUALIZAR A TELA
+// 🗑️ FUNÇÃO DA LIXEIRA INTEGRADA COM O SERVIDOR
 async function deletarRegistro(id) {
   if (!id || id === "undefined" || id === "") {
     alert("Este registro é novo e ainda não está salvo no banco. Basta limpar os campos dele e clicar em Salvar.");
@@ -343,17 +349,18 @@ async function deletarRegistro(id) {
     if (resposta.ok) {
       alert("Registro excluído com sucesso!");
       
-      // Remove o item da lista global localmente para atualizar os gráficos sem recarregar tudo
       dadosGlobal = dadosGlobal.filter(d => d._id !== id);
       
-      // Atualiza os filtros e a tabela visível na mesma hora
-      const mesAtual = document.getElementById("mesFiltro").value;
-      processar(dadosPorMes(mesAtual), tecnicoAtual);
+      // Se estiver na tela do Dashboard, atualiza os gráficos locais
+      if (document.getElementById("g1")) {
+        const mesAtual = document.getElementById("mesFiltro").value;
+        processar(dadosPorMes(mesAtual), tecnicoAtual);
+      }
       
-      // Se você tiver uma função que desenha as linhas da tabela, chame ela aqui para remontar.
-      // Exemplo: se sua função de carregar a tabela se chamar renderizarTabela(), coloque ela aqui!
-      if (typeof carregarDados === "function") {
-        await carregarDados(); // Recarrega os dados limpos do banco para sumir da tabela
+      // Se a função carregar nativa do dados.html existir, invoca ela para atualizar as tabelas na hora
+      if (typeof carregar === "function") {
+        const mesFiltroTela = document.getElementById("mesFiltro") ? document.getElementById("mesFiltro").value : "";
+        await carregar(mesFiltroTela);
       }
     } else {
       alert(resultado.erro || "Erro ao tentar excluir.");
@@ -442,11 +449,5 @@ function gerarPDF() {
   doc.save("relatorio.pdf");
 }
 
-// ====== ALTERE APENAS A ÚLTIMA LINHA DO SEU APP.JS ======
-
-// Antes estava apenas: carregarDados();
-// Substitua por isto:
-
-if (document.getElementById("g1") || document.getElementById("gastoTotal")) {
-  carregarDados();
-}
+// Executa o carregamento inicial dos registros em segundo plano
+carregarDados();
