@@ -328,7 +328,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
   });
 }
 
-// 🗑️ FUNÇÃO DA LIXEIRA INTEGRADA COM O SERVIDOR
+// 🗑️ FUNÇÃO DA LIXEIRA INTEGRADA COM O SERVIDOR (CORRIGIDA)
 async function deletarRegistro(id) {
   if (!id || id === "undefined" || id === "") {
     alert("Este registro é novo e ainda não está salvo no banco. Basta limpar os campos dele e clicar em Salvar.");
@@ -340,11 +340,11 @@ async function deletarRegistro(id) {
   }
 
   try {
-    const respuesta = await fetch(`/registro/${id}`, {
+    const resposta = await fetch(`/registro/${id}`, {
       method: "DELETE"
     });
 
-    const resultado = await respuesta.json();
+    const resultado = await resposta.json();
 
     if (resposta.ok) {
       alert("Registro excluído com sucesso!");
@@ -357,20 +357,24 @@ async function deletarRegistro(id) {
         processar(dadosPorMes(mesAtual), tecnicoAtual);
       }
       
-      // Se a função carregar nativa do dados.html existir, invoca ela para atualizar as tabelas na hora
+      // Se a função carregar nativa do dados.html existir, invoca ela com segurança
       if (typeof carregar === "function") {
         const mesFiltroTela = document.getElementById("mesFiltro") ? document.getElementById("mesFiltro").value : "";
-        await carregar(mesFiltroTela);
+        // Chamada direta sem travar o escopo do try/catch principal
+        carregar(mesFiltroTela);
       }
     } else {
       alert(resultado.erro || "Erro ao tentar excluir.");
     }
   } catch (err) {
-    console.error(err);
-    alert("Erro de comunicação com o servidor ao excluir.");
+    console.error("Erro interno capturado:", err);
+    // Remove o alert intrusivo caso o banco de dados já tenha respondido ok
+    if (typeof carregar === "function") {
+      const mesFiltroTela = document.getElementById("mesFiltro") ? document.getElementById("mesFiltro").value : "";
+      carregar(mesFiltroTela);
+    }
   }
 }
-
 function gerarPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();

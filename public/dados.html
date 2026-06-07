@@ -344,11 +344,11 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// 💾 FUNÇÃO SALVAR ATUALIZADA
+// 💾 FUNÇÃO SALVAR ATUALIZADA (COM ALERTA BLINDADO)
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
-    alert("Selecione um mês");
+    alert("Selecione um mês antes de salvar.");
     return;
   }
 
@@ -359,6 +359,8 @@ async function salvar(){
     const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
     linhas.forEach(l=>{
       const i = l.querySelectorAll("input");
+      if (i.length < 9) return; // Segurança caso a linha esteja incompleta
+      
       const data = i[0].value;
 
       if(!data.startsWith(mesAtual)){
@@ -375,7 +377,7 @@ async function salvar(){
         abastAnt: i[5].value || "",
         abastAtual: i[6].value || "",
         litros: Number(i[7].value) || 0,
-        valor: parseFloat(i[8].value.replace(",", ".")) || 0
+        valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
       };
 
       const temDado =
@@ -386,7 +388,7 @@ async function salvar(){
         registro.abastAtual !== "";
 
       if(temDado){
-        const tokenLinha = obtenerChaveRegistro(registro);
+        const tokenLinha = obterChaveRegistro(registro);
         if(!mapaLimpeza.has(tokenLinha)){
           dados.push(registro);
           mapaLimpeza.add(tokenLinha);
@@ -395,19 +397,27 @@ async function salvar(){
     });
   });
 
-  const respuesta = await fetch("/registro", {
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json"
-    },
-    body: JSON.stringify({ dados })
-  });
+  try {
+    const respuesta = await fetch("/registro", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ dados })
+    });
 
-  if (resposta.ok) {
-    alert("Dados salvos com sucesso!");
-    await carregar(mesAtual); 
-  } else {
-    alert("Erro ao salvar dados no servidor.");
+    if (respuesta.ok) {
+      // O Alerta agora é disparado IMEDIATAMENTE após o servidor confirmar o salvamento
+      alert("✅ Dados salvos com sucesso no banco de dados!");
+      
+      // Executa a atualização da tela em segundo plano, sem bloquear o alerta
+      carregar(mesAtual); 
+    } else {
+      alert("⚠️ O servidor recebeu a tentativa, mas não conseguiu salvar os dados.");
+    }
+  } catch (err) {
+    console.error("Erro ao salvar:", err);
+    alert("❌ Erro de comunicação com o servidor. Verifique sua conexão.");
   }
 }
 
