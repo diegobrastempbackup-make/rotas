@@ -167,18 +167,6 @@ h2 {
 <script src="/app.js"></script>
 
 <script>
-// O Bloco repetido do controle de inatividade foi removido daqui para não chocar com o app.js
- 
-const tecnicos = [
-  "Sibele",
-  "Empresa",
-  "Danilo",
-  "José Cicero",
-  "Alex",
-  "Danilo BH",
-  "Thiago BH"
-];
-
 // Memória em segundo plano para guardar o histórico completo vindo do banco
 let cacheHistoricoCompleto = [];
 
@@ -197,6 +185,7 @@ function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
 
+  // Utiliza o array 'tecnicos' global que vem direto do app.js
   tecnicos.forEach(nome=>{
     const bloco = document.createElement("div");
     bloco.innerHTML = `
@@ -330,7 +319,7 @@ function calc(el) {
   i[4].value = consumo;
 }
 
-// 🗑️ CONTROLE DA LIXEIRA INTEGRADA
+// 🗑️ CONTROLE DA LIXEIRA INTEGRADA com o app.js
 function remover(btn){
   const id = btn.getAttribute("data-id");
 
@@ -422,7 +411,7 @@ async function salvar(){
   }
 }
 
-// 🔥 FUNÇÃO DE CORREÇÃO: CARREGA SEM FILTRO DE TRAVAMENTO DE TELA
+// 🔥 CARREGA OS DADOS LIMPOS DO BANCO
 async function carregar(mes = ""){
   const res = await fetch("/registros");
   const listaCompleta = await res.json();
