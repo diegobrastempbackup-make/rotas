@@ -201,9 +201,13 @@ async function carregarDados(){
   dadosGlobal = await res.json();
   dadosGlobal.sort((a,b) => new Date(a.data) - new Date(b.data));
 
-  const mesAtual = obtenerMesAtual();
-  document.getElementById("mesFiltro").value = mesAtual;
-  processar(dadosPorMes(mesAtual), tecnicoAtual);
+  // Proteção: Só atualiza elementos do Dashboard se o campo de filtro do Dashboard existir na tela
+  const filtroMesDashboard = document.getElementById("mesFiltro");
+  if (filtroMesDashboard && document.getElementById("g1")) {
+    const mesAtual = obtenerMesAtual();
+    filtroMesDashboard.value = mesAtual;
+    processar(dadosPorMes(mesAtual), tecnicoAtual);
+  }
 }
 
 function filtrar(nome){
@@ -248,6 +252,8 @@ function processar(dados, tecnico){
 }
 
 function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
+  if (!document.getElementById("g1")) return; // Aborta se não estiver no dashboard index.html
+
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
 
@@ -281,7 +287,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       labels: tecnicos, 
       datasets: [{ label: "Gastos", data: valores, backgroundColor: grad1, borderRadius: 10, borderSkipped: false }] 
     },
-    plugins: [ChartDataLabels],
+    plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [],
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -306,7 +312,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       labels: tecnicos, 
       datasets: [{ label: "KM", data: kms, backgroundColor: grad2, borderRadius: 10, borderSkipped: false }] 
     },
-    plugins: [ChartDataLabels],
+    plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [],
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -334,7 +340,7 @@ async function deletarRegistro(id) {
   }
 
   try {
-    const resposta = await fetch(`/registro/${id}`, {
+    const respuesta = await fetch(`/registro/${id}`, {
       method: "DELETE"
     });
 
@@ -343,110 +349,9 @@ async function deletarRegistro(id) {
     if (resposta.ok) {
       alert("Registro excluído com sucesso!");
       
-      // Remove o item da lista global localmente para atualizar os gráficos sem recarregar tudo
       dadosGlobal = dadosGlobal.filter(d => d._id !== id);
       
-      // Atualiza os filtros e a tabela visível na mesma hora
-      const mesAtual = document.getElementById("mesFiltro").value;
-      processar(dadosPorMes(mesAtual), tecnicoAtual);
-      
-      // Se você tiver uma função que desenha as linhas da tabela, chame ela aqui para remontar.
-      // Exemplo: se sua função de carregar a tabela se chamar renderizarTabela(), coloque ela aqui!
-      if (typeof carregarDados === "function") {
-        await carregarDados(); // Recarrega os dados limpos do banco para sumir da tabela
-      }
-    } else {
-      alert(resultado.erro || "Erro ao tentar excluir.");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("Erro de comunicação com o servidor ao excluir.");
-  }
-}
-
-function gerarPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  const logo = document.getElementById("logoNERI");
-  let y = 40;
-  const mes = document.getElementById("mesFiltro").value;
-  const filtrado = dadosPorMes(mes);
-
-  function desenharCabecalho() {
-    doc.setFillColor(10, 61, 196); doc.rect(0, 0, 210, 30, "F");
-    if (logo && logo.complete) doc.addImage(logo, "PNG", 8, 4, 20, 20);
-    doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont(undefined, "bold"); doc.text("Relatório Mensal", 35, 13);
-    doc.setFontSize(10); doc.setFont(undefined, "normal"); doc.text("Relatório de Consumo e Quilometragem", 35, 21);
-    doc.text(`Mês: ${mes}`, 145, 13); doc.text(new Date().toLocaleString("pt-BR"), 120, 21);
-    doc.setTextColor(0, 0, 0); y = 40;
-  }
-
-  function desenharTabela() {
-    doc.setFillColor(10, 61, 196); doc.rect(10, y, 190, 8, "F");
-    doc.setTextColor(255, 255, 255); doc.setFontSize(9);
-    doc.text("DATA", 15, y + 5); doc.text("KM", 55, y + 5); doc.text("LITROS", 85, y + 5); doc.text("VALOR", 120, y + 5); doc.text("KM/L", 165, y + 5);
-    doc.setTextColor(0, 0, 0); y += 12;
-  }
-
-  function verificarPagina() { if (y > 270) { doc.addPage(); desenharCabecalho(); desenharTabela(); } }
-
-  desenharCabecalho();
-
-  if (tecnicoAtual === "TODOS") {
-    tecnicos.forEach(nome => {
-      const dadosTecnico = filtrado.filter(d => d.tecnico === nome);
-      if (!dadosTecnico.length) return;
-      verificarPagina(); doc.setFontSize(13); doc.setFont(undefined, "bold"); doc.text(nome, 10, y); y += 8;
-      desenharTabela();
-
-      let totalKm = 0, totalLitros = 0, totalValor = 0;
-
-      dadosTecnico.forEach((d, indice) => {
-        const km = Number(d.km) || 0, litros = Number(d.litros) || 0, valor = Number(d.valor) || 0;
-        totalKm += km; totalLitros += litros; totalValor += valor;
-
-        doc.setFillColor(indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245);
-        doc.rect(10, y - 5, 190, 8, "F"); doc.rect(10, y - 5, 190, 8);
-        doc.text(String(d.data), 15, y); doc.text(km.toFixed(0), 55, y); doc.text(litros.toFixed(2), 85, y); doc.text(valor.toFixed(2), 120, y); doc.text((litros > 0 ? km / litros : 0).toFixed(2), 165, y);
-        y += 8; verificarPagina();
-      });
-
-      doc.setFillColor(230, 236, 245); doc.roundedRect(10, y, 190, 40, 3, 3, "FD"); doc.setFontSize(10); doc.setFont(undefined, "bold");
-      doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10); doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20); doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-      doc.text(`MÉDIA KM/L: ${(totalLitros > 0 ? totalKm / totalLitros : 0).toFixed(2)}`, 110, y + 10); doc.text(`VALOR/LITRO: R$ ${(totalValor > 0 ? totalValor / totalLitros : 0).toFixed(2)}`, 110, y + 20);
-      y += 50;
-    });
-  } else {
-    const dadosTecnico = filtrado.filter(d => d.tecnico === tecnicoAtual);
-    doc.setFontSize(13); doc.setFont(undefined, "bold"); doc.text(tecnicoAtual, 10, y); y += 8;
-    desenharTabela();
-
-    let totalKm = 0, totalLitros = 0, totalValor = 0;
-    dadosTecnico.forEach((d, indice) => {
-      const km = Number(d.km) || 0, litros = Number(d.litros) || 0, valor = Number(d.valor) || 0;
-      totalKm += km; totalLitros += litros; totalValor += valor;
-
-      doc.setFillColor(indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245);
-      doc.rect(10, y - 5, 190, 8, "F"); doc.rect(10, y - 5, 190, 8);
-      doc.text(String(d.data), 15, y); doc.text(km.toFixed(0), 55, y); doc.text(litros.toFixed(2), 85, y); doc.text(valor.toFixed(2), 120, y); doc.text((litros > 0 ? km / litros : 0).toFixed(2), 165, y);
-      y += 8; verificarPagina();
-    });
-
-    doc.setFillColor(230, 236, 245); doc.roundedRect(10, y, 190, 40, 3, 3, "FD"); doc.setFontSize(10);
-    doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10); doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20); doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-    doc.text(`MÉDIA KM/L: ${(totalLitros > 0 ? totalKm / totalLitros : 0).toFixed(2)}`, 110, y + 10); doc.text(`VALOR/LITRO: R$ ${(totalValor > 0 ? totalValor / totalLitros : 0).toFixed(2)}`, 110, y + 20);
-  }
-
-  const paginas = doc.getNumberOfPages();
-  for (let i = 1; i <= paginas; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120, 120, 120); doc.text("Sistema NERI © 2026", 10, 290); doc.text(`Página ${i} de ${paginas}`, 170, 290); }
-  doc.save("relatorio.pdf");
-}
-
-// ====== ALTERE APENAS A ÚLTIMA LINHA DO SEU APP.JS ======
-
-// Antes estava apenas: carregarDados();
-// Substitua por isto:
-
-if (document.getElementById("g1") || document.getElementById("gastoTotal")) {
-  carregarDados();
-}
+      // Se a função carregar da tela dados.html existir, atualiza ela sincronizadamente
+      if (typeof carregar === "function") {
+        const mesAtual = document.getElementById("mesFiltro").value;
+        await carregar(
