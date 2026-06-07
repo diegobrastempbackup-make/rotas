@@ -101,19 +101,25 @@
         <p id="kmTotal">0 KM</p>
       </div>
 
-      <<div class="card">
-  <h3>💰 Gasto Individual</h3>
-  <p id="gastoIndividual">R$ 0,00</p>
-</div>
-
-<div class="card">
-  <h3>🛣️ KM Individual</h3>
-  <p id="kmIndividual">0 KM</p>
-</div>
-
-<div class="card">
-  <h3>⛽ Média de Consumo</h3>
-  <p id="mediaIndividual">0.0 KM/L</p>
+      <div class="card card-individual-unico">
+  <h3>👤 Detalhes Individuais do Técnico (<span id="nomeTecnicoSelecionado">TODOS</span>)</h3>
+  
+  <div class="container-dados-individuais">
+    <div class="dado-ind">
+      <span class="label-ind">💰 Gasto Individual:</span>
+      <span id="gastoIndividual" class="valor-ind">R$ 0,00</span>
+    </div>
+    
+    <div class="dado-ind">
+      <span class="label-ind">🛣️ KM Individual:</span>
+      <span id="kmIndividual" class="valor-ind">0 KM</span>
+    </div>
+    
+    <div class="dado-ind">
+      <span class="label-ind">⛽ Média de Consumo:</span>
+      <span id="mediaIndividual" class="valor-ind">0.0 KM/L</span>
+    </div>
+  </div>
 </div>
 
     <div class="graficos">

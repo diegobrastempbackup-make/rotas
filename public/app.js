@@ -76,7 +76,6 @@ async function atualizarListaUsuarios() {
       const div = document.createElement("div");
       div.style = "display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);";
       
-      // Definição das etiquetas visuais baseadas no novo sistema de 3 níveis
       let badge = "";
       if (u.tipo === "master") {
         badge = "<span style='color:#f59e0b; font-size:11px;'>[Master]</span>";
@@ -188,7 +187,7 @@ async function salvarUsuario() {
 // REQUISITIONS E FILTROS DO DASHBOARD
 // ========================================================
 
-function obterMesAtual(){
+function obtenerMesAtual(){
   const hoje = new Date();
   return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2,"0")}`;
 }
@@ -202,7 +201,7 @@ async function carregarDados(){
   dadosGlobal = await res.json();
   dadosGlobal.sort((a,b) => new Date(a.data) - new Date(b.data));
 
-  const mesAtual = obterMesAtual();
+  const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   processar(dadosPorMes(mesAtual), tecnicoAtual);
 }
@@ -217,187 +216,115 @@ function filtrarMes(){
 }
 
 function limparFiltro(){
-  const mesAtual = obterMesAtual();
+  const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
+  tecnicoAtual = "TODOS";
   processar(dadosPorMes(mesAtual), tecnicoAtual);
 }
 
 function processar(dados, tecnico){
-  let valores = Array(tecnicos.length).fill(0);
-  let kms = Array(tecnicos.length).fill(0);
+  // Independentemente do técnico clicado, geramos matrizes completas para os gráficos gerais
+  let valoresGerais = Array(tecnicos.length).fill(0);
+  let kmsGerais = Array(tecnicos.length).fill(0);
 
-  dados.forEach(d=>{
-    if(tecnico === "TODOS" || d.tecnico === tecnico){
-      const i = tecnicos.indexOf(d.tecnico);
-      if(i >= 0){
-        kms[i] += Number(d.km) || 0;
-        valores[i] += Number(d.valor) || 0;
-      }
+  // Variáveis para extrair exclusivamente os dados reais do técnico isolado
+  let gastoInd = 0;
+  let kmInd = 0;
+  let litrosInd = 0;
+
+  dados.forEach(d => {
+    const idx = tecnicos.indexOf(d.tecnico);
+    if(idx >= 0){
+      kmsGerais[idx] += Number(d.km) || 0;
+      valoresGerais[idx] += Number(d.valor) || 0;
+    }
+
+    // Se a linha corresponder ao técnico selecionado na barra de filtros, soma os individuais
+    if (d.tecnico === tecnico) {
+      gastoInd += Number(d.valor) || 0;
+      kmInd += Number(d.km) || 0;
+      litrosInd += Number(d.litros) || 0;
     }
   });
-  atualizarDashboard(valores, kms, tecnico);
+
+  // Renderiza a interface enviando a base geral dos gráficos e as métricas individuais separadas
+  atualizarDashboard(valoresGerais, kmsGerais, tecnico, gastoInd, kmInd, litrosInd);
 }
 
-function atualizarDashboard(valores, kms, tecnico){
+function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
 
-  // Preço médio do combustível configurado (ajuste o valor se necessário)
-  const PRECO_COMBUSTIVEL = 5.80; 
-
-  // Formatação bonita para os cards gerais
+  // Preenche permanentemente os cards master de cima com o total de toda a frota
   document.getElementById("gastoTotal").innerText = totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   document.getElementById("kmTotal").innerText = totalKm.toLocaleString("pt-BR") + " KM";
 
-  // Se selecionar um técnico específico:
+  // Atualiza apenas as informações de texto dentro da moldura individual unificada
   if(tecnico !== "TODOS"){
-    const i = tecnicos.indexOf(tecnico);
-    const gastoInd = valores[i];
-    const kmInd = kms[i];
+    const mediaKM = litrosInd > 0 ? (kmInd / litrosInd) : 0;
 
-    // Calcula os litros aproximados com base no valor gasto
-    const litrosEstimatva = gastoInd / PRECO_COMBUSTIVEL;
-    
-    // Calcula a média (KM dividido por Litros). Se litros for zero, a média é zero.
-    const mediaKM = litrosEstimatva > 0 ? (kmInd / litrosEstimatva) : 0;
-
-    // Atualiza os elementos na tela
+    document.getElementById("nomeTecnicoSelecionado").innerText = tecnico;
     document.getElementById("gastoIndividual").innerText = gastoInd.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     document.getElementById("kmIndividual").innerText = kmInd.toLocaleString("pt-BR") + " KM";
-    
-    // Mostra a média com 1 casa decimal (Ex: 10.5 KM/L)
     document.getElementById("mediaIndividual").innerText = mediaKM.toFixed(1) + " KM/L";
-
   } else {
-    // Se estiver em "TODOS", zera o painel individual
+    document.getElementById("nomeTecnicoSelecionado").innerText = "TODOS";
     document.getElementById("gastoIndividual").innerText = "R$ 0,00";
     document.getElementById("kmIndividual").innerText = "0 KM";
     document.getElementById("mediaIndividual").innerText = "0.0 KM/L";
   }
 
-  // ... Daqui para baixo continua o resto do seu código com a criação dos gráficos (grafico1 e grafico2)
+  // 🎯 MANUTENÇÃO DOS GRÁFICOS (Eles não somem nem encolhem, mantém todas as barras fixas)
+  if (grafico1) { grafico1.destroy(); grafico1 = null; }
+  if (grafico2) { grafico2.destroy(); grafico2 = null; }
 
-  // 🎯 CORREÇÃO DO EFEITO FANTASMA (DESTRUIÇÃO COMPLETA)
-  if (grafico1) {
-    grafico1.destroy();
-    grafico1 = null;
-  }
-  if (grafico2) {
-    grafico2.destroy();
-    grafico2 = null;
-  }
-
-  // CONFIGURAÇÃO DO GRÁFICO 1: 💰 GASTOS
   const ctx1 = document.getElementById("g1").getContext("2d");
   const grad1 = ctx1.createLinearGradient(0,0,0,400);
-  grad1.addColorStop(0, "#3B82F6"); // Azul Moderno
-  grad1.addColorStop(1, "#1D4ED8"); // Azul Escuro Profundo
+  grad1.addColorStop(0, "#3B82F6"); grad1.addColorStop(1, "#1D4ED8");
 
   grafico1 = new Chart(ctx1,{
     type: "bar",
     data: { 
       labels: tecnicos, 
-      datasets: [{ 
-        label: "Gastos no Mês", 
-        data: valores, 
-        backgroundColor: grad1, 
-        borderRadius: 8, 
-        borderSkipped: false,
-        hoverBackgroundColor: "#60A5FA" // Efeito de brilho ao passar o mouse
-      }] 
+      datasets: [{ label: "Gastos", data: valores, backgroundColor: grad1, borderRadius: 10, borderSkipped: false }] 
     },
     plugins: [ChartDataLabels],
     options: {
-      responsive: true, 
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: false }, // Ocultado legenda repetitiva já que o título diz tudo
-        title: { 
-          display: true, 
-          text: "💰 INVESTIMENTO POR TÉCNICO", 
-          color: "#fff", 
-          font: { size: 16, weight: "bold", family: "Arial" },
-          padding: { bottom: 25 }
-        },
+        legend: { display: false },
+        title: { display: true, text: "💰 INVESTIMENTO POR TÉCNICO", color: "#fff", font: { size: 16, weight: "bold" } },
         datalabels: { 
-          color: "#fff", 
-          anchor: "end", 
-          align: "top", 
-          offset: 4,
-          font: { weight: "bold", size: 11 },
-          // 🪙 Formatação de moeda profissional dentro das barras
+          color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
           formatter: (val) => val > 0 ? val.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : ""
         }
       },
-      scales: { 
-        x: { 
-          ticks: { color: "#94A3B8", font: { size: 11 } }, 
-          grid: { display: false } 
-        }, 
-        y: { 
-          grace: "15%", // 🪂 Cria um espaço de 15% no topo para os números nunca sumirem
-          ticks: { 
-            color: "#64748B",
-            formatter: (val) => "R$ " + val
-          }, 
-          grid: { color: "rgba(255,255,255,0.04)" } 
-        } 
-      }
+      scales: { x: { ticks: { color: "#94A3B8" }, grid: { display: false } }, y: { grace: "15%", ticks: { color: "#64748B" }, grid: { color: "rgba(255,255,255,0.04)" } } }
     }
   });
 
-  // CONFIGURAÇÃO DO GRÁFICO 2: 🛣 KM GERAL
   const ctx2 = document.getElementById("g2").getContext("2d");
   const grad2 = ctx2.createLinearGradient(0,0,0,400);
-  grad2.addColorStop(0, "#10B981"); // Verde Esmeralda
-  grad2.addColorStop(1, "#047857"); // Verde Escuro
+  grad2.addColorStop(0, "#10B981"); grad2.addColorStop(1, "#047857");
 
   grafico2 = new Chart(ctx2,{
     type: "bar",
     data: { 
       labels: tecnicos, 
-      datasets: [{ 
-        label: "Quilometragem", 
-        data: kms, 
-        backgroundColor: grad2, 
-        borderRadius: 8, 
-        borderSkipped: false,
-        hoverBackgroundColor: "#34D399" // Brilho ao passar o mouse
-      }] 
+      datasets: [{ label: "KM", data: kms, backgroundColor: grad2, borderRadius: 10, borderSkipped: false }] 
     },
     plugins: [ChartDataLabels],
     options: {
-      responsive: true, 
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        title: { 
-          display: true, 
-          text: "🛣 QUILOMETRAGEM POR TÉCNICO", 
-          color: "#fff", 
-          font: { size: 16, weight: "bold", family: "Arial" },
-          padding: { bottom: 25 }
-        },
+        title: { display: true, text: "🛣️ QUILOMETRAGEM POR TÉCNICO", color: "#fff", font: { size: 16, weight: "bold" } },
         datalabels: { 
-          color: "#fff", 
-          anchor: "end", 
-          align: "top", 
-          offset: 4,
-          font: { weight: "bold", size: 11 },
+          color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
           formatter: (val) => val > 0 ? val.toLocaleString("pt-BR") + " KM" : ""
         }
       },
-      scales: { 
-        x: { 
-          ticks: { color: "#94A3B8", font: { size: 11 } }, 
-          grid: { display: false } 
-        }, 
-        y: { 
-          grace: "15%", // 🪂 Espaço no topo para os textos de KM respirarem
-          ticks: { color: "#64748B" }, 
-          grid: { color: "rgba(255,255,255,0.04)" } 
-        } 
-      }
+      scales: { x: { ticks: { color: "#94A3B8" }, grid: { display: false } }, y: { grace: "15%", ticks: { color: "#64748B" }, grid: { color: "rgba(255,255,255,0.04)" } } }
     }
   });
 }
@@ -472,7 +399,7 @@ function gerarPDF() {
 
     doc.setFillColor(230, 236, 245); doc.roundedRect(10, y, 190, 40, 3, 3, "FD"); doc.setFontSize(10);
     doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10); doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20); doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-    doc.text(`MÉDIA KM/L: ${(totalLitros > 0 ? totalKm / totalLitros : 0).toFixed(2)}`, 110, y + 10); doc.text(`VALOR/LITRO: R$ ${(totalLitros > 0 ? totalValor / totalLitros : 0).toFixed(2)}`, 110, y + 20);
+    doc.text(`MÉDIA KM/L: ${(totalLitros > 0 ? totalKm / totalLitros : 0).toFixed(2)}`, 110, y + 10); doc.text(`VALOR/LITRO: R$ ${(totalValor > 0 ? totalValor / totalLitros : 0).toFixed(2)}`, 110, y + 20);
   }
 
   const paginas = doc.getNumberOfPages();
