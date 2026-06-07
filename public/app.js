@@ -442,4 +442,11 @@ function gerarPDF() {
   doc.save("relatorio.pdf");
 }
 
-carregarDados();
+// ====== ALTERE APENAS A ÚLTIMA LINHA DO SEU APP.JS ======
+
+// Antes estava apenas: carregarDados();
+// Substitua por isto:
+
+if (document.getElementById("g1") || document.getElementById("gastoTotal")) {
+  carregarDados();
+}
