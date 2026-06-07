@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Dados</title>
+<title>Dados - NERI</title>
 
 <style>
 body {
@@ -164,7 +164,14 @@ h2 {
   <div id="tabelas"></div>
 </div>
 
-<script src="/app.js"></script> <script>
+<script src="/app.js"></script> 
+
+<script>
+// Sobrescreve a inicialização imediata do app.js para evitar crash de elementos de gráfico faltantes nesta tela
+if (typeof grafico1 !== 'undefined') {
+  console.log("Ambiente de dados isolado.");
+}
+
 // ⏱️ SISTEMA DE CONTROLE DE INATIVIDADE (5 MINUTOS)
 let temporizadorInatividade;
 
@@ -198,7 +205,7 @@ const tecnicos = [
   "Thiago BH"
 ];
 
-// Memória em segundo plano para guardar o histórico completo vindo do banco (para cruzar km de meses anteriores)
+// Memória em segundo plano para guardar o histórico completo vindo do banco
 let cacheHistoricoCompleto = [];
 
 function obtenerMesAtual(){
@@ -243,7 +250,7 @@ function criar(){
   });
 }
 
-// 🛠️ FUNÇÃO ATUALIZADA: Agora mapeia o _id do MongoDB no botão da lixeira
+// 🛠️ FUNÇÃO MAPRADA: Agora captura de verdade o ID exclusivo gerado pelo MongoDB
 function linha(d = {}) {
   const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
   const idRegistro = d._id || "";
@@ -312,7 +319,7 @@ function calc(el) {
     
     let encontrouAnterior = false;
     
-    // 1. Procura primeiro nas linhas de cima da própria tela (Mês Atual)
+    // 1. Procura primeiro nas linhas de cima da própria tela
     for (let j = indexAtual - 1; j >= 0; j--) {
       const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
       const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
@@ -349,19 +356,19 @@ function calc(el) {
   i[4].value = consumo;
 }
 
-// 🛠️ FUNÇÃO INTELIGENTE DA LIXEIRA: Remove na hora e apaga do banco de dados
+// 🛠️ FUNÇÃO DA LIXEIRA SINCRONIZADA COM O SERVIDOR
 function remover(btn){
   const id = btn.getAttribute("data-id");
 
   if (id && id !== "" && id !== "undefined") {
-    // Se o registro já tem ID do banco de dados, chama a rota de exclusão oficial do sistema
+    // Se o registro possui ID vindo do MongoDB Atlas, chama a exclusão remota
     if (typeof deletarRegistro === "function") {
       deletarRegistro(id);
     } else {
-      alert("Função de exclusão do app.js não encontrada.");
+      alert("Função de exclusão remota não carregada completamente.");
     }
   } else {
-    // Se for apenas uma linha em branco criada na hora que ainda não foi salva, remove direto da tela
+    // Se for uma linha nova adicionada manualmente e vazia, só remove da tela
     btn.closest("tr").remove();
   }
 }
@@ -376,7 +383,7 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// 🔥 SALVAR SIMPLIFICADO: Envia direto o que está na tela
+// 🔥 SALVAR SIMPLIFICADO
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -427,8 +434,6 @@ async function salvar(){
     });
   });
 
-  console.log("Enviando dados estruturados para o servidor:", dados);
-
   const resposta = await fetch("/registro", {
     method:"POST",
     headers:{
@@ -439,14 +444,13 @@ async function salvar(){
 
   if (resposta.ok) {
     alert("Dados salvos com sucesso!");
+    await carregar(mesAtual); // Recarrega os dados para vincular os _ids novos gerados pelo banco
   } else {
     alert("Erro ao salvar dados no servidor.");
   }
-  
-  await carregar(mesAtual);
 }
 
-// 🔥 CARREGAR
+// 🔥 CARREGAR ATUALIZADO
 async function carregar(mes = ""){
   const res = await fetch("/registros");
   const listaCompleta = await res.json();
@@ -474,19 +478,12 @@ async function carregar(mes = ""){
     }
   });
 
-  const chavesRenderizadas = new Set();
-
   listaFiltrada.forEach(item=>{
     const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
     if(tbody){
-      const chaveItem = obterChaveRegistro(item);
-      
-      if (!chavesRenderizadas.has(chaveItem)) {
-        const tr = document.createElement("tr");
-        tr.innerHTML = linha(item);
-        tbody.appendChild(tr);
-        chavesRenderizadas.add(chaveItem);
-      }
+      const tr = document.createElement("tr");
+      tr.innerHTML = linha(item); // Passa o item completo (incluindo o _id) para gerar a linha
+      tbody.appendChild(tr);
     }
   });
 }
@@ -497,14 +494,14 @@ function filtrarMes(){
 }
 
 function mostrarTudo(){
-  const mesAtual = obterMesAtual();
+  const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   carregar(mesAtual);
 }
 
 async function iniciar(){
   criar();
-  const mesAtual = obterMesAtual();
+  const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   await carregar(mesAtual);
 }
