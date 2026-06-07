@@ -10,31 +10,39 @@
 
   <link rel="stylesheet" href="style.css">
 
+  <style>
+    /* Faz os botões nascerem invisíveis. Usuário simples nunca verá. */
+    #btnIrParaDados, #btnMenuCadastro {
+      display: none !important;
+    }
+  </style>
+
   <script>
     const token = localStorage.getItem("token");
     const usuarioTipo = localStorage.getItem("usuarioTipo"); // 'master', 'admin' ou 'simples'
 
+    // Se não tiver token, barra na hora
     if (!token) {
       window.location.replace("/login.html");
     }
 
+    // Só exibe os botões se o nível de acesso for o correto
     window.addEventListener("DOMContentLoaded", () => {
-      // Se for usuário Simples: Bloqueia o acesso a Dados e ao Gerenciamento de Usuários
-      if (usuarioTipo === "simples") {
-        const btnDados = document.getElementById("btnIrParaDados");
-        if (btnDados) btnDados.style.display = "none";
-        
-        const btnCadastrar = document.getElementById("btnMenuCadastro");
-        if (btnCadastrar) btnCadastrar.style.display = "none";
+      const btnDados = document.getElementById("btnIrParaDados");
+      const btnCadastrar = document.getElementById("btnMenuCadastro");
+
+      // Se for MASTER: Tem poder total, mostra os dois botões
+      if (usuarioTipo === "master") {
+        if (btnDados) btnDados.style.setProperty("display", "block", "important");
+        if (btnCadastrar) btnCadastrar.style.setProperty("display", "block", "important");
       }
       
-      // Se for Admin: Tem acesso a dados, mas NÃO gerencia usuários
-      if (usuarioTipo === "admin") {
-        const btnCadastrar = document.getElementById("btnMenuCadastro");
-        if (btnCadastrar) btnCadastrar.style.display = "none";
+      // Se for ADMIN: Mostra apenas o botão de dados/inserção
+      else if (usuarioTipo === "admin") {
+        if (btnDados) btnDados.style.setProperty("display", "block", "important");
       }
       
-      // Se for Master: Tem acesso total e livre a tudo
+      // Se for SIMPLES: O código não faz nada, ou seja, continuam invisíveis pelo CSS acima!
     });
   </script>
 </head>
