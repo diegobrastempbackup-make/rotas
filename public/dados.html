@@ -198,6 +198,9 @@ const tecnicos = [
   "Thiago BH"
 ];
 
+// Memória em segundo plano para guardar o histórico completo vindo do banco (para cruzar km de meses anteriores)
+let cacheHistoricoCompleto = [];
+
 function obterMesAtual(){
   const hoje = new Date();
   const ano = hoje.getFullYear();
@@ -240,7 +243,7 @@ function criar(){
   });
 }
 
-function linha(d = {}){
+function linha(d = {}) {
   const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
 
   return `
@@ -286,9 +289,12 @@ function addLinha(nome){
   tbody.appendChild(tr);
 }
 
-function calc(el){
+function calc(el) {
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
+  const tbody = tr.closest("tbody");
+  const nomeTecnico = tbody.getAttribute("data-tecnico");
+
   const kmIni = Number(i[1].value);
   const kmFim = Number(i[2].value);
   const abastAtualInput = i[6];
@@ -299,11 +305,12 @@ function calc(el){
   i[3].value = km > 0 ? km : "";
 
   if (abastAtualInput.value.trim() !== "") {
-    const tbody = tr.closest("tbody");
     const todasAsLinhas = Array.from(tbody.querySelectorAll("tr"));
     const indexAtual = todasAsLinhas.indexOf(tr);
     
     let encontrouAnterior = false;
+    
+    // 1. Procura primeiro nas linhas de cima da própria tela (Mês Atual)
     for (let j = indexAtual - 1; j >= 0; j--) {
       const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
       const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
@@ -314,6 +321,22 @@ function calc(el){
         break;
       }
     }
+    
+    // 2. Se não achou na tela, busca no histórico completo do banco de dados (Meses passados como Maio, Abril...)
+    if (!encontrouAnterior) {
+      const dataAtualDaLinha = i[0].value;
+      
+      // Filtra registros salvos desse técnico que tenham data ANTERIOR à data digitada na linha
+      const historicoFiltrado = cacheHistoricoCompleto
+        .filter(item => item.tecnico === nomeTecnico && item.abastAtual && item.data && item.data < dataAtualDaLinha)
+        .sort((a, b) => new Date(b.data) - new Date(a.data)); // Ordena do mais recente para o mais antigo
+
+      if (historicoFiltrado.length > 0) {
+        abastAntInput.value = historicoFiltrado[0].abastAtual;
+        encontrouAnterior = true;
+      }
+    }
+
     if (!encontrouAnterior && abastAntInput.value === "") {
       abastAntInput.value = "";
     }
@@ -339,7 +362,7 @@ function obterChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// 🔥 NOVO SALVAR: PUXA O HISTÓRICO COMPLETO DO BANCO, CORESSE EXCLUSIVAMENTE O MÊS FILTRADO E AJUSTA O ENVIO TOTAL
+// 🔥 SALVAR SIMPLIFICADO: Envia direto o que está na tela
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -347,15 +370,7 @@ async function salvar(){
     return;
   }
 
-  // 1. Busca TUDO o que existe hoje no servidor primeiro
-  const resBanco = await fetch("/registros");
-  const bancoCompleto = await resBanco.json();
-
-  // 2. Mantém intactos os registros que NÃO pertencem ao mês atual filtrado
-  let dadosPreservados = bancoCompleto.filter(item => !item.data || !item.data.startsWith(mesAtual));
-
-  // 3. Captura o que está na tela AGORA (onde você já apagou as lixeiras do dia 5 e 7)
-  let dadosDaTela = [];
+  let dados = [];
   const mapaLimpeza = new Set();
 
   tecnicos.forEach(nome=>{
@@ -391,43 +406,49 @@ async function salvar(){
       if(temDado){
         const tokenLinha = obterChaveRegistro(registro);
         if(!mapaLimpeza.has(tokenLinha)){
-          dadosDaTela.push(registro);
+          dados.push(registro);
           mapaLimpeza.add(tokenLinha);
         }
       }
     });
   });
 
-  // 4. Une o passado intocado com a tela limpa atualizada
-  const dadosFinaisSuperLimpos = [...dadosPreservados, ...dadosDaTela];
+  console.log("Enviando dados estruturados para o servidor:", dados);
 
-  console.log("GRAVANDO PACOTE TOTAL RECONSTRUÍDO:", dadosFinaisSuperLimpos);
-
-  // 5. Envia o pacote completo consolidado para substituir o array empilhado do backend
-  await fetch("/registro", {
+  const resposta = await fetch("/registro", {
     method:"POST",
     headers:{
       "Content-Type":"application/json"
     },
-    body: JSON.stringify({ dados: dadosFinaisSuperLimpos })
+    body: JSON.stringify({ dados })
   });
 
-  alert("Tabela limpa e sincronizada no servidor!");
+  if (resposta.ok) {
+    alert("Dados salvos com sucesso!");
+  } else {
+    alert("Erro ao salvar dados no servidor.");
+  }
+  
   await carregar(mesAtual);
 }
 
 // 🔥 CARREGAR
 async function carregar(mes = ""){
   const res = await fetch("/registros");
-  let lista = await res.json();
+  const listaCompleta = await res.json();
+  
+  // Alimenta o cache global em segundo plano para cruzar dados de quilometragem entre os meses
+  cacheHistoricoCompleto = [...listaCompleta];
 
-  lista.sort((a,b)=>{
+  let listaFiltrada = [...listaCompleta];
+
+  listaFiltrada.sort((a,b)=>{
     if(!a.data || !b.data) return 0;
     return new Date(a.data) - new Date(b.data);
   });
 
   if(mes){
-    lista = lista.filter(item=>{
+    listaFiltrada = listaFiltrada.filter(item=>{
       if(!item.data) return false;
       return item.data.startsWith(mes);
     });
@@ -442,7 +463,7 @@ async function carregar(mes = ""){
 
   const chavesRenderizadas = new Set();
 
-  lista.forEach(item=>{
+  listaFiltrada.forEach(item=>{
     const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
     if(tbody){
       const chaveItem = obterChaveRegistro(item);
