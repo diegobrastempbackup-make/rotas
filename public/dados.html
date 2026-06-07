@@ -155,7 +155,7 @@ h2 {
 <div class="container">
   <div class="topo">
     <button onclick="voltarAoDashboard()">⬅ Voltar</button>
-    <button onclick="salvar()">💾 Salvar</button>
+    <button onclick="salvar()">💾 Salvar e Limpar Duplicadas</button>
     <input type="month" id="mesFiltro" style="width: auto; display: inline-block;">
     <button onclick="filtrarMes()">🔍 Buscar</button>
     <button onclick="mostrarTudo()">♻ Mostrar Mês Atual</button>
@@ -181,7 +181,6 @@ function efetuarAutoLogout() {
   window.location.replace("/login.html");
 }
 
-// Ouvintes para resetar o tempo em qualquer sinal de movimento
 window.onload = resetarTemporizador;
 window.onmousemove = resetarTemporizador;
 window.onmousedown = resetarTemporizador;
@@ -199,7 +198,6 @@ const tecnicos = [
   "Thiago BH"
 ];
 
-// 🔥 PEGAR MÊS ATUAL
 function obterMesAtual(){
   const hoje = new Date();
   const ano = hoje.getFullYear();
@@ -207,12 +205,10 @@ function obterMesAtual(){
   return `${ano}-${mes}`;
 }
 
-// 🔥 DATA HOJE
 function hoje(){
   return new Date().toISOString().split("T")[0];
 }
 
-// 🔥 CRIAR TABELAS
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
@@ -244,7 +240,6 @@ function criar(){
   });
 }
 
-// 🔥 LINHA
 function linha(d = {}){
   return `
   <tr>
@@ -282,7 +277,6 @@ function linha(d = {}){
   `;
 }
 
-// 🔥 ADICIONAR LINHA
 function addLinha(nome){
   const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
   const tr = document.createElement("tr");
@@ -290,7 +284,6 @@ function addLinha(nome){
   tbody.appendChild(tr);
 }
 
-// 🔥 CALCULAR (Com a nova regra de Abastecimento Anterior)
 function calc(el){
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
@@ -300,11 +293,9 @@ function calc(el){
   const abastAntInput = i[5];
   const litros = Number(i[7].value);
 
-  // 1. Cálculo de Quilometragem
   const km = kmFim - kmIni;
   i[3].value = km > 0 ? km : "";
 
-  // 2. Lógica Inteligente do Abastecimento Anterior
   if (abastAtualInput.value.trim() !== "") {
     const tbody = tr.closest("tbody");
     const todasAsLinhas = Array.from(tbody.querySelectorAll("tr"));
@@ -328,17 +319,15 @@ function calc(el){
     abastAntInput.value = "";
   }
 
-  // 3. Cálculo do Consumo
   const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
   i[4].value = consumo;
 }
 
-// 🔥 REMOVER
 function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🔥 SALVAR
+// 🔥 SALVAR - AGORA COM REMOÇÃO ABSOLUTA DE DUPLICADAS ANTES DO ENVIO
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -347,6 +336,7 @@ async function salvar(){
   }
 
   let dados = [];
+  const mapaLimpeza = new Set();
 
   tecnicos.forEach(nome=>{
     const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
@@ -379,23 +369,21 @@ async function salvar(){
         registro.abastAtual !== "";
 
       if(temDado){
-        dados.push(registro);
+        // Criamos uma string única baseada nas informações cruciais do registro
+        const tokenLinha = `${registro.tecnico}_${registro.data}_${registro.kmIni}_${registro.kmFim}_${registro.abastAtual}_${registro.litros}_${registro.valor}`;
+        
+        // Só adiciona se essa linha exata ainda não tiver sido lida
+        if(!mapaLimpeza.has(tokenLinha)){
+          dados.push(registro);
+          mapaLimpeza.add(tokenLinha);
+        }
       }
     });
   });
 
-  const mapa = new Set();
-  dados = dados.filter(item=>{
-    const chave = JSON.stringify(item);
-    if(mapa.has(chave)){
-      return false;
-    }
-    mapa.add(chave);
-    return true;
-  });
+  console.log("ENVIANDO DADOS LIMPOS:", dados);
 
-  console.log("SALVANDO:", dados);
-
+  // Envia a lista 100% filtrada para substituir a tabela no banco
   await fetch("/registro", {
     method:"POST",
     headers:{
@@ -404,7 +392,10 @@ async function salvar(){
     body: JSON.stringify({ dados })
   });
 
-  alert("Salvo com sucesso!");
+  alert("Dados salvos e duplicadas eliminadas com sucesso!");
+  
+  // Recarrega o estado atualizado do servidor
+  await carregar(mesAtual);
 }
 
 // 🔥 CARREGAR
@@ -431,30 +422,34 @@ async function carregar(mes = ""){
     }
   });
 
+  const chavesRenderizadas = new Set();
+
   lista.forEach(item=>{
     const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
     if(tbody){
-      const tr = document.createElement("tr");
-      tr.innerHTML = linha(item);
-      tbody.appendChild(tr);
+      const chaveItem = `${item.tecnico}_${item.data}_${item.kmIni}_${item.kmFim}_${item.abastAtual}_${item.litros}_${item.valor}`;
+      
+      if (!chavesRenderizadas.has(chaveItem)) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = linha(item);
+        tbody.appendChild(tr);
+        chavesRenderizadas.add(chaveItem);
+      }
     }
   });
 }
 
-// 🔥 FILTRAR MÊS
 function filtrarMes(){
   const mes = document.getElementById("mesFiltro").value;
   carregar(mes);
 }
 
-// 🔥 MOSTRAR MÊS ATUAL
 function mostrarTudo(){
   const mesAtual = obterMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   carregar(mesAtual);
 }
 
-// 🔥 INICIAR
 async function iniciar(){
   criar();
   const mesAtual = obterMesAtual();
