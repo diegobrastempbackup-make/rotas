@@ -1,9 +1,9 @@
-// ⏱️ SISTEMA DE CONTROLE DE INATIVIDADE (5 MINUTOS)
+// ⏱️ CONTROLE DE INATIVIDADE (5 MINUTOS)
 let temporizadorInatividade;
 
 function resetarTemporizador() {
   clearTimeout(temporizadorInatividade);
-  temporizadorInatividade = setTimeout(efetuarAutoLogout, 5 * 60 * 1000); // 5 Minutos
+  temporizadorInatividade = setTimeout(efetuarAutoLogout, 5 * 60 * 1000);
 }
 
 function efetuarAutoLogout() {
@@ -14,7 +14,6 @@ function efetuarAutoLogout() {
   window.location.replace("/login.html");
 }
 
-// Configura os gatilhos globais de monitoramento de inatividade
 window.onload = resetarTemporizador;
 window.onmousemove = resetarTemporizador;
 window.onmousedown = resetarTemporizador;
@@ -22,7 +21,7 @@ window.ontouchstart = resetarTemporizador;
 window.onclick = resetarTemporizador;     
 window.onkeydown = resetarTemporizador;
 
-// Definições Globais do Dashboard
+// Definições Globais do Sistema
 const tecnicos = [
   "Sibele",
   "Empresa",
@@ -38,13 +37,11 @@ let tecnicoAtual = "TODOS";
 let grafico1;
 let grafico2;
 
-// FUNÇÃO DE LOGOUT
 function sair() {
   localStorage.clear(); 
   window.location.replace("/login.html");
 }
 
-// 🔥 ACESSAR DIRETO SEM PEDIR SENHA PARA ADMIN
 function acessar() {
   const tokenLogin = localStorage.getItem("token");
   if (tokenLogin) {
@@ -55,7 +52,7 @@ function acessar() {
 }
 
 // ========================================================
-// 👤 SISTEMA INTEGRADO DE GERENCIAMENTO DE USUÁRIOS
+// 👤 SEÇÃO: GERENCIAMENTO DE USUÁRIOS (LOGICA DE 3 NÍVEIS)
 // ========================================================
 
 async function abrirModalGerenciamento() {
@@ -79,7 +76,15 @@ async function atualizarListaUsuarios() {
       const div = document.createElement("div");
       div.style = "display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);";
       
-      const badge = u.tipo === "admin" ? "<span style='color:#60A5FA; font-size:11px;'>[Admin]</span>" : "<span style='color:#94A3B8; font-size:11px;'>[Comum]</span>";
+      // Definição das etiquetas visuais baseadas no novo sistema de 3 níveis
+      let badge = "";
+      if (u.tipo === "master") {
+        badge = "<span style='color:#f59e0b; font-size:11px;'>[Master]</span>";
+      } else if (u.tipo === "admin") {
+        badge = "<span style='color:#60A5FA; font-size:11px;'>[Admin]</span>";
+      } else {
+        badge = "<span style='color:#94A3B8; font-size:11px;'>[Simples]</span>";
+      }
       
       div.innerHTML = `
         <div>
@@ -149,15 +154,12 @@ async function salvarUsuario() {
         body: JSON.stringify({ nome, tipo, novaSenha: senha })
       });
       const resultado = await respuesta.json();
-      
       if (!respuesta.ok) return alert(resultado.erro || "Erro ao atualizar");
       
       alert("Alterações salvas com sucesso!");
-      
       if(usuario === localStorage.getItem("usuarioLogado")) {
         localStorage.setItem("usuarioTipo", tipo);
       }
-      
       abrirModalGerenciamento(); 
     } catch (err) {
       alert("Erro ao conectar com o servidor.");
@@ -172,8 +174,7 @@ async function salvarUsuario() {
         body: JSON.stringify({ nome, usuario, senha, tipo })
       });
       const dados = await respuesta.json();
-
-      if (!resposta.ok) return alert(dados.erro || "Erro ao cadastrar");
+      if (!respuesta.ok) return alert(dados.erro || "Erro ao cadastrar");
 
       alert("Novo usuário cadastrado!");
       abrirModalGerenciamento(); 
@@ -184,54 +185,41 @@ async function salvarUsuario() {
 }
 
 // ========================================================
-// PROCESSING E FILTRAGEM DE REGISTROS DE KMs / GASTOS
+// REQUISITIONS E FILTROS DO DASHBOARD
 // ========================================================
 
 function obterMesAtual(){
   const hoje = new Date();
-  const ano = hoje.getFullYear();
-  const mes = String(hoje.getMonth() + 1).padStart(2,"0");
-  return `${ano}-${mes}`;
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2,"0")}`;
 }
 
 function dadosPorMes(mes){
-  return dadosGlobal.filter(d=>{
-    if(!d.data) return false;
-    return d.data.startsWith(mes);
-  });
+  return dadosGlobal.filter(d => d.data && d.data.startsWith(mes));
 }
 
 async function carregarDados(){
   const res = await fetch("/registros");
   dadosGlobal = await res.json();
-  dadosGlobal.sort((a,b)=>{
-    return new Date(a.data) - new Date(b.data);
-  });
+  dadosGlobal.sort((a,b) => new Date(a.data) - new Date(b.data));
 
   const mesAtual = obterMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
-  const filtrado = dadosPorMes(mesAtual);
-  processar(filtrado, tecnicoAtual);
+  processar(dadosPorMes(mesAtual), tecnicoAtual);
 }
 
 function filtrar(nome){
   tecnicoAtual = nome;
-  const mes = document.getElementById("mesFiltro").value;
-  const filtrado = dadosPorMes(mes);
-  processar(filtrado, tecnicoAtual);
+  processar(dadosPorMes(document.getElementById("mesFiltro").value), tecnicoAtual);
 }
 
 function filtrarMes(){
-  const mes = document.getElementById("mesFiltro").value;
-  const filtrado = dadosPorMes(mes);
-  processar(filtrado, tecnicoAtual);
+  processar(dadosPorMes(document.getElementById("mesFiltro").value), tecnicoAtual);
 }
 
 function limparFiltro(){
   const mesAtual = obterMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
-  const filtrado = dadosPorMes(mesAtual);
-  processar(filtrado, tecnicoAtual);
+  processar(dadosPorMes(mesAtual), tecnicoAtual);
 }
 
 function processar(dados, tecnico){
@@ -271,87 +259,39 @@ function atualizarDashboard(valores, kms, tecnico){
 
   const ctx1 = document.getElementById("g1").getContext("2d");
   const grad1 = ctx1.createLinearGradient(0,0,0,400);
-  grad1.addColorStop(0, "#60A5FA");
-  grad1.addColorStop(1, "#2563EB");
+  grad1.addColorStop(0, "#60A5FA"); grad1.addColorStop(1, "#2563EB");
 
   grafico1 = new Chart(ctx1,{
     type:"bar",
-    data:{
-      labels:tecnicos,
-      datasets:[{
-        label:"Gastos",
-        data:valores,
-        backgroundColor:grad1,
-        borderRadius:10,
-        borderSkipped:false
-      }]
-    },
+    data:{ labels:tecnicos, datasets:[{ label:"Gastos", data:valores, backgroundColor:grad1, borderRadius:10, borderSkipped:false }] },
     plugins:[ChartDataLabels],
     options:{
-      responsive:true,
-      maintainAspectRatio:false,
+      responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{ labels:{ color:"#fff" } },
-        title:{
-          display:true,
-          text: "💰 CONSUMO GERAL",
-          color:"#fff",
-          font:{ size:20, weight:"bold" }
-        },
-        datalabels:{
-          color:"#fff",
-          anchor:"end",
-          align:"top",
-          formatter:(value)=>{ return "R$ " + value.toFixed(0); }
-        }
+        title:{ display:true, text: "💰 CONSUMO GERAL", color:"#fff", font:{ size:20, weight:"bold" } },
+        datalabels:{ color:"#fff", anchor:"end", align:"top", formatter:(val)=> "R$ " + val.toFixed(0) }
       },
-      scales:{
-        x:{ ticks:{ color:"#fff" }, grid:{ display:false } },
-        y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } }
-      }
+      scales:{ x:{ ticks:{ color:"#fff" }, grid:{ display:false } }, y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } } }
     }
   });
 
   const ctx2 = document.getElementById("g2").getContext("2d");
   const grad2 = ctx2.createLinearGradient(0,0,0,400);
-  grad2.addColorStop(0, "#34D399");
-  grad2.addColorStop(1, "#059669");
+  grad2.addColorStop(0, "#34D399"); grad2.addColorStop(1, "#059669");
 
   grafico2 = new Chart(ctx2,{
     type:"bar",
-    data:{
-      labels:tecnicos,
-      datasets:[{
-        label:"KM",
-        data:kms,
-        backgroundColor:grad2,
-        borderRadius:10,
-        borderSkipped:false
-      }]
-    },
+    data:{ labels:tecnicos, datasets:[{ label:"KM", data:kms, backgroundColor:grad2, borderRadius:10, borderSkipped:false }] },
     plugins:[ChartDataLabels],
     options:{
-      responsive:true,
-      maintainAspectRatio:false,
+      responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{ labels:{ color:"#fff" } },
-        title:{
-          display:true,
-          text: "🛣 KM GERAL",
-          color:"#fff",
-          font:{ size:20, weight:"bold" }
-        },
-        datalabels:{
-          color:"#fff",
-          anchor:"end",
-          align:"top",
-          formatter:(value)=>{ return value + " KM"; }
-        }
+        title:{ display:true, text: "🛣 KM GERAL", color:"#fff", font:{ size:20, weight:"bold" } },
+        datalabels:{ color:"#fff", anchor:"end", align:"top", formatter:(val)=> val + " KM" }
       },
-      scales:{
-        x:{ ticks:{ color:"#fff" }, grid:{ display:false } },
-        y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } }
-      }
+      scales:{ x:{ ticks:{ color:"#fff" }, grid:{ display:false } }, y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } } }
     }
   });
 }
@@ -365,45 +305,22 @@ function gerarPDF() {
   const filtrado = dadosPorMes(mes);
 
   function desenharCabecalho() {
-    doc.setFillColor(10, 61, 196);
-    doc.rect(0, 0, 210, 30, "F");
-    if (logo && logo.complete) {
-      doc.addImage(logo, "PNG", 8, 4, 20, 20);
-    }
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.setFont(undefined, "bold");
-    doc.text("Relatório Mensal", 35, 13);
-    doc.setFontSize(10);
-    doc.setFont(undefined, "normal");
-    doc.text("Relatório de Consumo e Quilometragem", 35, 21);
-    doc.text(`Mês: ${mes}`, 145, 13);
-    doc.text(new Date().toLocaleString("pt-BR"), 120, 21);
-    doc.setTextColor(0, 0, 0);
-    y = 40;
+    doc.setFillColor(10, 61, 196); doc.rect(0, 0, 210, 30, "F");
+    if (logo && logo.complete) doc.addImage(logo, "PNG", 8, 4, 20, 20);
+    doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont(undefined, "bold"); doc.text("Relatório Mensal", 35, 13);
+    doc.setFontSize(10); doc.setFont(undefined, "normal"); doc.text("Relatório de Consumo e Quilometragem", 35, 21);
+    doc.text(`Mês: ${mes}`, 145, 13); doc.text(new Date().toLocaleString("pt-BR"), 120, 21);
+    doc.setTextColor(0, 0, 0); y = 40;
   }
 
   function desenharTabela() {
-    doc.setFillColor(10, 61, 196);
-    doc.rect(10, y, 190, 8, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.text("DATA", 15, y + 5);
-    doc.text("KM", 55, y + 5);
-    doc.text("LITROS", 85, y + 5);
-    doc.text("VALOR", 120, y + 5);
-    doc.text("KM/L", 165, y + 5);
-    doc.setTextColor(0, 0, 0);
-    y += 12;
+    doc.setFillColor(10, 61, 196); doc.rect(10, y, 190, 8, "F");
+    doc.setTextColor(255, 255, 255); doc.setFontSize(9);
+    doc.text("DATA", 15, y + 5); doc.text("KM", 55, y + 5); doc.text("LITROS", 85, y + 5); doc.text("VALOR", 120, y + 5); doc.text("KM/L", 165, y + 5);
+    doc.setTextColor(0, 0, 0); y += 12;
   }
 
-  function verificarPagina() {
-    if (y > 270) {
-      doc.addPage();
-      desenharCabecalho();
-      desenharTabela();
-    }
-  }
+  function verificarPagina() { if (y > 270) { doc.addPage(); desenharCabecalho(); desenharTabela(); } }
 
   desenharCabecalho();
 
@@ -411,114 +328,50 @@ function gerarPDF() {
     tecnicos.forEach(nome => {
       const dadosTecnico = filtrado.filter(d => d.tecnico === nome);
       if (!dadosTecnico.length) return;
-      verificarPagina();
-      doc.setFontSize(13);
-      doc.setFont(undefined, "bold");
-      doc.text(nome, 10, y);
-      y += 8;
+      verificarPagina(); doc.setFontSize(13); doc.setFont(undefined, "bold"); doc.text(nome, 10, y); y += 8;
       desenharTabela();
 
-      let totalKm = 0;
-      let totalLitros = 0;
-      let totalValor = 0;
+      let totalKm = 0, totalLitros = 0, totalValor = 0;
 
       dadosTecnico.forEach((d, indice) => {
-        const km = Number(d.km) || 0;
-        const litros = Number(d.litros) || 0;
-        const valor = Number(d.valor) || 0;
-        const media = litros > 0 ? km / litros : 0;
+        const km = Number(d.km) || 0, litros = Number(d.litros) || 0, valor = Number(d.valor) || 0;
+        totalKm += km; totalLitros += litros; totalValor += valor;
 
-        totalKm += km;
-        totalLitros += litros;
-        totalValor += valor;
-
-        const cor = indice % 2 === 0 ? 255 : 245;
-        doc.setFillColor(cor, cor, cor);
-        doc.rect(10, y - 5, 190, 8, "F");
-        doc.rect(10, y - 5, 190, 8);
-
-        doc.text(String(d.data), 15, y);
-        doc.text(km.toFixed(0), 55, y);
-        doc.text(litros.toFixed(2), 85, y);
-        doc.text(valor.toFixed(2), 120, y);
-        doc.text(media.toFixed(2), 165, y);
-        y += 8;
-        verificarPagina();
+        doc.setFillColor(indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245);
+        doc.rect(10, y - 5, 190, 8, "F"); doc.rect(10, y - 5, 190, 8);
+        doc.text(String(d.data), 15, y); doc.text(km.toFixed(0), 55, y); doc.text(litros.toFixed(2), 85, y); doc.text(valor.toFixed(2), 120, y); doc.text((litros > 0 ? km / litros : 0).toFixed(2), 165, y);
+        y += 8; verificarPagina();
       });
 
-      const mediaKmL = totalLitros > 0 ? totalKm / totalLitros : 0;
-      const valorLitro = totalValor > 0 ? totalValor / totalLitros : 0;
-
-      doc.setFillColor(230, 236, 245);
-      doc.roundedRect(10, y, 190, 40, 3, 3, "FD");
-      doc.setFontSize(10);
-      doc.setFont(undefined, "bold");
-      doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10);
-      doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20);
-      doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-      doc.text(`MÉDIA KM/L: ${mediaKmL.toFixed(2)}`, 110, y + 10);
-      doc.text(`VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`, 110, y + 20);
+      doc.setFillColor(230, 236, 245); doc.roundedRect(10, y, 190, 40, 3, 3, "FD"); doc.setFontSize(10); doc.setFont(undefined, "bold");
+      doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10); doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20); doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
+      doc.text(`MÉDIA KM/L: ${(totalLitros > 0 ? totalKm / totalLitros : 0).toFixed(2)}`, 110, y + 10); doc.text(`VALOR/LITRO: R$ ${(totalValor > 0 ? totalValor / totalLitros : 0).toFixed(2)}`, 110, y + 20);
       y += 50;
     });
   } else {
     const dadosTecnico = filtrado.filter(d => d.tecnico === tecnicoAtual);
-    doc.setFontSize(13);
-    doc.setFont(undefined, "bold");
-    doc.text(tecnicoAtual, 10, y);
-    y += 8;
+    doc.setFontSize(13); doc.setFont(undefined, "bold"); doc.text(tecnicoAtual, 10, y); y += 8;
     desenharTabela();
 
-    let totalKm = 0;
-    let totalLitros = 0;
-    let totalValor = 0;
-
+    let totalKm = 0, totalLitros = 0, totalValor = 0;
     dadosTecnico.forEach((d, indice) => {
-      const km = Number(d.km) || 0;
-      const litros = Number(d.litros) || 0;
-      const valor = Number(d.valor) || 0;
-      const media = litros > 0 ? km / litros : 0;
+      const km = Number(d.km) || 0, litros = Number(d.litros) || 0, valor = Number(d.valor) || 0;
+      totalKm += km; totalLitros += litros; totalValor += valor;
 
-      totalKm += km;
-      totalLitros += litros;
-      totalValor += valor;
-
-      const cor = indice % 2 === 0 ? 255 : 245;
-      doc.setFillColor(cor, cor, cor);
-      doc.rect(10, y - 5, 190, 8, "F");
-      doc.rect(10, y - 5, 190, 8);
-
-      doc.text(String(d.data), 15, y);
-      doc.text(km.toFixed(0), 55, y);
-      doc.text(litros.toFixed(2), 85, y);
-      doc.text(valor.toFixed(2), 120, y);
-      doc.text(media.toFixed(2), 165, y);
-      y += 8;
-      verificarPagina();
+      doc.setFillColor(indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245, indice % 2 === 0 ? 255 : 245);
+      doc.rect(10, y - 5, 190, 8, "F"); doc.rect(10, y - 5, 190, 8);
+      doc.text(String(d.data), 15, y); doc.text(km.toFixed(0), 55, y); doc.text(litros.toFixed(2), 85, y); doc.text(valor.toFixed(2), 120, y); doc.text((litros > 0 ? km / litros : 0).toFixed(2), 165, y);
+      y += 8; verificarPagina();
     });
 
-    const mediaKmL = totalLitros > 0 ? totalKm / totalLitros : 0;
-    const valorLitro = totalLitros > 0 ? totalValor / totalLitros : 0;
-
-    doc.setFillColor(230, 236, 245);
-    doc.roundedRect(10, y, 190, 40, 3, 3, "FD");
-    doc.setFontSize(10);
-    doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10);
-    doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20);
-    doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-    doc.text(`MÉDIA KM/L: ${mediaKmL.toFixed(2)}`, 110, y + 10);
-    doc.text(`VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`, 110, y + 20);
+    doc.setFillColor(230, 236, 245); doc.roundedRect(10, y, 190, 40, 3, 3, "FD"); doc.setFontSize(10);
+    doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10); doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20); doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
+    doc.text(`MÉDIA KM/L: ${(totalLitros > 0 ? totalKm / totalLitros : 0).toFixed(2)}`, 110, y + 10); doc.text(`VALOR/LITRO: R$ ${(totalLitros > 0 ? totalValor / totalLitros : 0).toFixed(2)}`, 110, y + 20);
   }
 
   const paginas = doc.getNumberOfPages();
-  for (let i = 1; i <= paginas; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
-    doc.text("Sistema NERI © 2026", 10, 290);
-    doc.text(`Página ${i} de ${paginas}`, 170, 290);
-  }
+  for (let i = 1; i <= paginas; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120, 120, 120); doc.text("Sistema NERI © 2026", 10, 290); doc.text(`Página ${i} de ${paginas}`, 170, 290); }
   doc.save("relatorio.pdf");
 }
 
-// Inicializa a aplicação buscando os dados do back-end
 carregarDados();

@@ -93,7 +93,6 @@ body {
   box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
 }
 
-/* BOTÕES ESPECÍFICOS CORES */
 .btn-cadastro {
   background: linear-gradient(90deg, #10b981, #059669) !important;
   margin-top: 10px;
@@ -184,7 +183,7 @@ canvas {
   height: 100% !important;
 }
 
-/* MODAL E INTERNOS */
+/* MODAL */
 .modal {
   position: fixed;
   inset: 0;
@@ -255,23 +254,13 @@ canvas {
   color: #94A3B8;
 }
 
-.modal-box input {
+.modal-box input, .modal-box select {
   width: 100%;
   padding: 12px;
   border: none;
   border-radius: 10px;
   background: #1E293B;
   color: white;
-  margin-bottom: 20px;
-}
-
-.modal-box select {
-  width: 100%;
-  padding: 12px;
-  border-radius: 10px;
-  background: #1E293B;
-  color: white;
-  border: none;
   margin-bottom: 20px;
 }
 
@@ -283,9 +272,21 @@ canvas {
 .btn-cancelar {
   flex: 1;
   background: #475569;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
 }
 
 .btn-entrar {
   flex: 1;
   background: linear-gradient(90deg, #2563EB, #3B82F6);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
 }

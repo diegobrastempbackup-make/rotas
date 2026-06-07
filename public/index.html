@@ -12,20 +12,29 @@
 
   <script>
     const token = localStorage.getItem("token");
-    const usuarioTipo = localStorage.getItem("usuarioTipo");
+    const usuarioTipo = localStorage.getItem("usuarioTipo"); // 'master', 'admin' ou 'simples'
 
     if (!token) {
       window.location.replace("/login.html");
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-      if (usuarioTipo !== "admin") {
+      // Se for usuário Simples: Bloqueia o acesso a Dados e ao Gerenciamento de Usuários
+      if (usuarioTipo === "simples") {
         const btnDados = document.getElementById("btnIrParaDados");
         if (btnDados) btnDados.style.display = "none";
         
         const btnCadastrar = document.getElementById("btnMenuCadastro");
         if (btnCadastrar) btnCadastrar.style.display = "none";
       }
+      
+      // Se for Admin: Tem acesso a dados, mas NÃO gerencia usuários
+      if (usuarioTipo === "admin") {
+        const btnCadastrar = document.getElementById("btnMenuCadastro");
+        if (btnCadastrar) btnCadastrar.style.display = "none";
+      }
+      
+      // Se for Master: Tem acesso total e livre a tudo
     });
   </script>
 </head>
@@ -65,7 +74,7 @@
 
     <hr>
     
-    <button class="btn-sair" onclick="sair()">🚪 Deslogar</button>
+    <button class="btn-sair" onclick="sair()">🚪 Sair do Sistema</button>
 
     <div class="footer">
       © Diego Neri
@@ -129,8 +138,9 @@
       
       <label>Nível de Acesso:</label>
       <select id="cadTipo">
-        <option value="usuario">Acesso Comum (Bloqueia Dados)</option>
-        <option value="admin">Administrador (Acesso Total)</option>
+        <option value="simples">Acesso Simples (Apenas Gráficos e Relatórios)</option>
+        <option value="admin">Administrador (Ver Gráficos + Inserir Dados)</option>
+        <option value="master">Master (Acesso Total + Gerenciar Usuários)</option>
       </select>
     </div>
 
