@@ -1,219 +1,130 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login NERI</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login NERI</title>
 
-<style>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-*{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
-}
+    body {
+      background: #0F172A;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: Arial, sans-serif;
+    }
 
-body{
-  background:#0F172A;
-  min-height:100vh;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  font-family:Arial, sans-serif;
-}
+    .card {
+      width: 420px;
+      background: #1E293B;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 0 25px rgba(0,0,0,.4);
+      text-align: center;
+    }
 
-.card{
+    .logo {
+      width: 280px;
+      max-width: 100%;
+      margin-bottom: 30px;
+    }
 
-  width:420px;
+    input {
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 10px;
+      outline: none;
+      font-size: 15px;
+    }
 
-  background:#1E293B;
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 10px;
+      background: #22C55E;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+    }
 
-  padding:40px;
+    button:hover {
+      opacity: .9;
+    }
 
-  border-radius:20px;
-
-  box-shadow:0 0 25px rgba(0,0,0,.4);
-
-  text-align:center;
-}
-
-.logo{
-
-  width:280px;
-
-  max-width:100%;
-
-  margin-bottom:30px;
-}
-
-input{
-
-  width:100%;
-
-  padding:14px;
-
-  margin:10px 0;
-
-  border:none;
-
-  border-radius:10px;
-
-  outline:none;
-
-  font-size:15px;
-}
-
-button{
-
-  width:100%;
-
-  padding:14px;
-
-  margin-top:10px;
-
-  background:#22C55E;
-
-  color:white;
-
-  border:none;
-
-  border-radius:10px;
-
-  cursor:pointer;
-
-  font-size:16px;
-
-  font-weight:bold;
-}
-
-button:hover{
-
-  opacity:.9;
-
-}
-
-.titulo{
-
-  color:white;
-
-  margin-bottom:20px;
-
-  font-size:22px;
-}
-
-</style>
+    .titulo {
+      color: white;
+      margin-bottom: 20px;
+      font-size: 22px;
+    }
+  </style>
 </head>
-
 <body>
 
 <div class="card">
-
-  <img
-    src="logo.png"
-    class="logo"
-    alt="NERI"
-  >
+  <img src="logo.png" class="logo" alt="NERI">
 
   <div class="titulo">
     Gestão de Frotas
   </div>
 
-  <input
-    id="usuario"
-    placeholder="Usuário"
-  >
+  <input id="usuario" placeholder="Usuário">
+  <input id="senha" type="password" placeholder="Senha">
 
-  <input
-    id="senha"
-    type="password"
-    placeholder="Senha"
-  >
-
- <button onclick="entrar()">
-  Entrar
-</button>
-
+  <button onclick="entrar()">Entrar</button>
 </div>
 
 <script>
+async function entrar() {
+  const usuario = document.getElementById("usuario").value.trim();
+  const senha = document.getElementById("senha").value;
 
-async function entrar(){
-
-  const usuario =
-    document.getElementById("usuario").value.trim();
-
-  const senha =
-    document.getElementById("senha").value;
-
-  if(!usuario || !senha){
-
+  if (!usuario || !senha) {
     alert("Preencha usuário e senha");
     return;
-
   }
 
-  try{
+  try {
+    const resposta = await fetch("/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ usuario, senha })
+    });
 
-    const resposta =
-      await fetch("/login",{
+    const dados = await resposta.json();
 
-        method:"POST",
-
-        headers:{
-          "Content-Type":"application/json"
-        },
-
-        body:JSON.stringify({
-          usuario,
-          senha
-        })
-
-      });
-
-    const dados =
-      await resposta.json();
-
-    if(!resposta.ok){
-
-      alert(
-        dados.erro ||
-        "Erro ao fazer login"
-      );
-
+    if (!resposta.ok) {
+      alert(dados.erro || "Erro ao fazer login");
       return;
-
     }
 
-    localStorage.setItem(
-      "token",
-      dados.token
-    );
+    // Grava as informações da sessão no navegador
+    localStorage.setItem("token", dados.token);
+    localStorage.setItem("usuarioNome", dados.nome);
 
-    localStorage.setItem(
-      "usuarioNome",
-      dados.nome
-    );
+    // 🔒 BLINDAGEM CONTRA MAIÚSCULAS/MINÚSCULAS OU ESPAÇOS DO BANCO:
+    localStorage.setItem("usuarioTipo", String(dados.tipo).toLowerCase().trim());
 
-    localStorage.setItem(
-      "usuarioTipo",
-      dados.tipo
-    );
+    window.location.href = "/index.html";
 
-    window.location.href =
-      "/index.html";
-
-  }catch(err){
-
+  } catch (err) {
     console.log(err);
-
-    alert(
-      "Erro ao conectar ao servidor"
-    );
-
+    alert("Erro ao conectar ao servidor");
   }
-
 }
-
 </script>
 
 </body>
