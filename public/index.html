@@ -1,374 +1,40 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
+  <meta charset="UTF-8">
+  <title>NERI Dashboard</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
 
   <script>
-    // 🔒 BLINDAGEM AGRESSIVA: Verifica se o token de login existe
     const token = localStorage.getItem("token");
     const usuarioTipo = localStorage.getItem("usuarioTipo");
 
     if (!token) {
-      // Se não tiver token, expulsa e limpa o histórico para não burlar voltando a página
       window.location.replace("/login.html");
     }
 
-    // Executa as permissões assim que a estrutura do HTML estiver pronta na tela
     window.addEventListener("DOMContentLoaded", () => {
       if (usuarioTipo !== "admin") {
-        // Esconde o botão de "Ir Para Dados" para usuários de nível comum
         const btnDados = document.getElementById("btnIrParaDados");
         if (btnDados) btnDados.style.display = "none";
         
-        // Esconde o botão de "Criar Usuário" para usuários comuns
         const btnCadastrar = document.getElementById("btnMenuCadastro");
         if (btnCadastrar) btnCadastrar.style.display = "none";
       }
     });
   </script>
-
-  <meta charset="UTF-8">
-
-  <title>NERI Dashboard</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-  <style>
-    *{
-      box-sizing:border-box;
-    }
-
-    body{
-      margin:0;
-      font-family:Arial;
-      background:
-        linear-gradient(
-          135deg,
-          #020617,
-          #0F172A,
-          #111827
-        );
-      color:white;
-    }
-
-    .container{
-      display:flex;
-    }
-
-    /* SIDEBAR */
-    .sidebar{
-      width:250px;
-      background:
-        rgba(15,23,42,0.95);
-      backdrop-filter:blur(10px);
-      height:100vh;
-      padding:20px;
-      overflow:auto;
-      border-right:
-        1px solid rgba(255,255,255,0.05);
-      box-shadow:
-        5px 0 20px rgba(0,0,0,0.4);
-      display:flex;
-      flex-direction:column;
-    }
-
-    /* LOGO */
-    .logo-area{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      margin-bottom:25px;
-    }
-
-    .logo{
-      width:120px;
-      margin-bottom:10px;
-      transition:0.4s;
-      filter:
-        drop-shadow(
-          0 0 15px
-          rgba(59,130,246,0.5)
-        );
-    }
-
-    .logo:hover{
-      transform:scale(1.05);
-      filter:
-        drop-shadow(
-          0 0 25px
-          rgba(59,130,246,0.8)
-        );
-    }
-
-    .sidebar h2{
-      margin:0;
-      color:#60A5FA;
-      font-size:28px;
-    }
-
-    /* MENU */
-    .sidebar p{
-      cursor:pointer;
-      padding:12px;
-      border-radius:10px;
-      margin:5px 0;
-      transition:0.3s;
-      font-weight:bold;
-    }
-
-    .sidebar p:hover{
-      background:
-        linear-gradient(
-          90deg,
-          #2563EB,
-          #3B82F6
-        );
-      transform:translateX(5px);
-    }
-
-    .sidebar input,
-    .sidebar button{
-      width:100%;
-      margin-top:10px;
-      padding:12px;
-      border:none;
-      border-radius:10px;
-    }
-
-    .sidebar input{
-      background:#1E293B;
-      color:white;
-    }
-
-    .sidebar button{
-      background:
-        linear-gradient(
-          90deg,
-          #2563EB,
-          #3B82F6
-        );
-      color:white;
-      cursor:pointer;
-      font-weight:bold;
-      transition:0.3s;
-    }
-
-    .sidebar button:hover{
-      transform:scale(1.03);
-      box-shadow:
-        0 0 15px rgba(59,130,246,0.5);
-    }
-
-    /* ESTILO BOTÃO DE CADASTRO VERDE */
-    .btn-cadastro {
-      background: linear-gradient(90deg, #10b981, #059669) !important;
-      margin-top: 10px;
-    }
-    .btn-cadastro:hover {
-      box-shadow: 0 0 15px rgba(5, 150, 105, 0.5) !important;
-    }
-
-    /* ESTILO BOTÃO SAIR VERMELHO */
-    .btn-sair {
-      background: linear-gradient(90deg, #dc2626, #ef4444) !important;
-      margin-top: 15px;
-    }
-    .btn-sair:hover {
-      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5) !important;
-    }
-
-    /* FOOTER */
-    .footer{
-      margin-top:auto;
-      text-align:center;
-      font-size:12px;
-      color:#94A3B8;
-      opacity:0.8;
-      padding-top:30px;
-    }
-
-    /* MAIN */
-    .main{
-      flex:1;
-      padding:25px;
-    }
-
-    /* CARDS */
-    .cards{
-      display:flex;
-      gap:20px;
-      flex-wrap:wrap;
-    }
-
-    .card{
-      background:
-        linear-gradient(
-          145deg,
-          rgba(30,41,59,0.95),
-          rgba(15,23,42,0.95)
-        );
-      border-radius:20px;
-      padding:25px;
-      flex:1;
-      min-width:220px;
-      border:
-        1px solid rgba(255,255,255,0.05);
-      box-shadow:
-        0 10px 25px rgba(0,0,0,0.4);
-      transition:0.3s;
-    }
-
-    .card:hover{
-      transform:translateY(-5px);
-      box-shadow:
-        0 15px 35px rgba(0,0,0,0.5);
-    }
-
-    .card h3{
-      margin-top:0;
-      color:#93C5FD;
-    }
-
-    .card p{
-      font-size:28px;
-      font-weight:bold;
-      margin-top:15px;
-    }
-
-    /* GRÁFICOS */
-    .graficos{
-      display:flex;
-      gap:20px;
-      margin-top:30px;
-      flex-wrap:wrap;
-    }
-
-    .grafico{
-      background:
-        linear-gradient(
-          145deg,
-          rgba(30,41,59,0.95),
-          rgba(15,23,42,0.95)
-        );
-      border-radius:20px;
-      padding:20px;
-      flex:1;
-      min-width:350px;
-      height:450px;
-      border:
-        1px solid rgba(255,255,255,0.05);
-      box-shadow:
-        0 10px 30px rgba(0,0,0,0.45);
-    }
-
-    canvas{
-      width:100% !important;
-      height:100% !important;
-    }
-
-    /* MODAL */
-    .modal{
-      position:fixed;
-      inset:0;
-      background:
-        rgba(0,0,0,0.7);
-      display:none;
-      justify-content:center;
-      align-items:center;
-      z-index:9999;
-      backdrop-filter:blur(5px);
-    }
-
-    .modal.show{
-      display:flex;
-    }
-
-    .modal-box{
-      width:350px;
-      background:
-        linear-gradient(
-          145deg,
-          #1E293B,
-          #0F172A
-        );
-      border-radius:20px;
-      padding:25px;
-      text-align:center;
-      border:
-        1px solid rgba(255,255,255,0.08);
-      box-shadow:
-        0 20px 50px
-        rgba(0,0,0,0.5);
-      animation:
-        aparecer 0.25s ease;
-    }
-
-    @keyframes aparecer{
-      from{
-        opacity:0;
-        transform:
-          translateY(-20px);
-      }
-      to{
-        opacity:1;
-        transform:
-          translateY(0);
-      }
-    }
-
-    .modal-box h2{
-      margin-top:0;
-      color:#60A5FA;
-    }
-
-    .modal-box p{
-      color:#CBD5E1;
-      margin-bottom:20px;
-    }
-
-    .modal-box input{
-      width:100%;
-      padding:12px;
-      border:none;
-      border-radius:10px;
-      background:#1E293B;
-      color:white;
-      margin-bottom:20px;
-    }
-
-    .modal-botoes{
-      display:flex;
-      gap:10px;
-    }
-
-    .btn-cancelar{
-      flex:1;
-      background:#475569;
-    }
-
-    .btn-entrar{
-      flex:1;
-      background:
-        linear-gradient(
-          90deg,
-          #2563EB,
-          #3B82F6
-        );
-    }
-  </style>
-
 </head>
-
 <body>
 
 <div class="container">
-
   <div class="sidebar">
-
     <div class="logo-area">
-      <img src="logo.png" class="logo" />
+      <img src="logo.png" class="logo" alt="Logo NERI" />
       <h2>Dashboard</h2>
     </div>
 
@@ -395,7 +61,6 @@
     <hr>
 
     <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
-    
     <button id="btnMenuCadastro" class="btn-cadastro" onclick="abrirModalGerenciamento()">👤 Gerenciar Usuários</button>
 
     <hr>
@@ -405,11 +70,9 @@
     <div class="footer">
       © Diego Neri
     </div>
-
   </div>
 
   <div class="main">
-
     <div class="cards">
       <div class="card">
         <h3>💰 Gasto Total</h3>
@@ -436,554 +99,36 @@
         <canvas id="g2"></canvas>
       </div>
     </div>
-
   </div>
-
 </div>
 
-<img id="logoNERI" src="/logo.png" style="display:none;">
-
-<script>
-  const tecnicos = [
-    "Sibele",
-    "Empresa",
-    "Danilo",
-    "José Cicero",
-    "Alex",
-    "Danilo BH",
-    "Thiago BH"
-  ];
-
-  let dadosGlobal = [];
-  let tecnicoAtual = "TODOS";
-  let grafico1;
-  let grafico2;
-
-  // FUNÇÃO DE LOGOUT (SAIR)
-  function sair() {
-    localStorage.clear(); // Limpa tudo de uma vez (token, nome, tipo)
-    window.location.replace("/login.html");
-  }
-
-  // MODAL SENHA PARA DADOS (BRANSTEMP1234)
-  // 🔥 ACESSAR DIRETO: Como só o Admin vê o botão, entra direto sem pedir senha
-function acessar() {
-  // Pega o token de login que já está salvo no navegador
-  const tokenLogin = localStorage.getItem("token");
-  
-  if (tokenLogin) {
-    // Redireciona direto passando o token para o servidor liberar o arquivo dados.html
-    window.location.href = `/dados.html?token=${tokenLogin}`;
-  } else {
-    // Caso ocorra alguma falha com o token, manda pro login por segurança
-    window.location.replace("/login.html");
-  }
-}
-
-  // ========================================================
-// 👤 SISTEMA INTEGRADO DE GERENCIAMENTO DE USUÁRIOS
-// ========================================================
-
-// Abre o modal principal trazendo a lista de usuários do banco
-async function abrirModalGerenciamento() {
-  document.getElementById("modalCadastro").classList.add("show");
-  document.getElementById("secaoListaUsuarios").style.display = "block";
-  document.getElementById("formUsuario").style.display = "none";
-  document.getElementById("btnSalvarUsuario").style.display = "none";
-  await atualizarListaUsuarios();
-}
-
-// Busca os usuários no Back-end e renderiza a lista na tela
-async function atualizarListaUsuarios() {
-  const container = document.getElementById("listaUsuariosContainer");
-  container.innerHTML = "<p style='text-align:center;'>Carregando usuários...</p>";
-  
-  try {
-    const res = await fetch("/usuarios");
-    const usuarios = await res.json();
-    
-    container.innerHTML = "";
-    usuarios.forEach(u => {
-      const div = document.createElement("div");
-      div.style = "display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);";
-      
-      const badge = u.tipo === "admin" ? "<span style='color:#60A5FA; font-size:11px;'>[Admin]</span>" : "<span style='color:#94A3B8; font-size:11px;'>[Comum]</span>";
-      
-      div.innerHTML = `
-        <div>
-          <strong>${u.nome}</strong> <br> ${badge} <span style='color:#64748B; font-size:12px;'>(${u.usuario})</span>
-        </div>
-        <button onclick="prepararEdicao('${u._id}', '${u.nome}', '${u.usuario}', '${u.tipo}')" style="width: auto; margin: 0; padding: 5px 10px; background: #3b82f6; font-size: 12px;">Editar</button>
-      `;
-      container.appendChild(div);
-    });
-  } catch (err) {
-    container.innerHTML = "<p style='color:red;'>Erro ao carregar lista.</p>";
-  }
-}
-
-// Prepara o formulário limpo para cadastrar um NOVO usuário
-function mostrarFormularioCadastro() {
-  document.getElementById("formTitulo").innerText = "Novo Usuário";
-  document.getElementById("editId").value = "";
-  document.getElementById("cadNome").value = "";
-  document.getElementById("cadUsuario").value = "";
-  document.getElementById("cadUsuario").disabled = false; 
-  document.getElementById("cadSenha").value = "";
-  document.getElementById("lblSenha").innerText = "Senha:";
-  document.getElementById("cadSenha").placeholder = "Senha de acesso";
-  
-  document.getElementById("secaoListaUsuarios").style.display = "none";
-  document.getElementById("formUsuario").style.display = "block";
-  document.getElementById("btnSalvarUsuario").style.display = "block";
-}
-
-// Prepara o formulário preenchido para EDITAR um usuário existente (ou você mesmo)
-function prepararEdicao(id, nome, usuario, tipo) {
-  document.getElementById("formTitulo").innerText = `Editar: ${usuario}`;
-  document.getElementById("editId").value = id;
-  document.getElementById("cadNome").value = nome;
-  document.getElementById("cadUsuario").value = usuario;
-  document.getElementById("cadUsuario").disabled = true; // Protege o "username" único no banco
-  document.getElementById("cadSenha").value = "";
-  document.getElementById("lblSenha").innerText = "Nova Senha (deixe em branco para manter a atual):";
-  document.getElementById("cadSenha").placeholder = "Preencha apenas se for alterar";
-  document.getElementById("cadTipo").value = tipo;
-
-  document.getElementById("secaoListaUsuarios").style.display = "none";
-  document.getElementById("formUsuario").style.display = "block";
-  document.getElementById("btnSalvarUsuario").style.display = "block";
-}
-
-// Fecha o modal
-function fecharModalCadastro() {
-  document.getElementById("modalCadastro").classList.remove("show");
-}
-
-// Processa o envio tanto para criação quanto para edição (PUT ou POST)
-async function salvarUsuario() {
-  const id = document.getElementById("editId").value;
-  const nome = document.getElementById("cadNome").value.trim();
-  const usuario = document.getElementById("cadUsuario").value.trim();
-  const senha = document.getElementById("cadSenha").value;
-  const tipo = document.getElementById("cadTipo").value;
-
-  if (!nome || !usuario) {
-    alert("Nome e Usuário são obrigatórios!");
-    return;
-  }
-
-  // Modo: EDIÇÃO (Envia requisição PUT para o back-end usando o ID)
-  if (id) {
-    try {
-      const resposta = await fetch(`/usuario/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, tipo, novaSenha: senha })
-      });
-      const resultado = await resposta.json();
-      
-      if (!resposta.ok) return alert(resultado.erro || "Erro ao atualizar");
-      
-      alert("Alterações salvas com sucesso!");
-      
-      if(usuario === localStorage.getItem("usuarioLogado")) {
-        localStorage.setItem("usuarioTipo", tipo);
-      }
-      
-      abrirModalGerenciamento(); 
-    } catch (err) {
-      alert("Erro ao conectar com o servidor.");
-    }
-  } 
-  // Modo: NOVO CADASTRO (Envia requisição POST para criar usuário)
-  else {
-    if (!senha) return alert("A senha é obrigatória para novos usuários!");
-    
-    try {
-      const resposta = await fetch("/cadastro", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, usuario, senha, tipo })
-      });
-      const dados = await resposta.json();
-
-      if (!resposta.ok) return alert(dados.erro || "Erro ao cadastrar");
-
-      alert("Novo usuário cadastrado!");
-      abrirModalGerenciamento(); 
-    } catch (err) {
-      alert("Erro de comunicação com o servidor.");
-    }
-  }
-}
-
-  // PARTE RESTRITA DE PROCESSAMENTO DE DADOS DO DASHBOARD
-  function obterMesAtual(){
-    const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = String(hoje.getMonth() + 1).padStart(2,"0");
-    return `${ano}-${mes}`;
-  }
-
-  function dadosPorMes(mes){
-    return dadosGlobal.filter(d=>{
-      if(!d.data) return false;
-      return d.data.startsWith(mes);
-    });
-  }
-
-  async function carregarDados(){
-    const res = await fetch("/registros");
-    dadosGlobal = await res.json();
-    dadosGlobal.sort((a,b)=>{
-      return new Date(a.data) - new Date(b.data);
-    });
-
-    const mesAtual = obterMesAtual();
-    document.getElementById("mesFiltro").value = mesAtual;
-    const filtrado = dadosPorMes(mesAtual);
-    processar(filtrado, tecnicoAtual);
-  }
-
-  function filtrar(nome){
-    tecnicoAtual = nome;
-    const mes = document.getElementById("mesFiltro").value;
-    const filtrado = dadosPorMes(mes);
-    processar(filtrado, tecnicoAtual);
-  }
-
-  function filtrarMes(){
-    const mes = document.getElementById("mesFiltro").value;
-    const filtrado = dadosPorMes(mes);
-    processar(filtrado, tecnicoAtual);
-  }
-
-  function limparFiltro(){
-    const mesAtual = obterMesAtual();
-    document.getElementById("mesFiltro").value = mesAtual;
-    const filtrado = dadosPorMes(mesAtual);
-    processar(filtrado, tecnicoAtual);
-  }
-
-  function processar(dados, tecnico){
-    let valores = Array(tecnicos.length).fill(0);
-    let kms = Array(tecnicos.length).fill(0);
-
-    dados.forEach(d=>{
-      if(tecnico === "TODOS" || d.tecnico === tecnico){
-        const i = tecnicos.indexOf(d.tecnico);
-        if(i >= 0){
-          kms[i] += Number(d.km) || 0;
-          valores[i] += Number(d.valor) || 0;
-        }
-      }
-    });
-    atualizarDashboard(valores, kms, tecnico);
-  }
-
-  function atualizarDashboard(valores, kms, tecnico){
-    const totalValor = valores.reduce((a,b)=>a+b,0);
-    const totalKm = kms.reduce((a,b)=>a+b,0);
-
-    document.getElementById("gastoTotal").innerText = "R$ " + totalValor.toFixed(2);
-    document.getElementById("kmTotal").innerText = totalKm + " KM";
-
-    if(tecnico !== "TODOS"){
-      const i = tecnicos.indexOf(tecnico);
-      document.getElementById("gastoIndividual").innerText = "R$ " + valores[i].toFixed(2);
-      document.getElementById("kmIndividual").innerText = kms[i] + " KM";
-    }else{
-      document.getElementById("gastoIndividual").innerText = "R$ 0,00";
-      document.getElementById("kmIndividual").innerText = "0 KM";
-    }
-
-    if(grafico1) grafico1.destroy();
-    if(grafico2) grafico2.destroy();
-
-    // GRÁFICOS
-    const ctx1 = document.getElementById("g1").getContext("2d");
-    const grad1 = ctx1.createLinearGradient(0,0,0,400);
-    grad1.addColorStop(0, "#60A5FA");
-    grad1.addColorStop(1, "#2563EB");
-
-    grafico1 = new Chart(ctx1,{
-      type:"bar",
-      data:{
-        labels:tecnicos,
-        datasets:[{
-          label:"Gastos",
-          data:valores,
-          backgroundColor:grad1,
-          borderRadius:10,
-          borderSkipped:false
-        }]
-      },
-      plugins:[ChartDataLabels],
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{ labels:{ color:"#fff" } },
-          title:{
-            display:true,
-            text: "💰 CONSUMO GERAL",
-            color:"#fff",
-            font:{ size:20, weight:"bold" }
-          },
-          datalabels:{
-            color:"#fff",
-            anchor:"end",
-            align:"top",
-            formatter:(value)=>{ return "R$ " + value.toFixed(0); }
-          }
-        },
-        scales:{
-          x:{ ticks:{ color:"#fff" }, grid:{ display:false } },
-          y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } }
-        }
-      }
-    });
-
-    const ctx2 = document.getElementById("g2").getContext("2d");
-    const grad2 = ctx2.createLinearGradient(0,0,0,400);
-    grad2.addColorStop(0, "#34D399");
-    grad2.addColorStop(1, "#059669");
-
-    grafico2 = new Chart(ctx2,{
-      type:"bar",
-      data:{
-        labels:tecnicos,
-        datasets:[{
-          label:"KM",
-          data:kms,
-          backgroundColor:grad2,
-          borderRadius:10,
-          borderSkipped:false
-        }]
-      },
-      plugins:[ChartDataLabels],
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{ labels:{ color:"#fff" } },
-          title:{
-            display:true,
-            text: "🛣 KM GERAL",
-            color:"#fff",
-            font:{ size:20, weight:"bold" }
-          },
-          datalabels:{
-            color:"#fff",
-            anchor:"end",
-            align:"top",
-            formatter:(value)=>{ return value + " KM"; }
-          }
-        },
-        scales:{
-          x:{ ticks:{ color:"#fff" }, grid:{ display:false } },
-          y:{ ticks:{ color:"#CBD5E1" }, grid:{ color: "rgba(255,255,255,0.08)" } }
-        }
-      }
-    });
-  }
-
-  // CONVERSOR DE PDF
-  function gerarPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const logo = document.getElementById("logoNERI");
-    let y = 40;
-    const mes = document.getElementById("mesFiltro").value;
-    const filtrado = dadosPorMes(mes);
-
-    function desenharCabecalho() {
-      doc.setFillColor(10, 61, 196);
-      doc.rect(0, 0, 210, 30, "F");
-      if (logo && logo.complete) {
-        doc.addImage(logo, "PNG", 8, 4, 20, 20);
-      }
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont(undefined, "bold");
-      doc.text("Relatório Mensal", 35, 13);
-      doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
-      doc.text("Relatório de Consumo e Quilometragem", 35, 21);
-      doc.text(`Mês: ${mes}`, 145, 13);
-      doc.text(new Date().toLocaleString("pt-BR"), 120, 21);
-      doc.setTextColor(0, 0, 0);
-      y = 40;
-    }
-
-    function desenharTabela() {
-      doc.setFillColor(10, 61, 196);
-      doc.rect(10, y, 190, 8, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(9);
-      doc.text("DATA", 15, y + 5);
-      doc.text("KM", 55, y + 5);
-      doc.text("LITROS", 85, y + 5);
-      doc.text("VALOR", 120, y + 5);
-      doc.text("KM/L", 165, y + 5);
-      doc.setTextColor(0, 0, 0);
-      y += 12;
-    }
-
-    function verificarPagina() {
-      if (y > 270) {
-        doc.addPage();
-        desenharCabecalho();
-        desenharTabela();
-      }
-    }
-
-    desenharCabecalho();
-
-    if (tecnicoAtual === "TODOS") {
-      tecnicos.forEach(nome => {
-        const dadosTecnico = filtrado.filter(d => d.tecnico === nome);
-        if (!dadosTecnico.length) return;
-        verificarPagina();
-        doc.setFontSize(13);
-        doc.setFont(undefined, "bold");
-        doc.text(nome, 10, y);
-        y += 8;
-        desenharTabela();
-
-        let totalKm = 0;
-        let totalLitros = 0;
-        let totalValor = 0;
-
-        dadosTecnico.forEach((d, indice) => {
-          const km = Number(d.km) || 0;
-          const litros = Number(d.litros) || 0;
-          const valor = Number(d.valor) || 0;
-          const media = litros > 0 ? km / litros : 0;
-
-          totalKm += km;
-          totalLitros += litros;
-          totalValor += valor;
-
-          const cor = indice % 2 === 0 ? 255 : 245;
-          doc.setFillColor(cor, cor, cor);
-          doc.rect(10, y - 5, 190, 8, "F");
-          doc.rect(10, y - 5, 190, 8);
-
-          doc.text(String(d.data), 15, y);
-          doc.text(km.toFixed(0), 55, y);
-          doc.text(litros.toFixed(2), 85, y);
-          doc.text(valor.toFixed(2), 120, y);
-          doc.text(media.toFixed(2), 165, y);
-          y += 8;
-          verificarPagina();
-        });
-
-        const mediaKmL = totalLitros > 0 ? totalKm / totalLitros : 0;
-        const valorLitro = totalValor > 0 ? totalValor / totalLitros : 0;
-
-        doc.setFillColor(230, 236, 245);
-        doc.roundedRect(10, y, 190, 40, 3, 3, "FD");
-        doc.setFontSize(10);
-        doc.setFont(undefined, "bold");
-        doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10);
-        doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20);
-        doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-        doc.text(`MÉDIA KM/L: ${mediaKmL.toFixed(2)}`, 110, y + 10);
-        doc.text(`VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`, 110, y + 20);
-        y += 50;
-      });
-    } else {
-      const dadosTecnico = filtrado.filter(d => d.tecnico === tecnicoAtual);
-      doc.setFontSize(13);
-      doc.setFont(undefined, "bold");
-      doc.text(tecnicoAtual, 10, y);
-      y += 8;
-      desenharTabela();
-
-      let totalKm = 0;
-      let totalLitros = 0;
-      let totalValor = 0;
-
-      dadosTecnico.forEach((d, indice) => {
-        const km = Number(d.km) || 0;
-        const litros = Number(d.litros) || 0;
-        const valor = Number(d.valor) || 0;
-        const media = litros > 0 ? km / litros : 0;
-
-        totalKm += km;
-        totalLitros += litros;
-        totalValor += valor;
-
-        const cor = indice % 2 === 0 ? 255 : 245;
-        doc.setFillColor(cor, cor, cor);
-        doc.rect(10, y - 5, 190, 8, "F");
-        doc.rect(10, y - 5, 190, 8);
-
-        doc.text(String(d.data), 15, y);
-        doc.text(km.toFixed(0), 55, y);
-        doc.text(litros.toFixed(2), 85, y);
-        doc.text(valor.toFixed(2), 120, y);
-        doc.text(media.toFixed(2), 165, y);
-        y += 8;
-        verificarPagina();
-      });
-
-      const mediaKmL = totalLitros > 0 ? totalKm / totalLitros : 0;
-      const valorLitro = totalLitros > 0 ? totalValor / totalLitros : 0;
-
-      doc.setFillColor(230, 236, 245);
-      doc.roundedRect(10, y, 190, 40, 3, 3, "FD");
-      doc.setFontSize(10);
-      doc.text(`TOTAL KM: ${totalKm.toFixed(0)} KM`, 15, y + 10);
-      doc.text(`TOTAL LITROS: ${totalLitros.toFixed(2)} L`, 15, y + 20);
-      doc.text(`TOTAL GASTO: R$ ${totalValor.toFixed(2)}`, 15, y + 30);
-      doc.text(`MÉDIA KM/L: ${mediaKmL.toFixed(2)}`, 110, y + 10);
-      doc.text(`VALOR/LITRO: R$ ${valorLitro.toFixed(2)}`, 110, y + 20);
-    }
-
-    const paginas = doc.getNumberOfPages();
-    for (let i = 1; i <= paginas; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(120, 120, 120);
-      doc.text("Sistema NERI © 2026", 10, 290);
-      doc.text(`Página ${i} de ${paginas}`, 170, 290);
-    }
-    doc.save("relatorio.pdf");
-  }
-
-  carregarDados();
-</script>
-
+<img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
 
 <div id="modalCadastro" class="modal">
-  <div class="modal-box" style="width: 450px; max-height: 85vh; overflow-y: auto;">
+  <div class="modal-box">
     <h2>👤 Gerenciar Usuários</h2>
     <p>Cadastre, altere permissões ou mude senhas.</p>
     
     <div id="secaoListaUsuarios">
-      <div id="listaUsuariosContainer" style="text-align: left; margin-bottom: 20px; background: #1E293B; padding: 10px; border-radius: 10px; max-height: 200px; overflow-y: auto;">
-        </div>
-      <button onclick="mostrarFormularioCadastro()" style="background: #10b981; color: white; padding: 10px; width: 100%; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 15px;">+ Criar Novo Usuário</button>
+      <div id="listaUsuariosContainer"></div>
+      <button onclick="mostrarFormularioCadastro()" class="btn-novo-usuario">+ Criar Novo Usuário</button>
     </div>
 
     <div id="formUsuario" style="display: none; text-align: left;">
-      <h3 id="formTitulo" style="color: #60A5FA; margin-bottom: 10px;">Novo Usuário</h3>
+      <h3 id="formTitulo">Novo Usuário</h3>
       <input type="hidden" id="editId">
       
-      <label style="font-size: 12px; color: #94A3B8;">Nome Completo:</label>
+      <label>Nome Completo:</label>
       <input type="text" id="cadNome" placeholder="Nome Completo">
       
-      <label style="font-size: 12px; color: #94A3B8;">Nome de Usuário (Login):</label>
+      <label>Nome de Usuário (Login):</label>
       <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
       
-      <label id="lblSenha" style="font-size: 12px; color: #94A3B8;">Senha:</label>
+      <label id="lblSenha">Senha:</label>
       <input type="password" id="cadSenha" placeholder="Digite a senha">
       
-      <label style="font-size: 12px; color: #94A3B8;">Nível de Acesso:</label>
-      <select id="cadTipo" style="width:100%; padding:12px; border-radius:10px; background:#1E293B; color:white; border:none; margin-bottom:20px;">
+      <label>Nível de Acesso:</label>
+      <select id="cadTipo">
         <option value="usuario">Acesso Comum (Bloqueia Dados)</option>
         <option value="admin">Administrador (Acesso Total)</option>
       </select>
@@ -995,8 +140,7 @@ async function salvarUsuario() {
     </div>
   </div>
 </div>
-  </div>
-</div>
 
+  <script src="app.js"></script>
 </body>
 </html>
