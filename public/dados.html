@@ -5,64 +5,147 @@
 <title>Dados</title>
 
 <style>
-body{
-  background:#0F172A;
-  color:white;
-  font-family:Arial;
-  margin:0;
+body {
+  background: #0F172A;
+  color: white;
+  font-family: Arial, sans-serif;
+  margin: 0;
 }
 
-.container{
-  padding:20px;
+.container {
+  padding: 25px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-.topo{
-  display:flex;
-  gap:10px;
-  margin-bottom:20px;
-  flex-wrap:wrap;
+.topo {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:10px;
+/* Estilização da Tabela */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px; /* Cria um espaçamento elegante entre as linhas */
+  margin-top: 15px;
 }
 
-th,td{
-  border:1px solid #333;
-  padding:5px;
-  text-align:center;
+th {
+  color: #94A3B8;
+  font-size: 13px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px;
+  text-align: center;
 }
 
-input{
-  width:100%;
-  background:#1F2937;
-  border:none;
-  color:white;
-  padding:5px;
-  box-sizing:border-box;
+td {
+  padding: 0 4px;
 }
 
-button{
-  margin-top:5px;
-  padding:8px 12px;
-  background:#3A8DFF;
-  border:none;
-  color:white;
-  cursor:pointer;
-  border-radius:5px;
+/* Inputs Modernizados */
+input {
+  width: 100%;
+  background: #1E293B;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: white;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
 }
 
-button:hover{
-  opacity:0.9;
+/* Efeito de foco ao digitar */
+input:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  background: #1E293B;
 }
 
-h2{
-  margin-top:40px;
-  background:#111827;
-  padding:10px;
-  border-radius:5px;
+/* Estilo para campos automáticos (Bloqueados) */
+input[readonly] {
+  background: rgba(15, 23, 42, 0.6);
+  color: #64748B;
+  border-color: transparent;
+  cursor: not-allowed;
+  font-weight: bold;
+}
+
+/* Inputs de data customizados */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1); /* Deixa o ícone do calendário branco */
+  cursor: pointer;
+}
+
+/* Botões do Topo e Gerais */
+button {
+  padding: 10px 16px;
+  background: #2563EB;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button:hover {
+  background: #3B82F6;
+  transform: translateY(-1px);
+}
+
+/* Botão + Linha específico */
+button[onclick^="addLinha"] {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px dashed #3B82F6;
+  color: #60A5FA;
+  margin-top: 12px;
+  padding: 8px 20px;
+}
+
+button[onclick^="addLinha"]:hover {
+  background: #3B82F6;
+  color: white;
+  border-style: solid;
+}
+
+/* Botão de Lixeira */
+td button {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+  color: #EF4444;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  margin: 0 auto;
+}
+
+td button:hover {
+  background: #EF4444 !important;
+  color: white !important;
+  transform: scale(1.05);
+}
+
+/* Títulos dos Técnicos */
+h2 {
+  margin-top: 45px;
+  margin-bottom: 5px;
+  color: #F8FAFC;
+  font-size: 22px;
+  border-left: 4px solid #3B82F6;
+  padding-left: 12px;
 }
 </style>
 </head>
@@ -73,7 +156,7 @@ h2{
   <div class="topo">
     <button onclick="voltarAoDashboard()">⬅ Voltar</button>
     <button onclick="salvar()">💾 Salvar</button>
-    <input type="month" id="mesFiltro">
+    <input type="month" id="mesFiltro" style="width: auto; display: inline-block;">
     <button onclick="filtrarMes()">🔍 Buscar</button>
     <button onclick="mostrarTudo()">♻ Mostrar Mês Atual</button>
   </div>
@@ -161,7 +244,7 @@ function criar(){
   });
 }
 
-// 🔥 LINHA (Atualizada com oninput no Abast Atual)
+// 🔥 LINHA
 function linha(d = {}){
   return `
   <tr>
@@ -207,7 +290,7 @@ function addLinha(nome){
   tbody.appendChild(tr);
 }
 
-// 🔥 CALCULAR (Atualizada com a inteligência para buscar o Abast Ant automaticamente)
+// 🔥 CALCULAR (Com a nova regra de Abastecimento Anterior)
 function calc(el){
   const tr = el.closest("tr");
   const i = tr.querySelectorAll("input");
@@ -221,15 +304,13 @@ function calc(el){
   const km = kmFim - kmIni;
   i[3].value = km > 0 ? km : "";
 
-  // 2. Lógica Inteligente do Abastecimento Anterior (Pedido pelo Diego)
+  // 2. Lógica Inteligente do Abastecimento Anterior
   if (abastAtualInput.value.trim() !== "") {
-    // Se digitou no Abast Atual, varre as linhas acima para achar o último preenchido
     const tbody = tr.closest("tbody");
     const todasAsLinhas = Array.from(tbody.querySelectorAll("tr"));
     const indexAtual = todasAsLinhas.indexOf(tr);
     
     let encontrouAnterior = false;
-    // Percorre de baixo para cima a partir da linha anterior à atual
     for (let j = indexAtual - 1; j >= 0; j--) {
       const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
       const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
@@ -240,12 +321,10 @@ function calc(el){
         break;
       }
     }
-    // Se for o primeiro abastecimento do histórico e não tiver nada atrás, deixa limpo para digitação manual
     if (!encontrouAnterior && abastAntInput.value === "") {
       abastAntInput.value = "";
     }
   } else {
-    // Se o técnico apagar ou deixar o Abast Atual em branco, limpa obrigatoriamente o Abast Anterior
     abastAntInput.value = "";
   }
 
@@ -275,7 +354,6 @@ async function salvar(){
       const i = l.querySelectorAll("input");
       const data = i[0].value;
 
-      // 🔥 IGNORA OUTROS MESES
       if(!data.startsWith(mesAtual)){
         return;
       }
@@ -306,7 +384,6 @@ async function salvar(){
     });
   });
 
-  // 🔥 REMOVE DUPLICADOS
   const mapa = new Set();
   dados = dados.filter(item=>{
     const chave = JSON.stringify(item);
@@ -335,13 +412,11 @@ async function carregar(mes = ""){
   const res = await fetch("/registros");
   let lista = await res.json();
 
-  // 🔥 ORDENA POR DATA
   lista.sort((a,b)=>{
     if(!a.data || !b.data) return 0;
     return new Date(a.data) - new Date(b.data);
   });
 
-  // 🔥 FILTRA POR MÊS
   if(mes){
     lista = lista.filter(item=>{
       if(!item.data) return false;
@@ -349,7 +424,6 @@ async function carregar(mes = ""){
     });
   }
 
-  // 🔥 LIMPA TABELAS
   tecnicos.forEach(nome=>{
     const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
     if(tbody){
@@ -357,7 +431,6 @@ async function carregar(mes = ""){
     }
   });
 
-  // 🔥 CARREGA DADOS
   lista.forEach(item=>{
     const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
     if(tbody){
