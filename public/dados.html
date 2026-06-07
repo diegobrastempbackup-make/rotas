@@ -167,28 +167,7 @@ h2 {
 <script src="/app.js"></script>
 
 <script>
-// ⏱️ SISTEMA DE CONTROLE DE INATIVIDADE (5 MINUTOS)
-let temporizadorInatividade;
-
-function resetarTemporizador() {
-  clearTimeout(temporizadorInatividade);
-  temporizadorInatividade = setTimeout(efetuarAutoLogout, 5 * 60 * 1000);
-}
-
-function efetuarAutoLogout() {
-  alert("Sessão expirada por inatividade. Por favor, faça login novamente.");
-  localStorage.removeItem("token");
-  localStorage.removeItem("usuarioLogado");
-  localStorage.removeItem("usuarioTipo");
-  window.location.replace("/login.html");
-}
-
-window.onload = resetarTemporizador;
-window.onmousemove = resetarTemporizador;
-window.onmousedown = resetarTemporizador;
-window.ontouchstart = resetarTemporizador;
-window.onclick = resetarTemporizador;     
-window.onkeydown = resetarTemporizador;   
+// O Bloco repetido do controle de inatividade foi removido daqui para não chocar com o app.js
  
 const tecnicos = [
   "Sibele",
@@ -418,7 +397,7 @@ async function salvar(){
         registro.abastAtual !== "";
 
       if(temDado){
-        const tokenLinha = obterChaveRegistro(registro);
+        const tokenLinha = obtenerChaveRegistro(registro);
         if(!mapaLimpeza.has(tokenLinha)){
           dados.push(registro);
           mapaLimpeza.add(tokenLinha);
@@ -487,14 +466,14 @@ function filtrarMes(){
 }
 
 function mostrarTudo(){
-  const mesAtual = obterMesAtual();
+  const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   carregar(mesAtual);
 }
 
 async function iniciar(){
   criar();
-  const mesAtual = obterMesAtual();
+  const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   await carregar(mesAtual);
 }
