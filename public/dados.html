@@ -241,7 +241,6 @@ function criar(){
 }
 
 function linha(d = {}){
-  // Extrai estritamente apenas a parte YYYY-MM-DD da data para sumir com horários embutidos
   const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
 
   return `
@@ -330,7 +329,6 @@ function remover(btn){
   btn.closest("tr").remove();
 }
 
-// 🛡️ TRAVA DE NORMALIZAÇÃO ABSOLUTA contra dízimas e formatos de data
 function obterChaveRegistro(r) {
   const dataLimpa = String(r.data || '').split('T')[0];
   const kmIni = Number(r.kmIni) || 0;
@@ -341,7 +339,7 @@ function obterChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// 🔥 SALVAR com Deduplicação Forçada
+// 🔥 NOVO SALVAR: PUXA O HISTÓRICO COMPLETO DO BANCO, CORESSE EXCLUSIVAMENTE O MÊS FILTRADO E AJUSTA O ENVIO TOTAL
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -349,7 +347,15 @@ async function salvar(){
     return;
   }
 
-  let dados = [];
+  // 1. Busca TUDO o que existe hoje no servidor primeiro
+  const resBanco = await fetch("/registros");
+  const bancoCompleto = await resBanco.json();
+
+  // 2. Mantém intactos os registros que NÃO pertencem ao mês atual filtrado
+  let dadosPreservados = bancoCompleto.filter(item => !item.data || !item.data.startsWith(mesAtual));
+
+  // 3. Captura o que está na tela AGORA (onde você já apagou as lixeiras do dia 5 e 7)
+  let dadosDaTela = [];
   const mapaLimpeza = new Set();
 
   tecnicos.forEach(nome=>{
@@ -384,28 +390,33 @@ async function salvar(){
 
       if(temDado){
         const tokenLinha = obterChaveRegistro(registro);
-        
         if(!mapaLimpeza.has(tokenLinha)){
-          dados.push(registro);
+          dadosDaTela.push(registro);
           mapaLimpeza.add(tokenLinha);
         }
       }
     });
   });
 
+  // 4. Une o passado intocado com a tela limpa atualizada
+  const dadosFinaisSuperLimpos = [...dadosPreservados, ...dadosDaTela];
+
+  console.log("GRAVANDO PACOTE TOTAL RECONSTRUÍDO:", dadosFinaisSuperLimpos);
+
+  // 5. Envia o pacote completo consolidado para substituir o array empilhado do backend
   await fetch("/registro", {
     method:"POST",
     headers:{
       "Content-Type":"application/json"
     },
-    body: JSON.stringify({ dados })
+    body: JSON.stringify({ dados: dadosFinaisSuperLimpos })
   });
 
-  alert("Dados salvos e tabela limpa com sucesso!");
+  alert("Tabela limpa e sincronizada no servidor!");
   await carregar(mesAtual);
 }
 
-// 🔥 CARREGAR com Filtro Anti-Fantasma
+// 🔥 CARREGAR
 async function carregar(mes = ""){
   const res = await fetch("/registros");
   let lista = await res.json();
