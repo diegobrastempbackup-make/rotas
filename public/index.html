@@ -41,8 +41,6 @@
       else if (usuarioTipo === "admin") {
         if (btnDados) btnDados.style.setProperty("display", "block", "important");
       }
-      
-      // Se for SIMPLES: O código não faz nada, ou seja, continuam invisíveis pelo CSS acima!
     });
   </script>
 </head>
@@ -90,6 +88,7 @@
   </div>
 
   <div class="main">
+    
     <div class="cards">
       <div class="card">
         <h3>💰 Gasto Total</h3>
@@ -102,27 +101,25 @@
       </div>
 
       <div class="card card-individual-unico">
-  <h3>👤 Detalhes Individuais do Técnico (<span id="nomeTecnicoSelecionado">TODOS</span>)</h3>
-  
-  <div class="container-dados-individuais">
-    <div class="dado-ind">
-      <span class="label-ind">💰 Gasto Individual:</span>
-      <span id="gastoIndividual" class="valor-ind">R$ 0,00</span>
-    </div>
-    
-    <div class="dado-ind">
-      <span class="label-ind">🛣️ KM Individual:</span>
-      <span id="kmIndividual" class="valor-ind">0 KM</span>
-    </div>
-    
-    <div class="dado-ind">
-      <span class="label-ind">⛽ Média de Consumo:</span>
-      <span id="mediaIndividual" class="valor-ind">0.0 KM/L</span>
-    </div>
-  </div>
-</div>
-
-    <div class="graficos">
+        <h3>👤 Detalhes Individuais do Técnico (<span id="nomeTecnicoSelecionado">TODOS</span>)</h3>
+        <div class="container-dados-individuais">
+          <div class="dado-ind">
+            <span class="label-ind">💰 Gasto Individual:</span>
+            <span id="gastoIndividual" class="valor-ind">R$ 0,00</span>
+          </div>
+          
+          <div class="dado-ind">
+            <span class="label-ind">🛣️ KM Individual:</span>
+            <span id="kmIndividual" class="valor-ind">0 KM</span>
+          </div>
+          
+          <div class="dado-ind">
+            <span class="label-ind">⛽ Média de Consumo:</span>
+            <span id="mediaIndividual" class="valor-ind">0.0 KM/L</span>
+          </div>
+        </div>
+      </div>
+    </div> <div class="graficos">
       <div class="grafico">
         <canvas id="g1"></canvas>
       </div>
@@ -130,10 +127,8 @@
         <canvas id="g2"></canvas>
       </div>
     </div>
-  </div>
-</div>
 
-<img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
+  </div> </div> <img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
 
 <div id="modalCadastro" class="modal">
   <div class="modal-box">
