@@ -115,7 +115,7 @@ async function entrar() {
     localStorage.setItem("token", dados.token);
     localStorage.setItem("usuarioNome", dados.nome);
 
-    // 🔒 BLINDAGEM CONTRA MAIÚSCULAS/MINÚSCULAS OU ESPAÇOS DO BANCO:
+    // BLINDAGEM CONTRA MAIÚSCULAS/MINÚSCULAS OU ESPAÇOS DO BANCO:
     localStorage.setItem("usuarioTipo", String(dados.tipo).toLowerCase().trim());
 
     window.location.href = "/index.html";

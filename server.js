@@ -9,23 +9,23 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
-// 🌍 MONGO
+//  MONGO
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
 
-// ⚡ MIDDLEWARES
+// MIDDLEWARES
 app.use(cors());
 app.use(express.json({
   limit: "10mb"
 }));
 
-// 🏠 HOME (Entrega a tela de login)
+//  HOME (Entrega a tela de login)
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
 });
 
-// 🔒 BLINDAGEM NO SERVIDOR: Protege o arquivo dados.html de acessos diretos pela URL
+// BLINDAGEM NO SERVIDOR: Protege o arquivo dados.html de acessos diretos pela URL
 app.get("/dados.html", (req, res) => {
   const token = req.query.token;
 
@@ -41,7 +41,7 @@ app.get("/dados.html", (req, res) => {
   }
 });
 
-// 🔌 CONECTAR MONGO
+// CONECTAR COM O MONGO
 async function conectarMongo() {
   try {
     await client.connect();
@@ -53,11 +53,9 @@ async function conectarMongo() {
 }
 conectarMongo();
 
-// ========================================================
-// 🛠️ ROTAS DO SISTEMA
-// ========================================================
+//  ROTAS DO SISTEMA
 
-// 🔍 LISTAR REGISTROS
+//  LISTAR REGISTROS
 app.get("/registros", async (req, res) => {
   try {
     if (!db) {
@@ -77,7 +75,7 @@ app.get("/registros", async (req, res) => {
   }
 });
 
-// 💾 SALVAR REGISTROS (COM UPSERT INTELIGENTE - TRAVA ANTI-DUPLICADAS)
+// SALVAR REGISTROS (COM UPSERT INTELIGENTE - TRAVA ANTI-DUPLICADAS)
 app.post("/registro", async (req, res) => {
   try {
     if (!db) {
@@ -125,7 +123,7 @@ app.post("/registro", async (req, res) => {
   }
 });
 
-// 🗑️ ROTA DA LIXEIRA: DELETAR REGISTRO DEFINITIVAMENTE DO BANCO DO ATLAS
+// ROTA DA LIXEIRA: DELETAR REGISTRO DEFINITIVAMENTE DO BANCO DO ATLAS (FUNÇÃO DA LIXEIRA NO DADOS.HTML)
 app.delete("/registro/:id", async (req, res) => {
   try {
     if (!db) return res.status(500).json({ erro: "Banco não conectado" });
@@ -145,7 +143,7 @@ app.delete("/registro/:id", async (req, res) => {
   }
 });
 
-// 🔑 CRIAR ADMIN INICIAL (Usa "diego")
+// CRIAR ADMIN INICIAL (Usa "diego" SENHA MASTER)
 app.get("/criar-admin", async (req, res) => {
   try {
     const usuarios = db.collection("usuarios");
@@ -173,7 +171,7 @@ app.get("/criar-admin", async (req, res) => {
   }
 });
 
-// 👤 CADASTRO DE NOVOS USUÁRIOS (GERENCIADO PELO ADMIN)
+// CADASTRO DE NOVOS USUÁRIOS (GERENCIADO PELO ADMIN)
 app.post("/cadastro", async (req, res) => {
   try {
     if (!db) {
@@ -211,7 +209,7 @@ app.post("/cadastro", async (req, res) => {
   }
 });
 
-// 📋 LISTAR TODOS OS USUÁRIOS
+// LISTAR TODOS OS USUÁRIOS
 app.get("/usuarios", async (req, res) => {
   try {
     if (!db) return res.status(500).json({ erro: "Banco não conectado" });
@@ -228,7 +226,7 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
-// 🔄 ATUALIZAR USUÁRIO
+// ATUALIZAR USUÁRIO
 app.put("/usuario/:id", async (req, res) => {
   try {
     if (!db) return res.status(500).json({ erro: "Banco não conectado" });
@@ -255,7 +253,7 @@ app.put("/usuario/:id", async (req, res) => {
   }
 });
 
-// 🔓 LOGIN
+//  LOGIN
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;

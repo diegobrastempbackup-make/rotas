@@ -26,7 +26,7 @@ body {
   align-items: center;
 }
 
-/* Estilização da Tabela */
+/* Estilo da Tabela */
 table {
   width: 100%;
   border-collapse: separate;
@@ -343,7 +343,7 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// 💾 FUNÇÃO SALVAR ATUALIZADA (COM FEEDBACK DO QUE FOI ENVIADO)
+// FUNÇÃO SALVAR ATUALIZADA (COM FEEDBACK DO QUE FOI ENVIADO)
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){

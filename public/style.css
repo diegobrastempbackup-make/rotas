@@ -16,9 +16,9 @@ body {
   overflow: hidden;
 }
 
-/* ========================================================
-   🚀 SIDEBAR (Mantida)
-   ======================================================== */
+ 
+   /* SIDELBAR */
+   
 .sidebar {
   width: 250px;
   background: rgba(15, 23, 42, 0.95);
@@ -91,9 +91,9 @@ body {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
-/* ========================================================
-   🖥️ CONTEÚDO PRINCIPAL (Mantido)
-   ======================================================== */
+ 
+   /* CONTEÚDO PRINCIPAL */
+    
 .conteudo {
   flex-grow: 1;
   padding: 30px;
@@ -103,9 +103,9 @@ body {
   gap: 25px;
 }
 
-/* ========================================================
-   🎛️ FILTROS SUPERIORES (Mantidos)
-   ======================================================== */
+ 
+   /* FILTROS SUPERIORES */
+    
 .filtros {
   display: flex;
   gap: 15px;
@@ -141,9 +141,9 @@ body {
   border-color: #2563EB;
 }
 
-/* ========================================================
-   📊 CARDS INDICADORES EM GRADE (Mantidos)
-   ======================================================== */
+
+   /* CARDS INDICADORES EM GRADE */
+    
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -190,9 +190,9 @@ body {
   color: #F8FAFC;
 }
 
-/* ========================================================
-   📉 INFERIOR: GRÁFICOS CENTRALIZADOS LADO A LADO
-   ======================================================== */
+ 
+   /* INFERIOR: GRÁFICOS CENTRALIZADOS LADO A LADO */
+    
 .graficos {
   display: flex;
   gap: 25px;
@@ -217,9 +217,9 @@ canvas {
   height: 100% !important;
 }
 
-/* ========================================================
-   🪟 MODAL (Mantido)
-   ======================================================== */
+ 
+   /* MODAL */
+   
 .modal {
   position: fixed;
   inset: 0;
@@ -317,11 +317,11 @@ canvas {
   background: #3B82F6;
 }
 
-/* ========================================================
-   🎨 BOTÕES DE DESTAQUE CUSTOMIZADOS (SIDEBAR)
-   ======================================================== */
+  
+   /* BOTÕES DE DESTAQUE CUSTOMIZADOS */
+  
 
-/* 👤 Botão Gerenciar Usuários (Verde Esmeralda) */
+/* Botão Gerenciar Usuários (Verde Esmeralda) */
 .sidebar button.btn-gerenciar {
   background: rgba(16, 185, 129, 0.1) !important;
   border: 1px solid rgba(16, 185, 129, 0.3) !important;
@@ -334,7 +334,7 @@ canvas {
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
 }
 
-/* 🚪 Botão Sair (Vermelho Vibrante) */
+/* Botão Sair (Vermelho Vibrante) */
 .sidebar button.btn-sair {
   background: rgba(239, 68, 68, 0.1) !important;
   border: 1px solid rgba(239, 68, 68, 0.3) !important;

@@ -1,4 +1,4 @@
-// ⏱️ CONTROLE DE INATIVIDADE (5 MINUTOS)
+// CONTROLE DE INATIVIDADE (5 MINUTOS)
 let temporizadorInatividade;
 
 function resetarTemporizador() {
@@ -21,7 +21,7 @@ window.ontouchstart = resetarTemporizador;
 window.onclick = resetarTemporizador;     
 window.onkeydown = resetarTemporizador;
 
-// Definições Globais do Sistema
+// Definições Globais do Sistema (Poto a mudar com adção ou subtração de técnicos)
 const tecnicos = [
   "Sibele",
   "Empresa",
@@ -51,9 +51,9 @@ function acessar() {
   }
 }
 
-// ========================================================
-// 👤 SEÇÃO: GERENCIAMENTO DE USUÁRIOS (LOGICA DE 3 NÍVEIS)
-// ========================================================
+
+//GERENCIAMENTO DE USUÁRIOS (LOGICA DE 3 NÍVEIS)
+
 
 async function abrirModalGerenciamento() {
   document.getElementById("modalCadastro").classList.add("show");
@@ -183,9 +183,9 @@ async function salvarUsuario() {
   }
 }
 
-// ========================================================
-// REQUISITIONS E FILTROS DO DASHBOARD
-// ========================================================
+
+// REQUISIÇÃO E FILTROS DO DASHBOARD
+
 
 function obtenerMesAtual(){
   const hoje = new Date();
@@ -201,7 +201,7 @@ async function carregarDados(){
   dadosGlobal = await res.json();
   dadosGlobal.sort((a,b) => new Date(a.data) - new Date(b.data));
 
-  // 🔥 PROTEÇÃO INTELIGENTE: Só tenta manipular os elementos visuais se estiver de fato no Dashboard (index.html)
+  //PROTEÇÃO INTELIGENTE: Só tenta manipular os elementos visuais se estiver de fato no Dashboard (index.html)
   if (document.getElementById("mesFiltro") && document.getElementById("g1")) {
     const mesAtual = obtenerMesAtual();
     document.getElementById("mesFiltro").value = mesAtual;
@@ -251,7 +251,7 @@ function processar(dados, tecnico){
 }
 
 function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
-  // 🔥 SEGURANÇA MÁXIMA: Se o gráfico g1 não estiver no HTML, sai da função na hora para evitar travamentos
+  //SEGURANÇA MÁXIMA: Se o gráfico g1 não estiver no HTML, sai da função na hora para evitar travamentos
   if (!document.getElementById("g1")) return;
 
   const totalValor = valores.reduce((a,b)=>a+b,0);
@@ -292,7 +292,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        title: { display: true, text: "💰 GASTO POR VEÍCULO", color: "#fff", font: { size: 16, weight: "bold" } },
+        title: { display: true, text: "GASTO MENSAL POR VEÍCULO", color: "#fff", font: { size: 16, weight: "bold" } },
         datalabels: { 
           color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
           formatter: (val) => val > 0 ? val.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : ""
@@ -317,7 +317,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        title: { display: true, text: "🛣️ QUILOMETRAGEM POR VEÍCULO", color: "#fff", font: { size: 16, weight: "bold" } },
+        title: { display: true, text: "KM MENSAL POR VEÍCULO", color: "#fff", font: { size: 16, weight: "bold" } },
         datalabels: { 
           color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
           formatter: (val) => val > 0 ? val.toLocaleString("pt-BR") + " KM" : ""
@@ -328,7 +328,7 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
   });
 }
 
-// 🗑️ FUNÇÃO DA LIXEIRA INTEGRADA COM O SERVIDOR (CORRIGIDA)
+//FUNÇÃO DA LIXEIRA INTEGRADA COM O SERVIDOR (LIMPA APENAS O BLOCO NO ATLAS POI ID)
 async function deletarRegistro(id) {
   if (!id || id === "undefined" || id === "") {
     alert("Este registro é novo e ainda não está salvo no banco. Basta limpar os campos dele e clicar em Salvar.");
@@ -360,7 +360,7 @@ async function deletarRegistro(id) {
       // Se a função carregar nativa do dados.html existir, invoca ela com segurança
       if (typeof carregar === "function") {
         const mesFiltroTela = document.getElementById("mesFiltro") ? document.getElementById("mesFiltro").value : "";
-        // Chamada direta sem travar o escopo do try/catch principal
+        // Chamada direta sem travar o escopo do try/catch principal(tratamento de erro)
         carregar(mesFiltroTela);
       }
     } else {
