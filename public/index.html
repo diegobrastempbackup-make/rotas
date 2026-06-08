@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
-    /* Faz os botões nascerem invisíveis para segurança. O Script abaixo os exibe se o usuário for Master/Admin. */
+    /* Faz os botões nascerem invisíveis por segurança. O Script abaixo os exibe se o usuário for Master/Admin. */
     #btnIrParaDados, #btnMenuCadastro {
       display: none !important;
     }
@@ -98,7 +98,6 @@
       const btnDados = document.getElementById("btnIrParaDados");
       const btnCadastrar = document.getElementById("btnMenuCadastro");
 
-      // Correção na atribuição do display para evitar conflitos com estilos injetados
       if (usuarioTipo === "master") {
         if (btnDados) btnDados.style.setProperty("display", "flex", "important");
         if (btnCadastrar) btnCadastrar.style.setProperty("display", "flex", "important");
@@ -141,7 +140,7 @@
 
     <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
     
-    <button id="btnMenuCadastro" onclick="abrirModalCadastro()" class="btn-gerenciar">
+    <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">
       👤 Gerenciar Usuários
     </button>
 
