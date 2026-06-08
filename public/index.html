@@ -52,74 +52,70 @@
       <img src="logo.png" class="logo" alt="Logo NERI" style="max-width: 100%; height: auto; margin-bottom: 10px;" />
       <div class="user-badge" id="perfilTipo" style="margin-top: 5px;">Dashboard</div>
     </div>
-      <img src="logo.png" class="logo" alt="Logo NERI" />
-      <h1>NERI</h1>
-      <div class="user-badge" id="perfilTipo">Dashboard</div>
-    </div>
 
-    <div class="menu">
-      <p onclick="filtrar('TODOS')">📊 Geral</p>
-      <p onclick="filtrar('Sibele')">Sibele</p>
-      <p onclick="filtrar('Empresa')">Empresa</p>
-      <p onclick="filtrar('Danilo')">Danilo</p>
-      <p onclick="filtrar('José Cicero')">José Cicero</p>
-      <p onclick="filtrar('Alex')">Alex</p>
-      <p onclick="filtrar('Danilo BH')">Danilo BH</p>
-      <p onclick="filtrar('Thiago BH')">Thiago BH</p>
+    <p onclick="filtrar('TODOS')">📊 Geral</p>
+    <p onclick="filtrar('Sibele')">Sibele</p>
+    <p onclick="filtrar('Empresa')">Empresa</p>
+    <p onclick="filtrar('Danilo')">Danilo</p>
+    <p onclick="filtrar('José Cicero')">José Cicero</p>
+    <p onclick="filtrar('Alex')">Alex</p>
+    <p onclick="filtrar('Danilo BH')">Danilo BH</p>
+    <p onclick="filtrar('Thiago BH')">Thiago BH</p>
 
-      <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
+    <hr>
 
-      <h3>Filtrar por mês</h3>
-      <input type="month" id="mesFiltro">
-      <button onclick="filtrarMes()">🔍 Buscar</button>
-      <button onclick="limparFiltro()">♻ Limpar Filtro</button>
+    <h3>Filtrar por mês</h3>
+    <input type="month" id="mesFiltro">
+    <button onclick="filtrarMes()">🔍 Buscar</button>
+    <button onclick="limparFiltro()">♻ Limpar Filtro</button>
 
-      <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
+    <hr>
 
-      <button onclick="gerarPDF()">📄 Extrair Relatório</button>
+    <button onclick="gerarPDF()">📄 Extrair Relatório</button>
 
-      <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
+    <hr>
 
-      <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
-      <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">👤 Gerenciar Usuários</button>
+    <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
+    <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">👤 Gerenciar Usuários</button>
 
-      <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
-      
-      <button onclick="sair()" class="btn-sair">🚪 Sair</button>
-    </div>
+    <hr>
+    
+    <button onclick="sair()" class="btn-sair">🚪 Sair</button>
 
-    <div class="footer" style="font-size: 11px; color: #475569; text-align: center; margin-top: 20px;">
+    <div class="footer">
       © Diego Neri
     </div>
   </div>
 
-  <div class="conteudo">
+  <div class="main">
     
-    <div class="cards-grid">
-      <div class="card azul">
-        <p class="card-titulo">💰 Gasto Total</p>
-        <p id="gastoTotal" class="card-valor">R$ 0,00</p>
+    <div class="cards">
+      <div class="card">
+        <h3>💰 Gasto Total</h3>
+        <p id="gastoTotal">R$ 0,00</p>
       </div>
 
-      <div class="card verde">
-        <p class="card-titulo">🛣 KM Total</p>
-        <p id="kmTotal" class="card-valor">0 KM</p>
+      <div class="card">
+        <h3>🛣 KM Total</h3>
+        <p id="kmTotal">0 KM</p>
       </div>
 
-      <div class="card amarelo" style="grid-column: span 2;">
-        <p class="card-titulo">👤 Consumo de: (<span id="nomeTecnicoSelecionado">TODOS</span>)</p>
-        <div style="display: flex; justify-content: space-between; margin-top: 15px;">
-          <div>
-            <span style="font-size:12px; color:#94A3B8;">GASTO</span>
-            <p id="gastoIndividual" style="margin:5px 0 0 0; font-size:18px; font-weight:bold;">R$ 0,00</p>
+      <div class="card card-individual-unico">
+        <h3>👤 Detalhes de consumo de (<span id="nomeTecnicoSelecionado">TODOS</span>)</h3>
+        <div class="container-dados-individuais">
+          <div class="dado-ind">
+            <span class="label-ind">💰 Gasto: </span>
+            <span id="gastoIndividual" class="valor-ind">R$ 0,00</span>
           </div>
-          <div>
-            <span style="font-size:12px; color:#94A3B8;">KM RODADO</span>
-            <p id="kmIndividual" style="margin:5px 0 0 0; font-size:18px; font-weight:bold;">0 KM</p>
+          
+          <div class="dado-ind">
+            <span class="label-ind">🛣️ KM:</span>
+            <span id="kmIndividual" class="valor-ind">0 KM</span>
           </div>
-          <div>
-            <span style="font-size:12px; color:#94A3B8;">MÉDIA KH/L</span>
-            <p id="mediaIndividual" style="margin:5px 0 0 0; font-size:18px; font-weight:bold;">0.0 KM/L</p>
+          
+          <div class="dado-ind">
+            <span class="label-ind">⛽ Média de Consumo:</span>
+            <span id="mediaIndividual" class="valor-ind">0.0 KM/L</span>
           </div>
         </div>
       </div>
@@ -140,45 +136,39 @@
 <img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
 
 <div id="modalCadastro" class="modal">
-  <div class="modal-conteudo">
-    <div class="modal-header">
-      <h3 id="formTitulo">👤 Gerenciar Usuários</h3>
-      <button class="fechar-modal" onclick="fecharModalCadastro()">×</button>
-    </div>
-    <p style="color: #94A3B8; font-size: 14px; margin-top: -10px; margin-bottom: 20px;">Cadastre, altere permissões ou mude senhas.</p>
+  <div class="modal-box">
+    <h2>👤 Gerenciar Usuários</h2>
+    <p>Cadastre, altere permissões ou mude senhas.</p>
     
     <div id="secaoListaUsuarios">
       <div id="listaUsuariosContainer"></div>
-      <button onclick="mostrarFormularioCadastro()" class="btn-bloco" style="background: #10B981;">+ Criar Novo Usuário</button>
+      <button onclick="mostrarFormularioCadastro()" class="btn-novo-usuario">+ Criar Novo Usuário</button>
     </div>
 
-    <div id="formUsuario" style="display: none; text-align: left; margin-top: 15px;">
+    <div id="formUsuario" style="display: none; text-align: left;">
+      <h3 id="formTitulo">Novo Usuário</h3>
       <input type="hidden" id="editId">
       
-      <div class="form-group">
-        <label>Nome Completo:</label>
-        <input type="text" id="cadNome" placeholder="Nome Completo">
-      </div>
+      <label>Nome Completo:</label>
+      <input type="text" id="cadNome" placeholder="Nome Completo">
       
-      <div class="form-group">
-        <label>Nome de Usuário (Login):</label>
-        <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
-      </div>
+      <label>Nome de Usuário (Login):</label>
+      <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
       
-      <div class="form-group">
-        <label id="lblSenha">Senha:</label>
-        <input type="password" id="cadSenha" placeholder="Digite a senha">
-      </div>
+      <label id="lblSenha">Senha:</label>
+      <input type="password" id="cadSenha" placeholder="Digite a senha">
       
-      <div class="form-group">
-        <label>Nível de Acesso:</label>
-        <select id="cadTipo">
-          <option value="simples">Acesso Simples (Apenas Gráficos e Relatórios)</option>
-          <option value="admin">Administrador (Ver Gráficos + Inserir Dados)</option>
-          <option value="master">Master (Acesso Total + Gerenciar Usuários)</option>
-        </select>
-      </div>
-      <button id="btnSalvarUsuario" class="btn-bloco" onclick="salvarUsuario()">Salvar Usuário</button>
+      <label>Nível de Acesso:</label>
+      <select id="cadTipo">
+        <option value="simples">Acesso Simples (Apenas Gráficos e Relatórios)</option>
+        <option value="admin">Administrador (Ver Gráficos + Inserir Dados)</option>
+        <option value="master">Master (Acesso Total + Gerenciar Usuários)</option>
+      </select>
+    </div>
+
+    <div class="modal-botoes">
+      <button class="btn-cancelar" onclick="fecharModalCadastro()">Fechar</button>
+      <button id="btnSalvarUsuario" class="btn-entrar" onclick="salvarUsuario()" style="display: none;">Salvar</button>
     </div>
   </div>
 </div>
