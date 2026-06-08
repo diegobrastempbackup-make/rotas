@@ -11,28 +11,28 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
-    /* Faz os botões nascerem invisíveis. Usuário simples nunca verá. */
+    /* Faz os botões nascerem invisíveis para segurança. O Script abaixo os exibe se o usuário for Master/Admin. */
     #btnIrParaDados, #btnMenuCadastro {
       display: none !important;
     }
 
-    /* 🛠️ AJUSTE PARA OS CARDS SUBIREM PARA O TOPO */
+    /* 🛠️ AJUSTE PERFEITO PARA OS CARDS COLADOS NO TOPO */
     .main {
       flex-grow: 1;
-      padding: 20px 30px; /* Reduzido o espaçamento do topo */
+      padding: 20px 30px; 
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 25px;
-      justify-content: flex-start !important; /* Força tudo a colar no topo da tela */
+      justify-content: flex-start !important; 
     }
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsivo para computador e celular */
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
       gap: 20px;
       width: 100%;
-      margin-top: 0 !important; /* Remove qualquer margem superior residual */
+      margin-top: 0 !important; 
     }
 
     .card {
@@ -48,7 +48,6 @@
       overflow: hidden;
     }
 
-    /* Linhas coloridas decorativas no topo dos cards */
     .card:nth-child(1)::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #3B82F6; }
     .card:nth-child(2)::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #10B981; }
     .card:nth-child(3)::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #F59E0B; }
@@ -70,14 +69,14 @@
 
     .graficos {
       display: flex;
-      flex-wrap: wrap; /* Permite quebrar linha se for no celular */
+      flex-wrap: wrap; 
       gap: 25px;
       width: 100%;
     }
 
     .grafico {
       flex: 1;
-      min-width: 300px; /* Garante que fique bom no celular também */
+      min-width: 300px; 
       background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
       border-radius: 20px;
       padding: 25px;
@@ -99,6 +98,7 @@
       const btnDados = document.getElementById("btnIrParaDados");
       const btnCadastrar = document.getElementById("btnMenuCadastro");
 
+      // Correção na atribuição do display para evitar conflitos com estilos injetados
       if (usuarioTipo === "master") {
         if (btnDados) btnDados.style.setProperty("display", "flex", "important");
         if (btnCadastrar) btnCadastrar.style.setProperty("display", "flex", "important");
@@ -140,16 +140,13 @@
     <hr>
 
     <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
-      
-      <button id="btnMenuCadastro" onclick="abrirModalCadastro()" class="btn-gerenciar" style="display: flex !important;">
-        👤 Gerenciar Usuários
-      </button>
-
-      <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
-      
-      <button onclick="sair()" class="btn-sair">🚪 Sair</button>
-    <hr>
     
+    <button id="btnMenuCadastro" onclick="abrirModalCadastro()" class="btn-gerenciar">
+      👤 Gerenciar Usuários
+    </button>
+
+    <hr>
+      
     <button onclick="sair()" class="btn-sair">🚪 Sair</button>
 
     <div class="footer">
