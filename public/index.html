@@ -16,22 +16,23 @@
       display: none !important;
     }
 
-    /* 🛠️ AJUSTE DE CORREÇÃO PARA OS CARDS E GRÁFICOS VOLTAREM AO LUGAR */
+    /* 🛠️ AJUSTE PARA OS CARDS SUBIREM PARA O TOPO */
     .main {
       flex-grow: 1;
-      padding: 30px;
+      padding: 20px 30px; /* Reduzido o espaçamento do topo */
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 25px;
-      justify-content: center; /* Centraliza verticalmente o conteúdo interno se sobrar espaço */
+      justify-content: flex-start !important; /* Força tudo a colar no topo da tela */
     }
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(3, 1fr); /* Deixa os 3 cards perfeitamente lado a lado */
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsivo para computador e celular */
       gap: 20px;
       width: 100%;
+      margin-top: 0 !important; /* Remove qualquer margem superior residual */
     }
 
     .card {
@@ -69,18 +70,18 @@
 
     .graficos {
       display: flex;
+      flex-wrap: wrap; /* Permite quebrar linha se for no celular */
       gap: 25px;
       width: 100%;
-      justify-content: center; /* Centraliza os gráficos horizontalmente */
     }
 
     .grafico {
       flex: 1;
-      min-width: calc(50% - 13px);
+      min-width: 300px; /* Garante que fique bom no celular também */
       background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
       border-radius: 20px;
       padding: 25px;
-      height: 440px;
+      height: 400px;
       border: 1px solid rgba(255, 255, 255, 0.05);
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     }
@@ -139,7 +140,7 @@
     <hr>
 
     <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
-    <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">👤 Gerenciar Usuários</button>
+    <button id="btnMenuCadastro" onclick="abrirModalCadastro()" class="btn-gerenciar">👤 Gerenciar Usuários</button>
 
     <hr>
     
