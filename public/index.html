@@ -15,30 +15,93 @@
     #btnIrParaDados, #btnMenuCadastro {
       display: none !important;
     }
+
+    /* 🛠️ AJUSTE DE CORREÇÃO PARA OS CARDS E GRÁFICOS VOLTAREM AO LUGAR */
+    .main {
+      flex-grow: 1;
+      padding: 30px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 25px;
+      justify-content: center; /* Centraliza verticalmente o conteúdo interno se sobrar espaço */
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr); /* Deixa os 3 cards perfeitamente lado a lado */
+      gap: 20px;
+      width: 100%;
+    }
+
+    .card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.7));
+      border-radius: 16px;
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Linhas coloridas decorativas no topo dos cards */
+    .card:nth-child(1)::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #3B82F6; }
+    .card:nth-child(2)::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #10B981; }
+    .card:nth-child(3)::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #F59E0B; }
+
+    .card h3 {
+      font-size: 13px;
+      font-weight: bold;
+      color: #94A3B8;
+      text-transform: uppercase;
+      margin: 0;
+    }
+
+    .card p {
+      font-size: 26px;
+      font-weight: 800;
+      margin: 10px 0 0 0;
+      color: #F8FAFC;
+    }
+
+    .graficos {
+      display: flex;
+      gap: 25px;
+      width: 100%;
+      justify-content: center; /* Centraliza os gráficos horizontalmente */
+    }
+
+    .grafico {
+      flex: 1;
+      min-width: calc(50% - 13px);
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
+      border-radius: 20px;
+      padding: 25px;
+      height: 440px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
   </style>
 
   <script>
     const token = localStorage.getItem("token");
-    const usuarioTipo = localStorage.getItem("usuarioTipo"); // 'master', 'admin' ou 'simples'
+    const usuarioTipo = localStorage.getItem("usuarioTipo");
 
-    // Se não tiver token, barra na hora
     if (!token) {
       window.location.replace("/login.html");
     }
 
-    // Só exibe os botões se o nível de acesso for o correto
     window.addEventListener("DOMContentLoaded", () => {
       const btnDados = document.getElementById("btnIrParaDados");
       const btnCadastrar = document.getElementById("btnMenuCadastro");
 
-      // Se for MASTER: Tem poder total, mostra os dois botões
       if (usuarioTipo === "master") {
         if (btnDados) btnDados.style.setProperty("display", "flex", "important");
         if (btnCadastrar) btnCadastrar.style.setProperty("display", "flex", "important");
-      }
-      
-      // Se for ADMIN: Mostra apenas o botão de dados/inserção
-      else if (usuarioTipo === "admin") {
+      } else if (usuarioTipo === "admin") {
         if (btnDados) btnDados.style.setProperty("display", "flex", "important");
       }
     });
@@ -114,7 +177,7 @@
           </div>
           
           <div class="dado-ind">
-            <span class="label-ind">⛽ Média de Consumo:</span>
+            <span class="label-ind">⛽ Média:</span>
             <span id="mediaIndividual" class="valor-ind">0.0 KM/L</span>
           </div>
         </div>
@@ -160,9 +223,9 @@
       
       <label>Nível de Acesso:</label>
       <select id="cadTipo">
-        <option value="simples">Acesso Simples (Apenas Gráficos e Relatórios)</option>
-        <option value="admin">Administrador (Ver Gráficos + Inserir Dados)</option>
-        <option value="master">Master (Acesso Total + Gerenciar Usuários)</option>
+        <option value="simples">Acesso Simples</option>
+        <option value="admin">Administrador</option>
+        <option value="master">Master</option>
       </select>
     </div>
 
