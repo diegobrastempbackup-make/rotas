@@ -190,27 +190,17 @@ const estoqueHandler = async (req, res) => {
 };
 app.get("/api/estoque", autenticarToken, estoqueHandler);
 app.get("/estoque", autenticarToken, estoqueHandler);
-
-// SALVAR ITEM NO ESTOQUE
+// CADASTRAR ITEM
 app.post("/api/estoque", autenticarToken, async (req, res) => {
   try {
 
-    const {
-      codigo,
-      descricao,
-      categoria,
-      localizacao,
-      precoUnitario,
-      quantidade
-    } = req.body;
-
     const novoItem = {
-      codigo,
-      descricao,
-      categoria,
-      localizacao,
-      precoUnitario: Number(precoUnitario) || 0,
-      quantidade: Number(quantidade) || 0,
+      codigo: req.body.codigo || "",
+      nome: req.body.nome || "",
+      categoria: req.body.categoria || "",
+      localizacao: req.body.localizacao || "",
+      preco: Number(req.body.preco) || 0,
+      qtd: Number(req.body.qtd) || 0,
       criadoEm: new Date()
     };
 
@@ -223,14 +213,63 @@ app.post("/api/estoque", autenticarToken, async (req, res) => {
       id: resultado.insertedId
     });
 
-  } catch (err) {
-    console.error(err);
+  } catch (erro) {
+    console.error(erro);
     res.status(500).json({
       erro: "Erro ao salvar item"
     });
   }
 });
 
+// EDITAR ITEM
+app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
+  try {
+
+    const { id } = req.params;
+
+    await db.collection("estoque").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          codigo: req.body.codigo,
+          nome: req.body.nome,
+          categoria: req.body.categoria,
+          localizacao: req.body.localizacao,
+          preco: Number(req.body.preco) || 0,
+          qtd: Number(req.body.qtd) || 0
+        }
+      }
+    );
+
+    res.json({ ok: true });
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao editar item"
+    });
+  }
+});
+
+// EXCLUIR ITEM
+app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
+  try {
+
+    const { id } = req.params;
+
+    await db.collection("estoque").deleteOne({
+      _id: new ObjectId(id)
+    });
+
+    res.json({ ok: true });
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao excluir item"
+    });
+  }
+});
 // HISTÓRICO DE ESTOQUE
 const historicoEstoqueHandler = async (req, res) => {
   try {
@@ -242,6 +281,48 @@ const historicoEstoqueHandler = async (req, res) => {
 };
 app.get("/api/estoque/historico", autenticarToken, historicoEstoqueHandler);
 app.get("/estoque/historico", autenticarToken, historicoEstoqueHandler);
+
+// HISTÓRICO POR TÉCNICO
+app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
+  try {
+
+    const logs = await db
+      .collection("historico_estoque")
+      .find({
+        tecnico: req.params.nome
+      })
+      .sort({ data: -1 })
+      .toArray();
+
+    res.json(logs);
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao buscar histórico"
+    });
+  }
+});
+
+// SALVAR MOVIMENTAÇÃO
+app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
+  try {
+
+    await db
+      .collection("historico_estoque")
+      .insertOne(req.body);
+
+    res.json({
+      ok: true
+    });
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao gravar histórico"
+    });
+  }
+});
 
 // REGISTROS
 const registrosHandler = async (req, res) => {
