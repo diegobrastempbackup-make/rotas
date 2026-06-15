@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
-//  MONGO (Utilizando a sua variável original do Render)
+// MONGO
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
@@ -20,7 +20,7 @@ app.use(express.json({
   limit: "10mb"
 }));
 
-// MIDDLEWARE DE AUTENTICAÇÃO (Única declaração limpa e corrigida)
+// MIDDLEWARE DE AUTENTICAÇÃO (Corrigido e unificado)
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -38,19 +38,19 @@ const autenticarToken = (req, res, next) => {
   }
 };
 
-//  HOME (Entrega a tela de login)
+// ==========================================
+// --- ROTAS DE PÁGINAS (FRONT-END) ---
+// ==========================================
+
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
 });
 
-// BLINDAGEM NO SERVIDOR: Protege o arquivo dados.html de acessos diretos pela URL
 app.get("/dados.html", (req, res) => {
   const token = req.query.token;
-
   if (!token) {
     return res.redirect("/login.html");
   }
-
   try {
     jwt.verify(token, JWT_SECRET);
     res.sendFile(__dirname + "/public/dados.html");
@@ -59,14 +59,11 @@ app.get("/dados.html", (req, res) => {
   }
 });
 
-// BLINDAGEM NO SERVIDOR: Protege o arquivo estoque.html de acessos diretos pela URL
 app.get("/estoque.html", (req, res) => {
   const token = req.query.token;
-
   if (!token) {
     return res.redirect("/login.html");
   }
-
   try {
     jwt.verify(token, JWT_SECRET);
     res.sendFile(__dirname + "/public/estoque.html");
@@ -75,16 +72,13 @@ app.get("/estoque.html", (req, res) => {
   }
 });
 
-// Rotas normais de arquivos estáticos
 app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
-
 
 // ==========================================
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
 // ==========================================
 
-//  LOGIN
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
@@ -95,7 +89,6 @@ app.post("/login", async (req, res) => {
     }
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
-
     if (!senhaValida) {
       return res.status(401).json({ erro: "Senha incorreta" });
     }
@@ -118,7 +111,6 @@ app.post("/login", async (req, res) => {
   }
 });
 
-//  CADASTRO DE USUÁRIOS
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "admin") {
@@ -126,7 +118,6 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
     }
 
     const { nome, usuario, senha, tipo } = req.body;
-
     if (!nome || !usuario || !senha || !tipo) {
       return res.status(400).json({ erro: "Preencha todos os campos obrigatórios" });
     }
@@ -139,7 +130,6 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
     }
 
     const senhaHash = await bcrypt.hash(senha, 10);
-
     await usuariosColl.insertOne({
       nome,
       usuario: usuario.toLowerCase().trim(),
@@ -156,7 +146,6 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   }
 });
 
-// LISTAR USUÁRIOS
 const listarUsuariosHandler = async (req, res) => {
   try {
     const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
@@ -168,7 +157,6 @@ const listarUsuariosHandler = async (req, res) => {
 app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
 app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
-// ATUALIZAR USUÁRIO
 app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -193,7 +181,6 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
   }
 });
 
-//  ROTAS DE ESTOQUE
 app.get("/api/estoque", autenticarToken, async (req, res) => {
   try {
     const estoque = await db.collection("estoque").find().toArray();
@@ -212,7 +199,6 @@ app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
   }
 });
 
-//  LISTAR REGISTROS DE ROTAS/KM
 app.get("/registros", autenticarToken, async (req, res) => {
   try {
     const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
@@ -222,7 +208,6 @@ app.get("/registros", autenticarToken, async (req, res) => {
   }
 });
 
-//  SALVAR OU ATUALIZAR REGISTROS (Filtro Anti-Duplicidade)
 app.post("/registro", autenticarToken, async (req, res) => {
   try {
     let dados = req.body.dados || [];
@@ -256,7 +241,6 @@ app.post("/registro", autenticarToken, async (req, res) => {
   }
 });
 
-//  DELETAR REGISTRO
 app.delete("/registro/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -271,24 +255,24 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// Arquivos estáticos gerais (CSS, imagens, etc)
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// SUBIDA GARANTIDA: Conecta primeiro ao Banco e depois abre a porta do Servidor
-async function iniciarServidor() {
+// INICIALIZAÇÃO SEGURA: Só inicia o app.listen depois que o banco conectar com sucesso
+async function conectarEMonitorar() {
   try {
     console.log("🔄 Conectando ao MongoDB Atlas...");
     await client.connect();
     db = client.db("rotas");
     console.log("✅ Mongo conectado com sucesso!");
 
+    // O servidor só abre a porta quando o objeto 'db' não for mais nulo
     app.listen(PORT, () => {
       console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
     });
   } catch (err) {
-    console.error("❌ Erro fatal ao iniciar o sistema:", err);
+    console.error("❌ Erro grave na conexão do banco:", err);
     process.exit(1);
   }
 }
 
-iniciarServidor();
+conectarEMonitorar();
