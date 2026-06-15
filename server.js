@@ -90,7 +90,7 @@ function verificarTokenAPI(req, res, next) {
 // ENDPOINTS — AUTENTICAÇÃO E USUÁRIOS
 // =================================================================
 
-app.post("/login", async (req, res) => {
+app.post("/api/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
