@@ -191,6 +191,46 @@ const estoqueHandler = async (req, res) => {
 app.get("/api/estoque", autenticarToken, estoqueHandler);
 app.get("/estoque", autenticarToken, estoqueHandler);
 
+// SALVAR ITEM NO ESTOQUE
+app.post("/api/estoque", autenticarToken, async (req, res) => {
+  try {
+
+    const {
+      codigo,
+      descricao,
+      categoria,
+      localizacao,
+      precoUnitario,
+      quantidade
+    } = req.body;
+
+    const novoItem = {
+      codigo,
+      descricao,
+      categoria,
+      localizacao,
+      precoUnitario: Number(precoUnitario) || 0,
+      quantidade: Number(quantidade) || 0,
+      criadoEm: new Date()
+    };
+
+    const resultado = await db
+      .collection("estoque")
+      .insertOne(novoItem);
+
+    res.json({
+      ok: true,
+      id: resultado.insertedId
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      erro: "Erro ao salvar item"
+    });
+  }
+});
+
 // HISTÓRICO DE ESTOQUE
 const historicoEstoqueHandler = async (req, res) => {
   try {
