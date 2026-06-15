@@ -12,18 +12,18 @@ const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // VALIDAÇÃO DA STRING DE CONEXÃO DO MONGO
 if (!process.env.MONGO_URI) {
-  console.error("❌ ERRO CRÍTICO: A variável ambiente MONGO_URI não foi configurada no Render!");
+  console.error("❌ ERRO CRÍTICO: A variável ambiente MONGO_URI não foi configurada!");
   process.exit(1);
 }
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
 
-// MIDDLEWARES
+// MIDDLEWARES DE CONFIGURAÇÃO
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// MIDDLEWARE DE AUTENTICAÇÃO E VALIDAÇÃO DE JWT
+// 1. APENAS UMA DECLARAÇÃO DO MIDDLEWARE DE AUTENTICAÇÃO (Resolve o SyntaxError)
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Pega o token após "Bearer "
@@ -41,7 +41,15 @@ const autenticarToken = (req, res, next) => {
   }
 };
 
-// CONECTAR COM O MONGO (Com tratamento para não derrubar o server se falhar)
+// Middleware para impedir requisições à API caso o banco de dados ainda não tenha conectado
+const verificarConexaoBanco = (req, res, next) => {
+  if (!db) {
+    return res.status(503).json({ erro: "O servidor está a iniciar a ligação ao banco de dados. Tente novamente em instantes." });
+  }
+  next();
+};
+
+// CONECTAR COM O MONGO (Assegura a ligação correta)
 async function conectarMongo() {
   try {
     await client.connect();
@@ -97,8 +105,8 @@ app.get("/index.html", (req, res) => res.sendFile(path.join(publicPath, "index.h
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
 // ==========================================
 
-// LOGIN (Payload do JWT consistente e completo)
-app.post("/login", async (req, res) => {
+// LOGIN (Protegido por verificação de banco de dados para evitar o TypeError)
+app.post("/login", verificarConexaoBanco, async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
@@ -135,11 +143,9 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// CADASTRO DE USUÁRIOS (Restrito a admin/master logados)
-app.post("/cadastro", autenticarToken, async (req, res) => {
+// CADASTRO DE USUÁRIOS
+app.post("/cadastro", verificarConexaoBanco, autenticarToken, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
-
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "admin") {
       return res.status(403).json({ erro: "Sem permissão para cadastrar usuários." });
     }
@@ -173,24 +179,21 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   }
 });
 
-// LISTAR USUÁRIOS (Suporta ambas as URLs chamadas pelo front)
+// LISTAR USUÁRIOS
 const listarUsuariosHandler = async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
     const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
     res.json(lista);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao listar usuários" });
   }
 };
-app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
-app.get("/usuarios", autenticarToken, listarUsuariosHandler);
+app.get("/api/usuarios", verificarConexaoBanco, autenticarToken, listarUsuariosHandler);
+app.get("/usuarios", verificarConexaoBanco, autenticarToken, listarUsuariosHandler);
 
 // ATUALIZAR USUÁRIO
-app.put("/usuario/:id", autenticarToken, async (req, res) => {
+app.put("/usuario/:id", verificarConexaoBanco, autenticarToken, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
-
     const { id } = req.params;
     const { nome, tipo, novaSenha } = req.body;
 
@@ -214,9 +217,8 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
 });
 
 // ROTAS DE ESTOQUE
-app.get("/api/estoque", autenticarToken, async (req, res) => {
+app.get("/api/estoque", verificarConexaoBanco, autenticarToken, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
     const estoque = await db.collection("estoque").find().toArray();
     res.json(estoque);
   } catch (err) {
@@ -224,9 +226,8 @@ app.get("/api/estoque", autenticarToken, async (req, res) => {
   }
 });
 
-app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
+app.get("/api/estoque/historico", verificarConexaoBanco, autenticarToken, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
     const historico = await db.collection("historico_estoque").find().toArray();
     res.json(historico);
   } catch (err) {
@@ -235,9 +236,8 @@ app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
 });
 
 // LISTAR REGISTROS DE ROTAS/KM
-app.get("/registros", autenticarToken, async (req, res) => {
+app.get("/registros", verificarConexaoBanco, autenticarToken, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
     const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
     res.json(dados);
   } catch (err) {
@@ -246,10 +246,8 @@ app.get("/registros", autenticarToken, async (req, res) => {
 });
 
 // SALVAR/ATUALIZAR REGISTROS
-app.post("/registro", autenticarToken, async (req, res) => {
+app.post("/registro", verificarConexaoBanco, autenticarToken, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
-
     let dados = req.body.dados || [];
     if (dados.length === 0) return res.status(400).json({ erro: "Nenhum dado informado" });
 
@@ -282,11 +280,9 @@ app.post("/registro", autenticarToken, async (req, res) => {
 });
 
 // DELETAR REGISTRO
-app.delete("/registro/:id", autenticarToken, async (req, res) => {
+app.delete("/registro/:id", verificarConexaoBanco, autenticarToken, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ erro: "Banco não conectado" });
     const { id } = req.params;
-
     const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(id) });
     if (resultado.deletedCount === 1) {
       res.json({ ok: true, message: "Registro apagado com sucesso!" });
@@ -298,11 +294,10 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// CONFIGURAÇÃO SEGURA DE STATIC FILES
-// Entrega CSS, Imagens e JS da pasta public de forma limpa
+// CONFIGURAÇÃO DE ARQUIVOS ESTÁTICOS
 app.use(express.static(publicPath, { index: false }));
 
-// INICIALIZAÇÃO DO SERVIDOR
+// INICIALIZAÇÃO
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
+  console.log(`🚀 Servidor NERI inicializado corretamente na porta ${PORT}`);
 });
