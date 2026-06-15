@@ -320,13 +320,13 @@ function remover(btn){
   }
 }
 
-async function executarRemocaoDireta(id, btn) {
+async function ejecutarRemocaoDireta(id, btn) {
   if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
     const token = localStorage.getItem("token");
     const res = await fetch(`/registro/${id}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: { "Authorization": "Bearer " + token }
     });
     if(res.ok) {
       btn.closest("tr").remove();
@@ -378,7 +378,7 @@ async function salvar(){
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+        "Authorization": "Bearer " + token
       },
       body: JSON.stringify({ dados })
     });
@@ -397,13 +397,20 @@ async function salvar(){
 async function carregar(mes = ""){
   try {
     const token = localStorage.getItem("token");
+    
+    // CORREÇÃO: Enviando o cabeçalho idêntico ao app.js ("Bearer " + token)
     const res = await fetch("/registros", {
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: { "Authorization": "Bearer " + token }
     });
     
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.log("Erro na resposta do servidor ao carregar registros: Status", res.status);
+      return;
+    }
 
     const listaCompleta = await res.json();
+    console.log("Registros recebidos do servidor:", listaCompleta);
+
     cacheHistoricoCompleto = [...listaCompleta];
     let listaFiltrada = [...listaCompleta];
 
@@ -428,7 +435,7 @@ async function carregar(mes = ""){
       }
     });
   } catch (erro) {
-    console.error(erro);
+    console.error("Erro na função carregar:", erro);
   }
 }
 
