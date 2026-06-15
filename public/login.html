@@ -104,7 +104,7 @@ async function entrar() {
 
   try {
     // Rota alterada para se comunicar com o endpoint correto do seu server.js (/api/login)
-    const resposta = await fetch("/api/login", {
+    const resposta = await fetch("/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
