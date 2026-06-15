@@ -167,6 +167,17 @@ h2 {
 <script src="/app.js"></script>
 
 <script>
+// Lista de técnicos declarada explicitamente para garantir o carregamento das tabelas
+const tecnicos = [
+  "Sibele",
+  "Empresa",
+  "Danilo",
+  "José Cicero",
+  "Alex",
+  "Danilo BH",
+  "Thiago BH"
+];
+
 let cacheHistoricoCompleto = [];
 
 function obtenerMesAtual(){
@@ -177,7 +188,6 @@ function obtenerMesAtual(){
 }
 
 function hoje(){
-  // Correção para evitar que fusos horários mudem o dia corrente no celular
   const agora = new Date();
   const ano = agora.getFullYear();
   const mes = String(agora.getMonth() + 1).padStart(2, '0');
@@ -343,7 +353,6 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// FUNÇÃO SALVAR ATUALIZADA (COM FEEDBACK DO QUE FOI ENVIADO)
 async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
@@ -362,7 +371,6 @@ async function salvar(){
       
       const data = i[0].value;
 
-      // Se a linha não começar com o mês do filtro lá de cima, ela é ignorada para segurança
       if(!data.startsWith(mesAtual)){
         return;
       }
@@ -380,7 +388,6 @@ async function salvar(){
         valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
       };
 
-      // Modificação: Considera válido se tiver pelo menos KM Inicial ou se preencheu algum valor
       const temDado =
         registro.kmIni > 0 ||
         registro.kmFim > 0 ||
@@ -399,7 +406,6 @@ async function salvar(){
     });
   });
 
-  // Alerta de feedback imediato se você tentar salvar sem digitar nada válido nas colunas
   if(dados.length === 0){
     alert("⚠️ Nenhuma alteração ou dado preenchido foi detectado para este mês.");
     return;
