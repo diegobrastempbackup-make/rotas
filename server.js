@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
-// MONGO
+// MONGO (Mantendo a sua variável de ambiente original do Render)
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
@@ -20,7 +20,7 @@ app.use(express.json({
   limit: "10mb"
 }));
 
-// MIDDLEWARE DE AUTENTICAÇÃO (Corrigido e unificado)
+// MIDDLEWARE DE AUTENTICAÇÃO (Organizado e sem duplicidade)
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -174,7 +174,7 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
       { $set: dadosAtualizados }
     );
 
-    res.json({ ok: true, message: "Usuário atualizado com sucesso!" });
+    res.json({ ok: true, message: "Usuário updated com sucesso!" });
   } catch (err) {
     console.log(err);
     res.status(500).json({ erro: "Erro ao atualizar usuário" });
@@ -257,22 +257,22 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
 
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO SEGURA: Só inicia o app.listen depois que o banco conectar com sucesso
-async function conectarEMonitorar() {
+// INICIALIZAÇÃO SINCRONIZADA E SEGURA
+async function iniciarSistema() {
   try {
     console.log("🔄 Conectando ao MongoDB Atlas...");
     await client.connect();
     db = client.db("rotas");
     console.log("✅ Mongo conectado com sucesso!");
 
-    // O servidor só abre a porta quando o objeto 'db' não for mais nulo
+    // O app só escuta requisições quando a variável 'db' estiver perfeitamente preenchida
     app.listen(PORT, () => {
       console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
     });
   } catch (err) {
-    console.error("❌ Erro grave na conexão do banco:", err);
+    console.error("❌ Erro crítico ao conectar ao MongoDB:", err);
     process.exit(1);
   }
 }
 
-conectarEMonitorar();
+iniciarSistema();
