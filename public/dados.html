@@ -164,10 +164,8 @@ h2 {
   <div id="tabelas"></div>
 </div>
 
-<script src="/app.js"></script>
-
 <script>
-// Lista de técnicos explícita
+// Lista de técnicos declarada localmente de forma segura
 const tecnicos = [
   "Sibele",
   "Empresa",
@@ -336,10 +334,29 @@ function remover(btn){
     if (typeof deletarRegistro === "function") {
       deletarRegistro(id);
     } else {
-      alert("Ação de exclusão do app.js não pôde ser invocada.");
+      // Caso app.js não esteja presente, realiza a exclusão diretamente por segurança
+      executarRemocaoDireta(id, btn);
     }
   } else {
     btn.closest("tr").remove();
+  }
+}
+
+async function executarRemocaoDireta(id, btn) {
+  if(!confirm("Tem a certeza que deseja eliminar este registo?")) return;
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/registro/${id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    if(res.ok) {
+      btn.closest("tr").remove();
+    } else {
+      alert("Erro ao remover o registo no servidor.");
+    }
+  } catch(err) {
+    console.error(err);
   }
 }
 
@@ -353,7 +370,6 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
-// SALVAR ATUALIZADO COM INPUT DE AUTENTICAÇÃO
 async function salvar(){
   const token = localStorage.getItem("token");
   const mesAtual = document.getElementById("mesFiltro").value;
@@ -435,7 +451,6 @@ async function salvar(){
   }
 }
 
-// CARREGAR ATUALIZADO COM AUTENTICAÇÃO E TRATAMENTO SEGURO DE FORMATO DE DATA
 async function carregar(mes = ""){
   try {
     const token = localStorage.getItem("token");
@@ -462,7 +477,6 @@ async function carregar(mes = ""){
     if(mes){
       listaFiltrada = listaFiltrada.filter(item=>{
         if(!item.data) return false;
-        // Converte para string limpa caso o formato de data varie no MongoDB
         const dataStr = String(item.data).split("T")[0];
         return dataStr.startsWith(mes);
       });
