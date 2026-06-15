@@ -106,7 +106,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   if (tipoDashboard === "master") {
     if (btnDados) btnDados.style.display = "block";
-    if (btnCadastrar) btnCadastrar.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
     if (btnCadastrar) btnCadastrar.style.display = "none";
   } else if (tipoDashboard === "admin") {
