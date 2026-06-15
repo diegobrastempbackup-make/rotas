@@ -167,7 +167,7 @@ h2 {
 <script src="/app.js"></script>
 
 <script>
-// Lista de técnicos declarada explicitamente para garantir o carregamento das tabelas
+// Lista de técnicos explícita
 const tecnicos = [
   "Sibele",
   "Empresa",
@@ -353,7 +353,9 @@ function obtenerChaveRegistro(r) {
   return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
 }
 
+// SALVAR ATUALIZADO COM INPUT DE AUTENTICAÇÃO
 async function salvar(){
+  const token = localStorage.getItem("token");
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
     alert("Selecione um mês antes de salvar.");
@@ -415,7 +417,8 @@ async function salvar(){
     const respuesta = await fetch("/registro", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
       },
       body: JSON.stringify({ dados })
     });
@@ -432,40 +435,57 @@ async function salvar(){
   }
 }
 
+// CARREGAR ATUALIZADO COM AUTENTICAÇÃO E TRATAMENTO SEGURO DE FORMATO DE DATA
 async function carregar(mes = ""){
-  const res = await fetch("/registros");
-  const listaCompleta = await res.json();
-  
-  cacheHistoricoCompleto = [...listaCompleta];
-  let listaFiltrada = [...listaCompleta];
-
-  listaFiltrada.sort((a,b)=>{
-    if(!a.data || !b.data) return 0;
-    return new Date(a.data) - new Date(b.data);
-  });
-
-  if(mes){
-    listaFiltrada = listaFiltrada.filter(item=>{
-      if(!item.data) return false;
-      return item.data.startsWith(mes);
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch("/registros", {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
     });
+    
+    if (!res.ok) {
+      console.error("Erro na resposta do servidor:", res.status);
+      return;
+    }
+
+    const listaCompleta = await res.json();
+    cacheHistoricoCompleto = [...listaCompleta];
+    let listaFiltrada = [...listaCompleta];
+
+    listaFiltrada.sort((a,b)=>{
+      if(!a.data || !b.data) return 0;
+      return new Date(a.data) - new Date(b.data);
+    });
+
+    if(mes){
+      listaFiltrada = listaFiltrada.filter(item=>{
+        if(!item.data) return false;
+        // Converte para string limpa caso o formato de data varie no MongoDB
+        const dataStr = String(item.data).split("T")[0];
+        return dataStr.startsWith(mes);
+      });
+    }
+
+    tecnicos.forEach(nome=>{
+      const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+      if(tbody){
+        tbody.innerHTML = "";
+      }
+    });
+
+    listaFiltrada.forEach(item=>{
+      const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
+      if(tbody){
+        const tr = document.createElement("tr");
+        tr.innerHTML = linha(item); 
+        tbody.appendChild(tr);
+      }
+    });
+  } catch (erro) {
+    console.error("Erro ao carregar dados do servidor:", erro);
   }
-
-  tecnicos.forEach(nome=>{
-    const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
-    if(tbody){
-      tbody.innerHTML = "";
-    }
-  });
-
-  listaFiltrada.forEach(item=>{
-    const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
-    if(tbody){
-      const tr = document.createElement("tr");
-      tr.innerHTML = linha(item); 
-      tbody.appendChild(tr);
-    }
-  });
 }
 
 function filtrarMes(){
