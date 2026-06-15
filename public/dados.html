@@ -30,7 +30,7 @@ body {
 table {
   width: 100%;
   border-collapse: separate;
-  border-spacing: 0 8px; /* Cria um espaçamento elegante entre as linhas */
+  border-spacing: 0 8px;
   margin-top: 15px;
 }
 
@@ -62,7 +62,6 @@ input {
   transition: all 0.2s ease;
 }
 
-/* Efeito de foco ao digitar */
 input:focus {
   outline: none;
   border-color: #3B82F6;
@@ -70,7 +69,6 @@ input:focus {
   background: #1E293B;
 }
 
-/* Estilo para campos automáticos (Bloqueados) */
 input[readonly] {
   background: rgba(15, 23, 42, 0.6);
   color: #64748B;
@@ -79,14 +77,12 @@ input[readonly] {
   font-weight: bold;
 }
 
-/* Inputs de data customizados */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="month"]::-webkit-calendar-picker-indicator {
-  filter: invert(1); /* Deixa o ícone do calendário branco */
+  filter: invert(1);
   cursor: pointer;
 }
 
-/* Botões do Topo e Gerais */
 button {
   padding: 10px 16px;
   background: #2563EB;
@@ -107,7 +103,6 @@ button:hover {
   transform: translateY(-1px);
 }
 
-/* Botão + Linha específico */
 button[onclick^="addLinha"] {
   background: rgba(59, 130, 246, 0.1);
   border: 1px dashed #3B82F6;
@@ -122,7 +117,6 @@ button[onclick^="addLinha"]:hover {
   border-style: solid;
 }
 
-/* Botão de Lixeira */
 td button {
   background: rgba(239, 68, 68, 0.1) !important;
   border: 1px solid rgba(239, 68, 68, 0.2) !important;
@@ -138,7 +132,6 @@ td button:hover {
   transform: scale(1.05);
 }
 
-/* Títulos dos Técnicos */
 h2 {
   margin-top: 45px;
   margin-bottom: 5px;
@@ -304,14 +297,12 @@ function calc(el) {
     
     if (!encontrouAnterior) {
       const dataAtualDaLinha = i[0].value;
-      
       const historicoFiltrado = cacheHistoricoCompleto
         .filter(item => item.tecnico === nomeTecnico && item.abastAtual && item.data && item.data < dataAtualDaLinha)
         .sort((a, b) => new Date(b.data) - new Date(a.data));
 
       if (historicoFiltrado.length > 0) {
         abastAntInput.value = historicoFiltrado[0].abastAtual;
-        encontrouAnterior = true;
       }
     }
   }
@@ -332,30 +323,23 @@ function remover(btn){
 async function executarRemocaoDireta(id, btn) {
   if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
-    const token = localStorage.getItem("token");
+    const tokenDashboard = localStorage.getItem("token");
     const res = await fetch(`/registro/${id}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: { "Authorization": `Bearer ${tokenDashboard}` }
     });
     if(res.ok) {
       btn.closest("tr").remove();
     } else {
-      alert("Erro ao remover o registro no servidor.");
+      alert("Erro ao remover o registro.");
     }
   } catch(err) {
     console.error(err);
   }
 }
 
-function obtenerChaveRegistro(r) {
-  const dataLimpa = String(r.data || '').split('T')[0];
-  const kmIni = Number(r.kmIni) || 0;
-  const kmFim = Number(r.kmFim) || 0;
-  return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}`;
-}
-
 async function salvar(){
-  const token = localStorage.getItem("token");
+  const tokenDashboard = localStorage.getItem("token");
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
     alert("Selecione um mês antes de salvar.");
@@ -363,8 +347,6 @@ async function salvar(){
   }
 
   let dados = [];
-  const mapaLimpeza = new Set();
-
   tecnicos.forEach(nome=>{
     const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
     linhas.forEach(l=>{
@@ -372,10 +354,7 @@ async function salvar(){
       if (i.length < 9) return; 
       
       const data = i[0].value;
-
-      if(!data.startsWith(mesAtual)){
-        return;
-      }
+      if(!data.startsWith(mesAtual)) return;
 
       const registro = {
         tecnico: nome,
@@ -390,11 +369,7 @@ async function salvar(){
         valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
       };
 
-      const tokenLinha = obtenerChaveRegistro(registro);
-      if(!mapaLimpeza.has(tokenLinha)){
-        dados.push(registro);
-        mapaLimpeza.add(tokenLinha);
-      }
+      dados.push(registro);
     });
   });
 
@@ -403,7 +378,7 @@ async function salvar(){
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+        "Authorization": `Bearer ${tokenDashboard}`
       },
       body: JSON.stringify({ dados })
     });
@@ -412,7 +387,7 @@ async function salvar(){
       alert("✅ Dados salvos com sucesso!");
       carregar(mesAtual); 
     } else {
-      alert("⚠️ Erro ao salvar dados no servidor.");
+      alert("⚠️ Erro ao salvar dados.");
     }
   } catch (err) {
     console.error(err);
@@ -421,11 +396,10 @@ async function salvar(){
 
 async function carregar(mes = ""){
   try {
-    const token = localStorage.getItem("token");
+    // Alinhado com a chave correta que o app.js utiliza
+    const tokenDashboard = localStorage.getItem("token");
     const res = await fetch("/registros", {
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
+      headers: { "Authorization": `Bearer ${tokenDashboard}` }
     });
     
     if (!res.ok) return;
@@ -434,16 +408,10 @@ async function carregar(mes = ""){
     cacheHistoricoCompleto = [...listaCompleta];
     let listaFiltrada = [...listaCompleta];
 
-    listaFiltrada.sort((a,b)=>{
-      if(!a.data || !b.data) return 0;
-      return new Date(a.data) - new Date(b.data);
-    });
-
     if(mes){
       listaFiltrada = listaFiltrada.filter(item=>{
         if(!item.data) return false;
-        const dataStr = String(item.data).split("T")[0]; // Asegura el formato "AAAA-MM-DD"
-        return dataStr.startsWith(mes);
+        return String(item.data).split("T")[0].startsWith(mes);
       });
     }
 
@@ -488,12 +456,7 @@ iniciar();
 
 <script>
   function voltarAoDashboard() {
-    const token = localStorage.getItem("token");
-    if (token) {
-      window.location.href = "/index.html";
-    } else {
-      window.location.replace("/login.html");
-    }
+    window.location.href = "/index.html";
   }
 </script>
 
