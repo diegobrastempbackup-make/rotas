@@ -8,9 +8,10 @@ window.fecharModal = (id) => { document.getElementById(id).style.display = 'none
 window.deslogar = () => { localStorage.clear(); window.location.href = "/login.html"; };
 window.voltarParaDashboard = () => { window.location.href = "/index.html"; };
 
-document.addEventListener("DOMContentLoaded", () => {
-    carregarEstoque();
+document.addEventListener("DOMContentLoaded", async () => {
+    await carregarEstoque();
     renderizarListaTecnicos();
+    selecionarGeral();
 });
 
 // =================================================================
@@ -389,4 +390,77 @@ window.emitirPDFIndividual = () => {
     doc.text("Almoxarifado / Responsável NERI", 110, y + 4);
     
     doc.save(`Relatorio_Cautela_${window.tecnicoSelecionado}.pdf`);
+};
+
+window.selecionarGeral = async () => {
+
+    window.tecnicoSelecionado = "";
+
+    document.getElementById(
+        "containerHistorico"
+    ).style.display = "block";
+
+    document.getElementById(
+        "tituloHistoricoTecnico"
+    ).innerText = "Histórico Geral";
+
+    try {
+
+        const res = await fetch(
+            "/api/estoque/historico",
+            {
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            }
+        );
+
+        const logs = await res.json();
+
+        const corpo =
+            document.getElementById("corpoTabelaLogs");
+
+        corpo.innerHTML = "";
+
+        logs.forEach(l => {
+
+            let corTipo = "#f59e0b";
+
+            if (l.tipoAcao === "Entrega")
+                corTipo = "#10b981";
+
+            if (l.tipoAcao === "Troca")
+                corTipo = "#ef4444";
+
+            if (
+                l.tipoAcao === "Devolução" ||
+                l.tipoAcao === "Devolucao"
+            )
+                corTipo = "#2563EB";
+
+            corpo.innerHTML += `
+            <tr>
+                <td>${new Date(l.data).toLocaleDateString('pt-BR')}</td>
+                <td>
+                    <strong>${l.tecnico}</strong>
+                </td>
+                <td>
+                    <span style="color:${corTipo};font-weight:bold;">
+                        ${l.tipoAcao}
+                    </span>
+                </td>
+                <td>${l.ferramentaNome || "-"}</td>
+                <td>${l.quantidade || 1}</td>
+                <td>${l.observacao || "-"}</td>
+            </tr>`;
+        });
+
+    } catch (erro) {
+
+        console.error(erro);
+
+        alert(
+            "Erro ao carregar histórico geral."
+        );
+    }
 };

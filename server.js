@@ -308,9 +308,68 @@ app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
 app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
   try {
 
+    const {
+      ferramentaId,
+      quantidade,
+      tipoAcao
+    } = req.body;
+
+    // Verifica estoque antes de entregar ou trocar
+    if (
+      ferramentaId &&
+      (tipoAcao === "Entrega" || tipoAcao === "Troca")
+    ) {
+
+      const item = await db.collection("estoque").findOne({
+        _id: new ObjectId(ferramentaId)
+      });
+
+      if (!item) {
+        return res.status(404).json({
+          erro: "Item não encontrado no estoque."
+        });
+      }
+
+      const saldoAtual = Number(item.qtd || 0);
+      const qtdSolicitada = Number(quantidade || 0);
+
+      if (qtdSolicitada > saldoAtual) {
+        return res.status(400).json({
+          erro: `Estoque insuficiente. Disponível: ${saldoAtual}`
+        });
+      }
+    }
+
+    // Grava histórico
     await db
       .collection("historico_estoque")
       .insertOne(req.body);
+
+    // Atualiza saldo do estoque
+    if (ferramentaId) {
+
+      let ajuste = 0;
+
+      if (tipoAcao === "Entrega") {
+        ajuste = -Number(quantidade);
+      }
+
+      if (
+        tipoAcao === "Devolução" ||
+        tipoAcao === "Devolucao"
+      ) {
+        ajuste = Number(quantidade);
+      }
+
+      if (tipoAcao === "Troca") {
+        ajuste = -Number(quantidade);
+      }
+
+      await db.collection("estoque").updateOne(
+        { _id: new ObjectId(ferramentaId) },
+        { $inc: { qtd: ajuste } }
+      );
+    }
 
     res.json({
       ok: true
