@@ -112,46 +112,28 @@ function selecionarTecnico(nome) {
 }
 window.selecionarTecnico = selecionarTecnico;
 
-window.guardarTecnico = () => {
-    conwindow.guardarTecnico = async () => {
+window.guardarTecnico = async () => {
 
-    const input =
-        document.getElementById(
-            "inputNomeTecnico"
-        );
-
+    const input = document.getElementById("inputNomeTecnico");
     const nome = input.value.trim();
 
     if (!nome) return;
 
     try {
 
-        const res = await fetch(
-            "/api/tecnicos",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type":
-                        "application/json",
-                    "Authorization":
-                        `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    nome
-                })
-            }
-        );
+        const res = await fetch("/api/tecnicos", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ nome })
+        });
 
-        const resultado =
-            await res.json();
+        const resultado = await res.json();
 
         if (!res.ok) {
-
-            alert(
-                resultado.erro ||
-                "Erro ao cadastrar técnico"
-            );
-
+            alert(resultado.erro || "Erro ao cadastrar técnico");
             return;
         }
 
@@ -163,9 +145,7 @@ window.guardarTecnico = () => {
 
         console.error(erro);
 
-        alert(
-            "Erro ao cadastrar técnico."
-        );
+        alert("Erro ao cadastrar técnico.");
     }
 };
 
