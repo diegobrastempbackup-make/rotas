@@ -430,8 +430,8 @@ function processar(dados, tecnico){
 // ATUALIZAÇÃO DO DASHBOARD E RENDERIZAÇÃO DE GRÁFICOS (CHART.JS)
 // =================================================================
 function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
-  const ctx1 = document.getElementById("g1");
-  if (!ctx1) return;
+  //SEGURANÇA MÁXIMA: Se o gráfico g1 não estiver no HTML, sai da função na hora para evitar travamentos
+  if (!document.getElementById("g1")) return;
 
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
@@ -445,73 +445,64 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
     document.getElementById("nomeTecnicoSelecionado").innerText = tecnico;
     document.getElementById("gastoIndividual").innerText = gastoInd.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     document.getElementById("kmIndividual").innerText = kmInd.toLocaleString("pt-BR") + " KM";
-    
-    if (document.getElementById("mediaIndividual")) {
-      document.getElementById("mediaIndividual").innerText = mediaKM.toFixed(1) + " KM/L";
-    }
+    document.getElementById("mediaIndividual").innerText = mediaKM.toFixed(1) + " KM/L";
   } else {
     document.getElementById("nomeTecnicoSelecionado").innerText = "TODOS";
     document.getElementById("gastoIndividual").innerText = "R$ 0,00";
     document.getElementById("kmIndividual").innerText = "0 KM";
-    if (document.getElementById("mediaIndividual")) {
-      document.getElementById("mediaIndividual").innerText = "0.0 KM/L";
-    }
+    document.getElementById("mediaIndividual").innerText = "0.0 KM/L";
   }
 
-  // --- CONTROLE DE DESTRUIÇÃO E RECRIAÇÃO DOS GRÁFICOS ---
-  if (grafico1) grafico1.destroy();
-  if (grafico2) grafico2.destroy();
+  if (grafico1) { grafico1.destroy(); grafico1 = null; }
+  if (grafico2) { grafico2.destroy(); grafico2 = null; }
 
-  // Gráfico 1: Despesas por Técnico (Barra)
-  grafico1 = new Chart(ctx1.getContext("2d"), {
+  const ctx1 = document.getElementById("g1").getContext("2d");
+  const grad1 = ctx1.createLinearGradient(0,0,0,400);
+  grad1.addColorStop(0, "#3B82F6"); grad1.addColorStop(1, "#1D4ED8");
+
+  grafico1 = new Chart(ctx1,{
     type: "bar",
-    data: {
-      labels: tecnicos,
-      datasets: [{
-        label: "Gasto em Combustível (R$)",
-        data: valores,
-        backgroundColor: "#3b82f6",
-        borderRadius: 5
-      }]
+    data: { 
+      labels: tecnicos, 
+      datasets: [{ label: "Gastos", data: valores, backgroundColor: grad1, borderRadius: 10, borderSkipped: false }] 
     },
+    plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [],
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: false }
+        legend: { display: false },
+        title: { display: true, text: "GASTO MENSAL POR VEÍCULO", color: "#fff", font: { size: 16, weight: "bold" } },
+        datalabels: { 
+          color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
+          formatter: (val) => val > 0 ? val.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : ""
+        }
       },
-      scales: {
-        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
-        x: { ticks: { color: "#94a3b8" } }
-      }
+      scales: { x: { ticks: { color: "#94A3B8" }, grid: { display: false } }, y: { grace: "15%", ticks: { color: "#64748B" }, grid: { color: "rgba(255,255,255,0.04)" } } }
     }
   });
 
-  // Gráfico 2: Quilometragem percorrida (Barra)
-  const ctx2 = document.getElementById("g2");
-  if (ctx2) {
-    grafico2 = new Chart(ctx2.getContext("2d"), {
-      type: "bar",
-      data: {
-        labels: tecnicos,
-        datasets: [{
-          label: "KM Rodados",
-          data: kms,
-          backgroundColor: "#10b981",
-          borderRadius: 5
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
-          x: { ticks: { color: "#94a3b8" } }
+  const ctx2 = document.getElementById("g2").getContext("2d");
+  const grad2 = ctx2.createLinearGradient(0,0,0,400);
+  grad2.addColorStop(0, "#10B981"); grad2.addColorStop(1, "#047857");
+
+  grafico2 = new Chart(ctx2,{
+    type: "bar",
+    data: { 
+      labels: tecnicos, 
+      datasets: [{ label: "KM", data: kms, backgroundColor: grad2, borderRadius: 10, borderSkipped: false }] 
+    },
+    plugins: typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: "KM MENSAL POR VEÍCULO", color: "#fff", font: { size: 16, weight: "bold" } },
+        datalabels: { 
+          color: "#fff", anchor: "end", align: "top", offset: 4, font: { weight: "bold" },
+          formatter: (val) => val > 0 ? val.toLocaleString("pt-BR") + " KM" : ""
         }
-      }
-    });
-  }
+      },
+      scales: { x: { ticks: { color: "#94A3B8" }, grid: { display: false } }, y: { grace: "15%", ticks: { color: "#64748B" }, grid: { color: "rgba(255,255,255,0.04)" } } }
+    }
+  });
 }
