@@ -341,7 +341,7 @@ async function executarRemocaoDireta(id, btn) {
   if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
     const token = localStorage.getItem("token");
-    const res = await fetch(`/registro/${id}`, {
+    const res = await fetch(`/api/registros/${id}`, {
       method: "DELETE",
       headers: { "Authorization": "Bearer " + token }
     });
@@ -394,7 +394,7 @@ async function salvar(){
   });
 
   try {
-    const respuesta = await fetch("/registro", {
+   const respuesta = await fetch("/api/registros", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -417,7 +417,7 @@ async function salvar(){
 async function carregar(mes = ""){
   try {
     const token = localStorage.getItem("token");
-    const res = await fetch("/registros", {
+    const res = await fetch("/api/registros", {
       headers: { "Authorization": "Bearer " + token }
     });
     
