@@ -23,10 +23,10 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// 1. APENAS UMA DECLARAÇÃO DO MIDDLEWARE DE AUTENTICAÇÃO (Resolve o SyntaxError)
+// MIDDLEWARE DE AUTENTICAÇÃO (Apenas uma declaração limpa)
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Pega o token após "Bearer "
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
     return res.status(401).json({ erro: "Acesso negado. Token não fornecido." });
@@ -41,27 +41,7 @@ const autenticarToken = (req, res, next) => {
   }
 };
 
-// Middleware para impedir requisições à API caso o banco de dados ainda não tenha conectado
-const verificarConexaoBanco = (req, res, next) => {
-  if (!db) {
-    return res.status(503).json({ erro: "O servidor está a iniciar a ligação ao banco de dados. Tente novamente em instantes." });
-  }
-  next();
-};
-
-// CONECTAR COM O MONGO (Assegura a ligação correta)
-async function conectarMongo() {
-  try {
-    await client.connect();
-    db = client.db("rotas");
-    console.log("✅ Mongo conectado com sucesso!");
-  } catch (err) {
-    console.error("❌ Erro ao conectar ao MongoDB:", err);
-  }
-}
-conectarMongo();
-
-// Definição exata do caminho da pasta public para evitar erros de diretório no Render
+// Definição exata do caminho da pasta public
 const publicPath = path.resolve(__dirname, "public");
 
 // ==========================================
@@ -105,8 +85,8 @@ app.get("/index.html", (req, res) => res.sendFile(path.join(publicPath, "index.h
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
 // ==========================================
 
-// LOGIN (Protegido por verificação de banco de dados para evitar o TypeError)
-app.post("/login", verificarConexaoBanco, async (req, res) => {
+// LOGIN
+app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
@@ -144,7 +124,7 @@ app.post("/login", verificarConexaoBanco, async (req, res) => {
 });
 
 // CADASTRO DE USUÁRIOS
-app.post("/cadastro", verificarConexaoBanco, autenticarToken, async (req, res) => {
+app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "admin") {
       return res.status(403).json({ erro: "Sem permissão para cadastrar usuários." });
@@ -188,11 +168,11 @@ const listarUsuariosHandler = async (req, res) => {
     res.status(500).json({ erro: "Erro ao listar usuários" });
   }
 };
-app.get("/api/usuarios", verificarConexaoBanco, autenticarToken, listarUsuariosHandler);
-app.get("/usuarios", verificarConexaoBanco, autenticarToken, listarUsuariosHandler);
+app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
+app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
 // ATUALIZAR USUÁRIO
-app.put("/usuario/:id", verificarConexaoBanco, autenticarToken, async (req, res) => {
+app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, tipo, novaSenha } = req.body;
@@ -217,7 +197,7 @@ app.put("/usuario/:id", verificarConexaoBanco, autenticarToken, async (req, res)
 });
 
 // ROTAS DE ESTOQUE
-app.get("/api/estoque", verificarConexaoBanco, autenticarToken, async (req, res) => {
+app.get("/api/estoque", autenticarToken, async (req, res) => {
   try {
     const estoque = await db.collection("estoque").find().toArray();
     res.json(estoque);
@@ -226,7 +206,7 @@ app.get("/api/estoque", verificarConexaoBanco, autenticarToken, async (req, res)
   }
 });
 
-app.get("/api/estoque/historico", verificarConexaoBanco, autenticarToken, async (req, res) => {
+app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
   try {
     const historico = await db.collection("historico_estoque").find().toArray();
     res.json(historico);
@@ -236,7 +216,7 @@ app.get("/api/estoque/historico", verificarConexaoBanco, autenticarToken, async 
 });
 
 // LISTAR REGISTROS DE ROTAS/KM
-app.get("/registros", verificarConexaoBanco, autenticarToken, async (req, res) => {
+app.get("/registros", autenticarToken, async (req, res) => {
   try {
     const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
     res.json(dados);
@@ -246,7 +226,7 @@ app.get("/registros", verificarConexaoBanco, autenticarToken, async (req, res) =
 });
 
 // SALVAR/ATUALIZAR REGISTROS
-app.post("/registro", verificarConexaoBanco, autenticarToken, async (req, res) => {
+app.post("/registro", autenticarToken, async (req, res) => {
   try {
     let dados = req.body.dados || [];
     if (dados.length === 0) return res.status(400).json({ erro: "Nenhum dado informado" });
@@ -280,7 +260,7 @@ app.post("/registro", verificarConexaoBanco, autenticarToken, async (req, res) =
 });
 
 // DELETAR REGISTRO
-app.delete("/registro/:id", verificarConexaoBanco, autenticarToken, async (req, res) => {
+app.delete("/registro/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
     const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(id) });
@@ -297,7 +277,21 @@ app.delete("/registro/:id", verificarConexaoBanco, autenticarToken, async (req, 
 // CONFIGURAÇÃO DE ARQUIVOS ESTÁTICOS
 app.use(express.static(publicPath, { index: false }));
 
-// INICIALIZAÇÃO
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor NERI inicializado corretamente na porta ${PORT}`);
-});
+// SUBIDA SINCRONIZADA: Conecta primeiro ao banco, e só depois abre a porta do servidor
+async function iniciarServidor() {
+  try {
+    console.log("🔄 Conectando ao MongoDB Atlas...");
+    await client.connect();
+    db = client.db("rotas");
+    console.log("✅ Mongo conectado com sucesso!");
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
+    });
+  } catch (err) {
+    console.error("❌ Erro fatal ao iniciar o sistema:", err);
+    process.exit(1);
+  }
+}
+
+iniciarServidor();
