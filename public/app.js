@@ -193,7 +193,6 @@ async function atualizarListaUsuarios() {
       
       const idGarantido = u._id || u.id || "";
 
-      // MODIFICADO: Adicionado botão com a chamada para excluirUsuario()
       div.innerHTML = `
         <div>
           <strong>${exibicaoNome}</strong> <br> ${badge} <span style='color:#64748B; font-size:12px;'>(${u.usuario})</span>
@@ -210,7 +209,6 @@ async function atualizarListaUsuarios() {
   }
 }
 
-// NOVA FUNÇÃO: Executa a remoção do usuário no banco de dados via API
 async function excluirUsuario(id) {
   if (!id) {
     alert("Identificador do usuário inválido.");
@@ -236,7 +234,7 @@ async function excluirUsuario(id) {
     }
 
     alert("Usuário removido com sucesso!");
-    await atualizarListaUsuarios(); // Recarrega a listagem limpa na janela modal
+    await atualizarListaUsuarios(); 
   } catch (err) {
     console.error("Falha ao deletar:", err);
     alert("Erro ao conectar com o servidor.");
@@ -287,7 +285,6 @@ async function salvarUsuario() {
     return;
   }
 
-  // Se for estoque, injeta a flag de texto simples sem quebrar caracteres especiais
   if (tipo === "estoque") {
     tipo = "simples";
     if (!nome.toUpperCase().includes("ESTOQUE")) {
@@ -297,19 +294,16 @@ async function salvarUsuario() {
     nome = nome.replace(" [ESTOQUE]", "").replace(" ESTOQUE", "").trim();
   }
 
-  // Payload limpo para o banco de dados
   const dadosObjeto = { 
     nome: nome, 
     usuario: usuario, 
     tipo: tipo 
   };
   
-  // Apenas envia a senha se ela REALMENTE foi digitada no campo
   if (senha && senha.trim() !== "") {
     dadosObjeto.senha = senha;
   }
 
-  // SE FOR EDIÇÃO (Possui ID válido)
   if (id && id !== "undefined" && id !== "") {
     try {
       dadosObjeto._id = id;
@@ -339,7 +333,6 @@ async function salvarUsuario() {
       alert("Erro ao conectar com o servidor. Verifique os dados.");
     }
 
-  // SE FOR NOVO CADASTRO
   } else {
     if (!senha) return alert("A senha é obrigatória para novos usuários!");
     try {
@@ -433,8 +426,12 @@ function processar(dados, tecnico){
   atualizarDashboard(valoresGerais, kmsGerais, tecnico, gastoInd, kmInd, litrosInd);
 }
 
+// =================================================================
+// ATUALIZAÇÃO DO DASHBOARD E RENDERIZAÇÃO DE GRÁFICOS (CHART.JS)
+// =================================================================
 function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
-  if (!document.getElementById("g1")) return;
+  const ctx1 = document.getElementById("g1");
+  if (!ctx1) return;
 
   const totalValor = valores.reduce((a,b)=>a+b,0);
   const totalKm = kms.reduce((a,b)=>a+b,0);
@@ -452,5 +449,69 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
     if (document.getElementById("mediaIndividual")) {
       document.getElementById("mediaIndividual").innerText = mediaKM.toFixed(1) + " KM/L";
     }
+  } else {
+    document.getElementById("nomeTecnicoSelecionado").innerText = "TODOS";
+    document.getElementById("gastoIndividual").innerText = "R$ 0,00";
+    document.getElementById("kmIndividual").innerText = "0 KM";
+    if (document.getElementById("mediaIndividual")) {
+      document.getElementById("mediaIndividual").innerText = "0.0 KM/L";
+    }
+  }
+
+  // --- CONTROLE DE DESTRUIÇÃO E RECRIAÇÃO DOS GRÁFICOS ---
+  if (grafico1) grafico1.destroy();
+  if (grafico2) grafico2.destroy();
+
+  // Gráfico 1: Despesas por Técnico (Barra)
+  grafico1 = new Chart(ctx1.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: tecnicos,
+      datasets: [{
+        label: "Gasto em Combustível (R$)",
+        data: valores,
+        backgroundColor: "#3b82f6",
+        borderRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
+        x: { ticks: { color: "#94a3b8" } }
+      }
+    }
+  });
+
+  // Gráfico 2: Quilometragem percorrida (Barra)
+  const ctx2 = document.getElementById("g2");
+  if (ctx2) {
+    grafico2 = new Chart(ctx2.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: tecnicos,
+        datasets: [{
+          label: "KM Rodados",
+          data: kms,
+          backgroundColor: "#10b981",
+          borderRadius: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
+          x: { ticks: { color: "#94a3b8" } }
+        }
+      }
+    });
   }
 }
