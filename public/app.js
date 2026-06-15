@@ -111,7 +111,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   } else if (tipoDashboard === "admin") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
-    if (btnCadastrar) btnCadastrar.style.display = "block";
+    if (btnCadastrar) btnCadastrar.style.display = "none";
   } else if (tipoDashboard === "simples") {
     if (btnDados) btnDados.style.display = "none";
     if (btnCadastrar) btnCadastrar.style.display = "none";
