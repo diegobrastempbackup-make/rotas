@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estoque & Cautela Avançada - NERI</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-principal: #0F172A;
+            --bg-card: #1E293B;
+            --bg-linha-par: #131C2E;
+            --texto-principal: #f8fafc;
+            --texto-secundario: #94a3b8;
+            --borda: rgba(255, 255, 255, 0.05);
+            --sucesso: #10b981;
+            --alerta: #f59e0b;
+            --perigo: #ef4444;
+            --primaria: #2563EB;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--texto-principal);
+            margin: 0; padding: 0;
+            display: flex; min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px; background-color: var(--bg-card);
+            border-right: 1px solid var(--borda);
+            display: flex; flex-direction: column; padding: 20px;
+        }
+
+        .sidebar h2 { font-size: 1.1rem; border-bottom: 1px solid var(--borda); padding-bottom: 10px; margin-top: 0; }
+
+        .lista-tecnicos { list-style: none; padding: 0; margin: 0; }
+        .tecnico-item {
+            padding: 12px; border-radius: 8px; margin-bottom: 8px;
+            background-color: var(--bg-principal); border: 1px solid var(--borda);
+            cursor: pointer; transition: 0.2s;
+        }
+        .tecnico-item:hover, .tecnico-item.selecionado { border-color: var(--primaria); background: #1e293b; }
+        
+        .btn-gerenciar-tec {
+            background-color: var(--primaria); color: white; border: none;
+            padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer;
+            margin-bottom: 15px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px;
+        }
+
+        .conteudo-principal { flex: 1; padding: 25px; display: flex; flex-direction: column; gap: 20px; }
+        .container { background-color: var(--bg-card); border-radius: 12px; padding: 20px; }
+        
+        .header-painel { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--borda); padding-bottom: 15px; }
+        .header-painel h1 { font-size: 1.4rem; margin: 0; }
+        
+        .btn-acao { padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; font-size: 0.85rem; }
+        .btn-sucesso { background-color: var(--sucesso); color: white; }
+        .btn-primario { background-color: var(--primaria); color: white; }
+        .btn-remover { background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+        .btn-editar { background: #3b82f6; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 5px; }
+        .btn-voltar { background: transparent; color: var(--texto-secundario); border: 1px solid #475569; margin-right: 15px; }
+
+        table { width: 100%; border-collapse: collapse; text-align: left; margin-top: 15px; }
+        th { background-color: var(--bg-principal); color: var(--texto-secundario); font-size: 0.75rem; padding: 12px 15px; text-transform: uppercase; }
+        td { padding: 12px 15px; border-bottom: 1px solid var(--borda); font-size: 0.9rem; }
+        tr:nth-child(even) td { background-color: var(--bg-linha-par); }
+
+        .form-historico { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 15px; }
+        input, select, textarea { width: 100%; padding: 10px; background-color: var(--bg-principal); border: 1px solid var(--borda); color: var(--texto-principal); border-radius: 6px; box-sizing: border-box; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-conteudo { background-color: var(--bg-card); padding: 25px; border-radius: 12px; width: 450px; border: 1px solid var(--borda); }
+        
+        .item-gerenciamento { display: flex; justify-content: space-between; align-items: center; background: var(--bg-principal); padding: 10px; border-radius: 6px; margin-bottom: 8px; border: 1px solid var(--borda); }
+        .btn-mini { border: none; padding: 4px 8px; border-radius: 4px; color: white; cursor: pointer; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>Técnicos</h2>
+    <button class="btn-gerenciar-tec" onclick="abrirModal('modalGerenciarTecnicos')">⚙️ Gerenciar Técnicos</button>
+    <ul class="lista-tecnicos" id="listaTecnicosEsq"></ul>
+    <button class="btn-acao" onclick="deslogar()" style="background:#ef4444; color:white; margin-top:auto; width:100%;">🚪 Sair</button>
+</div>
+
+<div class="conteudo-principal">
+    <div class="container">
+        <div class="header-painel">
+            <div style="display: flex; align-items: center;">
+                <button id="btn-voltar-dash" class="btn-acao btn-voltar" onclick="voltarParaDashboard()">← Voltar</button>
+                <h1>Painel de Estoque NERI</h1>
+            </div>
+            <button class="btn-acao btn-sucesso" onclick="abrirModal('modalFerramenta')">+ Cadastrar Item</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Ferramenta/Peça</th>
+                        <th>Categoria</th>
+                        <th>Localização</th>
+                        <th>Preço Unitário</th>
+                        <th>Qtd Disp.</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="corpoTabelaEstoque"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="container" id="containerHistorico" style="display: none;">
+        <div class="header-painel">
+            <h2 style="margin:0;" id="tituloHistoricoTecnico">Selecione um técnico para gerir observações</h2>
+            <button class="btn-acao btn-primario" id="btnExtrairPDF" onclick="emitirPDFIndividual()">📄 Extrair Relatório Individual</button>
+        </div>
+
+        <div style="background: var(--bg-principal); padding: 15px; border-radius: 8px; margin-top: 15px;" id="formularioOcorrencia">
+            <h4 style="margin: 0 0 10px 0; color: #60A5FA;">Registrar Ocorrência / Troca ou Entrega:</h4>
+            <div class="form-historico">
+                <div>
+                    <label style="font-size:12px; color:var(--texto-secundario)">Vincular Item (Opcional):</label>
+                    <select id="histItemVinculado"><option value="">Nenhum item</option></select>
+                </div>
+                <div>
+                    <label style="font-size:12px; color:var(--texto-secundario)">Tipo de Ação:</label>
+                    <select id="histTipoAcao">
+                        <option value="Observacao">Anotar Observação Simples</option>
+                        <option value="Entrega">Entrega / Cautelar Item</option>
+                        <option value="Troca">Troca de Ferramenta Danificada</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12px; color:var(--texto-secundario)">Quantidade:</label>
+                    <input type="number" id="histQtd" value="1" min="1">
+                </div>
+            </div>
+            <div style="margin-top:12px;">
+                <label style="font-size:12px; color:var(--texto-secundario)">Descrição da Ocorrência:</label>
+                <textarea id="histTextoObs" rows="3" placeholder="Digite aqui ex: (Troquei tal ferramenta no dia tal...)"></textarea>
+            </div>
+            <button class="btn-acao btn-sucesso" style="margin-top:12px; width:100%" onclick="salvarLinhaHistorico()">Gravar Registro de Histórico</button>
+        </div>
+
+        <h3 style="margin: 20px 0 10px 0;" id="subtituloTabelaLogs">Histórico Recente</h3>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data Registro</th>
+                        <th id="thColunaTecnico" style="display:none;">Técnico</th>
+                        <th>Ação</th>
+                        <th>Item Vinculado</th>
+                        <th>Qtd</th>
+                        <th>Observação Registrada</th>
+                    </tr>
+                </thead>
+                <tbody id="corpoTabelaLogs"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="modalFerramenta" class="modal">
+    <div class="modal-conteudo">
+        <h3>Adicionar Item ao Estoque</h3>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <input type="text" id="addCodigo" placeholder="Código (Ex: FT-01)">
+            <input type="text" id="addNome" placeholder="Nome da Peça / Ferramenta">
+            <input type="text" id="addCategoria" placeholder="Categoria">
+            <input type="text" id="addLocal" placeholder="Localização (Ex: Armário B)">
+            <input type="number" id="addPreco" placeholder="Preço Unitário (R$) Ex: 89.90" step="0.01">
+            <input type="number" id="addQtd" placeholder="Quantidade em Estoque">
+        </div>
+        <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-acao" onclick="fecharModal('modalFerramenta')" style="background:transparent; color:var(--texto-secundario);">Cancelar</button>
+            <button class="btn-acao btn-sucesso" onclick="salvarNovaFerramenta()">Salvar no Banco</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalEditarFerramenta" class="modal">
+    <div class="modal-conteudo">
+        <h3>Editar Item / Atualizar Estoque</h3>
+        <input type="hidden" id="editId">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <input type="text" id="editCodigo" placeholder="Código">
+            <input type="text" id="editNome" placeholder="Nome da Peça / Ferramenta">
+            <input type="text" id="editCategoria" placeholder="Categoria">
+            <input type="text" id="editLocal" placeholder="Localização">
+            <input type="number" id="editPreco" placeholder="Preço Unitário (R$)" step="0.01">
+            <input type="number" id="editQtd" placeholder="Quantidade em Estoque">
+        </div>
+        <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-acao" onclick="fecharModal('modalEditarFerramenta')" style="background:transparent; color:var(--texto-secundario);">Cancelar</button>
+            <button class="btn-acao btn-sucesso" onclick="salvarEdicaoFerramenta()" style="background:#2563EB;">Atualizar Estoque</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalGerenciarTecnicos" class="modal">
+    <div class="modal-conteudo">
+        <h3>Gerenciar Lista de Técnicos</h3>
+        <input type="hidden" id="editTecnicoId">
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <input type="text" id="inputNomeTecnico" placeholder="Nome do Técnico">
+            <button class="btn-acao btn-sucesso" id="btnSalvarTecnico" onclick="guardarTecnico()">Adicionar</button>
+        </div>
+        <div id="listaGerenciarTecnicosContainer" style="max-height:250px; overflow-y:auto; padding-right:5px;"></div>
+        <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+            <button class="btn-acao" onclick="fecharModal('modalGerenciarTecnicos')" style="background:transparent; color:var(--texto-secundario);">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script src="estoque.js"></script>
+</body>
+</html>

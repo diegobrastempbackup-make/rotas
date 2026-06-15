@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang=\"pt-br\">
 <head>
 <meta charset="UTF-8">
 <title>Dados - NERI</title>
@@ -54,445 +54,216 @@ input {
   background: #1E293B;
   border: 1px solid rgba(255, 255, 255, 0.05);
   color: white;
-  padding: 8px 10px;
-  box-sizing: border-box;
-  border-radius: 6px;
-  text-align: center;
+  padding: 12px 10px;
+  border-radius: 8px;
   font-size: 14px;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
-/* Efeito de foco ao digitar */
+input[readonly] {
+  cursor: default;
+}
+
 input:focus {
   outline: none;
   border-color: #3B82F6;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
   background: #1E293B;
 }
 
-/* Estilo para campos automáticos (Bloqueados) */
-input[readonly] {
-  background: rgba(15, 23, 42, 0.6);
-  color: #64748B;
-  border-color: transparent;
-  cursor: not-allowed;
+/* Cartão do Técnico */
+.card-tecnico {
+  background: #1E293B;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.nome-tecnico {
+  font-size: 18px;
   font-weight: bold;
-}
-
-/* Inputs de data customizados */
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="month"]::-webkit-calendar-picker-indicator {
-  filter: invert(1); /* Deixa o ícone do calendário branco */
-  cursor: pointer;
-}
-
-/* Botões do Topo e Gerais */
-button {
-  padding: 10px 16px;
-  background: #2563EB;
-  border: none;
-  color: white;
-  cursor: pointer;
-  border-radius: 8px;
-  font-weight: bold;
-  font-size: 14px;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-button:hover {
-  background: #3B82F6;
-  transform: translateY(-1px);
-}
-
-/* Botão + Linha específico */
-button[onclick^="addLinha"] {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px dashed #3B82F6;
-  color: #60A5FA;
-  margin-top: 12px;
-  padding: 8px 20px;
-}
-
-button[onclick^="addLinha"]:hover {
-  background: #3B82F6;
-  color: white;
-  border-style: solid;
-}
-
-/* Botão de Lixeira */
-td button {
-  background: rgba(239, 68, 68, 0.1) !important;
-  border: 1px solid rgba(239, 68, 68, 0.2) !important;
-  color: #EF4444;
-  padding: 6px 10px !important;
-  border-radius: 6px !important;
-  margin: 0 auto;
-}
-
-td button:hover {
-  background: #EF4444 !important;
-  color: white !important;
-  transform: scale(1.05);
-}
-
-/* Títulos dos Técnicos */
-h2 {
-  margin-top: 45px;
-  margin-bottom: 5px;
   color: #F8FAFC;
-  font-size: 22px;
   border-left: 4px solid #3B82F6;
   padding-left: 12px;
+  margin-bottom: 10px;
+}
+
+/* Botões Modernos */
+.btn {
+  background: #3B82F6;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  transition: background 0.2s;
+  height: 45px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn:hover {
+  background: #2563EB;
+}
+
+.btn-voltar {
+  background: #475569;
+}
+
+.btn-voltar:hover {
+  background: #334155;
+}
+
+.input-busca {
+  background: #1E293B;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-size: 14px;
+  height: 45px;
+  width: 200px;
 }
 </style>
 </head>
-
 <body>
 
 <div class="container">
   <div class="topo">
-    <button onclick="voltarAoDashboard()">⬅ Voltar</button>
-    <button onclick="salvar()">💾 Salvar</button>
-    <input type="month" id="mesFiltro" style="width: auto; display: inline-block;">
-    <button onclick="filtrarMes()">🔍 Buscar</button>
-    <button onclick="mostrarTudo()">♻ Mostrar Mês Atual</button>
+    <button class="btn btn-voltar" onclick="window.location.href='index.html'">Voltar para Dashboard</button>
+    <input type="month" id="mesFiltro" class="input-busca" onchange="filtrarMes()">
+    <button class="btn" onclick="mostrarTudo()">Mostrar Tudo</button>
   </div>
 
-  <div id="tabelas"></div>
+  <div id="historicos"></div>
 </div>
 
-<script src="/app.js"></script>
-
 <script>
+const tecnicos = [
+  "Sibele",
+  "Empresa",
+  "Danilo",
+  "José Cicero",
+  "Alex",
+  "Danilo BH",
+  "Thiago BH"
+];
+
 let cacheHistoricoCompleto = [];
 
-function obtenerMesAtual(){
-  const hoje = new Date();
-  const ano = hoje.getFullYear();
-  const mes = String(hoje.getMonth() + 1).padStart(2,"0");
-  return `${ano}-${mes}`;
+function obtenerMesAtual() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}`;
 }
 
-function hoje(){
-  // Correção para evitar que fusos horários mudem o dia corrente no celular
-  const agora = new Date();
-  const ano = agora.getFullYear();
-  const mes = String(agora.getMonth() + 1).padStart(2, '0');
-  const dia = String(agora.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
-}
+// CORREÇÃO: Limpa o container antes de renderizar para garantir que NUNCA duplique
+function criar() {
+  const container = document.getElementById("historicos");
+  container.innerHTML = ""; // <--- Zera o HTML anterior
 
-function criar(){
-  const container = document.getElementById("tabelas");
-  container.innerHTML = "";
-
-  tecnicos.forEach(nome=>{
-    const bloco = document.createElement("div");
-    bloco.innerHTML = `
-      <h2>${nome}</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>KM Ini</th>
-            <th>KM Fim</th>
-            <th>KM</th>
-            <th>Consumo</th>
-            <th>Abast Ant</th>
-            <th>Abast Atual</th>
-            <th>Litros</th>
-            <th>Valor</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody data-tecnico="${nome}"></tbody>
-      </table>
-      <button onclick="addLinha('${nome}')">+ Linha</button>
-    `;
-    container.appendChild(bloco);
+  tecnicos.forEach(nome => {
+    container.innerHTML += `
+      <div class="card-tecnico">
+        <div class="nome-tecnico">${nome}</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 12%;">Data</th>
+              <th style="width: 12%;">KM</th>
+              <th style="width: 12%;">Litros</th>
+              <th style="width: 15%;">Valor</th>
+              <th style="width: 15%;">Posto</th>
+              <th>Cupom / Obs</th>
+            </tr>
+          </thead>
+          <tbody data-tecnico="${nome}"></tbody>
+        </table>
+      </div>`;
   });
 }
 
-function linha(d = {}) {
-  const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
-  const idRegistro = d._id || "";
-
+function linha(item) {
+  const dataFmt = item.data ? item.data.split("-").reverse().join("/") : "-";
+  const valorFmt = item.valor ? Number(item.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "R$ 0,00";
+  
   return `
-  <tr>
-    <td>
-      <input type="date" value="${dataFormatada}">
-    </td>
-    <td>
-      <input value="${d.kmIni || ''}" oninput="calc(this)">
-    </td>
-    <td>
-      <input value="${d.kmFim || ''}" oninput="calc(this)">
-    </td>
-    <td>
-      <input readonly value="${d.km || ''}">
-    </td>
-    <td>
-      <input readonly value="${d.consumo || ''}">
-    </td>
-    <td>
-      <input value="${d.abastAnt || ''}">
-    </td>
-    <td>
-      <input value="${d.abastAtual || ''}" oninput="calc(this)">
-    </td>
-    <td>
-      <input value="${d.litros || ''}" oninput="calc(this)">
-    </td>
-    <td>
-      <input value="${d.valor || ''}">
-    </td>
-    <td>
-      <button data-id="${idRegistro}" onclick="remover(this)">🗑️</button>
-    </td>
-  </tr>
+    <td><input type="text" value="${dataFmt}" readonly style="text-align:center;"></td>
+    <td><input type="text" value="${item.km || ''}" readonly style="text-align:center;"></td>
+    <td><input type="text" value="${item.litros || ''}" readonly style="text-align:center;"></td>
+    <td><input type="text" value="${valorFmt}" readonly style="text-align:center; font-weight:bold; color:#60A5FA;"></td>
+    <td><input type="text" value="${item.posto || ''}" readonly></td>
+    <td><input type="text" value="${item.cupom || ''}" readonly></td>
   `;
 }
 
-function addLinha(nome){
-  const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
-  const tr = document.createElement("tr");
-  tr.innerHTML = linha();
-  tbody.appendChild(tr);
-}
-
-function calc(el) {
-  const tr = el.closest("tr");
-  const i = tr.querySelectorAll("input");
-  const tbody = tr.closest("tbody");
-  const nomeTecnico = tbody.getAttribute("data-tecnico");
-
-  const kmIni = Number(i[1].value);
-  const kmFim = Number(i[2].value);
-  const abastAtualInput = i[6];
-  const abastAntInput = i[5];
-  const litros = Number(i[7].value);
-
-  const km = kmFim - kmIni;
-  i[3].value = km > 0 ? km : "";
-
-  if (abastAtualInput.value.trim() !== "") {
-    const todasAsLinhas = Array.from(tbody.querySelectorAll("tr"));
-    const indexAtual = todasAsLinhas.indexOf(tr);
-    
-    let encontrouAnterior = false;
-    
-    for (let j = indexAtual - 1; j >= 0; j--) {
-      const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
-      const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
-      
-      if (valorAbastAtualLinhaAnt !== "") {
-        abastAntInput.value = valorAbastAtualLinhaAnt;
-        encontrouAnterior = true;
-        break;
-      }
-    }
-    
-    if (!encontrouAnterior) {
-      const dataAtualDaLinha = i[0].value;
-      
-      const historicoFiltrado = cacheHistoricoCompleto
-        .filter(item => item.tecnico === nomeTecnico && item.abastAtual && item.data && item.data < dataAtualDaLinha)
-        .sort((a, b) => new Date(b.data) - new Date(a.data));
-
-      if (historicoFiltrado.length > 0) {
-        abastAntInput.value = historicoFiltrado[0].abastAtual;
-        encontrouAnterior = true;
-      }
-    }
-
-    if (!encontrouAnterior && abastAntInput.value === "") {
-      abastAntInput.value = "";
-    }
-  } else {
-    abastAntInput.value = "";
-  }
-
-  const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
-  i[4].value = consumo;
-}
-
-function remover(btn){
-  const id = btn.getAttribute("data-id");
-
-  if (id && id !== "" && id !== "undefined") {
-    if (typeof deletarRegistro === "function") {
-      deletarRegistro(id);
-    } else {
-      alert("Ação de exclusão do app.js não pôde ser invocada.");
-    }
-  } else {
-    btn.closest("tr").remove();
-  }
-}
-
-function obtenerChaveRegistro(r) {
-  const dataLimpa = String(r.data || '').split('T')[0];
-  const kmIni = Number(r.kmIni) || 0;
-  const kmFim = Number(r.kmFim) || 0;
-  const abastAtual = String(r.abastAtual || '').trim();
-  const litros = Number(r.litros) ? Number(r.litros).toFixed(2) : "0.00";
-  const valor = Number(r.valor) ? Number(r.valor).toFixed(2) : "0.00";
-  return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
-}
-
-// FUNÇÃO SALVAR ATUALIZADA (COM FEEDBACK DO QUE FOI ENVIADO)
-async function salvar(){
-  const mesAtual = document.getElementById("mesFiltro").value;
-  if(!mesAtual){
-    alert("Selecione um mês antes de salvar.");
-    return;
-  }
-
-  let dados = [];
-  const mapaLimpeza = new Set();
-
-  tecnicos.forEach(nome=>{
-    const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
-    linhas.forEach(l=>{
-      const i = l.querySelectorAll("input");
-      if (i.length < 9) return; 
-      
-      const data = i[0].value;
-
-      // Se a linha não começar com o mês do filtro lá de cima, ela é ignorada para segurança
-      if(!data.startsWith(mesAtual)){
-        return;
-      }
-
-      const registro = {
-        tecnico: nome,
-        data: data,
-        kmIni: Number(i[1].value) || 0,
-        kmFim: Number(i[2].value) || 0,
-        km: Number(i[3].value) || 0,
-        consumo: Number(i[4].value) || 0,
-        abastAnt: i[5].value || "",
-        abastAtual: i[6].value || "",
-        litros: Number(i[7].value) || 0,
-        valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
-      };
-
-      // Modificação: Considera válido se tiver pelo menos KM Inicial ou se preencheu algum valor
-      const temDado =
-        registro.kmIni > 0 ||
-        registro.kmFim > 0 ||
-        registro.valor > 0 ||
-        registro.litros > 0 ||
-        registro.abastAnt !== "" ||
-        registro.abastAtual !== "";
-
-      if(temDado){
-        const tokenLinha = obtenerChaveRegistro(registro);
-        if(!mapaLimpeza.has(tokenLinha)){
-          dados.push(registro);
-          mapaLimpeza.add(tokenLinha);
-        }
-      }
-    });
-  });
-
-  // Alerta de feedback imediato se você tentar salvar sem digitar nada válido nas colunas
-  if(dados.length === 0){
-    alert("⚠️ Nenhuma alteração ou dado preenchido foi detectado para este mês.");
-    return;
-  }
-
+async function carregar(mes) {
   try {
-    const respuesta = await fetch("/registro", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ dados })
+    const token = localStorage.getItem("token");
+    const res = await fetch("/api/registros", {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    const listaCompleta = await res.json();
+    
+    cacheHistoricoCompleto = [...listaCompleta];
+    let listaFiltrada = [...listaCompleta];
+
+    listaFiltrada.sort((a, b) => {
+      if (!a.data || !b.data) return 0;
+      return new Date(a.data) - new Date(b.data);
     });
 
-    if (respuesta.ok) {
-      alert("✅ Dados salvos com sucesso no banco de dados!");
-      carregar(mesAtual); 
-    } else {
-      alert("⚠️ O servidor recusou a requisição ou falhou ao processar.");
+    // CORREÇÃO: Aplica o filtro apenas se um mês específico foi selecionado
+    if (mes) {
+      listaFiltrada = listaFiltrada.filter(item => {
+        if (!item.data) return false;
+        return item.data.startsWith(mes);
+      });
     }
-  } catch (err) {
-    console.error("Erro ao salvar:", err);
-    alert("❌ Erro de comunicação com o servidor. Verifique sua conexão.");
+
+    // Limpa estritamente as linhas internas das tabelas antes de repovoar
+    tecnicos.forEach(nome => {
+      const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+      if (tbody) tbody.innerHTML = "";
+    });
+
+    listaFiltrada.forEach(item => {
+      const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
+      if (tbody) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = linha(item);
+        tbody.appendChild(tr);
+      }
+    });
+  } catch (erro) {
+    console.error("Erro ao carregar dados:", erro);
   }
 }
 
-async function carregar(mes = ""){
-  const res = await fetch("/registros");
-  const listaCompleta = await res.json();
-  
-  cacheHistoricoCompleto = [...listaCompleta];
-  let listaFiltrada = [...listaCompleta];
-
-  listaFiltrada.sort((a,b)=>{
-    if(!a.data || !b.data) return 0;
-    return new Date(a.data) - new Date(b.data);
-  });
-
-  if(mes){
-    listaFiltrada = listaFiltrada.filter(item=>{
-      if(!item.data) return false;
-      return item.data.startsWith(mes);
-    });
-  }
-
-  tecnicos.forEach(nome=>{
-    const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
-    if(tbody){
-      tbody.innerHTML = "";
-    }
-  });
-
-  listaFiltrada.forEach(item=>{
-    const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
-    if(tbody){
-      const tr = document.createElement("tr");
-      tr.innerHTML = linha(item); 
-      tbody.appendChild(tr);
-    }
-  });
-}
-
-function filtrarMes(){
+function filtrarMes() {
   const mes = document.getElementById("mesFiltro").value;
   carregar(mes);
 }
 
-function mostrarTudo(){
-  const mesAtual = obtenerMesAtual();
-  document.getElementById("mesFiltro").value = mesAtual;
-  carregar(mesAtual);
+// CORREÇÃO: Limpa o input e traz os registros de todos os meses de verdade
+function mostrarTudo() {
+  document.getElementById("mesFiltro").value = "";
+  carregar(""); 
 }
 
-async function iniciar(){
-  criar();
+async function iniciar() {
+  criar(); // Cria as estruturas das tabelas uma única vez limpando resíduos
   const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
   await carregar(mesAtual);
 }
 
-iniciar();
+window.onload = () => {
+  iniciar();
+};
 </script>
-
-<script>
-  function voltarAoDashboard() {
-    const token = localStorage.getItem("token");
-    if (token) {
-      window.location.href = "/index.html";
-    } else {
-      window.location.replace("/login.html");
-    }
-  }
-</script>
-
 </body>
 </html>

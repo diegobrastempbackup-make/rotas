@@ -44,6 +44,12 @@
       border-radius: 10px;
       outline: none;
       font-size: 15px;
+      background: #0F172A;
+      color: white;
+    }
+
+    input::placeholder {
+      color: #94A3B8;
     }
 
     button {
@@ -57,10 +63,11 @@
       cursor: pointer;
       font-size: 16px;
       font-weight: bold;
+      transition: background 0.2s;
     }
 
     button:hover {
-      opacity: .9;
+      background: #16A34A;
     }
 
     .titulo {
@@ -96,7 +103,8 @@ async function entrar() {
   }
 
   try {
-    const resposta = await fetch("/login", {
+    // Rota alterada para se comunicar com o endpoint correto do seu server.js (/api/login)
+    const resposta = await fetch("/api/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -111,20 +119,46 @@ async function entrar() {
       return;
     }
 
-    // Grava as informações da sessão no navegador
+    // 1. Grava o token obtido do backend
     localStorage.setItem("token", dados.token);
-    localStorage.setItem("usuarioNome", dados.nome);
+    
+    // 2. Acessa de forma segura o objeto interno retornado pelo MongoDB
+    const infoUsuario = dados.usuario || {};
+    const nomeUsuario = infoUsuario.nome || "";
+    let tipoDefinido = String(infoUsuario.tipo || "").toLowerCase().trim();
 
-    // BLINDAGEM CONTRA MAIÚSCULAS/MINÚSCULAS OU ESPAÇOS DO BANCO:
-    localStorage.setItem("usuarioTipo", String(dados.tipo).toLowerCase().trim());
+    localStorage.setItem("usuarioLogado", infoUsuario.usuario || "");
+    localStorage.setItem("usuarioNome", nomeUsuario);
 
-    window.location.href = "/index.html";
+    // 3. CAPTURA RÍGIDA DO ESTOQUE (Verifica se tipo é estoque OU se é "simples" com carimbo no nome)
+    if (tipoDefinido === "estoque" || (tipoDefinido === "simples" && (nomeUsuario.toUpperCase().includes("ESTOQUE") || nomeUsuario.toUpperCase().includes("[ESTOQUE]")))) {
+      tipoDefinido = "estoque";
+    }
+
+    localStorage.setItem("usuarioTipo", tipoDefinido);
+
+    // 4. REDIRECIONAMENTO SEPARADO POR NÍVEL DE ACESSO
+    if (tipoDefinido === "estoque") {
+      // Usuário de estoque vai direto para as ferramentas sem passar pela index
+      window.location.replace(`/estoque.html?token=${dados.token}`);
+    } else {
+      // Master e Administradores vão para o Dashboard Principal (index.html)
+      window.location.replace(`/index.html?token=${dados.token}`);
+    }
 
   } catch (err) {
-    console.log(err);
-    alert("Erro ao conectar ao servidor");
+    console.error(err);
+    alert("Erro ao conectar ao servidor. Certifique-se de que o backend está rodando.");
   }
 }
+
+// Permite efetuar o login ao pressionar a tecla Enter dentro dos inputs
+document.getElementById("senha").addEventListener("keypress", function(event) {
+  if (event.key === "Enter") entrar();
+});
+document.getElementById("usuario").addEventListener("keypress", function(event) {
+  if (event.key === "Enter") entrar();
+});
 </script>
 
 </body>

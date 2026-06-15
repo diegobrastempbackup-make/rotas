@@ -11,12 +11,12 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
-    /* Faz os botões nascerem invisíveis por segurança. O Script abaixo os exibe se o usuário for Master/Admin. */
-    #btnIrParaDados, #btnMenuCadastro {
-      display: none !important;
+    /* Esconde os botões sensíveis por padrão antes da checagem do script */
+    #btnIrParaDados, #btnMenuCadastro, #btnIrParaEstoque {
+      display: none;
     }
 
-    /*  AJUSTE PARA OS CARDS FICAREM COLADOS NO TOPO NO CELULAR E PC */
+    /* AJUSTE PARA OS CARDS FICAREM COLADOS NO TOPO NO CELULAR E PC */
     .main {
       flex-grow: 1;
       padding: 15px 20px; 
@@ -53,21 +53,55 @@
 
   <script>
     const token = localStorage.getItem("token");
-    const usuarioTipo = localStorage.getItem("usuarioTipo");
+    let usuarioTipo = localStorage.getItem("usuarioTipo");
+    const usuarioNome = localStorage.getItem("usuarioNome");
 
+    // Trava de segurança inicial: Sem token vai pro login
     if (!token) {
       window.location.replace("/login.html");
+    }
+
+    // Intercepta e força o perfil de estoque caso o nome venha com a marcação de segurança
+    if (usuarioNome && usuarioNome.includes("[ESTOQUE]")) {
+      usuarioTipo = "estoque";
+      localStorage.setItem("usuarioTipo", "estoque");
+    }
+
+    // Se o usuário for do tipo estoque, ele não entra no Dashboard de forma alguma
+    if (usuarioTipo === "estoque") {
+      window.location.replace("/estoque.html");
     }
 
     window.addEventListener("DOMContentLoaded", () => {
       const btnDados = document.getElementById("btnIrParaDados");
       const btnCadastrar = document.getElementById("btnMenuCadastro");
+      const btnEstoque = document.getElementById("btnIrParaEstoque");
+      const btnRelatorio = document.getElementById("btnExtrairRelatorio");
+      const perfilBadge = document.getElementById("perfilTipo");
 
+      // Atualiza o Badge do Perfil na barra lateral
+      if (perfilBadge && usuarioTipo) {
+        perfilBadge.innerText = `Dashboard (${usuarioTipo.toUpperCase()})`;
+      }
+
+      // APLICAÇÃO RÍGIDA DOS NÍVEIS DE ACESSO SOLICITADOS
       if (usuarioTipo === "master") {
-        if (btnDados) btnDados.style.setProperty("display", "flex", "important");
-        if (btnCadastrar) btnCadastrar.style.setProperty("display", "flex", "important");
+        if (btnDados) btnDados.style.display = "block";
+        if (btnEstoque) btnEstoque.style.display = "block";
+        if (btnCadastrar) btnCadastrar.style.display = "block";
+        if (btnRelatorio) btnRelatorio.style.display = "block";
+        
       } else if (usuarioTipo === "admin") {
-        if (btnDados) btnDados.style.setProperty("display", "flex", "important");
+        if (btnDados) btnDados.style.display = "block";
+        if (btnEstoque) btnEstoque.style.display = "block";
+        if (btnCadastrar) btnCadastrar.style.display = "none";
+        if (btnRelatorio) btnRelatorio.style.display = "block";
+        
+      } else if (usuarioTipo === "simples") {
+        if (btnDados) btnDados.style.display = "none";
+        if (btnEstoque) btnEstoque.style.display = "none";
+        if (btnCadastrar) btnCadastrar.style.display = "none";
+        if (btnRelatorio) btnRelatorio.style.display = "block";
       }
     });
   </script>
@@ -100,11 +134,12 @@
 
       <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
 
-      <button onclick="gerarPDF()">📄 Extrair Relatório</button>
+      <button id="btnExtrairRelatorio" onclick="gerarPDF()">📄 Extrair Relatório</button>
 
       <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
 
       <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
+      <button id="btnIrParaEstoque" onclick="irParaEstoque()">📦 Estoque</button>
       
       <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">
         👤 Gerenciar Usuários
@@ -187,6 +222,7 @@
       <label>Nível de Acesso:</label>
       <select id="cadTipo">
         <option value="simples">Acesso Simples</option>
+        <option value="estoque">Estoque</option>
         <option value="admin">Administrador</option>
         <option value="master">Master</option>
       </select>
