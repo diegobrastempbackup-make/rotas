@@ -123,12 +123,11 @@ async function entrar() {
     localStorage.setItem("token", dados.token);
     
     // 2. Acessa de forma segura o objeto interno retornado pelo MongoDB
-    const infoUsuario = dados.usuario || {};
-    const nomeUsuario = infoUsuario.nome || "";
-    let tipoDefinido = String(infoUsuario.tipo || "").toLowerCase().trim();
+    const nomeUsuario = dados.nome || "";
+let tipoDefinido = String(dados.tipo || "").toLowerCase().trim();
 
-    localStorage.setItem("usuarioLogado", infoUsuario.usuario || "");
-    localStorage.setItem("usuarioNome", nomeUsuario);
+localStorage.setItem("usuarioNome", nomeUsuario);
+localStorage.setItem("usuarioTipo", tipoDefinido);
 
     // 3. CAPTURA RÍGIDA DO ESTOQUE (Verifica se tipo é estoque OU se é "simples" com carimbo no nome)
     if (tipoDefinido === "estoque" || (tipoDefinido === "simples" && (nomeUsuario.toUpperCase().includes("ESTOQUE") || nomeUsuario.toUpperCase().includes("[ESTOQUE]")))) {
@@ -139,12 +138,21 @@ async function entrar() {
 
     // 4. REDIRECIONAMENTO SEPARADO POR NÍVEL DE ACESSO
     if (tipoDefinido === "estoque") {
-      // Usuário de estoque vai direto para as ferramentas sem passar pela index
-      window.location.replace(`/estoque.html?token=${dados.token}`);
-    } else {
-      // Master e Administradores vão para o Dashboard Principal (index.html)
-      window.location.replace(`/index.html?token=${dados.token}`);
-    }
+
+  window.location.replace(`/estoque.html?token=${dados.token}`);
+
+} else if (
+  tipoDefinido === "master" ||
+  tipoDefinido === "admin" ||
+  tipoDefinido === "simples"
+) {
+
+  window.location.replace(`/index.html?token=${dados.token}`);
+
+} else {
+
+  alert("Perfil de usuário inválido.");
+}
 
   } catch (err) {
     console.error(err);
