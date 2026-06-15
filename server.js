@@ -10,20 +10,16 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
-// VALIDAÇÃO DA STRING DE CONEXÃO DO MONGO
-if (!process.env.MONGO_URI) {
-  console.error("❌ ERRO CRÍTICO: A variável ambiente MONGO_URI não foi configurada!");
-  process.exit(1);
-}
-const uri = process.env.MONGO_URI;
+// SUA STRING DE CONEXÃO ORIGINAL RESTAURADA
+const uri = process.env.MONGO_URI || "mongodb+srv://diegobrastempbackup_db_user:<db_password>@cluster0.tp1g94v.mongodb.net/?appName=Cluster0";
 const client = new MongoClient(uri);
 let db = null;
 
-// MIDDLEWARES DE CONFIGURAÇÃO
+// MIDDLEWARES
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// MIDDLEWARE DE AUTENTICAÇÃO (Apenas uma declaração limpa)
+// ÚNICA DECLARAÇÃO DO MIDDLEWARE (Corrigindo o erro de duplicidade)
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -41,19 +37,28 @@ const autenticarToken = (req, res, next) => {
   }
 };
 
-// Definição exata do caminho da pasta public
+// CONECTAR COM O MONGO (Exatamente como você rodava antes)
+async function conectarMongo() {
+  try {
+    await client.connect();
+    db = client.db("rotas");
+    console.log("✅ Mongo conectado com sucesso!");
+  } catch (err) {
+    console.error("❌ Erro ao conectar ao MongoDB:", err);
+  }
+}
+conectarMongo();
+
 const publicPath = path.resolve(__dirname, "public");
 
 // ==========================================
 // --- ROTAS DE PÁGINAS (FRONT-END) ---
 // ==========================================
 
-// HOME (Tela de login)
 app.get("/", (req, res) => {
   res.sendFile(path.join(publicPath, "login.html"));
 });
 
-// BLINDAGEM dados.html contra acessos sem token na URL
 app.get("/dados.html", (req, res) => {
   const token = req.query.token;
   if (!token) return res.redirect("/login.html");
@@ -65,7 +70,6 @@ app.get("/dados.html", (req, res) => {
   }
 });
 
-// BLINDAGEM estoque.html contra acessos sem token na URL
 app.get("/estoque.html", (req, res) => {
   const token = req.query.token;
   if (!token) return res.redirect("/login.html");
@@ -80,12 +84,10 @@ app.get("/estoque.html", (req, res) => {
 app.get("/login.html", (req, res) => res.sendFile(path.join(publicPath, "login.html")));
 app.get("/index.html", (req, res) => res.sendFile(path.join(publicPath, "index.html")));
 
-
 // ==========================================
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
 // ==========================================
 
-// LOGIN
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
@@ -123,7 +125,6 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// CADASTRO DE USUÁRIOS
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "admin") {
@@ -159,7 +160,6 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   }
 });
 
-// LISTAR USUÁRIOS
 const listarUsuariosHandler = async (req, res) => {
   try {
     const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
@@ -171,7 +171,6 @@ const listarUsuariosHandler = async (req, res) => {
 app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
 app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
-// ATUALIZAR USUÁRIO
 app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -196,7 +195,6 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// ROTAS DE ESTOQUE
 app.get("/api/estoque", autenticarToken, async (req, res) => {
   try {
     const estoque = await db.collection("estoque").find().toArray();
@@ -215,7 +213,6 @@ app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
   }
 });
 
-// LISTAR REGISTROS DE ROTAS/KM
 app.get("/registros", autenticarToken, async (req, res) => {
   try {
     const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
@@ -225,7 +222,6 @@ app.get("/registros", autenticarToken, async (req, res) => {
   }
 });
 
-// SALVAR/ATUALIZAR REGISTROS
 app.post("/registro", autenticarToken, async (req, res) => {
   try {
     let dados = req.body.dados || [];
@@ -259,7 +255,6 @@ app.post("/registro", autenticarToken, async (req, res) => {
   }
 });
 
-// DELETAR REGISTRO
 app.delete("/registro/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -274,24 +269,8 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// CONFIGURAÇÃO DE ARQUIVOS ESTÁTICOS
 app.use(express.static(publicPath, { index: false }));
 
-// SUBIDA SINCRONIZADA: Conecta primeiro ao banco, e só depois abre a porta do servidor
-async function iniciarServidor() {
-  try {
-    console.log("🔄 Conectando ao MongoDB Atlas...");
-    await client.connect();
-    db = client.db("rotas");
-    console.log("✅ Mongo conectado com sucesso!");
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
-    });
-  } catch (err) {
-    console.error("❌ Erro fatal ao iniciar o sistema:", err);
-    process.exit(1);
-  }
-}
-
-iniciarServidor();
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
+});
