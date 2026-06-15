@@ -3,14 +3,13 @@ const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb"); 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const path = require("path");
 
 const app = express();
 
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
-// SUA STRING DE CONEXÃO ORIGINAL RESTAURADA
+// MONGO - Sua string original com o fallback direto no código
 const uri = process.env.MONGO_URI || "mongodb+srv://diegobrastempbackup_db_user:<db_password>@cluster0.tp1g94v.mongodb.net/?appName=Cluster0";
 const client = new MongoClient(uri);
 let db = null;
@@ -19,7 +18,7 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// ÚNICA DECLARAÇÃO DO MIDDLEWARE (Corrigindo o erro de duplicidade)
+// ÚNICA DECLARAÇÃO DO MIDDLEWARE (Corrigindo o travamento original)
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -37,7 +36,7 @@ const autenticarToken = (req, res, next) => {
   }
 };
 
-// CONECTAR COM O MONGO (Exatamente como você rodava antes)
+// CONECTAR COM O MONGO (Idêntico ao seu original)
 async function conectarMongo() {
   try {
     await client.connect();
@@ -49,14 +48,12 @@ async function conectarMongo() {
 }
 conectarMongo();
 
-const publicPath = path.resolve(__dirname, "public");
-
 // ==========================================
-// --- ROTAS DE PÁGINAS (FRONT-END) ---
+// --- ROTAS DE PÁGINAS (Formato Original) ---
 // ==========================================
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(publicPath, "login.html"));
+  res.sendFile(__dirname + "/public/login.html");
 });
 
 app.get("/dados.html", (req, res) => {
@@ -64,7 +61,7 @@ app.get("/dados.html", (req, res) => {
   if (!token) return res.redirect("/login.html");
   try {
     jwt.verify(token, JWT_SECRET);
-    res.sendFile(path.join(publicPath, "dados.html"));
+    res.sendFile(__dirname + "/public/dados.html");
   } catch (err) {
     res.redirect("/login.html");
   }
@@ -75,14 +72,14 @@ app.get("/estoque.html", (req, res) => {
   if (!token) return res.redirect("/login.html");
   try {
     jwt.verify(token, JWT_SECRET);
-    res.sendFile(path.join(publicPath, "estoque.html"));
+    res.sendFile(__dirname + "/public/estoque.html");
   } catch (err) {
     res.redirect("/login.html");
   }
 });
 
-app.get("/login.html", (req, res) => res.sendFile(path.join(publicPath, "login.html")));
-app.get("/index.html", (req, res) => res.sendFile(path.join(publicPath, "index.html")));
+app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
+app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
 
 // ==========================================
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
@@ -103,12 +100,7 @@ app.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { 
-        id: usuarioBanco._id.toString(),
-        nome: usuarioBanco.nome,
-        usuario: usuarioBanco.usuario,
-        tipo: usuarioBanco.tipo 
-      },
+      { id: usuarioBanco._id, tipo: usuarioBanco.tipo },
       JWT_SECRET,
       { expiresIn: "12h" }
     );
@@ -269,7 +261,7 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
   }
 });
 
-app.use(express.static(publicPath, { index: false }));
+app.use(express.static(__dirname + "/public", { index: false }));
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
