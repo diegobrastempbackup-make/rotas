@@ -9,9 +9,13 @@ window.deslogar = () => { localStorage.clear(); window.location.href = "/login.h
 window.voltarParaDashboard = () => { window.location.href = "/index.html"; };
 
 document.addEventListener("DOMContentLoaded", async () => {
+
     await carregarEstoque();
+
     renderizarListaTecnicos();
-    selecionarGeral();
+
+    mostrarTelaInicial();
+
 });
 
 // =================================================================
@@ -42,10 +46,23 @@ function renderizarListaTecnicos() {
 window.renderizarListaTecnicos = renderizarListaTecnicos;
 
 function selecionarTecnico(nome) {
+
     window.tecnicoSelecionado = nome;
-    document.getElementById("containerHistorico").style.display = "block";
-    document.getElementById("tituloHistoricoTecnico").innerText = `Histórico - ${nome}`;
+
+    document.getElementById(
+        "logoCentro"
+    ).style.display = "none";
+
+    document.getElementById(
+        "containerHistorico"
+    ).style.display = "block";
+
+    document.getElementById(
+        "tituloHistoricoTecnico"
+    ).innerText = `Histórico - ${nome}`;
+
     renderizarListaTecnicos();
+
     carregarLogs(nome);
 }
 window.selecionarTecnico = selecionarTecnico;
@@ -463,4 +480,21 @@ window.selecionarGeral = async () => {
             "Erro ao carregar histórico geral."
         );
     }
+};
+
+window.mostrarTelaInicial = () => {
+
+    window.tecnicoSelecionado = "";
+
+    document.getElementById(
+        "containerHistorico"
+    ).style.display = "none";
+
+    document.getElementById(
+        "logoCentro"
+    ).style.display = "block";
+
+    document
+        .querySelectorAll(".tecnico-item")
+        .forEach(el => el.classList.remove("selecionado"));
 };
