@@ -165,7 +165,6 @@ h2 {
 </div>
 
 <script>
-// Lista de técnicos declarada localmente de forma segura
 const tecnicos = [
   "Sibele",
   "Empresa",
@@ -315,12 +314,6 @@ function calc(el) {
         encontrouAnterior = true;
       }
     }
-
-    if (!encontrouAnterior && abastAntInput.value === "") {
-      abastAntInput.value = "";
-    }
-  } else {
-    abastAntInput.value = "";
   }
 
   const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
@@ -329,21 +322,15 @@ function calc(el) {
 
 function remover(btn){
   const id = btn.getAttribute("data-id");
-
   if (id && id !== "" && id !== "undefined") {
-    if (typeof deletarRegistro === "function") {
-      deletarRegistro(id);
-    } else {
-      // Caso app.js não esteja presente, realiza a exclusão diretamente por segurança
-      executarRemocaoDireta(id, btn);
-    }
+    executarRemocaoDireta(id, btn);
   } else {
     btn.closest("tr").remove();
   }
 }
 
 async function executarRemocaoDireta(id, btn) {
-  if(!confirm("Tem a certeza que deseja eliminar este registo?")) return;
+  if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
     const token = localStorage.getItem("token");
     const res = await fetch(`/registro/${id}`, {
@@ -353,7 +340,7 @@ async function executarRemocaoDireta(id, btn) {
     if(res.ok) {
       btn.closest("tr").remove();
     } else {
-      alert("Erro ao remover o registo no servidor.");
+      alert("Erro ao remover o registro no servidor.");
     }
   } catch(err) {
     console.error(err);
@@ -364,10 +351,7 @@ function obtenerChaveRegistro(r) {
   const dataLimpa = String(r.data || '').split('T')[0];
   const kmIni = Number(r.kmIni) || 0;
   const kmFim = Number(r.kmFim) || 0;
-  const abastAtual = String(r.abastAtual || '').trim();
-  const litros = Number(r.litros) ? Number(r.litros).toFixed(2) : "0.00";
-  const valor = Number(r.valor) ? Number(r.valor).toFixed(2) : "0.00";
-  return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}_${abastAtual}_${litros}_${valor}`;
+  return `${r.tecnico || ''}_${dataLimpa}_${kmIni}_${kmFim}`;
 }
 
 async function salvar(){
@@ -406,28 +390,13 @@ async function salvar(){
         valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
       };
 
-      const temDado =
-        registro.kmIni > 0 ||
-        registro.kmFim > 0 ||
-        registro.valor > 0 ||
-        registro.litros > 0 ||
-        registro.abastAnt !== "" ||
-        registro.abastAtual !== "";
-
-      if(temDado){
-        const tokenLinha = obtenerChaveRegistro(registro);
-        if(!mapaLimpeza.has(tokenLinha)){
-          dados.push(registro);
-          mapaLimpeza.add(tokenLinha);
-        }
+      const tokenLinha = obtenerChaveRegistro(registro);
+      if(!mapaLimpeza.has(tokenLinha)){
+        dados.push(registro);
+        mapaLimpeza.add(tokenLinha);
       }
     });
   });
-
-  if(dados.length === 0){
-    alert("⚠️ Nenhuma alteração ou dado preenchido foi detectado para este mês.");
-    return;
-  }
 
   try {
     const respuesta = await fetch("/registro", {
@@ -440,14 +409,13 @@ async function salvar(){
     });
 
     if (respuesta.ok) {
-      alert("✅ Dados salvos com sucesso no banco de dados!");
+      alert("✅ Dados salvos com sucesso!");
       carregar(mesAtual); 
     } else {
-      alert("⚠️ O servidor recusou a requisição ou falhou ao processar.");
+      alert("⚠️ Erro ao salvar dados no servidor.");
     }
   } catch (err) {
-    console.error("Erro ao salvar:", err);
-    alert("❌ Erro de comunicação com o servidor. Verifique sua conexão.");
+    console.error(err);
   }
 }
 
@@ -460,10 +428,7 @@ async function carregar(mes = ""){
       }
     });
     
-    if (!res.ok) {
-      console.error("Erro na resposta do servidor:", res.status);
-      return;
-    }
+    if (!res.ok) return;
 
     const listaCompleta = await res.json();
     cacheHistoricoCompleto = [...listaCompleta];
@@ -477,16 +442,14 @@ async function carregar(mes = ""){
     if(mes){
       listaFiltrada = listaFiltrada.filter(item=>{
         if(!item.data) return false;
-        const dataStr = String(item.data).split("T")[0];
+        const dataStr = String(item.data).split("T")[0]; // Asegura el formato "AAAA-MM-DD"
         return dataStr.startsWith(mes);
       });
     }
 
     tecnicos.forEach(nome=>{
       const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
-      if(tbody){
-        tbody.innerHTML = "";
-      }
+      if(tbody) tbody.innerHTML = "";
     });
 
     listaFiltrada.forEach(item=>{
@@ -498,7 +461,7 @@ async function carregar(mes = ""){
       }
     });
   } catch (erro) {
-    console.error("Erro ao carregar dados do servidor:", erro);
+    console.error(erro);
   }
 }
 
