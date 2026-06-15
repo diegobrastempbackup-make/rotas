@@ -47,7 +47,6 @@ const tokenDashboard = localStorage.getItem("token");
 if (!tokenDashboard) {
   window.location.replace("/login.html");
 }
-
 // =================================================================
 // INICIALIZAÇÃO DE PERMISSÕES E BOTÕES (DOM LOADED)
 // =================================================================
@@ -104,13 +103,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     perfilBadge.innerText = `Dashboard (${tipoDashboard.toUpperCase()})`;
   }
 
+  // CORREÇÃO DA EXIBIÇÃO DOS BOTÕES POR PERFIL
   if (tipoDashboard === "master") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
-    if (btnCadastrar) btnCadastrar.style.display = "none";
+    if (btnCadastrar) btnCadastrar.style.display = "block"; // Mudado para block para o master ver!
   } else if (tipoDashboard === "admin") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
+    if (btnCadastrar) btnCadastrar.style.display = "block";
   } else if (tipoDashboard === "simples") {
     if (btnDados) btnDados.style.display = "none";
     if (btnCadastrar) btnCadastrar.style.display = "none";
@@ -118,7 +119,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   carregarDados();
-});
+}); // <--- Agora este fechamento está correto porque a função foi aberta lá no topo!
 
 // =================================================================
 // NAVEGAÇÃO DO MENU
