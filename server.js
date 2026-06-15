@@ -12,7 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // VALIDAÇÃO DA STRING DE CONEXÃO DO MONGO
 if (!process.env.MONGO_URI) {
-  console.error("❌ ERRO CRÍTICO: A variável ambiente MONGO_URI não foi configurada!");
+  console.error("❌ ERRO CRÍTICO: A variável ambiente MONGO_URI não foi configurada no Render!");
   process.exit(1);
 }
 const uri = process.env.MONGO_URI;
@@ -41,7 +41,7 @@ const autenticarToken = (req, res, next) => {
   }
 };
 
-// CONECTAR COM O MONGO
+// CONECTAR COM O MONGO (Com tratamento para não derrubar o server se falhar)
 async function conectarMongo() {
   try {
     await client.connect();
@@ -53,13 +53,16 @@ async function conectarMongo() {
 }
 conectarMongo();
 
+// Definição exata do caminho da pasta public para evitar erros de diretório no Render
+const publicPath = path.resolve(__dirname, "public");
+
 // ==========================================
 // --- ROTAS DE PÁGINAS (FRONT-END) ---
 // ==========================================
 
 // HOME (Tela de login)
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "login.html"));
+  res.sendFile(path.join(publicPath, "login.html"));
 });
 
 // BLINDAGEM dados.html contra acessos sem token na URL
@@ -68,7 +71,7 @@ app.get("/dados.html", (req, res) => {
   if (!token) return res.redirect("/login.html");
   try {
     jwt.verify(token, JWT_SECRET);
-    res.sendFile(path.join(__dirname, "public", "dados.html"));
+    res.sendFile(path.join(publicPath, "dados.html"));
   } catch (err) {
     res.redirect("/login.html");
   }
@@ -80,14 +83,14 @@ app.get("/estoque.html", (req, res) => {
   if (!token) return res.redirect("/login.html");
   try {
     jwt.verify(token, JWT_SECRET);
-    res.sendFile(path.join(__dirname, "public", "estoque.html"));
+    res.sendFile(path.join(publicPath, "estoque.html"));
   } catch (err) {
     res.redirect("/login.html");
   }
 });
 
-app.get("/login.html", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/index.html", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/login.html", (req, res) => res.sendFile(path.join(publicPath, "login.html")));
+app.get("/index.html", (req, res) => res.sendFile(path.join(publicPath, "index.html")));
 
 
 // ==========================================
@@ -109,7 +112,6 @@ app.post("/login", async (req, res) => {
       return res.status(401).json({ erro: "Senha incorreta" });
     }
 
-    // Payload padronizado para o front-end ler sem falhas
     const token = jwt.sign(
       { 
         id: usuarioBanco._id.toString(),
@@ -171,7 +173,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   }
 });
 
-// LISTAR USUÁRIOS (Mapeado para responder tanto em /usuarios quanto em /api/usuarios para compatibilidade)
+// LISTAR USUÁRIOS (Suporta ambas as URLs chamadas pelo front)
 const listarUsuariosHandler = async (req, res) => {
   try {
     if (!db) return res.status(500).json({ erro: "Banco não conectado" });
@@ -243,7 +245,7 @@ app.get("/registros", autenticarToken, async (req, res) => {
   }
 });
 
-// SALVAR/ATUALIZAR REGISTROS (BULK WRITE & UPSERT)
+// SALVAR/ATUALIZAR REGISTROS
 app.post("/registro", autenticarToken, async (req, res) => {
   try {
     if (!db) return res.status(500).json({ erro: "Banco não conectado" });
@@ -297,8 +299,8 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
 });
 
 // CONFIGURAÇÃO SEGURA DE STATIC FILES
-// Bloqueia entrega automática dos HTMLs cruciais pela pasta public
-app.use(express.static(path.join(__dirname, "public"), { index: false }));
+// Entrega CSS, Imagens e JS da pasta public de forma limpa
+app.use(express.static(publicPath, { index: false }));
 
 // INICIALIZAÇÃO DO SERVIDOR
 app.listen(PORT, () => {
