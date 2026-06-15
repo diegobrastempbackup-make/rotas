@@ -179,6 +179,92 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
   }
 });
 
+// =========================
+// TÉCNICOS
+// =========================
+
+// LISTAR TÉCNICOS
+app.get("/api/tecnicos", autenticarToken, async (req, res) => {
+  try {
+
+    const tecnicos = await db
+      .collection("tecnicos")
+      .find()
+      .sort({ nome: 1 })
+      .toArray();
+
+    res.json(tecnicos);
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao listar técnicos"
+    });
+  }
+});
+
+// CADASTRAR TÉCNICO
+app.post("/api/tecnicos", autenticarToken, async (req, res) => {
+  try {
+
+    const nome = (req.body.nome || "").trim();
+
+    if (!nome) {
+      return res.status(400).json({
+        erro: "Nome obrigatório"
+      });
+    }
+
+    const existe = await db
+      .collection("tecnicos")
+      .findOne({ nome });
+
+    if (existe) {
+      return res.status(400).json({
+        erro: "Técnico já cadastrado"
+      });
+    }
+
+    const resultado = await db
+      .collection("tecnicos")
+      .insertOne({
+        nome,
+        criadoEm: new Date()
+      });
+
+    res.json({
+      ok: true,
+      id: resultado.insertedId
+    });
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao cadastrar técnico"
+    });
+  }
+});
+
+// EXCLUIR TÉCNICO
+app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
+  try {
+
+    await db.collection("tecnicos").deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json({
+      ok: true
+    });
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao excluir técnico"
+    });
+  }
+});
+
 // ESTOQUE
 const estoqueHandler = async (req, res) => {
   try {

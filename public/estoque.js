@@ -1,6 +1,7 @@
 const token = localStorage.getItem("token");
 window.cacheFerramentas = [];
 window.tecnicoSelecionado = "";
+window.listaTecnicos = [];
 
 // Funções de controle de Modal nativas do seu layout
 window.abrirModal = (id) => { document.getElementById(id).style.display = 'flex'; };
@@ -12,7 +13,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await carregarEstoque();
 
-    renderizarListaTecnicos();
+    await renderizarListaTecnicos();
 
     mostrarTelaInicial();
 
@@ -21,27 +22,71 @@ document.addEventListener("DOMContentLoaded", async () => {
 // =================================================================
 // --- GERENCIAMENTO DE TÉCNICOS ---
 // =================================================================
-function renderizarListaTecnicos() {
-    const listaEsq = document.getElementById("listaTecnicosEsq");
-    const containerGerenciar = document.getElementById("listaGerenciarTecnicosContainer");
-    const techs = JSON.parse(localStorage.getItem("NERI_tecnicos") || "[]");
+async function renderizarListaTecnicos() {
 
-    listaEsq.innerHTML = "";
-    containerGerenciar.innerHTML = "";
+    try {
 
-    techs.forEach((t, index) => {
-        const li = document.createElement("li");
-        li.className = `tecnico-item ${window.tecnicoSelecionado === t.nome ? 'selecionado' : ''}`;
-        li.innerText = t.nome;
-        li.onclick = () => selecionarTecnico(t.nome);
-        listaEsq.appendChild(li);
+        const res = await fetch(
+            "/api/tecnicos",
+            {
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            }
+        );
 
-        containerGerenciar.innerHTML += `
-            <div class="item-gerenciamento">
-                <span>${t.nome}</span> 
-                <button class="btn-mini" style="background:#ef4444;" onclick="removerTecnico(${index})">Excluir</button>
-            </div>`;
-    });
+        window.listaTecnicos = await res.json();
+
+        const listaEsq =
+            document.getElementById("listaTecnicosEsq");
+
+        const containerGerenciar =
+            document.getElementById(
+                "listaGerenciarTecnicosContainer"
+            );
+
+        listaEsq.innerHTML = "";
+        containerGerenciar.innerHTML = "";
+
+        window.listaTecnicos.forEach(t => {
+
+            const li =
+                document.createElement("li");
+
+            li.className =
+                `tecnico-item ${
+                    window.tecnicoSelecionado === t.nome
+                        ? "selecionado"
+                        : ""
+                }`;
+
+            li.innerText = t.nome;
+
+            li.onclick = () =>
+                selecionarTecnico(t.nome);
+
+            listaEsq.appendChild(li);
+
+            containerGerenciar.innerHTML += `
+                <div class="item-gerenciamento">
+                    <span>${t.nome}</span>
+                    <button
+                        class="btn-mini"
+                        style="background:#ef4444;"
+                        onclick="removerTecnico('${t._id}')">
+                        Excluir
+                    </button>
+                </div>
+            `;
+        });
+
+    } catch (erro) {
+
+        console.error(
+            "Erro ao carregar técnicos:",
+            erro
+        );
+    }
 }
 window.renderizarListaTecnicos = renderizarListaTecnicos;
 
@@ -68,20 +113,93 @@ function selecionarTecnico(nome) {
 window.selecionarTecnico = selecionarTecnico;
 
 window.guardarTecnico = () => {
-    const input = document.getElementById("inputNomeTecnico");
-    if (!input.value.trim()) return;
-    let techs = JSON.parse(localStorage.getItem("NERI_tecnicos") || "[]");
-    techs.push({ nome: input.value.trim() });
-    localStorage.setItem("NERI_tecnicos", JSON.stringify(techs));
-    input.value = "";
-    renderizarListaTecnicos();
+    conwindow.guardarTecnico = async () => {
+
+    const input =
+        document.getElementById(
+            "inputNomeTecnico"
+        );
+
+    const nome = input.value.trim();
+
+    if (!nome) return;
+
+    try {
+
+        const res = await fetch(
+            "/api/tecnicos",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json",
+                    "Authorization":
+                        `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    nome
+                })
+            }
+        );
+
+        const resultado =
+            await res.json();
+
+        if (!res.ok) {
+
+            alert(
+                resultado.erro ||
+                "Erro ao cadastrar técnico"
+            );
+
+            return;
+        }
+
+        input.value = "";
+
+        await renderizarListaTecnicos();
+
+    } catch (erro) {
+
+        console.error(erro);
+
+        alert(
+            "Erro ao cadastrar técnico."
+        );
+    }
 };
 
-window.removerTecnico = (index) => {
-    let techs = JSON.parse(localStorage.getItem("NERI_tecnicos") || "[]");
-    techs.splice(index, 1);
-    localStorage.setItem("NERI_tecnicos", JSON.stringify(techs));
-    renderizarListaTecnicos();
+window.removerTecnico = async (id) => {
+
+    if (
+        !confirm(
+            "Deseja excluir este técnico?"
+        )
+    ) return;
+
+    try {
+
+        await fetch(
+            `/api/tecnicos/${id}`,
+            {
+                method: "DELETE",
+                headers: {
+                    "Authorization":
+                        `Bearer ${token}`
+                }
+            }
+        );
+
+        await renderizarListaTecnicos();
+
+    } catch (erro) {
+
+        console.error(erro);
+
+        alert(
+            "Erro ao excluir técnico."
+        );
+    }
 };
 
 // =================================================================
