@@ -9,18 +9,16 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
-// MONGO (Mantendo a sua variável de ambiente original do Render)
+// MONGO
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
 
 // MIDDLEWARES
 app.use(cors());
-app.use(express.json({
-  limit: "10mb"
-}));
+app.use(express.json({ limit: "10mb" }));
 
-// MIDDLEWARE DE AUTENTICAÇÃO (Organizado e sem duplicidade)
+// MIDDLEWARE DE AUTENTICAÇÃO
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -48,9 +46,7 @@ app.get("/", (req, res) => {
 
 app.get("/dados.html", (req, res) => {
   const token = req.query.token;
-  if (!token) {
-    return res.redirect("/login.html");
-  }
+  if (!token) return res.redirect("/login.html");
   try {
     jwt.verify(token, JWT_SECRET);
     res.sendFile(__dirname + "/public/dados.html");
@@ -61,9 +57,7 @@ app.get("/dados.html", (req, res) => {
 
 app.get("/estoque.html", (req, res) => {
   const token = req.query.token;
-  if (!token) {
-    return res.redirect("/login.html");
-  }
+  if (!token) return res.redirect("/login.html");
   try {
     jwt.verify(token, JWT_SECRET);
     res.sendFile(__dirname + "/public/estoque.html");
@@ -79,6 +73,7 @@ app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.htm
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
 // ==========================================
 
+// LOGIN
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
@@ -111,6 +106,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
+// CADASTRO
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "admin") {
@@ -146,6 +142,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   }
 });
 
+// LISTAGEM DE USUÁRIOS (Mapeado para responder em ambas as variações de chamada)
 const listarUsuariosHandler = async (req, res) => {
   try {
     const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
@@ -157,6 +154,7 @@ const listarUsuariosHandler = async (req, res) => {
 app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
 app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
+// ATUALIZAR USUÁRIO
 app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -174,40 +172,50 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
       { $set: dadosAtualizados }
     );
 
-    res.json({ ok: true, message: "Usuário updated com sucesso!" });
+    res.json({ ok: true, message: "Usuário atualizado com sucesso!" });
   } catch (err) {
     console.log(err);
     res.status(500).json({ erro: "Erro ao atualizar usuário" });
   }
 });
 
-app.get("/api/estoque", autenticarToken, async (req, res) => {
+// ESTOQUE
+const estoqueHandler = async (req, res) => {
   try {
     const estoque = await db.collection("estoque").find().toArray();
     res.json(estoque);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao buscar estoque" });
   }
-});
+};
+app.get("/api/estoque", autenticarToken, estoqueHandler);
+app.get("/estoque", autenticarToken, estoqueHandler);
 
-app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
+// HISTÓRICO DE ESTOQUE
+const historicoEstoqueHandler = async (req, res) => {
   try {
     const historico = await db.collection("historico_estoque").find().toArray();
     res.json(historico);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao buscar histórico do estoque" });
   }
-});
+};
+app.get("/api/estoque/historico", autenticarToken, historicoEstoqueHandler);
+app.get("/estoque/historico", autenticarToken, historicoEstoqueHandler);
 
-app.get("/registros", autenticarToken, async (req, res) => {
+// REGISTROS
+const registrosHandler = async (req, res) => {
   try {
     const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
     res.json(dados);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao buscar registros" });
   }
-});
+};
+app.get("/registros", autenticarToken, registrosHandler);
+app.get("/api/registros", autenticarToken, registrosHandler);
 
+// SALVAR REGISTRO
 app.post("/registro", autenticarToken, async (req, res) => {
   try {
     let dados = req.body.dados || [];
@@ -241,6 +249,7 @@ app.post("/registro", autenticarToken, async (req, res) => {
   }
 });
 
+// APAGAR REGISTRO
 app.delete("/registro/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -255,9 +264,10 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
   }
 });
 
+// Arquivos estáticos da pasta public
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO SINCRONIZADA E SEGURA
+// INICIALIZAÇÃO SINCRONIZADA SEGURO
 async function iniciarSistema() {
   try {
     console.log("🔄 Conectando ao MongoDB Atlas...");
@@ -265,7 +275,6 @@ async function iniciarSistema() {
     db = client.db("rotas");
     console.log("✅ Mongo conectado com sucesso!");
 
-    // O app só escuta requisições quando a variável 'db' estiver perfeitamente preenchida
     app.listen(PORT, () => {
       console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
     });
