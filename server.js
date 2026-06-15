@@ -109,9 +109,11 @@ app.post("/login", async (req, res) => {
 // CADASTRO
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
-    if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "admin") {
-      return res.status(403).json({ erro: "Sem permissão para cadastrar usuários." });
-    }
+     if (req.usuario?.tipo !== "master") {
+    return res.status(403).json({
+        erro: "Somente usuários MASTER podem cadastrar usuários."
+    });
+}
 
     const { nome, usuario, senha, tipo } = req.body;
     if (!nome || !usuario || !senha || !tipo) {
