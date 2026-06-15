@@ -108,6 +108,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (btnDados) btnDados.style.display = "block";
     if (btnCadastrar) btnCadastrar.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
+    if (btnCadastrar) btnCadastrar.style.display = "none";
   } else if (tipoDashboard === "admin") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
@@ -274,84 +275,73 @@ function prepararEdicao(id, nome, usuario, tipoReal) {
 }
 
 async function salvarUsuario() {
+
   const id = document.getElementById("editId").value;
-  let nome = document.getElementById("cadNome").value.trim();
+  const nome = document.getElementById("cadNome").value.trim();
   const usuario = document.getElementById("cadUsuario").value.trim();
   const senha = document.getElementById("cadSenha").value;
-  let tipo = document.getElementById("cadTipo").value;
+  const tipo = document.getElementById("cadTipo").value;
 
   if (!nome || !usuario) {
-    alert("Nome e Usuário são obrigatórios!");
+    alert("Preencha todos os campos.");
     return;
   }
 
-  if (tipo === "estoque") {
-    tipo = "simples";
-    if (!nome.toUpperCase().includes("ESTOQUE")) {
-      nome = nome + " ESTOQUE";
-    }
-  } else {
-    nome = nome.replace(" [ESTOQUE]", "").replace(" ESTOQUE", "").trim();
-  }
+  try {
 
-  const dadosObjeto = { 
-    nome: nome, 
-    usuario: usuario, 
-    tipo: tipo 
-  };
-  
-  if (senha && senha.trim() !== "") {
-    dadosObjeto.senha = senha;
-  }
+    let resposta;
 
-  if (id && id !== "undefined" && id !== "") {
-    try {
-      dadosObjeto._id = id;
-      dadosObjeto.id = id;
+    if (id) {
 
-      const respuesta = await fetch("/api/usuarios", {
-        method: "POST",
-        headers: { 
+      resposta = await fetch(`/api/usuarios/${id}`, {
+        method: "PUT",
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${tokenDashboard}`
         },
-        body: JSON.stringify(dadosObjeto)
+        body: JSON.stringify({
+          nome,
+          tipo,
+          senha
+        })
       });
-      
-      if (!respuesta.ok) {
-        const resultado = await respuesta.json();
-        return alert(resultado.erro || "Erro retornado pelo servidor");
-      }
-      
-      alert("Alterações salvas com sucesso!");
-      if(usuario === localStorage.getItem("usuarioLogado")) {
-        localStorage.setItem("usuarioTipo", tipo === "simples" && nome.toUpperCase().includes("ESTOQUE") ? "estoque" : tipo);
-      }
-      abrirModalGerenciamento(); 
-    } catch (err) {
-      console.error("Erro na requisição de salvamento:", err);
-      alert("Erro ao conectar com o servidor. Verifique os dados.");
-    }
 
-  } else {
-    if (!senha) return alert("A senha é obrigatória para novos usuários!");
-    try {
-      const respuesta = await fetch("/api/usuarios", {
+    } else {
+
+      resposta = await fetch("/cadastro", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${tokenDashboard}`
         },
-        body: JSON.stringify({ nome, usuario, senha, tipo })
+        body: JSON.stringify({
+          nome,
+          usuario,
+          senha,
+          tipo
+        })
       });
-      const dados = await respuesta.json();
-      if (!respuesta.ok) return alert(dados.erro || "Erro ao cadastrar");
 
-      alert("Novo usuário cadastrado!");
-      abrirModalGerenciamento(); 
-    } catch (err) {
-      alert("Erro de comunicação com o servidor.");
     }
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+      alert(dados.erro || "Erro");
+      return;
+    }
+
+    alert("Operação realizada com sucesso!");
+
+    fecharModalCadastro();
+    atualizarListaUsuarios();
+
+  } catch (err) {
+
+    console.error(err);
+
+    alert("Erro ao conectar com o servidor.");
+
   }
 }
 

@@ -156,6 +156,68 @@ const listarUsuariosHandler = async (req, res) => {
 app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
 app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
+app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
+  try {
+
+    if (req.usuario.tipo !== "master") {
+      return res.status(403).json({
+        erro: "Somente Master pode excluir usuários"
+      });
+    }
+
+    await db.collection("usuarios").deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json({
+      ok: true
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      erro: "Erro ao excluir usuário"
+    });
+  }
+});
+
+app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
+  try {
+
+    if (req.usuario.tipo !== "master") {
+      return res.status(403).json({
+        erro: "Somente Master pode editar usuários"
+      });
+    }
+
+    const { nome, tipo, senha } = req.body;
+
+    const atualizacao = {
+      nome,
+      tipo
+    };
+
+    if (senha && senha.trim() !== "") {
+      atualizacao.senha = await bcrypt.hash(senha, 10);
+    }
+
+    await db.collection("usuarios").updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: atualizacao }
+    );
+
+    res.json({
+      ok: true
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      erro: "Erro ao editar usuário"
+    });
+  }
+});
+
 // ATUALIZAR USUÁRIO
 app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
@@ -178,6 +240,35 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
   } catch (err) {
     console.log(err);
     res.status(500).json({ erro: "Erro ao atualizar usuário" });
+  }
+});
+
+app.delete("/usuario/:id", autenticarToken, async (req, res) => {
+  try {
+
+    if (req.usuario?.tipo !== "master") {
+      return res.status(403).json({
+        erro: "Somente Master pode excluir usuários."
+      });
+    }
+
+    const { id } = req.params;
+
+    await db.collection("usuarios").deleteOne({
+      _id: new ObjectId(id)
+    });
+
+    res.json({
+      ok: true
+    });
+
+  } catch (erro) {
+
+    console.error(erro);
+
+    res.status(500).json({
+      erro: "Erro ao excluir usuário"
+    });
   }
 });
 
