@@ -170,6 +170,23 @@ const tecnicos = [
 
 let cacheHistoricoCompleto = [];
 
+// Função auxiliar para decodificar o ID do utilizador a partir do JWT Token
+function obterUsuarioIdDoToken() {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload).id;
+  } catch (e) {
+    console.error("Erro ao decodificar token:", e);
+    return null;
+  }
+}
+
 function obtenerMesAtual(){
   const hoje = new Date();
   const ano = hoje.getFullYear();
@@ -320,7 +337,7 @@ function remover(btn){
   }
 }
 
-async function ejecutarRemocaoDireta(id, btn) {
+async function executarRemocaoDireta(id, btn) {
   if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
     const token = localStorage.getItem("token");
@@ -340,7 +357,9 @@ async function ejecutarRemocaoDireta(id, btn) {
 
 async function salvar(){
   const token = localStorage.getItem("token");
+  const usuarioId = obterUsuarioIdDoToken();
   const mesAtual = document.getElementById("mesFiltro").value;
+  
   if(!mesAtual){
     alert("Selecione um mês antes de salvar.");
     return;
@@ -357,6 +376,7 @@ async function salvar(){
       if(!data.startsWith(mesAtual)) return;
 
       const registro = {
+        usuarioId: usuarioId, // CORREÇÃO COMPATÍVEL COM O SERVER.JS
         tecnico: nome,
         data: data,
         kmIni: Number(i[1].value) || 0,
@@ -397,20 +417,13 @@ async function salvar(){
 async function carregar(mes = ""){
   try {
     const token = localStorage.getItem("token");
-    
-    // CORREÇÃO: Enviando o cabeçalho idêntico ao app.js ("Bearer " + token)
     const res = await fetch("/registros", {
       headers: { "Authorization": "Bearer " + token }
     });
     
-    if (!res.ok) {
-      console.log("Erro na resposta do servidor ao carregar registros: Status", res.status);
-      return;
-    }
+    if (!res.ok) return;
 
     const listaCompleta = await res.json();
-    console.log("Registros recebidos do servidor:", listaCompleta);
-
     cacheHistoricoCompleto = [...listaCompleta];
     let listaFiltrada = [...listaCompleta];
 
@@ -435,7 +448,7 @@ async function carregar(mes = ""){
       }
     });
   } catch (erro) {
-    console.error("Erro na função carregar:", erro);
+    console.error(erro);
   }
 }
 
