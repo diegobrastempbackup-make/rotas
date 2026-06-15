@@ -323,10 +323,10 @@ function remover(btn){
 async function executarRemocaoDireta(id, btn) {
   if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
-    const tokenDashboard = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
     const res = await fetch(`/registro/${id}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${tokenDashboard}` }
+      headers: { "Authorization": `Bearer ${token}` }
     });
     if(res.ok) {
       btn.closest("tr").remove();
@@ -339,7 +339,7 @@ async function executarRemocaoDireta(id, btn) {
 }
 
 async function salvar(){
-  const tokenDashboard = localStorage.getItem("token");
+  const token = localStorage.getItem("token");
   const mesAtual = document.getElementById("mesFiltro").value;
   if(!mesAtual){
     alert("Selecione um mês antes de salvar.");
@@ -378,7 +378,7 @@ async function salvar(){
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${tokenDashboard}`
+        "Authorization": `Bearer ${token}`
       },
       body: JSON.stringify({ dados })
     });
@@ -396,10 +396,9 @@ async function salvar(){
 
 async function carregar(mes = ""){
   try {
-    // Alinhado com a chave correta que o app.js utiliza
-    const tokenDashboard = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
     const res = await fetch("/registros", {
-      headers: { "Authorization": `Bearer ${tokenDashboard}` }
+      headers: { "Authorization": `Bearer ${token}` }
     });
     
     if (!res.ok) return;
