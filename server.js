@@ -216,7 +216,7 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
       { $set: dadosAtualizados }
     );
 
-    res.json({ ok: true, message: "Usuário atualizado com sucesso!" });
+    res.json({ ok: true, message: "Usuário updated!" });
   } catch (err) {
     console.log(err);
     res.status(500).json({ erro: "Erro ao atualizar usuário" });
@@ -408,8 +408,20 @@ app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
 
 const registrosHandler = async (req, res) => {
   try {
+    // Busca os registros e garante compatibilidade mapeando o formato de data caso necessário
     const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
-    res.json(dados);
+    
+    // Mapeamento de segurança: se o front-end esperar estritamente string YYYY-MM-DD,
+    // garantimos que o campo '.data' seja entregue de forma inteligível para o app.js antigo
+    const dadosTratados = dados.map(item => {
+      if (item.data && item.data instanceof Date) {
+        // Converte de volta para string limpa no formato que o front original consumia
+        item.data = item.data.toISOString().split('T')[0];
+      }
+      return item;
+    });
+
+    res.json(dadosTratados);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao buscar registros" });
   }
@@ -417,22 +429,22 @@ const registrosHandler = async (req, res) => {
 app.get("/registros", autenticarToken, registrosHandler);
 app.get("/api/registros", autenticarToken, registrosHandler);
 
-// CORREÇÃO CRÍTICA DO SALVAMENTO: Preserva horário e impede sobrescrever registros no mesmo dia
+// SALVAMENTO RETIFICADO COM COMPATIBILIDADE PLENA (Não sobrescreve e aceita leitura do app.js original)
 app.post("/registro", autenticarToken, async (req, res) => {
   try {
     let dados = req.body.dados || [];
     if (dados.length === 0) return res.status(400).json({ erro: "Nenhum dado informado" });
 
     const operacoes = dados.map(item => {
-      // Converte para objeto Date real do MongoDB preservando data e hora de entrada completo
-      const dataTratada = item.data ? new Date(item.data) : new Date();
+      // Cria a string limpa YYYY-MM-DD que o front usa para renderizar nas tabelas
+      const dataLimpaStr = item.data ? String(item.data).split('T')[0] : new Date().toISOString().split('T')[0];
 
-      // Caso seja uma atualização / edição de registro já existente (Front enviou _id)
       if (item._id) {
         const idExistente = new ObjectId(item._id);
         delete item._id; 
         
-        item.data = dataTratada; 
+        // Mantemos a estrutura em formato texto puro para o front original conseguir ler sem falhar
+        item.data = dataLimpaStr; 
 
         return {
           updateOne: {
@@ -442,12 +454,10 @@ app.post("/registro", autenticarToken, async (req, res) => {
           }
         };
       } else {
-        // Se for um novo lançamento, forçamos um ObjectId aleatório único no filtro.
-        // Isso obriga o bulkWrite com upsert a criar uma linha nova e separada no banco,
-        // mesmo que seja o mesmo técnico lançando no mesmo dia!
+        // Geração de ID exclusivo por registro para acabar com o bug de sobrescrever o mesmo dia
         const novoId = new ObjectId();
-        item.data = dataTratada;
-        item.criadoEm = new Date();
+        item.data = dataLimpaStr;
+        item.dataRegistroOriginal = new Date(); // Salva a hora exata em segundo plano para auditoria
 
         return {
           updateOne: {
@@ -460,7 +470,7 @@ app.post("/registro", autenticarToken, async (req, res) => {
     });
 
     await db.collection("registros").bulkWrite(operacoes);
-    res.json({ ok: true, mensagem: "Lançamentos processados e salvos com sucesso!" });
+    res.json({ ok: true, mensagem: "Lançamentos salvos com sucesso!" });
   } catch (err) {
     console.error("Erro ao salvar registros:", err);
     res.status(500).json({ erro: "Erro ao salvar dados" });
@@ -490,14 +500,14 @@ async function iniciarSistema() {
     console.log("🔄 Conectando ao MongoDB Atlas...");
     await client.connect();
     
-    // Conecta na database correta do cluster onde estão seus dados históricos
+    // Conecta exatamente na database correta que o front antigo busca os dados
     db = client.db("neriFrotas");
     console.log("✅ Mongo conectado com sucesso na database 'neriFrotas'!");
 
     // TRAVA DE SEGURANÇA ADMINISTRATIVA
     const totalUsuarios = await db.collection("usuarios").countDocuments();
     if (totalUsuarios === 0) {
-      console.log("⚠️ Nenhum usuário encontrado. Criando usuário master administrador de emergência...");
+      console.log("⚠️ Nenhum usuário encontrado. Criando usuário master de emergência...");
       const senhaHash = await bcrypt.hash("admin123", 10);
       await db.collection("usuarios").insertOne({
         nome: "Diego Neri",
