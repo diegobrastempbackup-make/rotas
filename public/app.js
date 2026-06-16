@@ -123,6 +123,7 @@ function processarDadosDashboard() {
 
   let dadosFiltrados = dadosGlobal.filter(item => {
     if (!item.data) return false;
+    // Pega o ano e mês do registro (YYYY-MM)
     const itemMes = String(item.data).substring(0, 7);
     const bateMes = itemMes === mesFiltro;
 
