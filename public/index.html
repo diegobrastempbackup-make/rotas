@@ -11,12 +11,10 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
-    /* Esconde os botões sensíveis por padrão antes da checagem do script */
-    #btnIrParaDados, #btnMenuCadastro, #btnIrParaEstoque, #btnGerenciarTecnicos {
+    #btnIrParaDados, #btnMenuCadastro, #btnIrParaEstoque {
       display: none;
     }
 
-    /* AJUSTE PARA OS CARDS FICAREM COLADOS NO TOPO NO CELULAR E PC */
     .main {
       flex-grow: 1;
       padding: 15px 20px; 
@@ -35,7 +33,6 @@
       margin-top: 0 !important; 
     }
 
-    /* BLINDAGEM DO MODAL */
     .modal {
       display: none;
       position: fixed;
@@ -91,7 +88,7 @@
       margin-top: 5px;
     }
 
-    .item-usuario, .item-tecnico {
+    .item-usuario {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -132,7 +129,6 @@
 
       <button id="btnIrParaDados" onclick="window.location.href='/dados.html'" style="background:#2563EB; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-bottom:8px;">📝 Lançar Dados</button>
       <button id="btnIrParaEstoque" onclick="window.location.href='/estoque.html'" style="background:#10B981; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-bottom:8px;">📦 Ver Estoque</button>
-      <button id="btnGerenciarTecnicos" onclick="abrirModalTecnicos()" style="background:#F59E0B; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-bottom:8px;">👥 Gerenciar Técnicos</button>
       <button id="btnMenuCadastro" onclick="abrirModalCadastro()" style="background:#475569; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-bottom:8px;">⚙️ Gerenciar Usuários</button>
       
       <button onclick="logout()" style="background:#EF4444; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-top:auto;">🚪 Sair</button>
@@ -218,26 +214,6 @@
         <button class="btn-bloco" style="background:#64748B; margin:0;" onclick="fecharModalCadastro()">Fechar</button>
         <button id="btnSalvarUsuario" class="btn-bloco" style="background:#2563EB; margin:0; display:none;" onclick="salvarNovoUsuario()">Gravar Usuário</button>
       </div>
-    </div>
-  </div>
-
-  <div id="modalTecnicos" class="modal">
-    <div class="modal-conteudo">
-      <h3 style="margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 8px;">Gerenciamento de Técnicos</h3>
-      
-      <div style="margin-bottom:15px; background:#0F172A; padding:10px; border-radius:4px; border:1px solid #334155;">
-        <label style="color:#94A3B8; font-size:12px; font-weight:bold; display:block; margin-bottom:5px;">ADICIONAR NOVO TÉCNICO:</label>
-        <div style="display:flex; gap:8px;">
-          <input type="text" id="inputNovoTecnico" placeholder="Nome do Técnico" style="flex-grow:1; padding:8px; background:#1E293B; border:1px solid #334155; color:white; border-radius:4px;">
-          <button onclick="adicionarTecnicoServidor()" style="background:#10B981; color:white; border:none; padding:0 15px; border-radius:4px; font-weight:bold; cursor:pointer;">+</button>
-        </div>
-      </div>
-
-      <label style="color:#94A3B8; font-size:12px; font-weight:bold; display:block; margin-bottom:8px;">TÉCNICOS ATIVOS NO SISTEMA:</label>
-      <div id="listaTecnicosGerenciarContainer" style="max-height:220px; overflow-y:auto; margin-bottom:15px;">
-         </div>
-
-      <button class="btn-bloco" style="background:#64748B; margin:0;" onclick="fecharModalTecnicos()">Fechar</button>
     </div>
   </div>
 

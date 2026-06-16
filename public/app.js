@@ -1,3 +1,6 @@
+// =================================================================
+// CONTROLE DE INATIVIDADE (5 MINUTOS)
+// =================================================================
 let temporizadorInatividade;
 
 function resetarTemporizador() {
@@ -20,8 +23,19 @@ window.ontouchstart = resetarTemporizador;
 window.onclick = resetarTemporizador;     
 window.onkeydown = resetarTemporizador;
 
-// --- CONFIGURAÇÃO DINÂMICA DE TÉCNICOS ---
-let listaTecnicosGlobal = []; 
+// =================================================================
+// DEFINIÇÕES GLOBAIS DO SISTEMA (LISTA ORIGINAL RESTAURADA)
+// =================================================================
+const tecnicos = [
+  "Sibele",
+  "Empresa",
+  "Danilo",
+  "José Cicero",
+  "Alex",
+  "Danilo BH",
+  "Thiago BH"
+];
+
 let dadosGlobal = [];
 let tecnicoAtual = "TODOS";
 let grafico1;
@@ -35,142 +49,56 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Define mês padrão como o mês atual
+  // Define o mês atual como padrão no input
   const hoje = new Date();
   const mesAtualStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
   document.getElementById("filtroMes").value = mesAtualStr;
 
-  // Escuta alteração do mês para remontar o menu lateral instantaneamente
+  // Atualiza os dados quando mudar o mês
   document.getElementById("filtroMes").addEventListener("change", () => {
-    renderizarMenuTecnicos();
     processarDadosDashboard();
   });
 
-  // Carrega e checa permissões
   await checarPermissoesDoUsuario();
-  await carregarTecnicosDaAPI();
+  montarMenuTecnicosFixo();
   await buscarDadosRegistros();
 });
 
-// Busca técnicos cadastrados no Mongo Atlas
-async function carregarTecnicosDaAPI() {
-  try {
-    const res = await fetch("/api/tecnicos", {
-      headers: { "Authorization": `Bearer ${tokenDashboard}` }
-    });
-    if (res.ok) {
-      listaTecnicosGlobal = await res.json();
-      renderizarMenuTecnicos();
-    }
-  } catch (err) {
-    console.error("Erro ao listar técnicos:", err);
-  }
-}
-
-// Filtra quem deve aparecer no menu lateral com base no mês do input
-function renderizarMenuTecnicos() {
-  const mesSelecionado = document.getElementById("filtroMes").value; 
+// Monta o menu lateral estático original para nunca sumir ninguém
+function montarMenuTecnicosFixo() {
   const container = document.getElementById("containerTecnicosDinamicos");
   if (!container) return;
+  container.innerHTML = "";
+
+  tecnicos.forEach(nome => {
+    const p = document.createElement("p");
+    p.textContent = nome;
+    p.className = tecnicoAtual === nome ? "active" : "";
+    p.onclick = () => filtrar(nome);
+    container.appendChild(p);
+  });
+}
+
+function filtrar(nome) {
+  tecnicoAtual = nome;
   
-  container.innerHTML = "";
-
-  listaTecnicosGlobal.forEach(t => {
-    // PROTEÇÃO: Se for técnico antigo sem mesInicio cadastrado, assume "2026-01"
-    const mesInicio = t.mesInicio || "2026-01";
-    const mesFim = t.mesEncerramento;
-
-    const jaIniciou = mesInicio <= mesSelecionado;
-    const naoEncerrouAinda = !mesFim || mesFim >= mesSelecionado;
-
-    if (jaIniciou && naoEncerrouAinda) {
-      const p = document.createElement("p");
-      p.textContent = t.nome;
-      p.className = tecnicoAtual === t.nome ? "active" : "";
-      p.onclick = () => filtrar(t.nome);
-      container.appendChild(p);
-    }
+  // Atualiza classes active
+  document.getElementById("btnTodos").className = nome === "TODOS" ? "active" : "";
+  
+  const ps = document.querySelectorAll("#containerTecnicosDinamicos p");
+  ps.forEach(p => {
+    if (p.textContent === nome) p.classList.add("active");
+    else p.classList.remove("active");
   });
-}
 
-async function adicionarTecnicoServidor() {
-  const input = document.getElementById("inputNovoTecnico");
-  const nome = input.value.trim();
-  if (!nome) return alert("Digite o nome do técnico");
-
-  try {
-    const res = await fetch("/api/tecnicos", {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${tokenDashboard}`
-      },
-      body: JSON.stringify({ nome })
-    });
-
-    if (res.ok) {
-      input.value = "";
-      await carregarTecnicosDaAPI();
-      renderizarListaModalTecnicos();
-    } else {
-      const e = await res.json();
-      alert(e.erro || "Erro ao adicionar");
-    }
-  } catch (err) {
-    alert("Falha de conexão");
-  }
-}
-
-async function desativarTecnicoServidor(id) {
-  if (!confirm("Deseja remover este técnico? Ele sumirá dos meses futuros, mas o histórico passado continuará intacto.")) return;
-
-  try {
-    const res = await fetch(`/api/tecnicos/${id}`, {
-      method: "DELETE",
-      headers: { "Authorization": `Bearer ${tokenDashboard}` }
-    });
-    if (res.ok) {
-      await carregarTecnicosDaAPI();
-      renderizarListaModalTecnicos();
-    }
-  } catch (err) {
-    alert("Erro ao remover");
-  }
-}
-
-function renderizarListaModalTecnicos() {
-  const container = document.getElementById("listaTecnicosGerenciarContainer");
-  if (!container) return;
-  container.innerHTML = "";
-
-  listaTecnicosGlobal.forEach(t => {
-    // Mostra no modal os que estão explicitamente ativos ou que não tem o campo ativo definido ainda
-    if (t.ativo !== false) {
-      container.innerHTML += `
-        <div class="item-tecnico">
-          <span>${t.nome}</span>
-          <button class="btn-excluir-user" onclick="desativarTecnicoServidor('${t._id}')">Remover</button>
-        </div>
-      `;
-    }
-  });
-}
-
-function abrirModalTecnicos() {
-  document.getElementById("modalTecnicos").style.display = "flex";
-  renderizarListaModalTecnicos();
-}
-function fecharModalTecnicos() {
-  document.getElementById("modalTecnicos").style.display = "none";
+  processarDadosDashboard();
 }
 
 async function checarPermissoesDoUsuario() {
   const tipo = localStorage.getItem("usuarioTipo");
-
   if (tipo === "master" || tipo === "admin") {
     document.getElementById("btnIrParaDados").style.display = "block";
     document.getElementById("btnMenuCadastro").style.display = "block";
-    document.getElementById("btnGerenciarTecnicos").style.display = "block";
   }
   if (tipo === "master" || tipo === "admin" || tipo === "estoque") {
     document.getElementById("btnIrParaEstoque").style.display = "block";
@@ -223,14 +151,6 @@ function processarDadosDashboard() {
   document.getElementById("cardMedia").textContent = mediaGeral > 0 ? mediaGeral.toFixed(2) + " km/l" : "-";
 
   renderizarGraficosDoPeriodo(dadosFiltrados);
-}
-
-function filtrar(nome) {
-  tecnicoAtual = nome;
-  
-  document.getElementById("btnTodos").className = nome === "TODOS" ? "active" : "";
-  renderizarMenuTecnicos();
-  processarDadosDashboard();
 }
 
 function renderizarGraficosDoPeriodo(dados) {
@@ -449,11 +369,7 @@ function gerarPDF() {
   let y = 40;
   let totalKm = 0, totalLitros = 0, totalValor = 0;
 
-  const tecnicosAtivosNoMes = listaTecnicosGlobal.filter(t => {
-    return (t.mesInicio || "2026-01") <= mesFiltro && (!t.mesEncerramento || t.mesEncerramento >= mesFiltro);
-  }).map(t => t.nome);
-
-  tecnicosAtivosNoMes.forEach(nome => {
+  tecnicos.forEach(nome => {
     const dadosTecnico = dadosGlobal.filter(item => item.tecnico === nome && String(item.data).substring(0, 7) === mesFiltro);
 
     let tKm = 0, tLitros = 0, tValor = 0;
