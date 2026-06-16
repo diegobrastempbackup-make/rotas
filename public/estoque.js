@@ -391,7 +391,7 @@ window.emitirPDFIndividual = () => {
     doc.setTextColor(255, 255, 255);
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(18);
-    doc.text("NERI — CONTROLE DE ESTOQUE E CAUTELA", 14, 16);
+    doc.text("CONTROLE DE ESTOQUE E CAUTELA", 14, 16);
     
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(10);
