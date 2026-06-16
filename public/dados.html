@@ -26,6 +26,7 @@ body {
   align-items: center;
 }
 
+/* Estilo da Tabela */
 table {
   width: 100%;
   border-collapse: separate;
@@ -47,149 +48,375 @@ td {
   padding: 0 4px;
 }
 
+/* Inputs Modernizados */
 input {
   width: 100%;
   background: #1E293B;
   border: 1px solid rgba(255, 255, 255, 0.05);
   color: white;
-  padding: 8px;
-  border-radius: 6px;
+  padding: 8px 10px;
   box-sizing: border-box;
+  border-radius: 6px;
   text-align: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
 }
 
 input:focus {
   outline: none;
   border-color: #3B82F6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  background: #1E293B;
 }
 
-.btn {
-  background: #2563EB;
-  color: white;
-  border: none;
-  padding: 10px 20px;
+input[readonly] {
+  background: rgba(15, 23, 42, 0.6);
+  color: #64748B;
+  border-color: transparent;
+  cursor: not-allowed;
   font-weight: bold;
-  border-radius: 6px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
   cursor: pointer;
 }
 
-.bloco-tecnico {
-  background: #1E293B;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.03);
+button {
+  padding: 10px 16px;
+  background: #2563EB;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.nome-tecnico {
-  font-size: 18px;
-  font-weight: bold;
+button:hover {
+  background: #3B82F6;
+  transform: translateY(-1px);
+}
+
+button[onclick^="addLinha"] {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px dashed #3B82F6;
+  color: #60A5FA;
+  margin-top: 12px;
+  padding: 8px 20px;
+}
+
+button[onclick^="addLinha"]:hover {
+  background: #3B82F6;
+  color: white;
+  border-style: solid;
+}
+
+td button {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+  color: #EF4444;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  margin: 0 auto;
+}
+
+td button:hover {
+  background: #EF4444 !important;
+  color: white !important;
+  transform: scale(1.05);
+}
+
+h2 {
+  margin-top: 45px;
+  margin-bottom: 5px;
   color: #F8FAFC;
-  margin-bottom: 15px;
+  font-size: 22px;
   border-left: 4px solid #3B82F6;
-  padding-left: 10px;
+  padding-left: 12px;
 }
 </style>
 </head>
+
 <body>
 
 <div class="container">
-  
   <div class="topo">
-    <button class="btn" style="background:#475569;" onclick="window.location.href='/index.html'">⬅ Voltar Dashboard</button>
-    <input type="month" id="mesFiltro" style="width:auto;" onchange="filtrarMes()">
-    <button class="btn" style="background:#10B981;" onclick="salvarTudo()">💾 Salvar Lançamentos do Mês</button>
+    <button onclick="voltarAoDashboard()">⬅ Voltar</button>
+    <button onclick="salvar()">💾 Salvar</button>
+    <input type="month" id="mesFiltro" style="width: auto; display: inline-block;">
+    <button onclick="filtrarMes()">🔍 Buscar</button>
+    <button onclick="mostrarTudo()">♻ Mostrar Mês Atual</button>
   </div>
 
-  <div id="formularioDinamicoTecnicos"></div>
-
+  <div id="tabelas"></div>
 </div>
 
 <script>
-const token = localStorage.getItem("token");
-let listaTecnicosData = []; // Recebido dinamicamente via API
+const tecnicos = [
+  "Sibele",
+  "Empresa",
+  "Danilo",
+  "José Cicero",
+  "Alex",
+  "Danilo BH",
+  "Thiago BH"
+];
+
 let cacheHistoricoCompleto = [];
 
-function obtenerMesAtual(){
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0');
+// Função auxiliar para decodificar o ID do utilizador a partir do JWT Token
+function obterUsuarioIdDoToken() {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload).id;
+  } catch (e) {
+    console.error("Erro ao decodificar token:", e);
+    return null;
+  }
 }
 
-// CARREGA A LISTA DE TÉCNICOS DIRETO DO MONGO ATLAS E EXUTA O DESENHO DA TELA
-async function carregarTecnicosData() {
+function obtenerMesAtual(){
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2,"0");
+  return `${ano}-${mes}`;
+}
+
+function hoje(){
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = String(agora.getMonth() + 1).padStart(2, '0');
+  const dia = String(agora.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
+
+function criar(){
+  const container = document.getElementById("tabelas");
+  container.innerHTML = "";
+
+  tecnicos.forEach(nome=>{
+    const bloco = document.createElement("div");
+    bloco.innerHTML = `
+      <h2>${nome}</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>KM Ini</th>
+            <th>KM Fim</th>
+            <th>KM</th>
+            <th>Consumo</th>
+            <th>Abast Ant</th>
+            <th>Abast Atual</th>
+            <th>Litros</th>
+            <th>Valor</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody data-tecnico="${nome}"></tbody>
+      </table>
+      <button onclick="addLinha('${nome}')">+ Linha</button>
+    `;
+    container.appendChild(bloco);
+  });
+}
+
+function linha(d = {}) {
+  const dataFormatada = d.data ? String(d.data).split("T")[0] : hoje();
+  const idRegistro = d._id || "";
+
+  return `
+  <tr>
+    <td>
+      <input type="date" value="${dataFormatada}">
+    </td>
+    <td>
+      <input value="${d.kmIni || ''}" oninput="calc(this)">
+    </td>
+    <td>
+      <input value="${d.kmFim || ''}" oninput="calc(this)">
+    </td>
+    <td>
+      <input readonly value="${d.km || ''}">
+    </td>
+    <td>
+      <input readonly value="${d.consumo || ''}">
+    </td>
+    <td>
+      <input value="${d.abastAnt || ''}">
+    </td>
+    <td>
+      <input value="${d.abastAtual || ''}" oninput="calc(this)">
+    </td>
+    <td>
+      <input value="${d.litros || ''}" oninput="calc(this)">
+    </td>
+    <td>
+      <input value="${d.valor || ''}">
+    </td>
+    <td>
+      <button data-id="${idRegistro}" onclick="remover(this)">🗑️</button>
+    </td>
+  </tr>
+  `;
+}
+
+function addLinha(nome){
+  const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+  const tr = document.createElement("tr");
+  tr.innerHTML = linha();
+  tbody.appendChild(tr);
+}
+
+function calc(el) {
+  const tr = el.closest("tr");
+  const i = tr.querySelectorAll("input");
+  const tbody = tr.closest("tbody");
+  const nomeTecnico = tbody.getAttribute("data-tecnico");
+
+  const kmIni = Number(i[1].value);
+  const kmFim = Number(i[2].value);
+  const abastAtualInput = i[6];
+  const abastAntInput = i[5];
+  const litros = Number(i[7].value);
+
+  const km = kmFim - kmIni;
+  i[3].value = km > 0 ? km : "";
+
+  if (abastAtualInput.value.trim() !== "") {
+    const todasAsLinhas = Array.from(tbody.querySelectorAll("tr"));
+    const indexAtual = todasAsLinhas.indexOf(tr);
+    
+    let encontrouAnterior = false;
+    
+    for (let j = indexAtual - 1; j >= 0; j--) {
+      const inputsLinhaAnt = todasAsLinhas[j].querySelectorAll("input");
+      const valorAbastAtualLinhaAnt = inputsLinhaAnt[6].value.trim();
+      
+      if (valorAbastAtualLinhaAnt !== "") {
+        abastAntInput.value = valorAbastAtualLinhaAnt;
+        encontrouAnterior = true;
+        break;
+      }
+    }
+    
+    if (!encontrouAnterior) {
+      const dataAtualDaLinha = i[0].value;
+      const historicoFiltrado = cacheHistoricoCompleto
+        .filter(item => item.tecnico === nomeTecnico && item.abastAtual && item.data && item.data < dataAtualDaLinha)
+        .sort((a, b) => new Date(b.data) - new Date(a.data));
+
+      if (historicoFiltrado.length > 0) {
+        abastAntInput.value = historicoFiltrado[0].abastAtual;
+      }
+    }
+  }
+
+  const consumo = (km > 0 && litros > 0) ? (km / litros).toFixed(2) : "";
+  i[4].value = consumo;
+}
+
+function remover(btn){
+  const id = btn.getAttribute("data-id");
+  if (id && id !== "" && id !== "undefined") {
+    executarRemocaoDireta(id, btn);
+  } else {
+    btn.closest("tr").remove();
+  }
+}
+
+async function executarRemocaoDireta(id, btn) {
+  if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
-    const res = await fetch("/api/tecnicos", {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/registro/${id}`, {
+      method: "DELETE",
       headers: { "Authorization": "Bearer " + token }
     });
     if(res.ok) {
-      listaTecnicosData = await res.json();
+      btn.closest("tr").remove();
+    } else {
+      alert("Erro ao remover o registro.");
+    }
+  } catch(err) {
+    console.error(err);
+  }
+}
+
+async function salvar(){
+  const token = localStorage.getItem("token");
+  const usuarioId = obterUsuarioIdDoToken();
+  const mesAtual = document.getElementById("mesFiltro").value;
+  
+  if(!mesAtual){
+    alert("Selecione um mês antes de salvar.");
+    return;
+  }
+
+  let dados = [];
+  tecnicos.forEach(nome=>{
+    const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
+    linhas.forEach(l=>{
+      const i = l.querySelectorAll("input");
+      if (i.length < 9) return; 
+      
+      const data = i[0].value;
+      if(!data.startsWith(mesAtual)) return;
+
+      const registro = {
+        usuarioId: usuarioId, // CORREÇÃO COMPATÍVEL COM O SERVER.JS
+        tecnico: nome,
+        data: data,
+        kmIni: Number(i[1].value) || 0,
+        kmFim: Number(i[2].value) || 0,
+        km: Number(i[3].value) || 0,
+        consumo: Number(i[4].value) || 0,
+        abastAnt: i[5].value || "",
+        abastAtual: i[6].value || "",
+        litros: Number(i[7].value) || 0,
+        valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
+      };
+
+      dados.push(registro);
+    });
+  });
+
+  try {
+   const respuesta = await fetch("/registro", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({ dados })
+    });
+
+    if (respuesta.ok) {
+      alert("✅ Dados salvos com sucesso!");
+      carregar(mesAtual); 
+    } else {
+      alert("⚠️ Erro ao salvar dados.");
     }
   } catch (err) {
     console.error(err);
   }
 }
 
-// GERA OS BLOCOS DE INPUTS APENAS PARA OS TÉCNICOS ATIVOS NO MÊS SELECIONADO
-function criarFormulariosDinamicos() {
-  const mesSelecionado = document.getElementById("mesFiltro").value;
-  const container = document.getElementById("formularioDinamicoTecnicos");
-  container.innerHTML = "";
-
-  // Aplica regra linear temporal idêntica ao dashboard
-  const filtrados = listaTecnicosData.filter(t => {
-    return (t.mesInicio || "2000-01") <= mesSelecionado && (!t.mesEncerramento || t.mesEncerramento >= mesSelecionado);
-  });
-
-  if(filtrados.length === 0) {
-    container.innerHTML = "<p style='color:#94A3B8; text-align:center;'>Nenhum técnico ativo configurado para este período.</p>";
-    return;
-  }
-
-  filtrados.forEach(tecnico => {
-    const div = document.createElement("div");
-    div.className = "bloco-tecnico";
-    div.innerHTML = `
-      <div class="nome-tecnico">${tecnico.nome.toUpperCase()}</div>
-      <div style="overflow-x:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:14%">Data</th>
-              <th style="width:20%">KM Rodado</th>
-              <th style="width:20%">Litros</th>
-              <th style="width:20%">Valor Gasto</th>
-              <th style="width:10%">Ação</th>
-            </tr>
-          </thead>
-          <tbody data-tecnico="${tecnico.nome}"></tbody>
-        </table>
-      </div>
-      <button class="btn" style="background:#475569; font-size:12px; padding:6px 12px; margin-top:10px;" onclick="adicionarNovaLinhaVazia('${tecnico.nome}')">+ Nova Linha</button>
-    `;
-    container.appendChild(div);
-  });
-}
-
-function linha(item){
-  return `
-    <td><input type="date" class="inp-data" value="${item.data || ''}" data-id="${item._id || ''}"></td>
-    <td><input type="number" class="inp-km" value="${item.kmRodado || ''}" placeholder="0"></td>
-    <td><input type="number" class="inp-litros" value="${item.litros || ''}" placeholder="0.00" step="0.01"></td>
-    <td><input type="number" class="inp-valor" value="${item.valor || ''}" placeholder="0.00" step="0.01"></td>
-    <td style="text-align:center;"><button class="btn" style="background:#EF4444; padding:6px 12px;" onclick="deletarLinhaRegistro(this, '${item._id || ''}')">❌</button></td>
-  `;
-}
-
-function adicionarNovaLinhaVazia(nomeTecnico) {
-  const tbody = document.querySelector(`[data-tecnico="${nomeTecnico}"]`);
-  if(!tbody) return;
-  const tr = document.createElement("tr");
-  tr.innerHTML = linha({ tecnico: nomeTecnico, data: '', kmRodado: '', litros: '', valor: '', _id: '' });
-  tbody.appendChild(tr);
-}
-
-async function carregar(mes){
+async function carregar(mes = ""){
   try {
+    const token = localStorage.getItem("token");
     const res = await fetch("/api/registros", {
       headers: { "Authorization": "Bearer " + token }
     });
@@ -203,17 +430,15 @@ async function carregar(mes){
     if(mes){
       listaFiltrada = listaFiltrada.filter(item=>{
         if(!item.data) return false;
-        return String(item.data).startsWith(mes);
+        return String(item.data).split("T")[0].startsWith(mes);
       });
     }
 
-    // Limpa tabelas renderizadas
-    listaTecnicosData.forEach(t=>{
-      const tbody = document.querySelector(`[data-tecnico="${t.nome}"]`);
+    tecnicos.forEach(nome=>{
+      const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
       if(tbody) tbody.innerHTML = "";
     });
 
-    // Popula tabelas com dados salvos no Mongo
     listaFiltrada.forEach(item=>{
       const tbody = document.querySelector(`[data-tecnico="${item.tecnico}"]`);
       if(tbody){
@@ -227,95 +452,32 @@ async function carregar(mes){
   }
 }
 
-async function salvarTudo(){
-  const dados = [];
-  
-  // Seleciona os blocos criados dinamicamente
-  listaTecnicosData.forEach(t => {
-    const tbody = document.querySelector(`[data-tecnico="${t.nome}"]`);
-    if(!tbody) return;
-
-    const linhas = tbody.querySelectorAll("tr");
-    linhas.forEach(tr => {
-      const inpData = tr.querySelector(".inp-data");
-      const inpKm = tr.querySelector(".inp-km");
-      const inpLitros = tr.querySelector(".inp-litros");
-      const inpValor = tr.querySelector(".inp-valor");
-
-      if(inpData && inpData.value) {
-        const payload = {
-          tecnico: t.nome,
-          data: inpData.value,
-          kmRodado: inpKm.value ? Number(inpKm.value) : "",
-          litros: inpLitros.value ? Number(inpLitros.value) : "",
-          valor: inpValor.value ? Number(inpValor.value) : ""
-        };
-        if(inpData.dataset.id) {
-          payload._id = inpData.dataset.id;
-        }
-        dados.push(payload);
-      }
-    });
-  });
-
-  try {
-    const res = await fetch("/registro", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + token
-      },
-      body: JSON.stringify({ dados })
-    });
-    const r = await res.json();
-    if(res.ok) {
-      alert("Lançamentos salvos com sucesso!");
-      const mes = document.getElementById("mesFiltro").value;
-      await carregar(mes);
-    } else {
-      alert(r.erro);
-    }
-  } catch (err) {
-    alert("Erro ao conectar");
-  }
-}
-
-async function deletarLinhaRegistro(botao, id) {
-  if(!id) {
-    botao.closest("tr").remove();
-    return;
-  }
-  if(!confirm("Excluir definitivamente este registro do banco?")) return;
-
-  try {
-    const res = await fetch(`/registro/${id}`, {
-      method: "DELETE",
-      headers: { "Authorization": "Bearer " + token }
-    });
-    if(res.ok) {
-      botao.closest("tr").remove();
-    }
-  } catch (err) {
-    alert("Erro ao excluir");
-  }
-}
-
 function filtrarMes(){
   const mes = document.getElementById("mesFiltro").value;
-  criarFormulariosDinamicos();
   carregar(mes);
 }
 
-async function iniciar(){
+function mostrarTudo(){
   const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
-  
-  await carregarTecnicosData();
-  criarFormulariosDinamicos();
+  carregar(mesAtual);
+}
+
+async function iniciar(){
+  criar();
+  const mesAtual = obtenerMesAtual();
+  document.getElementById("mesFiltro").value = mesAtual;
   await carregar(mesAtual);
 }
 
 iniciar();
 </script>
+
+<script>
+  function voltarAoDashboard() {
+    window.location.href = "/index.html";
+  }
+</script>
+
 </body>
 </html>

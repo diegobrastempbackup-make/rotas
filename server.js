@@ -335,26 +335,20 @@ app.post("/api/tecnicos", autenticarToken, async (req, res) => {
 // EXCLUIR TÉCNICO
 app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    const hoje = new Date();
-    // Gera o mês atual no formato YYYY-MM para servir de linha de corte histórica
-    const mesEncerramento = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-    // Em vez de apagar fisicamente do banco (deleteOne), mudamos para inativo
-    // e guardamos o mês de encerramento para o histórico de frotas
-    await db.collection("tecnicos").updateOne(
-      { _id: new ObjectId(id) },
-      { 
-        $set: { 
-          ativo: false,
-          mesEncerramento: mesEncerramento
-        } 
-      }
-    );
-    res.json({ ok: true, mensagem: "Técnico desativado (histórico preservado)" });
+    await db.collection("tecnicos").deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json({
+      ok: true
+    });
+
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao desativar técnico" });
+    res.status(500).json({
+      erro: "Erro ao excluir técnico"
+    });
   }
 });
 

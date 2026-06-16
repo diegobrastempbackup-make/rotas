@@ -11,10 +11,12 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
+    /* Esconde os botões sensíveis por padrão antes da checagem do script */
     #btnIrParaDados, #btnMenuCadastro, #btnIrParaEstoque {
       display: none;
     }
 
+    /* AJUSTE PARA OS CARDS FICAREM COLADOS NO TOPO NO CELULAR E PC */
     .main {
       flex-grow: 1;
       padding: 15px 20px; 
@@ -27,196 +29,212 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
       gap: 15px;
       width: 100%;
       margin-top: 0 !important; 
     }
 
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6);
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
-      padding: 10px;
-      box-sizing: border-box;
+    /* BLINDAGEM DO MODAL COM O CORRETO DO JAVASCRIPT (.show) */
+    .modal.show {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      display: flex !important;
     }
-
-    .modal-conteudo {
-      background: #1E293B;
-      padding: 20px;
-      border-radius: 8px;
-      width: 100%;
-      max-width: 450px;
-      color: white;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    .modal.show .modal-conteudo {
+      transform: translateY(0) !important;
     }
-
-    .form-group {
-      margin-bottom: 12px;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 4px;
-      color: #94A3B8;
-      font-size: 13px;
-    }
-
+    
+    /* Correção de inputs internos do formulário */
     .form-group input, .form-group select {
-      width: 100%;
-      padding: 8px;
-      background: #0F172A;
-      border: 1px solid #334155;
-      color: white;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-
-    .btn-bloco {
-      width: 100%;
-      padding: 10px;
-      border: none;
-      border-radius: 4px;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 5px;
-    }
-
-    .item-usuario {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #0F172A;
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin-bottom: 6px;
-      border: 1px solid #334155;
-    }
-
-    .btn-excluir-user {
-      background: #EF4444;
-      color: white;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
+      margin-bottom: 10px;
     }
   </style>
+
+  <script>
+    const token = localStorage.getItem("token");
+    let usuarioTipo = localStorage.getItem("usuarioTipo");
+    const usuarioNome = localStorage.getItem("usuarioNome");
+
+    // Trava de segurança inicial: Sem token vai pro login
+    if (!token) {
+      window.location.replace("/login.html");
+    }
+
+    // Intercepta e força o perfil de estoque caso o nome venha com a marcação de segurança
+    if (usuarioNome && usuarioNome.includes("[ESTOQUE]")) {
+      usuarioTipo = "estoque";
+      localStorage.setItem("usuarioTipo", "estoque");
+    }
+
+    // Se o usuário for do tipo estoque, ele não entra no Dashboard de forma alguma
+    if (usuarioTipo === "estoque") {
+      window.location.replace("/estoque.html");
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const btnDados = document.getElementById("btnIrParaDados");
+      const btnCadastrar = document.getElementById("btnMenuCadastro");
+      const btnEstoque = document.getElementById("btnIrParaEstoque");
+      const btnRelatorio = document.getElementById("btnExtrairRelatorio");
+      const perfilBadge = document.getElementById("perfilTipo");
+
+      // Atualiza o Badge do Perfil na barra lateral
+      if (perfilBadge && usuarioTipo) {
+        perfilBadge.innerText = `Dashboard (${usuarioTipo.toUpperCase()})`;
+      }
+
+      // APLICAÇÃO RÍGIDA DOS NÍVEIS DE ACESSO SOLICITADOS
+      if (usuarioTipo === "master") {
+        if (btnDados) btnDados.style.display = "block";
+        if (btnEstoque) btnEstoque.style.display = "block";
+        if (btnCadastrar) btnCadastrar.style.display = "block";
+        if (btnRelatorio) btnRelatorio.style.display = "block";
+        
+      } else if (usuarioTipo === "admin") {
+        if (btnDados) btnDados.style.display = "block";
+        if (btnEstoque) btnEstoque.style.display = "block";
+        if (btnCadastrar) btnCadastrar.style.display = "none";
+        if (btnRelatorio) btnRelatorio.style.display = "block";
+        
+      } else if (usuarioTipo === "simples") {
+        if (btnDados) btnDados.style.display = "none";
+        if (btnEstoque) btnEstoque.style.display = "none";
+        if (btnCadastrar) btnCadastrar.style.display = "none";
+        if (btnRelatorio) btnRelatorio.style.display = "block";
+      }
+    });
+  </script>
 </head>
 <body>
 
-  <div class="container">
+<div class="container">
+  <div class="sidebar">
+    <div class="logo-area">
+      <img src="logo.png" class="logo" alt="Logo NERI" style="max-width: 100%; height: auto; margin-bottom: 10px;" />
+      <div class="user-badge" id="perfilTipo" style="margin-top: 5px;">Dashboard</div>
+    </div>
+
+    <div class="menu">
+      <p onclick="filtrar('TODOS')" style="cursor:pointer; padding: 5px 10px;">📊 Geral</p>
+      <p onclick="filtrar('Sibele')" style="cursor:pointer; padding: 5px 10px;">Sibele</p>
+      <p onclick="filtrar('Empresa')" style="cursor:pointer; padding: 5px 10px;">Empresa</p>
+      <p onclick="filtrar('Danilo')" style="cursor:pointer; padding: 5px 10px;">Danilo</p>
+      <p onclick="filtrar('José Cicero')" style="cursor:pointer; padding: 5px 10px;">José Cicero</p>
+      <p onclick="filtrar('Alex')" style="cursor:pointer; padding: 5px 10px;">Alex</p>
+      <p onclick="filtrar('Danilo BH')" style="cursor:pointer; padding: 5px 10px;">Danilo BH</p>
+      <p onclick="filtrar('Thiago BH')" style="cursor:pointer; padding: 5px 10px;">Thiago BH</p>
+
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
+
+      <h3 style="font-size:12px; color:#94A3B8; padding-left:10px;">FILTRAR POR MÊS</h3>
+      <input type="month" id="mesFiltro" style="width:100%; background:#0F172A; border:1px solid rgba(255,255,255,0.1); color:white; padding:8px; border-radius:5px; margin-bottom:8px;">
+      <button onclick="filtrarMes()" style="margin-bottom:5px;">🔍 Buscar</button>
+      <button onclick="limparFiltro()">♻ Limpar Filtro</button>
+
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
+
+      <button id="btnExtrairRelatorio" onclick="exportarPDF()">📄 Extrair Relatório</button>
+
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
+
+      <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
+      <button id="btnIrParaEstoque" onclick="irParaEstoque()">📦 Estoque</button>
+      
+      <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">
+        👤 Gerenciar Usuários
+      </button>
+
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
+        
+      <button onclick="sair()" class="btn-sair">🚪 Sair</button>
+    </div>
+
+    <div class="footer" style="font-size:11px; text-align:center; color:#64748B; margin-top:15px;">
+      © Diego Neri
+    </div>
+  </div>
+
+  <div class="main">
     
-    <div class="sidebar">
-      <h2>NERI frotas</h2>
-      
-      <label for="filtroMes" style="color:#94A3B8; font-size:12px; font-weight:bold; text-transform:uppercase;">Filtrar Mês:</label>
-      <input type="month" id="filtroMes" style="background:#1E293B; color:white; border:1px solid #334155; padding:8px; border-radius:4px; margin-bottom:15px; width:100%; box-sizing:border-box;">
+    <div class="cards">
+      <div class="card azul">
+        <div class="card-titulo">💰 Gasto Total</div>
+        <div id="gastoTotal" class="card-valor">R$ 0,00</div>
+      </div>
 
-      <p onclick="filtrar('TODOS')" class="active" id="btnTodos">Geral Dashboard</p>
-      
-      <div id="containerTecnicosDinamicos" style="display:flex; flex-direction:column; gap:2px; width:100%;">
-         </div>
+      <div class="card verde">
+        <div class="card-titulo">🛣 KM Total</div>
+        <div id="kmTotal" class="card-valor">0 KM</div>
+      </div>
 
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05); margin:15px 0; width:100%;">
+      <div class="card amarelo">
+        <div class="card-titulo">👤 Consumo de (<span id="nomeTecnicoSelecionado">TODOS</span>)</div>
+        <div style="font-size:13px; margin-top:10px; display:flex; flex-direction:column; gap:4px;">
+          <div>Gasto: <span id="gastoIndividual" style="font-weight:bold; color:#F8FAFC;">R$ 0,00</span></div>
+          <div>KM: <span id="kmIndividual" style="font-weight:bold; color:#F8FAFC;">0 KM</span></div>
+          <div>Média: <span id="mediaIndividual" style="font-weight:bold; color:#F8FAFC;">0.0 KM/L</span></div>
+        </div>
+      </div>
+    </div> 
 
-      <button id="btnIrParaDados" onclick="window.location.href='/dados'" style="background:#2563EB; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-bottom:8px;">📝 Lançar Dados</button>
-<button id="btnIrParaEstoque" onclick="window.location.href='/estoque.html'" style="background:#10B981; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-bottom:8px;">📦 Ver Estoque</button>
-<button id="btnMenuCadastro" onclick="abrirModalCadastro()" style="background:#475569; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-bottom:8px;">⚙️ Gerenciar Usuários</button>
-      
-      <button onclick="logout()" style="background:#EF4444; color:white; border:none; padding:10px; border-radius:4px; font-weight:bold; width:100%; cursor:pointer; margin-top:auto;">🚪 Sair</button>
+    <div class="graficos">
+      <div class="grafico">
+        <canvas id="g1"></canvas>
+      </div>
+      <div class="grafico">
+        <canvas id="g2"></canvas>
+      </div>
     </div>
 
-    <div class="main">
-      
-      <div class="cards">
-        <div class="card">
-          <h3>KM Total</h3>
-          <p id="cardKm">-</p>
-        </div>
-        <div class="card">
-          <h3>Litros Combustível</h3>
-          <p id="cardLitros">-</p>
-        </div>
-        <div class="card">
-          <h3>Valor Investido</h3>
-          <p id="cardValor">-</p>
-        </div>
-        <div class="card">
-          <h3>Média Geral (KM/L)</h3>
-          <p id="cardMedia">-</p>
-        </div>
-      </div>
+  </div> 
+</div> 
 
-      <div style="width:100%; display:flex; justify-content:flex-end;">
-         <button onclick="gerarPDF()" style="background:#DC2626; color:white; border:none; padding:10px 20px; border-radius:4px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:8px;">📄 Exportar Relatório Mensal para PDF</button>
-      </div>
+<img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
 
-      <div class="charts-container" style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
-        <div class="chart-box" style="background: #1E293B; padding: 15px; border-radius: 8px; width: 100%; box-sizing: border-box;">
-          <h3 style="margin-top: 0; color: #94A3B8; font-size: 16px;" id="tituloGrafico1">Evolução de Gastos e KM</h3>
-          <div style="position: relative; width: 100%; height: 320px;">
-             <canvas id="graficoKmGeral"></canvas>
-          </div>
-        </div>
-
-        <div class="chart-box" style="background: #1E293B; padding: 15px; border-radius: 8px; width: 100%; box-sizing: border-box;">
-          <h3 style="margin-top: 0; color: #94A3B8; font-size: 16px;">Média de Consumo de Combustível (KM/L)</h3>
-          <div style="position: relative; width: 100%; height: 320px;">
-             <canvas id="graficoMediaGeral"></canvas>
-          </div>
-        </div>
-      </div>
-
+<div id="modalCadastro" class="modal">
+  <div class="modal-conteudo">
+    <div class="modal-header">
+      <h3 id="formTituloMain">👤 Gerenciar Usuários</h3>
+      <button class="fechar-modal" onclick="fecharModalCadastro()">×</button>
     </div>
-  </div>
+    
+    <p style="font-size:13px; color:#94A3B8; margin-top:-10px; margin-bottom:20px;">Cadastre, altere permissões ou mude senhas.</p>
+    
+    <div id="secaoListaUsuarios">
+      <div id="listaUsuariosContainer" style="max-height:200px; overflow-y:auto; margin-bottom:15px;"></div>
+      <button onclick="mostrarFormularioCadastro()" class="btn-bloco" style="background:#10B981;">+ Criar Novo Usuário</button>
+    </div>
 
-  <div id="modalCadastro" class="modal">
-    <div class="modal-conteudo">
-      <h3 style="margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 8px;">Gerenciamento de Usuários</h3>
+    <div id="formUsuario" style="display: none;" class="form-group">
+      <h4 id="formTitulo" style="margin: 0 0 15px 0; color: #60A5FA;">Novo Usuário</h4>
+      <input type="hidden" id="editId">
       
-      <div id="listaUsuariosSecao">
-        <label style="color:#94A3B8; font-size:12px; font-weight:bold; display:block; margin-bottom:8px;">USUÁRIOS CADASTRADOS:</label>
-        <div id="listaUsuariosContainer" style="max-height:200px; overflow-y:auto; margin-bottom:15px;"></div>
-        <button onclick="mostrarFormularioCadastro()" class="btn-bloco" style="background:#10B981;">+ Criar Novo Usuário</button>
-      </div>
+      <label>Nome Completo:</label>
+      <input type="text" id="cadNome" placeholder="Nome Completo">
+      
+      <label>Nome de Usuário (Login):</label>
+      <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
+      
+      <label id="lblSenha">Senha:</label>
+      <input type="password" id="cadSenha" placeholder="Digite a senha">
+      
+      <label>Nível de Acesso:</label>
+      <select id="cadTipo">
+        <option value="simples">Acesso Simples</option>
+        <option value="estoque">Estoque</option>
+        <option value="admin">Administrador</option>
+        <option value="master">Master</option>
+      </select>
+    </div>
 
-      <div id="formUsuario" style="display: none;" class="form-group">
-        <h4 id="formTitulo" style="margin: 0 0 15px 0; color: #60A5FA;">Novo Usuário</h4>
-        <input type="hidden" id="editId">
-        
-        <label>Nome Completo:</label>
-        <input type="text" id="cadNome" placeholder="Nome Completo">
-        
-        <label>Nome de Usuário (Login):</label>
-        <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
-        
-        <label id="lblSenha">Senha:</label>
-        <input type="password" id="cadSenha" placeholder="Digite a senha">
-        
-        <label>Nível de Acesso:</label>
-        <select id="cadTipo">
-          <option value="simples">Acesso Simples</option>
-          <option value="estoque">Estoque</option>
-          <option value="admin">Administrador</option>
-          <option value="master">Master</option>
-        </select>
-      </div>
-
-      <div class="modal-botoes" style="display:flex; gap:10px; margin-top:15px;">
-        <button class="btn-bloco" style="background:#64748B; margin:0;" onclick="fecharModalCadastro()">Fechar</button>
-        <button id="btnSalvarUsuario" class="btn-bloco" style="background:#2563EB; margin:0; display:none;" onclick="salvarNovoUsuario()">Gravar Usuário</button>
-      </div>
+    <div class="modal-botoes" style="display:flex; gap:10px; margin-top:15px;">
+      <button class="btn-bloco" style="background:#64748B; margin:0;" onclick="fecharModalCadastro()">Fechar</button>
+      <button id="btnSalvarUsuario" class="btn-bloco" style="margin:0; display: none;" onclick="salvarUsuario()">Salvar</button>
     </div>
   </div>
-
+</div>
+  <img id="logoNERI" src="logo.png" style="display:none;" alt="Logo Oculta">
   <script src="app.js"></script>
 </body>
 </html>
