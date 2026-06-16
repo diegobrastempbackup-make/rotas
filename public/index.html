@@ -29,13 +29,13 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); \
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 15px;
       width: 100%;
       margin-top: 0 !important; 
     }
 
-    /* BLINDAGEM DO MODAL COM O CORRETO DO ESTOQUE */
+    /* BLINDAGEM DO MODAL */
     .modal {
       display: none;
       position: fixed;
@@ -189,11 +189,11 @@
       <div id="listaUsuariosSecao">
         <label style="color:#94A3B8; font-size:12px; font-weight:bold; display:block; margin-bottom:8px;">USUÁRIOS CADASTRADOS:</label>
         <div id="listaUsuariosContainer" style="max-height:200px; overflow-y:auto; margin-bottom:15px;"></div>
-        <button onclick="mostrarFormularioCadastro()" class="btn-bloco" style="background:#10B981;\">+ Criar Novo Usuário</button>
+        <button onclick="mostrarFormularioCadastro()" class="btn-bloco" style="background:#10B981;">+ Criar Novo Usuário</button>
       </div>
 
       <div id="formUsuario" style="display: none;" class="form-group">
-        <h4 id=\"formTitulo\" style="margin: 0 0 15px 0; color: #60A5FA;">Novo Usuário</h4>
+        <h4 id="formTitulo" style="margin: 0 0 15px 0; color: #60A5FA;">Novo Usuário</h4>
         <input type="hidden" id="editId">
         
         <label>Nome Completo:</label>

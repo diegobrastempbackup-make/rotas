@@ -21,13 +21,13 @@ window.onclick = resetarTemporizador;
 window.onkeydown = resetarTemporizador;
 
 // --- CONFIGURAÇÃO DINÂMICA DE TÉCNICOS ---
-let listaTecnicosGlobal = []; // Recebido da API do Mongo
+let listaTecnicosGlobal = []; 
 let dadosGlobal = [];
 let tecnicoAtual = "TODOS";
 let grafico1;
 let grafico2;
 
-const tokenDashboard = localStorage.getItem(\"token\");
+const tokenDashboard = localStorage.getItem("token");
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!tokenDashboard) {
@@ -69,17 +69,17 @@ async function carregarTecnicosDaAPI() {
 
 // Filtra quem deve aparecer no menu lateral com base no mês do input
 function renderizarMenuTecnicos() {
-  const mesSelecionado = document.getElementById("filtroMes").value; // Formato YYYY-MM
+  const mesSelecionado = document.getElementById("filtroMes").value; 
   const container = document.getElementById("containerTecnicosDinamicos");
   if (!container) return;
   
   container.innerHTML = "";
 
   listaTecnicosGlobal.forEach(t => {
-    const mesInicio = t.mesInicio || "2000-01";
+    // PROTEÇÃO: Se for técnico antigo sem mesInicio cadastrado, assume "2026-01"
+    const mesInicio = t.mesInicio || "2026-01";
     const mesFim = t.mesEncerramento;
 
-    // Regra temporal: Iniciado antes ou no mês E (Ainda ativo OU encerrado depois/no mês selecionado)
     const jaIniciou = mesInicio <= mesSelecionado;
     const naoEncerrouAinda = !mesFim || mesFim >= mesSelecionado;
 
@@ -144,7 +144,8 @@ function renderizarListaModalTecnicos() {
   container.innerHTML = "";
 
   listaTecnicosGlobal.forEach(t => {
-    if (t.ativo) {
+    // Mostra no modal os que estão explicitamente ativos ou que não tem o campo ativo definido ainda
+    if (t.ativo !== false) {
       container.innerHTML += `
         <div class="item-tecnico">
           <span>${t.nome}</span>
@@ -165,7 +166,6 @@ function fecharModalTecnicos() {
 
 async function checarPermissoesDoUsuario() {
   const tipo = localStorage.getItem("usuarioTipo");
-  const nome = localStorage.getItem("usuarioLogado");
 
   if (tipo === "master" || tipo === "admin") {
     document.getElementById("btnIrParaDados").style.display = "block";
@@ -234,6 +234,12 @@ function filtrar(nome) {
 }
 
 function renderizarGraficosDoPeriodo(dados) {
+  if (!dados || dados.length === 0) {
+    if (grafico1) grafico1.destroy();
+    if (grafico2) grafico2.destroy();
+    return;
+  }
+
   const diasDoMes = [...new Set(dados.map(item => String(item.data).split("-")[2]))].sort();
 
   const agrupado = {};
@@ -443,9 +449,8 @@ function gerarPDF() {
   let y = 40;
   let totalKm = 0, totalLitros = 0, totalValor = 0;
 
-  // Filtra de acordo com a regra temporal
   const tecnicosAtivosNoMes = listaTecnicosGlobal.filter(t => {
-    return (t.mesInicio || "2000-01") <= mesFiltro && (!t.mesEncerramento || t.mesEncerramento >= mesFiltro);
+    return (t.mesInicio || "2026-01") <= mesFiltro && (!t.mesEncerramento || t.mesEncerramento >= mesFiltro);
   }).map(t => t.nome);
 
   tecnicosAtivosNoMes.forEach(nome => {
