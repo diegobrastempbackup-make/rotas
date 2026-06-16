@@ -36,9 +36,7 @@ const autenticarToken = (req, res, next) => {
   }
 };
 
-// ==========================================
-// --- ROTAS DE PÁGINAS (FRONT-END) ---
-// ==========================================
+// ROTAS DE PÁGINAS (FRONT-END)
 
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
@@ -69,9 +67,7 @@ app.get("/estoque.html", (req, res) => {
 app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
 
-// ==========================================
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
-// ==========================================
 
 // LOGIN
 app.post("/login", async (req, res) => {
@@ -111,7 +107,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
      if (req.usuario?.tipo !== "master") {
     return res.status(403).json({
-        erro: "Somente usuários MASTER podem cadastrar usuários."
+        erro: "Você não tem ppermissão para cadastrar usuários."
     });
 }
 
@@ -186,7 +182,7 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 
     if (req.usuario.tipo !== "master") {
       return res.status(403).json({
-        erro: "Somente Master pode editar usuários"
+        erro: "Você não tem permissão para editar usuários!"
       });
     }
 
@@ -248,7 +244,7 @@ app.delete("/usuario/:id", autenticarToken, async (req, res) => {
 
     if (req.usuario?.tipo !== "master") {
       return res.status(403).json({
-        erro: "Somente Master pode excluir usuários."
+        erro: "Você não tem permissão para excluir usuários!"
       });
     }
 
@@ -272,9 +268,7 @@ app.delete("/usuario/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// =========================
 // TÉCNICOS
-// =========================
 
 // LISTAR TÉCNICOS
 app.get("/api/tecnicos", autenticarToken, async (req, res) => {
@@ -341,20 +335,26 @@ app.post("/api/tecnicos", autenticarToken, async (req, res) => {
 // EXCLUIR TÉCNICO
 app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
   try {
+    const { id } = req.params;
+    const hoje = new Date();
+    // Gera o mês atual no formato YYYY-MM para servir de linha de corte histórica
+    const mesEncerramento = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-    await db.collection("tecnicos").deleteOne({
-      _id: new ObjectId(req.params.id)
-    });
-
-    res.json({
-      ok: true
-    });
-
+    // Em vez de apagar fisicamente do banco (deleteOne), mudamos para inativo
+    // e guardamos o mês de encerramento para o histórico de frotas
+    await db.collection("tecnicos").updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          ativo: false,
+          mesEncerramento: mesEncerramento
+        } 
+      }
+    );
+    res.json({ ok: true, mensagem: "Técnico desativado (histórico preservado)" });
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao excluir técnico"
-    });
+    res.status(500).json({ erro: "Erro ao desativar técnico" });
   }
 });
 

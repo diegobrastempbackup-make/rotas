@@ -3,7 +3,7 @@ window.cacheFerramentas = [];
 window.tecnicoSelecionado = "";
 window.listaTecnicos = [];
 
-// Funções de controle de Modal nativas do seu layout
+// Funções de controle de Modal nativas do layout
 window.abrirModal = (id) => { document.getElementById(id).style.display = 'flex'; };
 window.fecharModal = (id) => { document.getElementById(id).style.display = 'none'; };
 window.deslogar = () => { localStorage.clear(); window.location.href = "/login.html"; };
@@ -19,9 +19,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 });
 
-// =================================================================
-// --- GERENCIAMENTO DE TÉCNICOS ---
-// =================================================================
+// GERENCIAMENTO DE TÉCNICOS
+
 async function renderizarListaTecnicos() {
 
     try {
@@ -182,9 +181,8 @@ window.removerTecnico = async (id) => {
     }
 };
 
-// =================================================================
-// --- CONTROLE DE ESTOQUE (CRUD) ---
-// =================================================================
+// CONTROLE DE ESTOQUE (CRUD) 
+
 async function carregarEstoque() {
     try {
         const res = await fetch("/api/estoque", { headers: { "Authorization": `Bearer ${token}` } });
@@ -288,9 +286,9 @@ window.salvarEdicaoFerramenta = async () => {
     carregarEstoque();
 };
 
-// =================================================================
-// --- LANÇAMENTO DE MOVIMENTAÇÕES E HISTÓRICO ---
-// =================================================================
+
+//  LANÇAMENTO DE MOVIMENTAÇÕES E HISTÓRICO 
+
 window.salvarLinhaHistorico = async () => {
     if (!window.tecnicoSelecionado) return alert("Por favor, selecione um técnico primeiro!");
     
@@ -371,20 +369,20 @@ async function carregarLogs(nome) {
 }
 window.carregarLogs = carregarLogs;
 
-// =================================================================
-// --- EXTRAÇÃO DE RELATÓRIO PDF DESIGN MODERNO AUTOMÁTICO ---
-// =================================================================
+
+//  EXTRAÇÃO DE RELATÓRIO PDF
+
 window.emitirPDFIndividual = () => {
     if (!window.tecnicoSelecionado) return alert("Selecione um técnico para extrair!");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
-    // Configurações de Paleta de Cores do Index (Slate / Dark Professional)
+    // Configurações de Paleta de Cores do Index (Slate / Dark)
     const corPrimaria = [15, 23, 42];    // #0F172A
     const corTextoSec = [148, 163, 184]; // #94A3B8
     const corLinhaPar = [241, 245, 249]; // Fundo cinza claro para zebrado
     
-    // --- CABEÇALHO ---
+    //  CABEÇALHO 
     doc.setFillColor(...corPrimaria);
     doc.rect(0, 0, 220, 38, "F");
     
@@ -399,7 +397,7 @@ window.emitirPDFIndividual = () => {
     doc.text(`TÉCNICO RESPONSÁVEL: ${window.tecnicoSelecionado.toUpperCase()}`, 14, 24);
     doc.text(`EMISSÃO: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 30);
     
-    // --- CORPO / TABELA COMPACTA ---
+    //  CORPO / TABELA COMPACTA 
     let y = 52;
     doc.setTextColor(...corPrimaria);
     doc.setFont("Helvetica", "bold");
@@ -491,7 +489,7 @@ window.emitirPDFIndividual = () => {
         }
     });
     
-    // --- ASSINATURA DE CONTROLE ---
+    //  ASSINATURA DE CONTROLE 
     y += 15;
     if (y > 260) { doc.addPage(); y = 30; }
     
@@ -502,7 +500,7 @@ window.emitirPDFIndividual = () => {
     doc.setFontSize(8);
     doc.setTextColor(...corTextoSec);
     doc.text("Assinatura do Técnico", 14, y + 4);
-    doc.text("Franquia SP/OESTE", 110, y + 4);
+    doc.text("Franquia SP/Oeste", 110, y + 4);
     
     doc.save(`Relatorio_Cautela_${window.tecnicoSelecionado}.pdf`);
 };
