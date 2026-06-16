@@ -502,7 +502,7 @@ window.emitirPDFIndividual = () => {
     doc.setFontSize(8);
     doc.setTextColor(...corTextoSec);
     doc.text("Assinatura do Técnico", 14, y + 4);
-    doc.text("Almoxarifado / Responsável NERI", 110, y + 4);
+    doc.text("Franquia SP/OESTE", 110, y + 4);
     
     doc.save(`Relatorio_Cautela_${window.tecnicoSelecionado}.pdf`);
 };
