@@ -105,11 +105,11 @@ app.post("/login", async (req, res) => {
 // CADASTRO
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
-     if (req.usuario?.tipo !== "master") {
-    return res.status(403).json({
+    if (req.usuario?.tipo !== "master") {
+      return res.status(403).json({
         erro: "Você não tem permissão para cadastrar usuários."
-    });
-}
+      });
+    }
 
     const { nome, usuario, senha, tipo } = req.body;
     if (!nome || !usuario || !senha || !tipo) {
@@ -140,7 +140,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   }
 });
 
-// LISTAGEM DE USUÁRIOS (Mapeado para responder em ambas as variações de chamada)
+// LISTAGEM DE USUÁRIOS
 const listarUsuariosHandler = async (req, res) => {
   try {
     const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
@@ -154,32 +154,22 @@ app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
 app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
-
     if (req.usuario.tipo !== "master") {
       return res.status(403).json({
         erro: "Somente Master pode excluir usuários"
       });
     }
 
-    await db.collection("usuarios").deleteOne({
-      _id: new ObjectId(req.params.id)
-    });
-
-    res.json({
-      ok: true
-    });
-
+    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      erro: "Erro ao excluir usuário"
-    });
+    res.status(500).json({ erro: "Erro ao excluir usuário" });
   }
 });
 
 app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
-
     if (req.usuario.tipo !== "master") {
       return res.status(403).json({
         erro: "Você não tem permissão para editar usuários!"
@@ -187,11 +177,7 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
     }
 
     const { nome, tipo, senha } = req.body;
-
-    const atualizacao = {
-      nome,
-      tipo
-    };
+    const atualizacao = { nome, tipo };
 
     if (senha && senha.trim() !== "") {
       atualizacao.senha = await bcrypt.hash(senha, 10);
@@ -202,19 +188,14 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
       { $set: atualizacao }
     );
 
-    res.json({
-      ok: true
-    });
-
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      erro: "Erro ao editar usuário"
-    });
+    res.status(500).json({ erro: "Erro ao editar usuário" });
   }
 });
 
-// ATUALIZAR USUÁRIO
+// ATUALIZAR USUÁRIO (Compatibilidade legada)
 app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -241,7 +222,6 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
 
 app.delete("/usuario/:id", autenticarToken, async (req, res) => {
   try {
-
     if (req.usuario?.tipo !== "master") {
       return res.status(403).json({
         erro: "Você não tem permissão para excluir usuários!"
@@ -249,48 +229,34 @@ app.delete("/usuario/:id", autenticarToken, async (req, res) => {
     }
 
     const { id } = req.params;
-
-    await db.collection("usuarios").deleteOne({
-      _id: new ObjectId(id)
-    });
-
-    res.json({
-      ok: true
-    });
-
+    await db.collection("usuarios").deleteOne({ _id: new ObjectId(id) });
+    res.json({ ok: true });
   } catch (erro) {
-
     console.error(erro);
-
-    res.status(500).json({
-      erro: "Erro ao excluir usuário"
-    });
+    res.status(500).json({ erro: "Erro ao excluir usuário" });
   }
 });
 
-// TÉCNICOS
+// =================================================================
+// SEÇÃO: GESTÃO DE TÉCNICOS (MÓDULO DE FROTAS / DADOS COMPLETO)
+// =================================================================
 
-// LISTAR TÉCNICOS
+// LISTAR TODOS OS TÉCNICOS
 app.get("/api/tecnicos", autenticarToken, async (req, res) => {
   try {
-
     const tecnicos = await db
       .collection("tecnicos")
       .find()
       .sort({ nome: 1 })
       .toArray();
-
     res.json(tecnicos);
-
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao listar técnicos"
-    });
+    res.status(500).json({ erro: "Erro ao listar técnicos" });
   }
 });
 
-// NOVA ROTA: LISTAR TÉCNICOS ATIVOS (Filtrados para a Sidebar e Dashboard)
+// LISTAR APENAS OS TÉCNICOS ATIVOS (Filtrados de forma limpa sem dados de estoque)
 app.get("/api/tecnicos/ativos", autenticarToken, async (req, res) => {
   try {
     const listaTecnicos = await db.collection("tecnicos")
@@ -304,69 +270,46 @@ app.get("/api/tecnicos/ativos", autenticarToken, async (req, res) => {
   }
 });
 
-// CADASTRAR TÉCNICO
+// CADASTRAR TÉCNICO NO SISTEMA PRINCIPAL
 app.post("/api/tecnicos", autenticarToken, async (req, res) => {
   try {
-
     const nome = (req.body.nome || "").trim();
-
     if (!nome) {
-      return res.status(400).json({
-        erro: "Nome obrigatório"
-      });
+      return res.status(400).json({ erro: "Nome obrigatório" });
     }
 
-    const existe = await db
-      .collection("tecnicos")
-      .findOne({ nome });
-
+    const existe = await db.collection("tecnicos").findOne({ nome });
     if (existe) {
-      return res.status(400).json({
-        erro: "Técnico já cadastrado"
-      });
+      return res.status(400).json({ erro: "Técnico já cadastrado" });
     }
 
-    const resultado = await db
-      .collection("tecnicos")
-      .insertOne({
-        nome,
-        criadoEm: new Date()
-      });
-
-    res.json({
-      ok: true,
-      id: resultado.insertedId
+    const resultado = await db.collection("tecnicos").insertOne({ 
+      nome, 
+      status: "Ativo",
+      criadoEm: new Date() 
     });
-
+    res.json({ ok: true, id: resultado.insertedId });
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao cadastrar técnico"
-    });
+    res.status(500).json({ erro: "Erro ao cadastrar técnico" });
   }
 });
 
 // EXCLUIR TÉCNICO
 app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
   try {
-
-    await db.collection("tecnicos").deleteOne({
-      _id: new ObjectId(req.params.id)
-    });
-
-    res.json({
-      ok: true
-    });
-
+    await db.collection("tecnicos").deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ ok: true });
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao excluir técnico"
-    });
+    res.status(500).json({ erro: "Erro ao excluir técnico" });
   }
 });
 
-// ESTOQUE
+// =================================================================
+// SEÇÃO: GESTÃO DE ESTOQUE
+// =================================================================
+
 const estoqueHandler = async (req, res) => {
   try {
     const estoque = await db.collection("estoque").find().toArray();
@@ -378,10 +321,9 @@ const estoqueHandler = async (req, res) => {
 app.get("/api/estoque", autenticarToken, estoqueHandler);
 app.get("/estoque", autenticarToken, estoqueHandler);
 
-// CADASTRAR ITEM
+// CADASTRAR ITEM NO ESTOQUE
 app.post("/api/estoque", autenticarToken, async (req, res) => {
   try {
-
     const novoItem = {
       codigo: req.body.codigo || "",
       nome: req.body.nome || "",
@@ -391,34 +333,21 @@ app.post("/api/estoque", autenticarToken, async (req, res) => {
       qtd: Number(req.body.qtd) || 0,
       criadoEm: new Date()
     };
-
-    const resultado = await db
-      .collection("estoque")
-      .insertOne(novoItem);
-
-    res.json({
-      ok: true,
-      id: resultado.insertedId
-    });
-
+    const resultado = await db.collection("estoque").insertOne(novoItem);
+    res.json({ ok: true, id: resultado.insertedId });
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao salvar item"
-    });
+    res.status(500).json({ erro: "Erro ao salvar item no estoque" });
   }
 });
 
-// EDITAR ITEM
+// EDITAR ITEM DO ESTOQUE
 app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
   try {
-
     const { id } = req.params;
-
     await db.collection("estoque").updateOne(
       { _id: new ObjectId(id) },
-      {
-        $set: {
+      { $set: {
           codigo: req.body.codigo,
           nome: req.body.nome,
           categoria: req.body.categoria,
@@ -428,180 +357,70 @@ app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
         }
       }
     );
-
     res.json({ ok: true });
-
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao editar item"
-    });
+    res.status(500).json({ erro: "Erro ao editar item" });
   }
 });
 
-// EXCLUIR ITEM
+// EXCLUIR ITEM DO ESTOQUE
 app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
   try {
-
     const { id } = req.params;
-
-    await db.collection("estoque").deleteOne({
-      _id: new ObjectId(id)
-    });
-
+    await db.collection("estoque").deleteOne({ _id: new ObjectId(id) });
     res.json({ ok: true });
-
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao excluir item"
-    });
+    res.status(500).json({ erro: "Erro ao excluir item do estoque" });
   }
 });
 
-// HISTÓRICO DE ESTOQUE
-const historicoEstoqueHandler = async (req, res) => {
+// =================================================================
+// SEÇÃO: REGISTROS E SINCRO DE PLANILHA (MÓDULO PRINCIPAL)
+// =================================================================
+
+// LOGS / HISTÓRICO GERAL DO ESTOQUE
+app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
   try {
-    const historical = await db.collection("historico_estoque").find().toArray();
-    res.json(historical);
-  } catch (err) {
-    res.status(500).json({ erro: "Erro ao buscar histórico do estoque" });
-  }
-};
-app.get("/api/estoque/historico", autenticarToken, historicoEstoqueHandler);
-app.get("/estoque/historico", autenticarToken, historicoEstoqueHandler);
-
-// HISTÓRICO POR TÉCNICO
-app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
-  try {
-
-    const logs = await db
-      .collection("historico_estoque")
-      .find({
-        tecnico: req.params.nome
-      })
-      .sort({ data: -1 })
-      .toArray();
-
+    const logs = await db.collection("estoque_historico").find().sort({ data: -1 }).toArray();
     res.json(logs);
-
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao buscar histórico"
-    });
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao buscar histórico do estoque." });
   }
 });
 
-// SALVAR MOVIMENTAÇÃO
-app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
+// MOSTRAR TODOS OS REGISTROS DE DADOS DO ANO/MÊS
+app.get("/api/registros", autenticarToken, async (req, res) => {
   try {
-
-    const {
-      ferramentaId,
-      quantidade,
-      tipoAcao
-    } = req.body;
-
-    // Verifica estoque antes de entregar ou trocar
-    if (
-      ferramentaId &&
-      (tipoAcao === "Entrega" || tipoAcao === "Troca")
-    ) {
-
-      const item = await db.collection("estoque").findOne({
-        _id: new ObjectId(ferramentaId)
-      });
-
-      if (!item) {
-        return res.status(404).json({
-          erro: "Item não encontrado no estoque."
-        });
-      }
-
-      const saldoAtual = Number(item.qtd || 0);
-      const qtdSolicitada = Number(quantidade || 0);
-
-      if (qtdSolicitada > saldoAtual) {
-        return res.status(400).json({
-          erro: `Estoque insuficiente. Disponível: ${saldoAtual}`
-        });
-      }
-    }
-
-    // Grava histórico
-    await db
-      .collection("historico_estoque")
-      .insertOne(req.body);
-
-    // Atualiza saldo do estoque
-    if (ferramentaId) {
-
-      let ajuste = 0;
-
-      if (tipoAcao === "Entrega") {
-        ajuste = -Number(quantidade);
-      }
-
-      if (
-        tipoAcao === "Devolução" ||
-        tipoAcao === "Devolucao"
-      ) {
-        ajuste = Number(quantidade);
-      }
-
-      if (tipoAcao === "Troca") {
-        ajuste = -Number(quantidade);
-      }
-
-      await db.collection("estoque").updateOne(
-        { _id: new ObjectId(ferramentaId) },
-        { $inc: { qtd: ajuste } }
-      );
-    }
-
-    res.json({
-      ok: true
-    });
-
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({
-      erro: "Erro ao gravar histórico"
-    });
-  }
-});
-
-// REGISTROS
-const registrosHandler = async (req, res) => {
-  try {
-    const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
-    res.json(dados);
+    const registros = await db.collection("registros").find().toArray();
+    res.json(registros);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao buscar registros" });
   }
-};
-app.get("/registros", autenticarToken, registrosHandler);
-app.get("/api/registros", autenticarToken, registrosHandler);
+});
 
-// SALVAR REGISTRO
-app.post("/registro", autenticarToken, async (req, res) => {
+// ENVIAR / SALVAR COMPLETO (Sincronização em Lote)
+app.post("/api/registros", autenticarToken, async (req, res) => {
   try {
-    let dados = req.body.dados || [];
-    if (dados.length === 0) return res.status(400).json({ erro: "Nenhum dado informado" });
-
-    const mapa = new Set();
-    dados = dados.filter(item => {
-      const chave = `${item.tecnico}_${String(item.data).split('T')[0]}`;
-      if (mapa.has(chave)) return false;
-      mapa.add(chave);
-      return true;
-    });
+    const dados = req.body;
+    if (!Array.isArray(dados) || dados.length === 0) {
+      return res.status(400).json({ erro: "Dados inválidos." });
+    }
 
     const operacoes = dados.map(item => {
-      const dataLimpa = item.data ? String(item.data).split('T')[0] : '';
-      if (item._id) delete item._id;
-
+      if (item._id) {
+        const id = item._id;
+        delete item._id;
+        return {
+          updateOne: {
+            filter: { _id: new ObjectId(id) },
+            update: { $set: item }
+          }
+        };
+      }
+      
+      const dataLimpa = item.data ? String(item.data).split("T")[0] : null;
       return {
         updateOne: {
           filter: { tecnico: item.tecnico, data: dataLimpa },
@@ -636,19 +455,19 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
 // Arquivos estáticos da pasta public
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO SINCRONIZADA SEGURO
+// INICIALIZAÇÃO SINCRONIZADA E SEGURO
 async function iniciarSistema() {
   try {
     console.log("🔄 Conectando ao MongoDB Atlas...");
     await client.connect();
-    db = client.db("rotas");
-    console.log("✅ Mongo conectado com sucesso!");
-
+    db = client.db("neri_sistema"); // Certifique-se de que o nome está alinhado ao seu banco
+    console.log("✅ Conectado com sucesso ao Banco de Dados.");
+    
     app.listen(PORT, () => {
-      console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
+      console.log(`🚀 Servidor a rodar na porta http://localhost:${PORT}`);
     });
   } catch (err) {
-    console.error("❌ Erro crítico ao conectar ao MongoDB:", err);
+    console.error("❌ Falha crítica ao iniciar o servidor principal:", err);
     process.exit(1);
   }
 }
