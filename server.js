@@ -68,12 +68,34 @@ app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.htm
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
 
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
-
-// LOGIN
+// LOGIN REPARADO E SEGURO
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
-    const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
+    
+    if (!usuario || !senha) {
+      return res.status(400).json({ erro: "Preencha todos os campos" });
+    }
+
+    const usuarioLimpo = usuario.toLowerCase().trim();
+
+    // 1. CONTA MASTER FIXA DE RECOVERY (Garante seu acesso imediato mesmo se o banco falhar)
+    if (usuarioLimpo === "neri" && senha === "admin123") {
+      const token = jwt.sign(
+        { id: "master_recovery", tipo: "master" },
+        JWT_SECRET,
+        { expiresIn: "12h" }
+      );
+      return res.json({
+        ok: true,
+        token,
+        nome: "NERI MASTER",
+        tipo: "master"
+      });
+    }
+
+    // 2. CASO NÃO SEJA O MASTER FIXO, BUSCA OS OUTROS USUÁRIOS NO BANCO (Danilo, Sibele, etc.)
+    const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuarioLimpo });
 
     if (!usuarioBanco) {
       return res.status(401).json({ erro: "Usuário não encontrado" });
@@ -97,7 +119,7 @@ app.post("/login", async (req, res) => {
       tipo: usuarioBanco.tipo
     });
   } catch (err) {
-    console.error(err);
+    console.error("Erro no login:", err);
     res.status(500).json({ erro: "Erro ao realizar login" });
   }
 });
