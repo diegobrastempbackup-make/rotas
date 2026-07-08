@@ -158,19 +158,11 @@ h2 {
 </div>
 
 <script>
-const tecnicos = [
-  "Sibele",
-  "Empresa",
-  "Danilo",
-  "José Cicero",
-  "Alex",
-  "Danilo BH",
-  "Thiago BH"
-];
-
+// A lista de técnicos agora nasce vazia e é preenchida dinamicamente pela API
+let tecnicos = [];
 let cacheHistoricoCompleto = [];
 
-// Função auxiliar para decodificar o ID do utilizador a partir do JWT Token
+// Função auxiliar para descodificar o ID do utilizador a partir do JWT Token
 function obterUsuarioIdDoToken() {
   try {
     const token = localStorage.getItem("token");
@@ -182,7 +174,7 @@ function obterUsuarioIdDoToken() {
     }).join(''));
     return JSON.parse(jsonPayload).id;
   } catch (e) {
-    console.error("Erro ao decodificar token:", e);
+    console.error("Erro ao descodificar token:", e);
     return null;
   }
 }
@@ -205,6 +197,11 @@ function hoje(){
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
+
+  if (tecnicos.length === 0) {
+      container.innerHTML = "<p style='color: #94A3B8; text-align: center; margin-top: 50px;'>Nenhum técnico ativo encontrado na frota.</p>";
+      return;
+  }
 
   tecnicos.forEach(nome=>{
     const bloco = document.createElement("div");
@@ -275,6 +272,7 @@ function linha(d = {}) {
 
 function addLinha(nome){
   const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+  if (!tbody) return;
   const tr = document.createElement("tr");
   tr.innerHTML = linha();
   tbody.appendChild(tr);
@@ -338,7 +336,7 @@ function remover(btn){
 }
 
 async function executarRemocaoDireta(id, btn) {
-  if(!confirm("Deseja realmente excluir este registro?")) return;
+  if(!confirm("Deseja realmente excluir este registo?")) return;
   try {
     const token = localStorage.getItem("token");
     const res = await fetch(`/registro/${id}`, {
@@ -348,7 +346,7 @@ async function executarRemocaoDireta(id, btn) {
     if(res.ok) {
       btn.closest("tr").remove();
     } else {
-      alert("Erro ao remover o registro.");
+      alert("Erro ao remover o registo.");
     }
   } catch(err) {
     console.error(err);
@@ -361,7 +359,7 @@ async function salvar(){
   const mesAtual = document.getElementById("mesFiltro").value;
   
   if(!mesAtual){
-    alert("Selecione um mês antes de salvar.");
+    alert("Selecione um mês antes de guardar.");
     return;
   }
 
@@ -376,7 +374,7 @@ async function salvar(){
       if(!data.startsWith(mesAtual)) return;
 
       const registro = {
-        usuarioId: usuarioId, // CORREÇÃO COMPATÍVEL COM O SERVER.JS
+        usuarioId: usuarioId,
         tecnico: nome,
         data: data,
         kmIni: Number(i[1].value) || 0,
@@ -394,7 +392,7 @@ async function salvar(){
   });
 
   try {
-   const respuesta = await fetch("/registro", {
+   const resposta = await fetch("/registro", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -403,11 +401,11 @@ async function salvar(){
       body: JSON.stringify({ dados })
     });
 
-    if (respuesta.ok) {
-      alert("✅ Dados salvos com sucesso!");
+    if (resposta.ok) {
+      alert("✅ Dados guardados com sucesso!");
       carregar(mesAtual); 
     } else {
-      alert("⚠️ Erro ao salvar dados.");
+      alert("⚠️ Erro ao guardar dados.");
     }
   } catch (err) {
     console.error(err);
@@ -463,7 +461,23 @@ function mostrarTudo(){
   carregar(mesAtual);
 }
 
+// Inicialização: Puxa os técnicos do BD primeiro e depois cria a página
 async function iniciar(){
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch("/api/tecnicos-dashboard", { 
+      headers: { "Authorization": "Bearer " + token }
+    });
+    
+    if(res.ok){
+       const listaDB = await res.json();
+       // Filtra e pega apenas os nomes dos técnicos Ativos na frota
+       tecnicos = listaDB.filter(t => t.status === "Ativo" || !t.status).map(t => t.nome);
+    }
+  } catch (err) { 
+      console.error("Erro ao carregar técnicos da frota para lançamento:", err); 
+  }
+
   criar();
   const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;

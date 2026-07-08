@@ -26,15 +26,8 @@ window.onkeydown = resetarTemporizador;
 // =================================================================
 // DEFINIÇÕES GLOBAIS DO SISTEMA
 // =================================================================
-const tecnicos = [
-  "Sibele",
-  "Empresa",
-  "Danilo",
-  "José Cicero",
-  "Alex",
-  "Danilo BH",
-  "Thiago BH"
-];
+
+let tecnicos = []; // Agora a lista nasce vazia e é preenchida dinamicamente pelo banco de dados
 
 let dadosGlobal = [];
 let tecnicoAtual = "TODOS";
@@ -47,6 +40,7 @@ const tokenDashboard = localStorage.getItem("token");
 if (!tokenDashboard) {
   window.location.replace("/login.html");
 }
+
 // =================================================================
 // INICIALIZAÇÃO DE PERMISSÕES E BOTÕES (DOM LOADED)
 // =================================================================
@@ -122,8 +116,36 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "none";
   }
 
+  await carregarTecnicosFrota(); // BUSCA OS TÉCNICOS NO BANCO ANTES DE MONTAR OS GRÁFICOS
   carregarDados();
 }); 
+
+// =================================================================
+// BUSCA DINÂMICA DE TÉCNICOS DA FROTA NO BANCO DE DADOS
+// =================================================================
+async function carregarTecnicosFrota() {
+  try {
+    const res = await fetch("/api/tecnicos-dashboard", {
+      headers: { "Authorization": `Bearer ${tokenDashboard}` }
+    });
+    if(res.ok) {
+        const listaDB = await res.json();
+        // Extrai apenas os nomes para alimentar a matriz dos gráficos (apenas os ativos)
+        tecnicos = listaDB.filter(t => t.status === "Ativo" || !t.status).map(t => t.nome);
+        
+        // Popula o menu Dropdown da barra lateral
+        const dropdown = document.getElementById("dropdownLista");
+        if(dropdown) {
+           dropdown.innerHTML = "";
+           tecnicos.forEach(nome => {
+             dropdown.innerHTML += `<p onclick="filtrar('${nome}')">${nome}</p>`;
+           });
+        }
+    }
+  } catch (err) {
+    console.error("Erro ao carregar lista de técnicos da Frota:", err);
+  }
+}
 
 // =================================================================
 // NAVEGAÇÃO DO MENU
@@ -133,7 +155,7 @@ function irParaEstoque() {
   window.location.href = `/estoque.html?token=${token}`;
 }
 
-// NOVA FUNÇÃO COM O TOKEN INJETADO NA URL
+// NAVEGAÇÃO COM O TOKEN INJETADO NA URL PARA TELA DE TÉCNICOS
 function irParaTecnicos() {
   const token = localStorage.getItem("token");
   window.location.href = `/tecnicos.html?token=${token}`;
@@ -298,11 +320,9 @@ async function salvarUsuario() {
   }
 
   try {
-
     let resposta;
 
     if (id) {
-
       resposta = await fetch(`/api/usuarios/${id}`, {
         method: "PUT",
         headers: {
@@ -317,7 +337,6 @@ async function salvarUsuario() {
       });
 
     } else {
-
       resposta = await fetch("/cadastro", {
         method: "POST",
         headers: {
@@ -331,7 +350,6 @@ async function salvarUsuario() {
           tipo
         })
       });
-
     }
 
     const dados = await resposta.json();
@@ -342,16 +360,12 @@ async function salvarUsuario() {
     }
 
     alert("Operação realizada com sucesso!");
-
     fecharModalCadastro();
     atualizarListaUsuarios();
 
   } catch (err) {
-
     console.error(err);
-
     alert("Erro ao conectar com o servidor.");
-
   }
 }
 
@@ -402,6 +416,7 @@ function limparFiltro(){
 }
 
 function processar(dados, tecnico){
+  // Mesmo sem lançamentos ainda, garante o tamanho e mapeamento pelo banco de dados
   let valoresGerais = Array(tecnicos.length).fill(0);
   let kmsGerais = Array(tecnicos.length).fill(0);
 
@@ -598,135 +613,4 @@ function exportarPDF() {
       doc.text("VEÍCULO / TÉCNICO", 40, yTabela);
       doc.text("KM REGISTRADO", 90, yTabela);
     } else {
-      doc.text("KM REGISTRADO", 55, yTabela);
-    }
-    doc.text("LITROS", 125, yTabela);
-    doc.text("VALOR (R$)", 153, yTabela);
-    doc.text("MÉDIA (KM/L)", 178, yTabela);
-  }
-
-  desenharCabecalho();
-
-  let y = 58;
-  let totalKm = 0;
-  let totalLitros = 0;
-  let totalValor = 0;
-
-  function verificarPagina() {
-    if (y > 270) {
-      // Rodapé da página que está terminando
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Página ${paginaAtual}`, 190, 287);
-
-      doc.addPage();
-      paginaAtual++;
-      desenharCabecalho();
-      y = 58;
-    }
-  }
-
-  // --- LOOP DOS DADOS ---
-  dadosFiltrados.forEach((d, indice) => {
-    const km = Number(d.km) || 0;
-    const litros = Number(d.litros) || 0;
-    const valor = Number(d.valor) || 0;
-    
-    totalKm += km;
-    totalLitros += litros;
-    totalValor += valor;
-
-    // Linhas zebradas para facilitar a leitura visual
-    doc.setFillColor(indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248);
-    doc.rect(10, y - 5, 190, 8, "F");
-    doc.setDrawColor(241, 245, 249);
-    doc.rect(10, y - 5, 190, 8, "S");
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(15, 23, 42);
-
-    // Formata a data de AAAA-MM-DD para DD/MM/AAAA
-    let dataFormatada = String(d.data).split("T")[0];
-    if (dataFormatada.includes("-")) {
-      const partes = dataFormatada.split("-");
-      dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
-    }
-
-    doc.text(dataFormatada, 13, y);
-
-    if (tecnicoAtual === "TODOS") {
-      doc.text(String(d.tecnico || "-"), 40, y);
-      doc.text(km.toLocaleString("pt-BR"), 90, y);
-    } else {
-      doc.text(km.toLocaleString("pt-BR"), 55, y);
-    }
-
-    doc.text(litros.toFixed(2), 125, y);
-    doc.text(valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 153, y);
-    
-    const media = litros > 0 ? km / litros : 0;
-    doc.text(media > 0 ? `${media.toFixed(2)} km/l` : "-", 178, y);
-
-    y += 8;
-    verificarPagina();
-  });
-
-  // QUADRO DE TOTAIS CONSOLIDADO
-  if (y > 240) { 
-    y += 5;
-    verificarPagina();
-  } else {
-    y += 5;
-  }
-
-  doc.setFillColor(241, 245, 249);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(10, y, 190, 32, 2, 2, "FD");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text("RESUMO ACUMULADO DO PERÍODO", 15, y + 8);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(`DISTÂNCIA TOTAL PERCORRIDA: ${totalKm.toLocaleString("pt-BR")} KM`, 15, y + 17);
-  doc.text(`TOTAL DE COMBUSTÍVEL: ${totalLitros.toFixed(2)} LITROS`, 15, y + 24);
-
-  doc.text(`VALOR TOTAL INVESTIDO: ${totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`, 115, y + 17);
-  const mediaGeral = totalLitros > 0 ? totalKm / totalLitros : 0;
-  doc.text(`MÉDIA GERAL DA FROTA: ${mediaGeral > 0 ? `${mediaGeral.toFixed(2)} KM/L` : "-"}`, 115, y + 24);
-
-  // Rodapé final
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Página ${paginaAtual}`, 190, 287);
-
-  // Define o nome de saída do documento baseado no contexto do filtro
-  const sulfixoMes = mesSelecionado ? `_${mesSelecionado}` : "";
-  const nomeArquivo = tecnicoAtual === "TODOS" ? `Relatorio_Geral_Frota${sulfixoMes}.pdf` : `Relatorio_Frota_${tecnicoAtual}${sulfixoMes}.pdf`;
-  
-  doc.save(nomeArquivo);
-}
-
-// Função para abrir e fechar a lista cascata
-function toggleDropdown() {
-  const dropdown = document.getElementById("dropdownLista");
-  dropdown.classList.toggle("show-dropdown");
-}
-
-// Fecha a lista se o usuário clicar fora dela
-window.addEventListener("click", function(event) {
-  if (!event.target.matches('.btn-dropdown')) {
-    const dropdowns = document.getElementsByClassName("dropdown-conteudo");
-    for (let i = 0; i < dropdowns.length; i++) {
-      const openDropdown = dropdowns[i];
-      if (openDropdown.classList.contains('show-dropdown')) {
-        openDropdown.classList.remove('show-dropdown');
-      }
-    }
-  }
-});
+      doc.text("KM REGISTRADO",
