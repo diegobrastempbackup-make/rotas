@@ -18,11 +18,10 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// MIDDLEWARE DE AUTENTICAÇÃO REVISADO
+// MIDDLEWARE DE AUTENTICAÇÃO
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  // Aceita tanto 'Bearer <token>' quanto '<token>' puro para evitar quebras de compatibilidade
-  const token = authHeader && (authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader);
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
     return res.status(401).json({ erro: "Acesso negado. Token não fornecido." });
@@ -38,6 +37,7 @@ const autenticarToken = (req, res, next) => {
 };
 
 // ROTAS DE PÁGINAS (FRONT-END)
+
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
 });
@@ -68,34 +68,12 @@ app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.htm
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
 
 // --- API: ROTAS DO SISTEMA (BACK-END) ---
-// LOGIN REPARADO E SEGURO
+
+// LOGIN
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
-    
-    if (!usuario || !senha) {
-      return res.status(400).json({ erro: "Preencha todos os campos" });
-    }
-
-    const usuarioLimpo = usuario.toLowerCase().trim();
-
-    // 1. CONTA MASTER FIXA DE RECOVERY (Garante seu acesso imediato mesmo se o banco falhar)
-    if (usuarioLimpo === "neri" && senha === "admin123") {
-      const token = jwt.sign(
-        { id: "master_recovery", tipo: "master" },
-        JWT_SECRET,
-        { expiresIn: "12h" }
-      );
-      return res.json({
-        ok: true,
-        token,
-        nome: "NERI MASTER",
-        tipo: "master"
-      });
-    }
-
-    // 2. CASO NÃO SEJA O MASTER FIXO, BUSCA OS OUTROS USUÁRIOS NO BANCO (Danilo, Sibele, etc.)
-    const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuarioLimpo });
+    const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
 
     if (!usuarioBanco) {
       return res.status(401).json({ erro: "Usuário não encontrado" });
@@ -103,7 +81,7 @@ app.post("/login", async (req, res) => {
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) {
-      return res.status(401).json({ erro: "Senha incorrecta" });
+      return res.status(401).json({ erro: "Senha incorreta" });
     }
 
     const token = jwt.sign(
@@ -119,17 +97,19 @@ app.post("/login", async (req, res) => {
       tipo: usuarioBanco.tipo
     });
   } catch (err) {
-    console.error("Erro no login:", err);
+    console.log(err);
     res.status(500).json({ erro: "Erro ao realizar login" });
   }
 });
 
-// CADASTRO DE USUÁRIOS
+// CADASTRO
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
-    if (req.usuario?.tipo !== "master") {
-      return res.status(403).json({ erro: "Você não tem permissão para cadastrar usuários." });
-    }
+     if (req.usuario?.tipo !== "master") {
+    return res.status(403).json({
+        erro: "Você não tem ppermissão para cadastrar usuários."
+    });
+}
 
     const { nome, usuario, senha, tipo } = req.body;
     if (!nome || !usuario || !senha || !tipo) {
@@ -155,12 +135,12 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
 
     res.json({ ok: true, mensagem: "Usuário criado com sucesso!" });
   } catch (err) {
-    console.error(err);
+    console.log(err);
     res.status(500).json({ erro: "Erro ao cadastrar usuário" });
   }
 });
 
-// LISTAGEM E GERENCIAMENTO DE USUÁRIOS
+// LISTAGEM DE USUÁRIOS (Mapeado para responder em ambas as variações de chamada)
 const listarUsuariosHandler = async (req, res) => {
   try {
     const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
@@ -174,25 +154,44 @@ app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
 app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
+
     if (req.usuario.tipo !== "master") {
-      return res.status(403).json({ erro: "Somente Master pode excluir usuários" });
+      return res.status(403).json({
+        erro: "Somente Master pode excluir usuários"
+      });
     }
-    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id) });
-    res.json({ ok: true });
+
+    await db.collection("usuarios").deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json({
+      ok: true
+    });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ erro: "Erro ao excluir usuário" });
+    res.status(500).json({
+      erro: "Erro ao excluir usuário"
+    });
   }
 });
 
 app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
+
     if (req.usuario.tipo !== "master") {
-      return res.status(403).json({ erro: "Você não tem permissão para editar usuários!" });
+      return res.status(403).json({
+        erro: "Você não tem permissão para editar usuários!"
+      });
     }
 
     const { nome, tipo, senha } = req.body;
-    const atualizacao = { nome, tipo };
+
+    const atualizacao = {
+      nome,
+      tipo
+    };
 
     if (senha && senha.trim() !== "") {
       atualizacao.senha = await bcrypt.hash(senha, 10);
@@ -203,110 +202,157 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
       { $set: atualizacao }
     );
 
-    res.json({ ok: true });
+    res.json({
+      ok: true
+    });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ erro: "Erro ao editar usuário" });
+    res.status(500).json({
+      erro: "Erro ao editar usuário"
+    });
   }
 });
 
-// ROTAS LEGADAS DE USUÁRIO (Para compatibilidade se houver chamadas antigas)
+// ATUALIZAR USUÁRIO
 app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, tipo, novaSenha } = req.body;
+
     let dadosAtualizados = { nome, tipo };
 
     if (novaSenha && novaSenha.trim() !== "") {
-      dadosAtualizados.senha = await bcrypt.hash(novaSenha, 10);
+      const senhaHash = await bcrypt.hash(novaSenha, 10);
+      dadosAtualizados.senha = senhaHash;
     }
 
-    await db.collection("usuarios").updateOne({ _id: new ObjectId(id) }, { $set: dadosAtualizados });
+    await db.collection("usuarios").updateOne(
+      { _id: new ObjectId(id) },
+      { $set: dadosAtualizados }
+    );
+
     res.json({ ok: true, message: "Usuário atualizado com sucesso!" });
   } catch (err) {
-    console.error(err);
+    console.log(err);
     res.status(500).json({ erro: "Erro ao atualizar usuário" });
   }
 });
 
 app.delete("/usuario/:id", autenticarToken, async (req, res) => {
   try {
+
     if (req.usuario?.tipo !== "master") {
-      return res.status(403).json({ erro: "Você não tem permissão para excluir usuários!" });
+      return res.status(403).json({
+        erro: "Você não tem permissão para excluir usuários!"
+      });
     }
-    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id) });
-    res.json({ ok: true });
+
+    const { id } = req.params;
+
+    await db.collection("usuarios").deleteOne({
+      _id: new ObjectId(id)
+    });
+
+    res.json({
+      ok: true
+    });
+
   } catch (erro) {
+
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao excluir usuário" });
+
+    res.status(500).json({
+      erro: "Erro ao excluir usuário"
+    });
   }
 });
 
-// =================================================================
-// GESTÃO DE TÉCNICOS (MÓDULO DE FROTAS / COMBUSTÍVEL)
-// =================================================================
+// TÉCNICOS
 
-// 1. LISTAR TODOS OS TÉCNICOS DA FROTA
+// LISTAR TÉCNICOS
 app.get("/api/tecnicos", autenticarToken, async (req, res) => {
   try {
-    const tecnicos = await db.collection("tecnicos").find().sort({ nome: 1 }).toArray();
-    res.json(tecnicos);
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({ erro: "Erro ao listar técnicos" });
-  }
-});
 
-// 2. LISTAR APENAS OS TÉCNICOS ATIVOS DA FROTA (Usado nos Dropdowns de dados e dashboards)
-app.get("/api/tecnicos/ativos", autenticarToken, async (req, res) => {
-  try {
-    const listaTecnicos = await db.collection("tecnicos")
-      .find({ status: { $ne: "Inativo" } })
+    const tecnicos = await db
+      .collection("tecnicos")
+      .find()
       .sort({ nome: 1 })
       .toArray();
-    res.json(listaTecnicos);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro ao carregar técnicos ativos." });
+
+    res.json(tecnicos);
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao listar técnicos"
+    });
   }
 });
 
-// 3. ADICIONAR TÉCNICO NA FROTA
+// CADASTRAR TÉCNICO
 app.post("/api/tecnicos", autenticarToken, async (req, res) => {
   try {
+
     const nome = (req.body.nome || "").trim();
-    if (!nome) return res.status(400).json({ erro: "Nome obrigatório" });
 
-    const existe = await db.collection("tecnicos").findOne({ nome });
-    if (existe) return res.status(400).json({ erro: "Técnico já cadastrado" });
+    if (!nome) {
+      return res.status(400).json({
+        erro: "Nome obrigatório"
+      });
+    }
 
-    const resultado = await db.collection("tecnicos").insertOne({ 
-      nome, 
-      status: "Ativo",
-      criadoEm: new Date() 
+    const existe = await db
+      .collection("tecnicos")
+      .findOne({ nome });
+
+    if (existe) {
+      return res.status(400).json({
+        erro: "Técnico já cadastrado"
+      });
+    }
+
+    const resultado = await db
+      .collection("tecnicos")
+      .insertOne({
+        nome,
+        criadoEm: new Date()
+      });
+
+    res.json({
+      ok: true,
+      id: resultado.insertedId
     });
-    res.json({ ok: true, id: resultado.insertedId });
+
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao cadastrar técnico" });
+    res.status(500).json({
+      erro: "Erro ao cadastrar técnico"
+    });
   }
 });
 
-// 4. EXCLUIR TÉCNICO DA FROTA
+// EXCLUIR TÉCNICO
 app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
   try {
-    await db.collection("tecnicos").deleteOne({ _id: new ObjectId(req.params.id) });
-    res.json({ ok: true });
+
+    await db.collection("tecnicos").deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json({
+      ok: true
+    });
+
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao excluir técnico" });
+    res.status(500).json({
+      erro: "Erro ao excluir técnico"
+    });
   }
 });
 
-// =================================================================
-// GESTÃO DE ESTOQUE
-// =================================================================
-
+// ESTOQUE
 const estoqueHandler = async (req, res) => {
   try {
     const estoque = await db.collection("estoque").find().toArray();
@@ -317,9 +363,10 @@ const estoqueHandler = async (req, res) => {
 };
 app.get("/api/estoque", autenticarToken, estoqueHandler);
 app.get("/estoque", autenticarToken, estoqueHandler);
-
+// CADASTRAR ITEM
 app.post("/api/estoque", autenticarToken, async (req, res) => {
   try {
+
     const novoItem = {
       codigo: req.body.codigo || "",
       nome: req.body.nome || "",
@@ -329,19 +376,34 @@ app.post("/api/estoque", autenticarToken, async (req, res) => {
       qtd: Number(req.body.qtd) || 0,
       criadoEm: new Date()
     };
-    const resultado = await db.collection("estoque").insertOne(novoItem);
-    res.json({ ok: true, id: resultado.insertedId });
+
+    const resultado = await db
+      .collection("estoque")
+      .insertOne(novoItem);
+
+    res.json({
+      ok: true,
+      id: resultado.insertedId
+    });
+
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao salvar item no estoque" });
+    res.status(500).json({
+      erro: "Erro ao salvar item"
+    });
   }
 });
 
+// EDITAR ITEM
 app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
   try {
+
+    const { id } = req.params;
+
     await db.collection("estoque").updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: {
+      { _id: new ObjectId(id) },
+      {
+        $set: {
           codigo: req.body.codigo,
           nome: req.body.nome,
           categoria: req.body.categoria,
@@ -351,65 +413,179 @@ app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
         }
       }
     );
+
     res.json({ ok: true });
+
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao editar item" });
+    res.status(500).json({
+      erro: "Erro ao editar item"
+    });
   }
 });
 
+// EXCLUIR ITEM
 app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
   try {
-    await db.collection("estoque").deleteOne({ _id: new ObjectId(req.params.id) });
+
+    const { id } = req.params;
+
+    await db.collection("estoque").deleteOne({
+      _id: new ObjectId(id)
+    });
+
     res.json({ ok: true });
+
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: "Erro ao excluir item do estoque" });
+    res.status(500).json({
+      erro: "Erro ao excluir item"
+    });
   }
 });
-
-app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
+// HISTÓRICO DE ESTOQUE
+const historicoEstoqueHandler = async (req, res) => {
   try {
-    const logs = await db.collection("estoque_historico").find().sort({ data: -1 }).toArray();
-    res.json(logs);
+    const historico = await db.collection("historico_estoque").find().toArray();
+    res.json(historico);
   } catch (err) {
-    res.status(500).json({ erro: "Erro ao buscar histórico do estoque." });
+    res.status(500).json({ erro: "Erro ao buscar histórico do estoque" });
+  }
+};
+app.get("/api/estoque/historico", autenticarToken, historicoEstoqueHandler);
+app.get("/estoque/historico", autenticarToken, historicoEstoqueHandler);
+
+// HISTÓRICO POR TÉCNICO
+app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
+  try {
+
+    const logs = await db
+      .collection("historico_estoque")
+      .find({
+        tecnico: req.params.nome
+      })
+      .sort({ data: -1 })
+      .toArray();
+
+    res.json(logs);
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao buscar histórico"
+    });
   }
 });
 
-// =================================================================
-// REGISTROS DA PLANILHA (SISTEMA DE COMBUSTÍVEL)
-// =================================================================
-
-app.get("/api/registros", autenticarToken, async (req, res) => {
+// SALVAR MOVIMENTAÇÃO
+app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
   try {
-    const registros = await db.collection("registros").find().toArray();
-    res.json(registros);
+
+    const {
+      ferramentaId,
+      quantidade,
+      tipoAcao
+    } = req.body;
+
+    // Verifica estoque antes de entregar ou trocar
+    if (
+      ferramentaId &&
+      (tipoAcao === "Entrega" || tipoAcao === "Troca")
+    ) {
+
+      const item = await db.collection("estoque").findOne({
+        _id: new ObjectId(ferramentaId)
+      });
+
+      if (!item) {
+        return res.status(404).json({
+          erro: "Item não encontrado no estoque."
+        });
+      }
+
+      const saldoAtual = Number(item.qtd || 0);
+      const qtdSolicitada = Number(quantidade || 0);
+
+      if (qtdSolicitada > saldoAtual) {
+        return res.status(400).json({
+          erro: `Estoque insuficiente. Disponível: ${saldoAtual}`
+        });
+      }
+    }
+
+    // Grava histórico
+    await db
+      .collection("historico_estoque")
+      .insertOne(req.body);
+
+    // Atualiza saldo do estoque
+    if (ferramentaId) {
+
+      let ajuste = 0;
+
+      if (tipoAcao === "Entrega") {
+        ajuste = -Number(quantidade);
+      }
+
+      if (
+        tipoAcao === "Devolução" ||
+        tipoAcao === "Devolucao"
+      ) {
+        ajuste = Number(quantidade);
+      }
+
+      if (tipoAcao === "Troca") {
+        ajuste = -Number(quantidade);
+      }
+
+      await db.collection("estoque").updateOne(
+        { _id: new ObjectId(ferramentaId) },
+        { $inc: { qtd: ajuste } }
+      );
+    }
+
+    res.json({
+      ok: true
+    });
+
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({
+      erro: "Erro ao gravar histórico"
+    });
+  }
+});
+
+// REGISTROS
+const registrosHandler = async (req, res) => {
+  try {
+    const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
+    res.json(dados);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao buscar registros" });
   }
-});
+};
+app.get("/registros", autenticarToken, registrosHandler);
+app.get("/api/registros", autenticarToken, registrosHandler);
 
-app.post("/api/registros", autenticarToken, async (req, res) => {
+// SALVAR REGISTRO
+app.post("/registro", autenticarToken, async (req, res) => {
   try {
-    const dados = req.body;
-    if (!Array.isArray(dados) || dados.length === 0) {
-      return res.status(400).json({ erro: "Dados inválidos." });
-    }
+    let dados = req.body.dados || [];
+    if (dados.length === 0) return res.status(400).json({ erro: "Nenhum dado informado" });
+
+    const mapa = new Set();
+    dados = dados.filter(item => {
+      const chave = `${item.tecnico}_${String(item.data).split('T')[0]}`;
+      if (mapa.has(chave)) return false;
+      mapa.add(chave);
+      return true;
+    });
 
     const operacoes = dados.map(item => {
-      if (item._id) {
-        const id = item._id;
-        delete item._id;
-        return {
-          updateOne: {
-            filter: { _id: new ObjectId(id) },
-            update: { $set: item }
-          }
-        };
-      }
-      
-      const dataLimpa = item.data ? String(item.data).split("T")[0] : null;
+      const dataLimpa = item.data ? String(item.data).split('T')[0] : '';
+      if (item._id) delete item._id;
+
       return {
         updateOne: {
           filter: { tecnico: item.tecnico, data: dataLimpa },
@@ -426,9 +602,11 @@ app.post("/api/registros", autenticarToken, async (req, res) => {
   }
 });
 
+// APAGAR REGISTRO
 app.delete("/registro/:id", autenticarToken, async (req, res) => {
   try {
-    const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(req.params.id) });
+    const { id } = req.params;
+    const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(id) });
     if (resultado.deletedCount === 1) {
       res.json({ ok: true, message: "Registro apagado com sucesso!" });
     } else {
@@ -442,19 +620,19 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
 // Arquivos estáticos da pasta public
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO DO SERVIDOR
+// INICIALIZAÇÃO SINCRONIZADA SEGURO
 async function iniciarSistema() {
   try {
     console.log("🔄 Conectando ao MongoDB Atlas...");
     await client.connect();
-    db = client.db("neri_sistema");
-    console.log("✅ Conectado com sucesso ao Banco de Dados.");
-    
+    db = client.db("rotas");
+    console.log("✅ Mongo conectado com sucesso!");
+
     app.listen(PORT, () => {
-      console.log(`🚀 Servidor rodando com sucesso na porta: ${PORT}`);
+      console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
     });
   } catch (err) {
-    console.error("❌ Falha crítica ao iniciar o servidor:", err);
+    console.error("❌ Erro crítico ao conectar ao MongoDB:", err);
     process.exit(1);
   }
 }
