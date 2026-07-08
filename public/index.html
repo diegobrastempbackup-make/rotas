@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang=\"pt-br\">
 <head>
   <meta charset="UTF-8">
   <title>NERI Dashboard</title>
@@ -29,175 +29,144 @@
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-      gap: 15px;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); \n      gap: 15px;
       width: 100%;
-      margin-top: 0 !important; 
-    }
+      margin-top: 0 !important; \n    }
 
-    /* BLINDAGEM DO MODAL COM O CORRETO DO JAVASCRIPT (.show) */
-    .modal.show {
-      opacity: 1 !important;
-      pointer-events: auto !important;
-      display: flex !important;
+    /* BLINDAGEM DO MODAL COM O CORRETO DO JAVASCRIPT */
+    .modal {
+      display: none; 
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
     }
-    .modal.show .modal-conteudo {
-      transform: translateY(0) !important;
+    .modal-content {
+      background: #1E293B;
+      padding: 25px;
+      border-radius: 8px;
+      width: 400px;
+      max-width: 90%;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
-    
-    /* Correção de inputs internos do formulário */
+    .form-group {
+      margin-bottom: 12px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #94A3B8;
+      font-size: 13px;
+    }
     .form-group input, .form-group select {
-      margin-bottom: 10px;
+      width: 100%;
+      padding: 8px;
+      background: #0F172A;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: white;
+      border-radius: 4px;
+    }
+    .btn-bloco {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 10px;
     }
   </style>
-
-  <script>
-    const token = localStorage.getItem("token");
-    let usuarioTipo = localStorage.getItem("usuarioTipo");
-    const usuarioNome = localStorage.getItem("usuarioNome");
-
-    // Trava de segurança inicial: Sem token vai pro login
-    if (!token) {
-      window.location.replace("/login.html");
-    }
-
-    // Intercepta e força o perfil de estoque caso o nome venha com a marcação de segurança
-    if (usuarioNome && usuarioNome.includes("[ESTOQUE]")) {
-      usuarioTipo = "estoque";
-      localStorage.setItem("usuarioTipo", "estoque");
-    }
-
-    // Se o usuário for do tipo estoque, ele não entra no Dashboard de forma alguma
-    if (usuarioTipo === "estoque") {
-      window.location.replace("/estoque.html");
-    }
-
-    window.addEventListener("DOMContentLoaded", () => {
-      const btnDados = document.getElementById("btnIrParaDados");
-      const btnCadastrar = document.getElementById("btnMenuCadastro");
-      const btnEstoque = document.getElementById("btnIrParaEstoque");
-      const btnRelatorio = document.getElementById("btnExtrairRelatorio");
-      const perfilBadge = document.getElementById("perfilTipo");
-
-      // Atualiza o Badge do Perfil na barra lateral
-      if (perfilBadge && usuarioTipo) {
-        perfilBadge.innerText = `Dashboard (${usuarioTipo.toUpperCase()})`;
-      }
-
-      // APLICAÇÃO RÍGIDA DOS NÍVEIS DE ACESSO SOLICITADOS
-      if (usuarioTipo === "master") {
-        if (btnDados) btnDados.style.display = "block";
-        if (btnEstoque) btnEstoque.style.display = "block";
-        if (btnCadastrar) btnCadastrar.style.display = "block";
-        if (btnRelatorio) btnRelatorio.style.display = "block";
-        
-      } else if (usuarioTipo === "admin") {
-        if (btnDados) btnDados.style.display = "block";
-        if (btnEstoque) btnEstoque.style.display = "block";
-        if (btnCadastrar) btnCadastrar.style.display = "none";
-        if (btnRelatorio) btnRelatorio.style.display = "block";
-        
-      } else if (usuarioTipo === "simples") {
-        if (btnDados) btnDados.style.display = "none";
-        if (btnEstoque) btnEstoque.style.display = "none";
-        if (btnCadastrar) btnCadastrar.style.display = "none";
-        if (btnRelatorio) btnRelatorio.style.display = "block";
-      }
-    });
-  </script>
 </head>
 <body>
 
-<div class="container">
   <div class="sidebar">
-    <div class="logo-area">
-      <img src="logo.png" class="logo" alt="Logo NERI" style="max-width: 100%; height: auto; margin-bottom: 10px;" />
-      <div class="user-badge" id="perfilTipo" style="margin-top: 5px;">Dashboard</div>
-    </div>
-
-    <div class="menu">
-      <p onclick="filtrar('TODOS')" style="cursor:pointer; padding: 5px 10px; font-weight: bold; color: #60A5FA;">📊 Geral</p>
-      
-      <div id="listaTecnicosMenu"></div>
-
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
-
-      <h3 style="font-size:12px; color:#94A3B8; padding-left:10px;">FILTRAR POR MÊS</h3>
-      <input type="month" id="mesFiltro" style="width:100%; background:#0F172A; border:1px solid rgba(255,255,255,0.1); color:white; padding:8px; border-radius:5px; margin-bottom:8px;">
-      <button onclick="filtrarMes()" style="margin-bottom:5px;">🔍 Buscar</button>
-      <button onclick="limparFiltro()">♻ Limpar Filtro</button>
-
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
-
-      <button id="btnExtrairRelatorio" onclick="exportarPDF()">📄 Extrair Relatório</button>
-
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
-
-      <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
-      <button id="btnIrParaEstoque" onclick="irParaEstoque()">📦 Estoque</button>
-      
-      <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">
-        👤 Gerenciar Usuários
-      </button>
-
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
+    <div class="logo">NERI</div>
+    <nav>
+      <div class="nav-section">
+        <h3>FILTROS</h3>
         
-      <button onclick="sair()" class="btn-sair">🚪 Sair</button>
-    </div>
+        <label for="filtroMes">Mês:</label>
+        <select id="filtroMes" onchange="atualizarDashboard()">
+          <option value="01">Janeiro</option>
+          <option value="02">Fevereiro</option>
+          <option value="03">Março</option>
+          <option value="04">Abril</option>
+          <option value="05">Maio</option>
+          <option value="06">Junho</option>
+          <option value="07">Julho</option>
+          <option value="08">Agosto</option>
+          <option value="09">Setembro</option>
+          <option value="10">Outubro</option>
+          <option value="11">Novembro</option>
+          <option value="12">Dezembro</option>
+        </select>
 
-    <div class="footer" style="font-size:11px; text-align:center; color:#64748B; margin-top:15px;">
-      © Diego Neri
-    </div>
+        <label for="filtroAno">Ano:</label>
+        <select id="filtroAno" onchange="atualizarDashboard()">
+          </select>
+
+        <label for="filtroTecnico">Técnico:</label>
+        <select id="filtroTecnico" onchange="atualizarDashboard()">
+          <option value="TODOS">Todos os Técnicos</option>
+          </select>
+      </div>
+
+      <div class="nav-section">
+        <h3>NAVEGAÇÃO</h3>
+        <button id="btnIrParaDados" onclick="window.location.href='/dados.html'" style="background: #3B82F6;" class="btn-bloco">Planilha de Dados</button>
+        <button id="btnIrParaEstoque" onclick="window.location.href='/estoque.html'" style="background: #10B981;" class="btn-bloco">Estoque & Cautela</button>
+        <button id="btnMenuCadastro" onclick="abrirModalCadastro()" style="background: #8B5CF6;" class="btn-bloco">Gerenciar Usuários</button>
+        <button onclick="exportarPDF()" style="background: #EF4444;" class="btn-bloco">Exportar PDF</button>
+        <button onclick="efetuarLogoutManual()" style="background: #475569;" class="btn-bloco">Sair</button>
+      </div>
+    </nav>
   </div>
 
   <div class="main">
-    
     <div class="cards">
-      <div class="card azul">
-        <div class="card-titulo">💰 Gasto Total</div>
-        <div id="gastoTotal" class="card-valor">R$ 0,00</div>
+      <div class="card">
+        <h3>Gasto Total</h3>
+        <p id="gastoTotalVal">R$ 0,00</p>
       </div>
-
-      <div class="card verde">
-        <div class="card-titulo">🛣 KM Total</div>
-        <div id="kmTotal" class="card-valor">0 KM</div>
+      <div class="card">
+        <h3>KM Total Rodado</h3>
+        <p id="kmTotalVal">0 KM</p>
       </div>
+      <div class="card">
+        <h3>Litros Abastecidos</h3>
+        <p id="litrosTotalVal">0.00 L</p>
+      </div>
+      <div class="card">
+        <h3>Média Geral Frota</h3>
+        <p id="mediaGeralVal">-</p>
+      </div>
+    </div>
 
-      <div class="card amarelo">
-        <div class="card-titulo">👤 Consumo de (<span id="nomeTecnicoSelecionado">TODOS</span>)</div>
-        <div style="font-size:13px; margin-top:10px; display:flex; flex-direction:column; gap:4px;">
-          <div>Gasto: <span id="gastoIndividual" style="font-weight:bold; color:#F8FAFC;">R$ 0,00</span></div>
-          <div>KM: <span id="kmIndividual" style="font-weight:bold; color:#F8FAFC;">0 KM</span></div>
-          <div>Média: <span id="mediaIndividual" style="font-weight:bold; color:#F8FAFC;">0.0 KM/L</span></div>
+    <div class="charts-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; width:100%; flex-grow:1;">
+      <div class="chart-box" style="background:#1E293B; padding:15px; border-radius:8px; height:320px; position:relative;">
+        <h4 style="margin:0 0 10px 0; color:#94A3B8; font-size:14px;">Investimento por Técnico (R$)</h4>
+        <div style="width:100%; height:260px;">
+          <canvas id="graficoGastos"></canvas>
         </div>
       </div>
-    </div> 
-
-    <div class="graficos">
-      <div class="grafico">
-        <canvas id="g1"></canvas>
-      </div>
-      <div class="grafico">
-        <canvas id="g2"></canvas>
+      <div class="chart-box" style="background:#1E293B; padding:15px; border-radius:8px; height:320px; position:relative;">
+        <h4 style="margin:0 0 10px 0; color:#94A3B8; font-size:14px;">Quilometragem Percorrida (KM)</h4>
+        <div style="width:100%; height:260px;">
+          <canvas id="graficoKm"></canvas>
+        </div>
       </div>
     </div>
+  </div>
 
-  </div> 
-</div> 
-
-<img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
-
-<div id="modalCadastro" class="modal">
-  <div class="modal-conteudo">
-    <div class="modal-header">
-      <h3 id="formTituloMain">👤 Gerenciar Usuários</h3>
-      <button class="fechar-modal" onclick="fecharModalCadastro()">×</button>
-    </div>
-    
-    <p style="font-size:13px; color:#94A3B8; margin-top:-10px; margin-bottom:20px;">Cadastre, altere permissões ou mude senhas.</p>
-    
-    <div id="secaoListaUsuarios">
-      <div id="listaUsuariosContainer" style="max-height:200px; overflow-y:auto; margin-bottom:15px;"></div>
+  <div id="modalCadastro" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-top:0; color:white;">Controle de Usuários</h3>
+      
+      <div id="listaUsuariosContainer" style="max-height: 180px; overflow-y: auto; background:#0F172A; padding:10px; border-radius:4px; margin-bottom:15px;"></div>
       <button onclick="mostrarFormularioCadastro()" class="btn-bloco" style="background:#10B981;">+ Criar Novo Usuário</button>
     </div>
 
@@ -225,11 +194,11 @@
 
     <div class="modal-botoes" style="display:flex; gap:10px; margin-top:15px;">
       <button class="btn-bloco" style="background:#64748B; margin:0;" onclick="fecharModalCadastro()">Fechar</button>
-      <button id="btnSalvarUsuario" class="btn-bloco" style="margin:0; display: none;" onclick="salvarUsuario()">Salvar</button>
+      <button id="btnSalvarUsuario" class="btn-bloco" style="background:#2563EB; margin:0; display:none;" onclick="guardarUsuario()">Gravar Usuário</button>
     </div>
   </div>
-</div>
-  <img id="logoNERI" src="logo.png" style="display:none;" alt="Logo Oculta">
+
   <script src="app.js"></script>
+  <script src="usuarios.js"></script>
 </body>
 </html>

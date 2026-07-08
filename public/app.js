@@ -45,13 +45,13 @@ async function iniciarDashboard() {
   configurarDropdownAno();
   aplicarRestricoesDeNivel();
   
-  // 1. Carrega os técnicos ativos do banco
+  // 1. Carrega estritamente os técnicos ativos do cadastro de frota
   await carregarTecnicosDaAPI();
   
-  // 2. Preenche o select lateral de filtros
+  // 2. Preenche o select lateral de filtros limpo dinamicamente
   popularSelectTecnicos();
   
-  // 3. Define o mês atual no filtro e busca os dados
+  // 3. Define o mês atual nos campos e dispara a consulta de dados
   const d = new Date();
   const mesAtual = String(d.getMonth() + 1).padStart(2, '0');
   const anoAtual = d.getFullYear();
@@ -62,13 +62,13 @@ async function iniciarDashboard() {
   await buscarDadosDaAPI();
 }
 
-// BUSCA TÉCNICOS ATIVOS DIRECTO DA API (SINCRONIZADO)
+// BUSCA OS TÉCNICOS OPERACIONAIS ATIVOS
 async function carregarTecnicosDaAPI() {
   try {
     const res = await fetch("/api/tecnicos/ativos", {
       headers: { "Authorization": `Bearer ${tokenDashboard}` }
     });
-    if (!res.ok) throw new Error("Erro ao carregar técnicos ativos.");
+    if (!res.ok) throw new Error("Erro ao carregar técnicos.");
     tecnicos = await res.json();
   } catch (err) {
     console.error(err);
@@ -80,6 +80,7 @@ function popularSelectTecnicos() {
   const select = document.getElementById("filtroTecnico");
   if (!select) return;
   
+  // Limpa opções fixas antigas do HTML e insere a base dinâmica
   select.innerHTML = '<option value="TODOS">Todos os Técnicos</option>';
   tecnicos.forEach(t => {
     select.innerHTML += `<option value="${t.nome}">${t.nome}</option>`;
@@ -116,8 +117,13 @@ function aplicarRestricoesDeNivel() {
   }
 }
 
+function efectuarLogoutManual() {
+  localStorage.clear();
+  window.location.replace("/login.html");
+}
+
 // =================================================================
-// REQUISIÇÃO E PROCESSAMENTO DOS VALORES DO DASHBOARD
+// PROCESSAMENTO DOS VALORES REAIS DO DASHBOARD
 // =================================================================
 async function buscarDadosDaAPI() {
   try {
@@ -149,7 +155,7 @@ function atualizarDashboard() {
 
   const chaveMesFiltro = `${ano}-${mes}`;
 
-  // 1. Filtragem inteligente para o mês/ano selecionado (suporta ISO e PT-BR)
+  // Filtra as datas do banco de dados (suporta ISO e padrão legado BR com barra)
   let dadosFiltrados = dadosGlobal.filter(item => {
     if (!item.data) return false;
     
@@ -176,17 +182,15 @@ function atualizarDashboard() {
     return dataStr.split("T")[0].startsWith(chaveMesFiltro);
   });
 
-  // 2. Filtro por Técnico individual (se selecionado)
+  // Filtra por técnico individual se selecionado
   if (tecnicoAtual !== "TODOS") {
     dadosFiltrados = dadosFiltrados.filter(item => item.tecnico === tecnicoAtual);
   }
 
-  // 3. Acumuladores para os cards principais
   let totalLitros = 0;
   let totalValor = 0;
   let totalKm = 0;
 
-  // Dicionários dinâmicos para a distribuição dos gráficos por técnico
   let mapaGastos = {};
   let mapaKm = {};
 
@@ -195,11 +199,11 @@ function atualizarDashboard() {
     mapaKm[t.nome] = 0;
   });
 
-  // 4. Soma dos valores usando os novos campos mapeados da planilha
+  // Somatório final correto baseado nas propriedades reais salvas por dados.html
   dadosFiltrados.forEach(item => {
     const lts = parseFloat(item.litros) || 0;
-    const vlr = parseFloat(item.valor_total) || 0; // Novo campo alinhado com dados.html
-    const kmR = parseFloat(item.km_rodado) || 0;    // Novo campo alinhado com dados.html
+    const vlr = parseFloat(item.valor_total) || 0; 
+    const kmR = parseFloat(item.km_rodado) || 0;    
 
     totalLitros += lts;
     totalValor += vlr;
@@ -211,7 +215,7 @@ function atualizarDashboard() {
     }
   });
 
-  // 5. Atualização dos elementos de texto da interface (Cards superiores)
+  // Atualiza Cards na Tela
   const elemGasto = document.getElementById("gastoTotalVal");
   const elemKm = document.getElementById("kmTotalVal");
   const elemLitros = document.getElementById("litrosTotalVal");
@@ -226,7 +230,6 @@ function atualizarDashboard() {
     elemMedia.innerText = mediaGeral > 0 ? `${mediaGeral.toFixed(2)} km/l` : "-";
   }
 
-  // 6. Atualização dinâmica das estruturas de gráficos
   renderizarGraficos(mapaGastos, mapaKm);
 }
 
@@ -248,7 +251,6 @@ function renderizarGraficos(mapaGastos, mapaKm) {
     dadosKm = [mapaKm[tecnicoAtual] || 0];
   }
 
-  // Configurações visuais padrão da paleta corporativa escura
   const opcoesPadrao = {
     responsive: true,
     maintainAspectRatio: false,
@@ -280,7 +282,6 @@ function renderizarGraficos(mapaGastos, mapaKm) {
     }
   };
 
-  // Destrói instâncias anteriores para evitar sobreposição visual do canvas
   if (grafico1) grafico1.destroy();
   if (grafico2) grafico2.destroy();
 
@@ -333,7 +334,6 @@ function exportarPDF() {
   const mesesNomes = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
   const nomeMesExtenso = mesesNomes[parseInt(mes) - 1];
 
-  // Filtra dados do período para compor as linhas do relatório estático
   let dadosRelatorio = dadosGlobal.filter(item => {
     if (!item.data) return false;
     let dataStr = String(item.data).trim();
@@ -350,7 +350,6 @@ function exportarPDF() {
     dadosRelatorio = dadosRelatorio.filter(item => item.tecnico === tecnicoFiltro);
   }
 
-  // Ordenação sequencial por dia
   dadosRelatorio.sort((a, b) => String(a.data).localeCompare(String(b.data)));
 
   let y = 15;
@@ -362,7 +361,6 @@ function exportarPDF() {
     }
   }
 
-  // Cabeçalho institucional do PDF
   doc.setFillColor(15, 23, 42);
   doc.rect(10, y, 190, 22, "F");
 
@@ -377,7 +375,6 @@ function exportarPDF() {
 
   y += 30;
 
-  // Cabeçalho da Tabela
   doc.setFillColor(30, 41, 59);
   doc.rect(10, y, 190, 8, "F");
 
@@ -439,7 +436,6 @@ function exportarPDF() {
     y += 5;
   }
 
-  // Caixa de Resumo Acumulado do Período
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(203, 213, 225);
   doc.roundedRect(10, y, 190, 32, 2, 2, "FD");
@@ -461,5 +457,4 @@ function exportarPDF() {
   doc.save(`Fechamento_Neri_${nomeMesExtenso}_${ano}.pdf`);
 }
 
-// Vincula a inicialização do script ao ciclo global de carregamento do Dashboard
 window.addEventListener("DOMContentLoaded", iniciarDashboard);
