@@ -4,11 +4,34 @@ let cacheTecnicos = [];
 if (!token) window.location.replace("/login.html");
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Esconde a aba de usuários se não for Master
+    const usuarioTipo = localStorage.getItem("usuarioTipo");
+    if (usuarioTipo !== "master") {
+        document.getElementById("btnTabUsuarios").style.display = "none";
+    }
+
     await carregarTecnicos();
+    await carregarUsuarios(); // Carrega os usuários também
+
     document.getElementById("buscaNome").addEventListener("input", filtrarTabela);
     document.getElementById("filtroStatus").addEventListener("change", filtrarTabela);
 });
 
+// ================= CONTROLE DE ABAS =================
+function mudarAba(abaSelecionada) {
+    document.getElementById("abaTecnicos").style.display = abaSelecionada === 'tecnicos' ? 'block' : 'none';
+    document.getElementById("abaUsuarios").style.display = abaSelecionada === 'usuarios' ? 'block' : 'none';
+    
+    document.getElementById("btnTabTecnicos").className = abaSelecionada === 'tecnicos' ? 'tab-btn ativa' : 'tab-btn';
+    document.getElementById("btnTabUsuarios").className = abaSelecionada === 'usuarios' ? 'tab-btn ativa' : 'tab-btn';
+}
+
+// ================= CONTROLE DE MODAIS (CORRIGIDO PARA .ativo) =================
+function fecharModal(idModal) {
+    document.getElementById(idModal).classList.remove("ativo");
+}
+
+// ================= LÓGICA DE TÉCNICOS =================
 async function carregarTecnicos() {
     try {
         const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
@@ -64,7 +87,7 @@ function renderizarTabela(lista) {
                 <td>${t.placa || "-"}</td>
                 <td>${dataCriacao}</td>
                 <td>
-                    <button class="btn-mini btn-editar" onclick="prepararEdicao('${t._id}')">Editar</button>
+                    <button class="btn-mini btn-editar" onclick="prepararEdicaoTecnico('${t._id}')">Editar</button>
                     <button class="btn-mini btn-excluir" onclick="deletarTecnico('${t._id}')">Excluir</button>
                 </td>
             </tr>
@@ -82,8 +105,8 @@ function filtrarTabela() {
     renderizarTabela(filtrada);
 }
 
-function abrirModalCadastro() {
-    document.getElementById("modalTitulo").innerText = "Adicionar Novo Técnico";
+function abrirModalTecnico() {
+    document.getElementById("modalTituloTecnico").innerText = "Adicionar Novo Técnico";
     document.getElementById("tecnicoId").value = "";
     document.getElementById("formNome").value = "";
     document.getElementById("formStatus").value = "Ativo";
@@ -91,13 +114,13 @@ function abrirModalCadastro() {
     document.getElementById("formEmail").value = "";
     document.getElementById("formVeiculo").value = "";
     document.getElementById("formPlaca").value = "";
-    document.getElementById("modalTecnico").classList.add("show");
+    document.getElementById("modalTecnico").classList.add("ativo"); // Corrigido para .ativo
 }
 
-function prepararEdicao(id) {
+function prepararEdicaoTecnico(id) {
     const t = cacheTecnicos.find(item => item._id === id);
     if (!t) return;
-    document.getElementById("modalTitulo").innerText = `Editar Cadastro: ${t.nome}`;
+    document.getElementById("modalTituloTecnico").innerText = `Editar Cadastro: ${t.nome}`;
     document.getElementById("tecnicoId").value = t._id;
     document.getElementById("formNome").value = t.nome;
     document.getElementById("formStatus").value = t.status || "Ativo";
@@ -105,11 +128,7 @@ function prepararEdicao(id) {
     document.getElementById("formEmail").value = t.email || "";
     document.getElementById("formVeiculo").value = t.veiculo || "";
     document.getElementById("formPlaca").value = t.placa || "";
-    document.getElementById("modalTecnico").classList.add("show");
-}
-
-function fecharModal() {
-    document.getElementById("modalTecnico").classList.remove("show");
+    document.getElementById("modalTecnico").classList.add("ativo"); // Corrigido para .ativo
 }
 
 async function salvarTecnico() {
@@ -129,7 +148,7 @@ async function salvarTecnico() {
         const metodo = id ? "PUT" : "POST";
         const res = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify(payload) });
         if (!res.ok) return alert("Erro no servidor.");
-        fecharModal();
+        fecharModal('modalTecnico');
         await carregarTecnicos();
     } catch (err) { alert("Erro de conexão."); }
 }
@@ -139,5 +158,112 @@ async function deletarTecnico(id) {
     try {
         const res = await fetch(`/api/tecnicos-dashboard/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
         if (res.ok) await carregarTecnicos();
+    } catch (err) { console.error(err); }
+}
+
+// ================= LÓGICA DE USUÁRIOS (MIGRADA DO APP.JS) =================
+async function carregarUsuarios() {
+    const corpo = document.getElementById("corpoTabelaUsuarios");
+    corpo.innerHTML = `<tr><td colspan="4" style="text-align:center;">Carregando...</td></tr>`;
+    try {
+        const res = await fetch("/api/usuarios", { headers: { "Authorization": `Bearer ${token}` } });
+        const usuarios = await res.json();
+        corpo.innerHTML = "";
+        
+        usuarios.forEach(u => {
+            let exibicaoNome = u.nome;
+            let exibicaoTipo = u.tipo;
+
+            if (u.nome && u.nome.toUpperCase().includes("ESTOQUE")) {
+                exibicaoNome = u.nome.replace(" [ESTOQUE]", "").replace(" ESTOQUE", "").trim();
+                exibicaoTipo = "estoque";
+            }
+
+            let badge = "";
+            if (exibicaoTipo === "master") badge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#FBBF24;">Master</span>`;
+            else if (exibicaoTipo === "admin") badge = `<span class="badge" style="background:rgba(96,165,250,0.15); color:#60A5FA;">Admin</span>`;
+            else if (exibicaoTipo === "estoque") badge = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34D399;">Estoque</span>`;
+            else badge = `<span class="badge" style="background:rgba(148,163,184,0.15); color:#94A3B8;">Simples</span>`;
+
+            corpo.innerHTML += `
+                <tr>
+                    <td><strong>${exibicaoNome}</strong></td>
+                    <td>${u.usuario}</td>
+                    <td>${badge}</td>
+                    <td>
+                        <button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}', '${exibicaoNome}', '${u.usuario}', '${exibicaoTipo}')">Editar</button>
+                        <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (err) { corpo.innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">Erro ao carregar usuários.</td></tr>`; }
+}
+
+function abrirModalUsuario() {
+    document.getElementById("modalTituloUsuario").innerText = "Novo Usuário";
+    document.getElementById("usuarioEditId").value = "";
+    document.getElementById("cadNome").value = "";
+    document.getElementById("cadUsuario").value = "";
+    document.getElementById("cadUsuario").disabled = false; 
+    document.getElementById("cadSenha").value = "";
+    document.getElementById("lblSenha").innerText = "Senha de Acesso";
+    document.getElementById("cadSenha").placeholder = "Digite a senha";
+    document.getElementById("cadTipo").value = "simples";
+    document.getElementById("modalUsuario").classList.add("ativo"); // Usa a classe oficial do style.css
+}
+
+function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
+    document.getElementById("modalTituloUsuario").innerText = `Editar: ${usuario}`;
+    document.getElementById("usuarioEditId").value = id;
+    document.getElementById("cadNome").value = nome;
+    document.getElementById("cadUsuario").value = usuario;
+    document.getElementById("cadUsuario").disabled = true; 
+    document.getElementById("cadSenha").value = "";
+    document.getElementById("lblSenha").innerText = "Nova Senha (vazio mantém a atual)";
+    document.getElementById("cadSenha").placeholder = "Apenas se for alterar";
+    document.getElementById("cadTipo").value = tipoReal;
+    document.getElementById("modalUsuario").classList.add("ativo");
+}
+
+async function salvarUsuario() {
+    const id = document.getElementById("usuarioEditId").value;
+    const nome = document.getElementById("cadNome").value.trim();
+    const usuario = document.getElementById("cadUsuario").value.trim();
+    const senha = document.getElementById("cadSenha").value;
+    const tipo = document.getElementById("cadTipo").value;
+
+    if (!nome || !usuario) return alert("Preencha todos os campos obrigatórios.");
+
+    try {
+        let res;
+        if (id) {
+            res = await fetch(`/api/usuarios/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ nome, tipo, senha })
+            });
+        } else {
+            res = await fetch("/cadastro", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ nome, usuario, senha, tipo })
+            });
+        }
+
+        const dados = await res.json();
+        if (!res.ok) return alert(dados.erro || "Erro na operação.");
+        
+        fecharModal('modalUsuario');
+        await carregarUsuarios();
+    } catch (err) { alert("Erro de conexão."); }
+}
+
+async function deletarUsuario(id) {
+    if (!confirm("Atenção! Deseja remover este usuário permanentemente?")) return;
+    try {
+        const res = await fetch(`/api/usuarios/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if (res.ok) await carregarUsuarios();
+        else alert("Erro ao excluir.");
     } catch (err) { console.error(err); }
 }

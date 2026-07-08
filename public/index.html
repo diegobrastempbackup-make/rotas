@@ -11,44 +11,9 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
-    /* Esconde os botões sensíveis por padrão antes da checagem do script */
-    #btnIrParaDados, #btnMenuCadastro, #btnIrParaEstoque, #btnMenuTecnicosAdvanced {
-      display: none;
-    }
-
-    /* AJUSTE PARA OS CARDS FICAREM COLADOS NO TOPO NO CELULAR E PC */
-    .main {
-      flex-grow: 1;
-      padding: 15px 20px; 
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      justify-content: flex-start !important; 
-    }
-
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-      gap: 15px;
-      width: 100%;
-      margin-top: 0 !important; 
-    }
-
-    /* BLINDAGEM DO MODAL COM O CORRETO DO JAVASCRIPT (.show) */
-    .modal.show {
-      opacity: 1 !important;
-      pointer-events: auto !important;
-      display: flex !important;
-    }
-    .modal.show .modal-conteudo {
-      transform: translateY(0) !important;
-    }
-    
-    /* Correção de inputs internos do formulário */
-    .form-group input, .form-group select {
-      margin-bottom: 10px;
-    }
+    #btnIrParaDados, #btnMenuAdministracao, #btnIrParaEstoque { display: none; }
+    .main { flex-grow: 1; padding: 15px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; justify-content: flex-start !important; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; width: 100%; margin-top: 0 !important; }
   </style>
 
   <script>
@@ -56,56 +21,31 @@
     let usuarioTipo = localStorage.getItem("usuarioTipo");
     const usuarioNome = localStorage.getItem("usuarioNome");
 
-    // Trava de segurança inicial: Sem token vai pro login
-    if (!token) {
-      window.location.replace("/login.html");
-    }
-
-    // Intercepta e força o perfil de estoque caso o nome venha com a marcação de segurança
+    if (!token) window.location.replace("/login.html");
     if (usuarioNome && usuarioNome.includes("[ESTOQUE]")) {
-      usuarioTipo = "estoque";
-      localStorage.setItem("usuarioTipo", "estoque");
+      usuarioTipo = "estoque"; localStorage.setItem("usuarioTipo", "estoque");
     }
-
-    // Se o usuário for do tipo estoque, ele não entra no Dashboard de forma alguma
-    if (usuarioTipo === "estoque") {
-      window.location.replace("/estoque.html");
-    }
+    if (usuarioTipo === "estoque") window.location.replace("/estoque.html");
 
     window.addEventListener("DOMContentLoaded", () => {
       const btnDados = document.getElementById("btnIrParaDados");
-      const btnCadastrar = document.getElementById("btnMenuCadastro");
+      const btnAdmin = document.getElementById("btnMenuAdministracao");
       const btnEstoque = document.getElementById("btnIrParaEstoque");
       const btnRelatorio = document.getElementById("btnExtrairRelatorio");
-      const btnGerenciarTecnicos = document.getElementById("btnMenuTecnicosAdvanced");
       const perfilBadge = document.getElementById("perfilTipo");
 
-      // Atualiza o Badge do Perfil na barra lateral
-      if (perfilBadge && usuarioTipo) {
-        perfilBadge.innerText = `Dashboard (${usuarioTipo.toUpperCase()})`;
-      }
+      if (perfilBadge && usuarioTipo) perfilBadge.innerText = `Dashboard (${usuarioTipo.toUpperCase()})`;
 
-      // APLICAÇÃO RÍGIDA DOS NÍVEIS DE ACESSO SOLICITADOS
-      if (usuarioTipo === "master") {
+      if (usuarioTipo === "master" || usuarioTipo === "admin") {
         if (btnDados) btnDados.style.display = "block";
         if (btnEstoque) btnEstoque.style.display = "block";
-        if (btnCadastrar) btnCadastrar.style.display = "block";
         if (btnRelatorio) btnRelatorio.style.display = "block";
-        if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "block";
-        
-      } else if (usuarioTipo === "admin") {
-        if (btnDados) btnDados.style.display = "block";
-        if (btnEstoque) btnEstoque.style.display = "block";
-        if (btnCadastrar) btnCadastrar.style.display = "none";
-        if (btnRelatorio) btnRelatorio.style.display = "block";
-        if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "block";
-        
+        if (btnAdmin) btnAdmin.style.display = "block";
       } else if (usuarioTipo === "simples") {
         if (btnDados) btnDados.style.display = "none";
         if (btnEstoque) btnEstoque.style.display = "none";
-        if (btnCadastrar) btnCadastrar.style.display = "none";
+        if (btnAdmin) btnAdmin.style.display = "none";
         if (btnRelatorio) btnRelatorio.style.display = "block";
-        if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "none";
       }
     });
   </script>
@@ -123,7 +63,7 @@
       <p onclick="filtrar('TODOS')" style="cursor:pointer; padding: 5px 10px;">📊 Geral</p>
       
       <div class="dropdown-tecnicos">
-        <button onclick="toggleDropdown()" class="btn-dropdown">👥 Gráficos de Técnicos ▾</button>
+        <button onclick="toggleDropdown()" class="btn-dropdown">👥 Técnicos ▾</button>
         <div id="dropdownLista" class="dropdown-conteudo"></div>
       </div>
 
@@ -143,10 +83,8 @@
       <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
       <button id="btnIrParaEstoque" onclick="irParaEstoque()">📦 Estoque</button>
       
-      <button id="btnMenuTecnicosAdvanced" onclick="irParaTecnicos()">👥 Gerenciar Técnicos</button>
-
-      <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">
-        👤 Gerenciar Usuários
+      <button id="btnMenuAdministracao" onclick="irParaTecnicos()" class="btn-gerenciar">
+        ⚙️ Administração
       </button>
 
       <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
@@ -160,7 +98,6 @@
   </div>
 
   <div class="main">
-    
     <div class="cards">
       <div class="card azul">
         <div class="card-titulo">💰 Gasto Total</div>
@@ -183,62 +120,13 @@
     </div> 
 
     <div class="graficos">
-      <div class="grafico">
-        <canvas id="g1"></canvas>
-      </div>
-      <div class="grafico">
-        <canvas id="g2"></canvas>
-      </div>
+      <div class="grafico"><canvas id="g1"></canvas></div>
+      <div class="grafico"><canvas id="g2"></canvas></div>
     </div>
-
   </div> 
 </div> 
 
 <img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
-
-<div id="modalCadastro" class="modal">
-  <div class="modal-conteudo">
-    <div class="modal-header">
-      <h3 id="formTituloMain">👤 Gerenciar Usuários</h3>
-      <button class="fechar-modal" onclick="fecharModalCadastro()">×</button>
-    </div>
-    
-    <p style="font-size:13px; color:#94A3B8; margin-top:-10px; margin-bottom:20px;">Cadastre, altere permissões ou mude senhas.</p>
-    
-    <div id="secaoListaUsuarios">
-      <div id="listaUsuariosContainer" style="max-height:200px; overflow-y:auto; margin-bottom:15px;"></div>
-      <button onclick="mostrarFormularioCadastro()" class="btn-bloco" style="background:#10B981;">+ Criar Novo Usuário</button>
-    </div>
-
-    <div id="formUsuario" style="display: none;" class="form-group">
-      <h4 id="formTitulo" style="margin: 0 0 15px 0; color: #60A5FA;">Novo Usuário</h4>
-      <input type="hidden" id="editId">
-      
-      <label>Nome Completo:</label>
-      <input type="text" id="cadNome" placeholder="Nome Completo">
-      
-      <label>Nome de Usuário (Login):</label>
-      <input type="text" id="cadUsuario" placeholder="Usuário (ex: joao)">
-      
-      <label id="lblSenha">Senha:</label>
-      <input type="password" id="cadSenha" placeholder="Digite a senha">
-      
-      <label>Nível de Acesso:</label>
-      <select id="cadTipo">
-        <option value="simples">Acesso Simples</option>
-        <option value="estoque">Estoque</option>
-        <option value="admin">Administrador</option>
-        <option value="master">Master</option>
-      </select>
-    </div>
-
-    <div class="modal-botoes" style="display:flex; gap:10px; margin-top:15px;">
-      <button class="btn-bloco" style="background:#64748B; margin:0;" onclick="fecharModalCadastro()">Fechar</button>
-      <button id="btnSalvarUsuario" class="btn-bloco" style="margin:0; display: none;" onclick="salvarUsuario()">Salvar</button>
-    </div>
-  </div>
-</div>
-  <img id="logoNERI" src="logo.png" style="display:none;" alt="Logo Oculta">
-  <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
