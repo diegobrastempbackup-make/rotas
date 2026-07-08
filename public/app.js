@@ -701,3 +701,21 @@ function exportarPDF() {
   
   doc.save(nomeArquivo);
 }
+// Função para abrir e fechar a lista cascata
+    function toggleDropdown() {
+      const dropdown = document.getElementById("dropdownLista");
+      dropdown.classList.toggle("show-dropdown");
+    }
+
+    // Fecha a lista se o usuário clicar fora dela
+    window.addEventListener("click", function(event) {
+      if (!event.target.matches('.btn-dropdown')) {
+        const dropdowns = document.getElementsByClassName("dropdown-conteudo");
+        for (let i = 0; i < dropdowns.length; i++) {
+          const openDropdown = dropdowns[i];
+          if (openDropdown.classList.contains('show-dropdown')) {
+            openDropdown.classList.remove('show-dropdown');
+          }
+        }
+      }
+    });
