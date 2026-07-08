@@ -10,179 +10,113 @@ window.deslogar = () => { localStorage.clear(); window.location.href = "/login.h
 window.voltarParaDashboard = () => { window.location.href = "/index.html"; };
 
 document.addEventListener("DOMContentLoaded", async () => {
-
     await carregarEstoque();
-
     await renderizarListaTecnicos();
-
     mostrarTelaInicial();
-
 });
 
 // GERENCIAMENTO DE TÉCNICOS
-
 async function renderizarListaTecnicos() {
-
     try {
-
-        const res = await fetch(
-            "/api/tecnicos",
-            {
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            }
-        );
-
+        const res = await fetch("/api/tecnicos", {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
         window.listaTecnicos = await res.json();
-
-        const listaEsq =
-            document.getElementById("listaTecnicosEsq");
-
-        const containerGerenciar =
-            document.getElementById(
-                "listaGerenciarTecnicosContainer"
-            );
+        const listaEsq = document.getElementById("listaTecnicosEsq");
+        const containerGerenciar = document.getElementById("listaGerenciarTecnicosContainer");
 
         listaEsq.innerHTML = "";
         containerGerenciar.innerHTML = "";
 
         window.listaTecnicos.forEach(t => {
-
-            const li =
-                document.createElement("li");
-
-            li.className =
-                `tecnico-item ${
-                    window.tecnicoSelecionado === t.nome
-                        ? "selecionado"
-                        : ""
-                }`;
-
+            const li = document.createElement("li");
+            li.className = `tecnico-item ${window.tecnicoSelecionado === t.nome ? "selecionado" : ""}`;
             li.innerText = t.nome;
-
-            li.onclick = () =>
-                selecionarTecnico(t.nome);
-
+            li.onclick = () => selecionarTecnico(t.nome);
             listaEsq.appendChild(li);
 
             containerGerenciar.innerHTML += `
                 <div class="item-gerenciamento">
                     <span>${t.nome}</span>
-                    <button
-                        class="btn-mini"
-                        style="background:#ef4444;"
-                        onclick="removerTecnico('${t._id}')">
+                    <button class="btn-mini" style="background:#ef4444;" onclick="removerTecnico('${t._id}')">
                         Excluir
                     </button>
                 </div>
             `;
         });
-
     } catch (erro) {
-
-        console.error(
-            "Erro ao carregar técnicos:",
-            erro
-        );
+        console.error("Erro ao carregar técnicos:", erro);
     }
 }
 window.renderizarListaTecnicos = renderizarListaTecnicos;
 
 function selecionarTecnico(nome) {
-
     window.tecnicoSelecionado = nome;
 
-    document.getElementById(
-        "logoCentro"
-    ).style.display = "none";
+    // Esconde o Almoxarifado Geral
+    document.getElementById("containerEstoquePrincipal").style.display = "none";
 
-    document.getElementById(
-        "containerHistorico"
-    ).style.display = "block";
-
-    document.getElementById(
-        "tituloHistoricoTecnico"
-    ).innerText = `Histórico - ${nome}`;
+    // Mostra o Histórico do Técnico
+    document.getElementById("containerHistorico").style.display = "block";
+    document.getElementById("tituloHistoricoTecnico").innerText = `Estoque e Cautela - ${nome}`;
 
     renderizarListaTecnicos();
-
     carregarLogs(nome);
 }
 window.selecionarTecnico = selecionarTecnico;
 
-window.guardarTecnico = async () => {
+window.mostrarTelaInicial = () => {
+    window.tecnicoSelecionado = "";
 
+    // Esconde o Histórico do Técnico
+    document.getElementById("containerHistorico").style.display = "none";
+
+    // Mostra o Almoxarifado Geral
+    document.getElementById("containerEstoquePrincipal").style.display = "block";
+
+    // Remove a marcação de seleção dos botões laterais
+    document.querySelectorAll(".tecnico-item").forEach(el => el.classList.remove("selecionado"));
+};
+
+window.guardarTecnico = async () => {
     const input = document.getElementById("inputNomeTecnico");
     const nome = input.value.trim();
-
     if (!nome) return;
 
     try {
-
         const res = await fetch("/api/tecnicos", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
             body: JSON.stringify({ nome })
         });
-
         const resultado = await res.json();
-
         if (!res.ok) {
             alert(resultado.erro || "Erro ao cadastrar técnico");
             return;
         }
-
         input.value = "";
-
         await renderizarListaTecnicos();
-
     } catch (erro) {
-
         console.error(erro);
-
         alert("Erro ao cadastrar técnico.");
     }
 };
 
 window.removerTecnico = async (id) => {
-
-    if (
-        !confirm(
-            "Deseja excluir este técnico?"
-        )
-    ) return;
-
+    if (!confirm("Deseja excluir este técnico?")) return;
     try {
-
-        await fetch(
-            `/api/tecnicos/${id}`,
-            {
-                method: "DELETE",
-                headers: {
-                    "Authorization":
-                        `Bearer ${token}`
-                }
-            }
-        );
-
+        await fetch(`/api/tecnicos/${id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
         await renderizarListaTecnicos();
-
     } catch (erro) {
-
         console.error(erro);
-
-        alert(
-            "Erro ao excluir técnico."
-        );
+        alert("Erro ao excluir técnico.");
     }
 };
 
 // CONTROLE DE ESTOQUE (CRUD) 
-
 async function carregarEstoque() {
     try {
         const res = await fetch("/api/estoque", { headers: { "Authorization": `Bearer ${token}` } });
@@ -287,8 +221,7 @@ window.salvarEdicaoFerramenta = async () => {
 };
 
 
-//  LANÇAMENTO DE MOVIMENTAÇÕES E HISTÓRICO 
-
+// LANÇAMENTO DE MOVIMENTAÇÕES E HISTÓRICO 
 window.salvarLinhaHistorico = async () => {
     if (!window.tecnicoSelecionado) return alert("Por favor, selecione um técnico primeiro!");
     
@@ -370,8 +303,7 @@ async function carregarLogs(nome) {
 window.carregarLogs = carregarLogs;
 
 
-//  EXTRAÇÃO DE RELATÓRIO PDF
-
+// EXTRAÇÃO DE RELATÓRIO PDF
 window.emitirPDFIndividual = () => {
     if (!window.tecnicoSelecionado) return alert("Selecione um técnico para extrair!");
     const { jsPDF } = window.jspdf;
@@ -382,7 +314,7 @@ window.emitirPDFIndividual = () => {
     const corTextoSec = [148, 163, 184]; // #94A3B8
     const corLinhaPar = [241, 245, 249]; // Fundo cinza claro para zebrado
     
-    //  CABEÇALHO 
+    // CABEÇALHO 
     doc.setFillColor(...corPrimaria);
     doc.rect(0, 0, 220, 38, "F");
     
@@ -397,7 +329,7 @@ window.emitirPDFIndividual = () => {
     doc.text(`TÉCNICO RESPONSÁVEL: ${window.tecnicoSelecionado.toUpperCase()}`, 14, 24);
     doc.text(`EMISSÃO: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 30);
     
-    //  CORPO / TABELA COMPACTA 
+    // CORPO / TABELA COMPACTA 
     let y = 52;
     doc.setTextColor(...corPrimaria);
     doc.setFont("Helvetica", "bold");
@@ -432,25 +364,24 @@ window.emitirPDFIndividual = () => {
     linhas.forEach(tr => {
         const tds = tr.querySelectorAll("td");
         if (tds.length >= 5) {
-            // Quebra dinamicamente o texto da observação para caber em uma largura máxima de 48mm
+            // Quebra dinamicamente o texto da observação
             const obsTexto = tds[4].innerText || "-";
             const linhasObs = doc.splitTextToSize(obsTexto, 48);
             
-            // Quebra o texto da ferramenta para caber em 55mm (evita invadir a coluna QTD)
+            // Quebra o texto da ferramenta
             const ferramentaTexto = tds[2].innerText || "Nenhum";
             const linhasFerramenta = doc.splitTextToSize(ferramentaTexto, 55);
             
-            // Calcula a altura necessária baseado em qual texto ficou maior
+            // Calcula a altura necessária
             const totalLinhas = Math.max(linhasObs.length, linhasFerramenta.length);
             const alturaLinha = totalLinhas > 1 ? (totalLinhas * 5) + 2 : 7;
 
-            // Nova página se estourar o limite vertical seguro
+            // Nova página se estourar o limite
             if (y + alturaLinha > 275) { 
                 doc.addPage(); 
                 y = 20; 
             }
             
-            // Fundo zebrado simulando o layout
             if (par) {
                 doc.setFillColor(...corLinhaPar);
                 doc.rect(14, y, 182, alturaLinha, "F");
@@ -459,29 +390,21 @@ window.emitirPDFIndividual = () => {
             doc.setFont("Helvetica", "normal");
             doc.setTextColor(51, 65, 85);
             
-            // Imprime Data
             doc.text(tds[0].innerText, 16, y + 5);
             
-            // Cor customizada para o tipo de Ação
             const acao = tds[1].innerText;
-            if (acao.includes("Entrega")) doc.setTextColor(16, 185, 129); // Verde
-            else if (acao.includes("Troca")) doc.setTextColor(239, 68, 68); // Vermelho
-            else if (acao.includes("Devolu")) doc.setTextColor(37, 99, 235); // Azul
-            else doc.setTextColor(245, 158, 11); // Laranja
+            if (acao.includes("Entrega")) doc.setTextColor(16, 185, 129);
+            else if (acao.includes("Troca")) doc.setTextColor(239, 68, 68);
+            else if (acao.includes("Devolu")) doc.setTextColor(37, 99, 235);
+            else doc.setTextColor(245, 158, 11);
             
             doc.setFont("Helvetica", "bold");
             doc.text(acao, 42, y + 5);
             
             doc.setFont("Helvetica", "normal");
             doc.setTextColor(51, 65, 85);
-            
-            // Imprime Ferramenta (Multi-linha se necessário)
             doc.text(linhasFerramenta, 72, y + 5);
-            
-            // Imprime Quantidade
             doc.text(tds[3].innerText, 134, y + 5);
-            
-            // Imprime Observações completas sem cortes (Multi-linha se necessário)
             doc.text(linhasObs, 147, y + 5);
             
             y += alturaLinha;
@@ -489,7 +412,7 @@ window.emitirPDFIndividual = () => {
         }
     });
     
-    //  ASSINATURA DE CONTROLE 
+    // ASSINATURA DE CONTROLE 
     y += 15;
     if (y > 260) { doc.addPage(); y = 30; }
     
@@ -506,91 +429,36 @@ window.emitirPDFIndividual = () => {
 };
 
 window.selecionarGeral = async () => {
-
     window.tecnicoSelecionado = "";
-
-    document.getElementById(
-        "containerHistorico"
-    ).style.display = "block";
-
-    document.getElementById(
-        "tituloHistoricoTecnico"
-    ).innerText = "Histórico Geral";
+    document.getElementById("containerHistorico").style.display = "block";
+    document.getElementById("tituloHistoricoTecnico").innerText = "Histórico Geral";
 
     try {
-
-        const res = await fetch(
-            "/api/estoque/historico",
-            {
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            }
-        );
-
+        const res = await fetch("/api/estoque/historico", {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
         const logs = await res.json();
-
-        const corpo =
-            document.getElementById("corpoTabelaLogs");
-
+        const corpo = document.getElementById("corpoTabelaLogs");
         corpo.innerHTML = "";
 
         logs.forEach(l => {
-
             let corTipo = "#f59e0b";
-
-            if (l.tipoAcao === "Entrega")
-                corTipo = "#10b981";
-
-            if (l.tipoAcao === "Troca")
-                corTipo = "#ef4444";
-
-            if (
-                l.tipoAcao === "Devolução" ||
-                l.tipoAcao === "Devolucao"
-            )
-                corTipo = "#2563EB";
+            if (l.tipoAcao === "Entrega") corTipo = "#10b981";
+            if (l.tipoAcao === "Troca") corTipo = "#ef4444";
+            if (l.tipoAcao === "Devolução" || l.tipoAcao === "Devolucao") corTipo = "#2563EB";
 
             corpo.innerHTML += `
             <tr>
                 <td>${new Date(l.data).toLocaleDateString('pt-BR')}</td>
-                <td>
-                    <strong>${l.tecnico}</strong>
-                </td>
-                <td>
-                    <span style="color:${corTipo};font-weight:bold;">
-                        ${l.tipoAcao}
-                    </span>
-                </td>
+                <td><strong>${l.tecnico}</strong></td>
+                <td><span style="color:${corTipo};font-weight:bold;">${l.tipoAcao}</span></td>
                 <td>${l.ferramentaNome || "-"}</td>
                 <td>${l.quantidade || 1}</td>
                 <td>${l.observacao || "-"}</td>
             </tr>`;
         });
-
     } catch (erro) {
-
         console.error(erro);
-
-        alert(
-            "Erro ao carregar histórico geral."
-        );
+        alert("Erro ao carregar histórico geral.");
     }
-};
-
-window.mostrarTelaInicial = () => {
-
-    window.tecnicoSelecionado = "";
-
-    document.getElementById(
-        "containerHistorico"
-    ).style.display = "none";
-
-    document.getElementById(
-        "logoCentro"
-    ).style.display = "block";
-
-    document
-        .querySelectorAll(".tecnico-item")
-        .forEach(el => el.classList.remove("selecionado"));
 };
