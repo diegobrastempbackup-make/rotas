@@ -24,18 +24,9 @@ window.onclick = resetarTemporizador;
 window.onkeydown = resetarTemporizador;
 
 // =================================================================
-// DEFINIÇÕES GLOBAIS DO SISTEMA
+// DEFINIÇÕES GLOBAIS DO SISTEMA (DINÂMICAS)
 // =================================================================
-const tecnicos = [
-  "Sibele",
-  "Empresa",
-  "Danilo",
-  "José Cicero",
-  "Alex",
-  "Danilo BH",
-  "Thiago BH"
-];
-
+let tecnicos = []; // Será carregado dinamicamente via banco de dados
 let dadosGlobal = [];
 let tecnicoAtual = "TODOS";
 let grafico1;
@@ -43,10 +34,10 @@ let grafico2;
 
 const tokenDashboard = localStorage.getItem("token");
 
-// Se não houver token, manda de volta para o login imediatamente
 if (!tokenDashboard) {
   window.location.replace("/login.html");
 }
+
 // =================================================================
 // INICIALIZAÇÃO DE PERMISSÕES E BOTÕES (DOM LOADED)
 // =================================================================
@@ -55,7 +46,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const usuarioLogadoNome = localStorage.getItem("usuarioLogado") || "master";
   const usuarioNomeReal = localStorage.getItem("usuarioNome");
 
-  // Trava visual para o perfil de estoque
   if (usuarioNomeReal && usuarioNomeReal.toUpperCase().includes("ESTOQUE")) {
     tipoDashboard = "estoque";
     localStorage.setItem("usuarioTipo", "estoque");
@@ -88,7 +78,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Se o usuário for puramente do estoque, redireciona para a página correta de ferramentas
   if (tipoDashboard === "estoque") {
     window.location.replace("/estoque.html");
     return;
@@ -103,11 +92,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     perfilBadge.innerText = `Dashboard (${tipoDashboard.toUpperCase()})`;
   }
 
-  // CORREÇÃO DA EXIBIÇÃO DOS BOTÕES POR PERFIL
   if (tipoDashboard === "master") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
-    if (btnCadastrar) btnCadastrar.style.display = "block"; // Mudado para block para o master ver!
+    if (btnCadastrar) btnCadastrar.style.display = "block"; 
   } else if (tipoDashboard === "admin") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
@@ -118,8 +106,42 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (btnEstoque) btnEstoque.style.display = "none";
   }
 
+  // Primeiro busca a lista de técnicos do banco, depois carrega o Dashboard
+  await carregarTecnicosAtivos();
   carregarDados();
-}); // <--- Agora este fechamento está correto porque a função foi aberta lá no topo!
+});
+
+// =================================================================
+// FUNÇÃO PARA BUSCAR TÉCNICOS ATIVOS E MONTAR O MENU SIDEBAR
+// =================================================================
+async function carregarTecnicosAtivos() {
+  try {
+    const res = await fetch("/api/tecnicos/ativos", {
+      headers: { "Authorization": `Bearer ${tokenDashboard}` }
+    });
+    if (res.ok) {
+      const listaDoBanco = await res.json();
+      // Mapeia os técnicos salvando apenas o nome no array global
+      tecnicos = listaDoBanco.map(t => t.nome);
+      
+      // Renderiza os botões dinamicamente no container do index.html
+      const menuContainer = document.getElementById("listaTecnicosMenu");
+      if (menuContainer) {
+        menuContainer.innerHTML = "";
+        tecnicos.forEach(nome => {
+          const p = document.createElement("p");
+          p.innerText = nome;
+          p.style.cursor = "pointer";
+          p.style.padding = "5px 10px";
+          p.onclick = () => filtrar(nome);
+          menuContainer.appendChild(p);
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Erro ao obter técnicos ativos para a sidebar:", err);
+  }
+}
 
 // =================================================================
 // NAVEGAÇÃO DO MENU
@@ -223,9 +245,7 @@ async function excluirUsuario(id) {
   try {
     const resposta = await fetch(`/api/usuarios/${id}`, {
       method: "DELETE",
-      headers: {
-        "Authorization": `Bearer ${tokenDashboard}`
-      }
+      headers: { "Authorization": `Bearer ${tokenDashboard}` }
     });
 
     const dados = await resposta.json();
@@ -275,7 +295,6 @@ function prepararEdicao(id, nome, usuario, tipoReal) {
 }
 
 async function salvarUsuario() {
-
   const id = document.getElementById("editId").value;
   const nome = document.getElementById("cadNome").value.trim();
   const usuario = document.getElementById("cadUsuario").value.trim();
@@ -288,40 +307,25 @@ async function salvarUsuario() {
   }
 
   try {
-
     let resposta;
-
     if (id) {
-
       resposta = await fetch(`/api/usuarios/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${tokenDashboard}`
         },
-        body: JSON.stringify({
-          nome,
-          tipo,
-          senha
-        })
+        body: JSON.stringify({ nome, tipo, senha })
       });
-
     } else {
-
       resposta = await fetch("/cadastro", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${tokenDashboard}`
         },
-        body: JSON.stringify({
-          nome,
-          usuario,
-          senha,
-          tipo
-        })
+        body: JSON.stringify({ nome, usuario, senha, tipo })
       });
-
     }
 
     const dados = await resposta.json();
@@ -332,16 +336,11 @@ async function salvarUsuario() {
     }
 
     alert("Operação realizada com sucesso!");
-
     fecharModalCadastro();
     atualizarListaUsuarios();
-
   } catch (err) {
-
     console.error(err);
-
     alert("Erro ao conectar com o servidor.");
-
   }
 }
 
@@ -420,7 +419,6 @@ function processar(dados, tecnico){
 // ATUALIZAÇÃO DO DASHBOARD E RENDERIZAÇÃO DE GRÁFICOS (CHART.JS)
 // =================================================================
 function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
-  //SEGURANÇA MÁXIMA: Se o gráfico g1 não estiver no HTML, sai da função na hora para evitar travamentos
   if (!document.getElementById("g1")) return;
 
   const totalValor = valores.reduce((a,b)=>a+b,0);
@@ -509,7 +507,6 @@ function exportarPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  // Filtra com base no mês selecionado no input HTML
   const mesSelecionado = document.getElementById("mesFiltro") ? document.getElementById("mesFiltro").value : "";
   let dadosFiltrados = [...dadosGlobal];
 
@@ -517,7 +514,6 @@ function exportarPDF() {
     dadosFiltrados = dadosFiltrados.filter(d => d.data && d.data.startsWith(mesSelecionado));
   }
 
-  // Filtra os dados com base no técnico atual (Se for TODOS, pega a lista inteira do mês)
   if (tecnicoAtual !== "TODOS") {
     dadosFiltrados = dadosFiltrados.filter(d => String(d.tecnico).toLowerCase() === tecnicoAtual.toLowerCase());
   }
@@ -527,11 +523,9 @@ function exportarPDF() {
     return;
   }
 
-  // Ordena os registros por data (mais antigo para o mais recente)
   dadosFiltrados.sort((a, b) => new Date(a.data) - new Date(b.data));
 
-  // --- CONFIGURAÇÃO DE DESIGN (PADRÃO NERI) ---
-  const corPrimaria = [15, 23, 42]; // #0F172A
+  const corPrimaria = [15, 23, 42]; 
   let paginaAtual = 1;
 
   function verificarMesAnoExtenso(anoMes) {
@@ -542,11 +536,9 @@ function exportarPDF() {
   }
 
   function desenharCabecalho() {
-    // Topo escuro elegante
     doc.setFillColor(corPrimaria[0], corPrimaria[1], corPrimaria[2]);
     doc.rect(0, 0, 210, 40, "F");
 
-    // Tentar desenhar a logo se ela existir no HTML
     const imgLogo = document.getElementById("logoNERI");
     if (imgLogo && imgLogo.src) {
       try {
@@ -556,7 +548,6 @@ function exportarPDF() {
       }
     }
 
-    // Títulos do Relatório
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
@@ -564,7 +555,7 @@ function exportarPDF() {
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.setTextColor(148, 163, 184); // Cinza claro
+    doc.setTextColor(148, 163, 184); 
 
     const textoFiltro = tecnicoAtual === "TODOS" ? "RELATÓRIO GERAL DE MOVIMENTAÇÃO" : `RELATÓRIO INDIVIDUAL: ${tecnicoAtual.toUpperCase()}`;
     doc.text(textoFiltro, 48, 23);
@@ -573,16 +564,14 @@ function exportarPDF() {
     doc.text(labelPeriodo, 48, 29);
     doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}`, 48, 35);
 
-    // Cabeçalho da Tabela
     let yTabela = 50;
-    doc.setFillColor(30, 41, 59); // #1E293B
+    doc.setFillColor(30, 41, 59); 
     doc.rect(10, yTabela - 5, 190, 8, "F");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(255, 255, 255);
     
-    // Alinhamento das colunas dependendo se é Geral ou Individual
     doc.text("DATA", 13, yTabela);
     if (tecnicoAtual === "TODOS") {
       doc.text("VEÍCULO / TÉCNICO", 40, yTabela);
@@ -604,7 +593,6 @@ function exportarPDF() {
 
   function verificarPagina() {
     if (y > 270) {
-      // Rodapé da página que está terminando
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
@@ -617,7 +605,6 @@ function exportarPDF() {
     }
   }
 
-  // --- LOOP DOS DADOS ---
   dadosFiltrados.forEach((d, indice) => {
     const km = Number(d.km) || 0;
     const litros = Number(d.litros) || 0;
@@ -627,7 +614,6 @@ function exportarPDF() {
     totalLitros += litros;
     totalValor += valor;
 
-    // Linhas zebradas para facilitar a leitura visual
     doc.setFillColor(indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248);
     doc.rect(10, y - 5, 190, 8, "F");
     doc.setDrawColor(241, 245, 249);
@@ -637,7 +623,6 @@ function exportarPDF() {
     doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
 
-    // Formata a data de AAAA-MM-DD para DD/MM/AAAA
     let dataFormatada = String(d.data).split("T")[0];
     if (dataFormatada.includes("-")) {
       const partes = dataFormatada.split("-");
@@ -663,7 +648,6 @@ function exportarPDF() {
     verificarPagina();
   });
 
-  // QUADRO DE TOTAIS CONSOLIDADO
   if (y > 240) { 
     y += 5;
     verificarPagina();
@@ -689,13 +673,11 @@ function exportarPDF() {
   const mediaGeral = totalLitros > 0 ? totalKm / totalLitros : 0;
   doc.text(`MÉDIA GERAL DA FROTA: ${mediaGeral > 0 ? `${mediaGeral.toFixed(2)} KM/L` : "-"}`, 115, y + 24);
 
-  // Rodapé final
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
   doc.text(`Página ${paginaAtual}`, 190, 287);
 
-  // Define o nome de saída do documento baseado no contexto do filtro
   const sulfixoMes = mesSelecionado ? `_${mesSelecionado}` : "";
   const nomeArquivo = tecnicoAtual === "TODOS" ? `Relatorio_Geral_Frota${sulfixoMes}.pdf` : `Relatorio_Frota_${tecnicoAtual}${sulfixoMes}.pdf`;
   

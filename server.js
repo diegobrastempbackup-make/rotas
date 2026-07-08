@@ -81,7 +81,7 @@ app.post("/login", async (req, res) => {
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) {
-      return res.status(401).json({ erro: "Senha incorreta" });
+      return res.status(401).json({ erro: "Senha incorrecta" });
     }
 
     const token = jwt.sign(
@@ -107,7 +107,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
      if (req.usuario?.tipo !== "master") {
     return res.status(403).json({
-        erro: "Você não tem ppermissão para cadastrar usuários."
+        erro: "Você não tem permissão para cadastrar usuários."
     });
 }
 
@@ -290,6 +290,20 @@ app.get("/api/tecnicos", autenticarToken, async (req, res) => {
   }
 });
 
+// NOVA ROTA: LISTAR TÉCNICOS ATIVOS (Filtrados para a Sidebar e Dashboard)
+app.get("/api/tecnicos/ativos", autenticarToken, async (req, res) => {
+  try {
+    const listaTecnicos = await db.collection("tecnicos")
+      .find({ status: { $ne: "Inativo" } })
+      .sort({ nome: 1 })
+      .toArray();
+    res.json(listaTecnicos);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao carregar técnicos ativos." });
+  }
+});
+
 // CADASTRAR TÉCNICO
 app.post("/api/tecnicos", autenticarToken, async (req, res) => {
   try {
@@ -363,6 +377,7 @@ const estoqueHandler = async (req, res) => {
 };
 app.get("/api/estoque", autenticarToken, estoqueHandler);
 app.get("/estoque", autenticarToken, estoqueHandler);
+
 // CADASTRAR ITEM
 app.post("/api/estoque", autenticarToken, async (req, res) => {
   try {
@@ -443,11 +458,12 @@ app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
     });
   }
 });
+
 // HISTÓRICO DE ESTOQUE
 const historicoEstoqueHandler = async (req, res) => {
   try {
-    const historico = await db.collection("historico_estoque").find().toArray();
-    res.json(historico);
+    const historical = await db.collection("historico_estoque").find().toArray();
+    res.json(historical);
   } catch (err) {
     res.status(500).json({ erro: "Erro ao buscar histórico do estoque" });
   }

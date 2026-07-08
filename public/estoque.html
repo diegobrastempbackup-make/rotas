@@ -82,28 +82,24 @@
 <div class="sidebar">
     <h2>Técnicos</h2>
 
-    <button class="btn-gerenciar-tec"
-        onclick="abrirModal('modalGerenciarTecnicos')">
+    <button class="btn-gerenciar-tec" onclick="abrirModal('modalGerenciarTecnicos')">
         ⚙️ Gerenciar Técnicos
     </button>
 
-    <button class="btn-acao"
-    onclick="mostrarTelaInicial()"
-    style="margin-top:10px; width:100%;">
-    🏠 Geral
-</button>
+    <button class="btn-acao" onclick="mostrarTelaInicial()" style="margin-top:10px; width:100%;">
+        🏠 Tela Inicial
+    </button>
 
-    <ul class="lista-tecnicos" id="listaTecnicosEsq"></ul>
+    <button class="btn-acao btn-primario" onclick="selecionarGeral()" style="margin-top:8px; width:100%;">
+        📊 Histórico Geral
+    </button>
 
-    <button
-        class="btn-acao"
-        onclick="deslogar()"
-        style="background:#ef4444;color:white;margin-top:auto;width:100%;">
+    <ul class="lista-tecnicos" id="listaTecnicosEsq" style="margin-top: 15px;"></ul>
+
+    <button class="btn-acao" onclick="deslogar()" style="background:#ef4444;color:white;margin-top:auto;width:100%;">
         🚪 Sair
     </button>
 </div>
-
-
 
 <div class="conteudo-principal">
     <div class="container">
@@ -112,7 +108,7 @@
                 <button id="btn-voltar-dash" class="btn-acao btn-voltar" onclick="voltarParaDashboard()">← Voltar</button>
                 <h1>Painel de Estoque</h1>
             </div>
-            <button class="btn-acao btn-sucesso" onclick="abrirModal('modalFerramenta')">+ Cadastrar Item</button>
+            <button class="btn-acao btn-sucesso" onclick="abrirModalCadastro()">+ Cadastrar Item</button>
         </div>
 
         <div style="overflow-x: auto;">
@@ -133,25 +129,13 @@
         </div>
     </div>
 
-    <div id="logoCentro"
-     style="
-        text-align:center;
-        padding:40px 0;
-     ">
-
-    <img
-        src="logo.png"
-        alt="NERI"
-        style="
-            max-width:320px;
-            width:100%;
-            opacity:0.95;
-        ">
-</div>
+    <div id="logoCentro" style="text-align:center; padding:40px 0;">
+        <img src="logo.png" alt="NERI" style="max-width:320px; width:100%; opacity:0.95;">
+    </div>
 
     <div class="container" id="containerHistorico" style="display: none;">
         <div class="header-painel">
-            <h2 style="margin:0;" id="tituloHistoricoTecnico">Selecione um técnico para gerir observações</h2>
+            <h2 style="margin:0;" id="tituloHistoricoTecnico">Histórico</h2>
             <button class="btn-acao btn-primario" id="btnExtrairPDF" onclick="emitirPDFIndividual()">📄 Extrair Relatório Individual</button>
         </div>
 
@@ -201,6 +185,7 @@
     </div>
 </div>
 
+<!-- Modal Adicionar -->
 <div id="modalFerramenta" class="modal">
     <div class="modal-conteudo">
         <h3>Adicionar Item ao Estoque</h3>
@@ -219,6 +204,7 @@
     </div>
 </div>
 
+<!-- Modal Editar -->
 <div id="modalEditarFerramenta" class="modal">
     <div class="modal-conteudo">
         <h3>Editar Item / Atualizar Estoque</h3>
@@ -238,10 +224,10 @@
     </div>
 </div>
 
+<!-- Modal Gerenciar Técnicos -->
 <div id="modalGerenciarTecnicos" class="modal">
     <div class="modal-conteudo">
         <h3>Gerenciar Lista de Técnicos</h3>
-        <input type="hidden" id="editTecnicoId">
         <div style="display:flex; gap:10px; margin-bottom:15px;">
             <input type="text" id="inputNomeTecnico" placeholder="Nome do Técnico">
             <button class="btn-acao btn-sucesso" id="btnSalvarTecnico" onclick="guardarTecnico()">Adicionar</button>

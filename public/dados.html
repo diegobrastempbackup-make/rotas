@@ -158,16 +158,8 @@ h2 {
 </div>
 
 <script>
-const tecnicos = [
-  "Sibele",
-  "Empresa",
-  "Danilo",
-  "José Cicero",
-  "Alex",
-  "Danilo BH",
-  "Thiago BH"
-];
-
+// Array que será populado dinamicamente com os dados do banco de dados
+let listaTecnicosGlobais = [];
 let cacheHistoricoCompleto = [];
 
 // Função auxiliar para decodificar o ID do utilizador a partir do JWT Token
@@ -202,11 +194,37 @@ function hoje(){
   return `${ano}-${mes}-${dia}`;
 }
 
+// Carrega os técnicos salvos na API
+async function carregarTecnicosDaAPI() {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch("/api/tecnicos/ativos", {
+      headers: { "Authorization": "Bearer " + token }
+    });
+    
+    if (res.ok) {
+      listaTecnicosGlobais = await res.json();
+    } else {
+      console.error("Erro ao carregar técnicos da API");
+      listaTecnicosGlobais = [];
+    }
+  } catch (err) {
+    console.error("Erro de conexão ao carregar técnicos:", err);
+    listaTecnicosGlobais = [];
+  }
+}
+
 function criar(){
   const container = document.getElementById("tabelas");
   container.innerHTML = "";
 
-  tecnicos.forEach(nome=>{
+  if (listaTecnicosGlobais.length === 0) {
+    container.innerHTML = `<p style="color: #94A3B8; text-align: center; margin-top: 40px;">Nenhum técnico cadastrado ou ativo encontrado no sistema.</p>`;
+    return;
+  }
+
+  listaTecnicosGlobais.forEach(tec=>{
+    const nome = tec.nome;
     const bloco = document.createElement("div");
     bloco.innerHTML = `
       <h2>${nome}</h2>
@@ -275,6 +293,7 @@ function linha(d = {}) {
 
 function addLinha(nome){
   const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+  if (!tbody) return;
   const tr = document.createElement("tr");
   tr.innerHTML = linha();
   tbody.appendChild(tr);
@@ -337,7 +356,7 @@ function remover(btn){
   }
 }
 
-async function executarRemocaoDireta(id, btn) {
+async function ejecutarRemocaoDireta(id, btn) {
   if(!confirm("Deseja realmente excluir este registro?")) return;
   try {
     const token = localStorage.getItem("token");
@@ -366,7 +385,8 @@ async function salvar(){
   }
 
   let dados = [];
-  tecnicos.forEach(nome=>{
+  listaTecnicosGlobais.forEach(tec=>{
+    const nome = tec.nome;
     const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
     linhas.forEach(l=>{
       const i = l.querySelectorAll("input");
@@ -376,7 +396,7 @@ async function salvar(){
       if(!data.startsWith(mesAtual)) return;
 
       const registro = {
-        usuarioId: usuarioId, // CORREÇÃO COMPATÍVEL COM O SERVER.JS
+        usuarioId: usuarioId, 
         tecnico: nome,
         data: data,
         kmIni: Number(i[1].value) || 0,
@@ -434,8 +454,8 @@ async function carregar(mes = ""){
       });
     }
 
-    tecnicos.forEach(nome=>{
-      const tbody = document.querySelector(`[data-tecnico="${nome}"]`);
+    listaTecnicosGlobais.forEach(tec=>{
+      const tbody = document.querySelector(`[data-tecnico="${tec.nome}"]`);
       if(tbody) tbody.innerHTML = "";
     });
 
@@ -464,10 +484,11 @@ function mostrarTudo(){
 }
 
 async function iniciar(){
-  criar();
+  await carregarTecnicosDaAPI(); // Aguarda os técnicos virem do banco
+  criar(); // Cria as estruturas das tabelas baseadas nos técnicos do banco
   const mesAtual = obtenerMesAtual();
   document.getElementById("mesFiltro").value = mesAtual;
-  await carregar(mesAtual);
+  await carregar(mesAtual); // Preenche as linhas dos registros existentes
 }
 
 iniciar();
