@@ -26,7 +26,6 @@ body {
   align-items: center;
 }
 
-/* Estilo da Tabela */
 table {
   width: 100%;
   border-collapse: separate;
@@ -48,7 +47,6 @@ td {
   padding: 0 4px;
 }
 
-/* Inputs Modernizados */
 input {
   width: 100%;
   background: #1E293B;
@@ -158,11 +156,9 @@ h2 {
 </div>
 
 <script>
-// A lista de técnicos agora nasce vazia e é preenchida dinamicamente pela API
 let tecnicos = [];
 let cacheHistoricoCompleto = [];
 
-// Função auxiliar para descodificar o ID do utilizador a partir do JWT Token
 function obterUsuarioIdDoToken() {
   try {
     const token = localStorage.getItem("token");
@@ -471,7 +467,6 @@ async function iniciar(){
     
     if(res.ok){
        const listaDB = await res.json();
-       // Filtra e pega apenas os nomes dos técnicos Ativos na frota
        tecnicos = listaDB.filter(t => t.status === "Ativo" || !t.status).map(t => t.nome);
     }
   } catch (err) { 

@@ -26,8 +26,7 @@ window.onkeydown = resetarTemporizador;
 // =================================================================
 // DEFINIÇÕES GLOBAIS DO SISTEMA
 // =================================================================
-
-let tecnicos = []; // Agora a lista nasce vazia e é preenchida dinamicamente pelo banco de dados
+let tecnicos = []; // A lista agora nasce vazia e é preenchida pelo Banco de Dados
 
 let dadosGlobal = [];
 let tecnicoAtual = "TODOS";
@@ -36,7 +35,6 @@ let grafico2;
 
 const tokenDashboard = localStorage.getItem("token");
 
-// Se não houver token, manda de volta para o login imediatamente
 if (!tokenDashboard) {
   window.location.replace("/login.html");
 }
@@ -49,7 +47,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   const usuarioLogadoNome = localStorage.getItem("usuarioLogado") || "master";
   const usuarioNomeReal = localStorage.getItem("usuarioNome");
 
-  // Trava visual para o perfil de estoque
   if (usuarioNomeReal && usuarioNomeReal.toUpperCase().includes("ESTOQUE")) {
     tipoDashboard = "estoque";
     localStorage.setItem("usuarioTipo", "estoque");
@@ -82,7 +79,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Se o usuário for puramente do estoque, redireciona para a página correta de ferramentas
   if (tipoDashboard === "estoque") {
     window.location.replace("/estoque.html");
     return;
@@ -98,7 +94,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     perfilBadge.innerText = `Dashboard (${tipoDashboard.toUpperCase()})`;
   }
 
-  // CORREÇÃO DA EXIBIÇÃO DOS BOTÕES POR PERFIL
   if (tipoDashboard === "master") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
@@ -116,7 +111,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "none";
   }
 
-  await carregarTecnicosFrota(); // BUSCA OS TÉCNICOS NO BANCO ANTES DE MONTAR OS GRÁFICOS
+  await carregarTecnicosFrota();
   carregarDados();
 }); 
 
@@ -130,10 +125,8 @@ async function carregarTecnicosFrota() {
     });
     if(res.ok) {
         const listaDB = await res.json();
-        // Extrai apenas os nomes para alimentar a matriz dos gráficos (apenas os ativos)
         tecnicos = listaDB.filter(t => t.status === "Ativo" || !t.status).map(t => t.nome);
         
-        // Popula o menu Dropdown da barra lateral
         const dropdown = document.getElementById("dropdownLista");
         if(dropdown) {
            dropdown.innerHTML = "";
@@ -155,7 +148,6 @@ function irParaEstoque() {
   window.location.href = `/estoque.html?token=${token}`;
 }
 
-// NAVEGAÇÃO COM O TOKEN INJETADO NA URL PARA TELA DE TÉCNICOS
 function irParaTecnicos() {
   const token = localStorage.getItem("token");
   window.location.href = `/tecnicos.html?token=${token}`;
@@ -307,7 +299,6 @@ function prepararEdicao(id, nome, usuario, tipoReal) {
 }
 
 async function salvarUsuario() {
-
   const id = document.getElementById("editId").value;
   const nome = document.getElementById("cadNome").value.trim();
   const usuario = document.getElementById("cadUsuario").value.trim();
@@ -329,13 +320,8 @@ async function salvarUsuario() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${tokenDashboard}`
         },
-        body: JSON.stringify({
-          nome,
-          tipo,
-          senha
-        })
+        body: JSON.stringify({ nome, tipo, senha })
       });
-
     } else {
       resposta = await fetch("/cadastro", {
         method: "POST",
@@ -343,12 +329,7 @@ async function salvarUsuario() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${tokenDashboard}`
         },
-        body: JSON.stringify({
-          nome,
-          usuario,
-          senha,
-          tipo
-        })
+        body: JSON.stringify({ nome, usuario, senha, tipo })
       });
     }
 
@@ -416,7 +397,6 @@ function limparFiltro(){
 }
 
 function processar(dados, tecnico){
-  // Mesmo sem lançamentos ainda, garante o tamanho e mapeamento pelo banco de dados
   let valoresGerais = Array(tecnicos.length).fill(0);
   let kmsGerais = Array(tecnicos.length).fill(0);
 
@@ -445,7 +425,6 @@ function processar(dados, tecnico){
 // ATUALIZAÇÃO DO DASHBOARD E RENDERIZAÇÃO DE GRÁFICOS (CHART.JS)
 // =================================================================
 function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
-  //SEGURANÇA MÁXIMA: Se o gráfico g1 não estiver no HTML, sai da função na hora para evitar travamentos
   if (!document.getElementById("g1")) return;
 
   const totalValor = valores.reduce((a,b)=>a+b,0);
@@ -456,7 +435,6 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
 
   if(tecnico !== "TODOS"){
     const mediaKM = litrosInd > 0 ? (kmInd / litrosInd) : 0;
-
     document.getElementById("nomeTecnicoSelecionado").innerText = tecnico;
     document.getElementById("gastoIndividual").innerText = gastoInd.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     document.getElementById("kmIndividual").innerText = kmInd.toLocaleString("pt-BR") + " KM";
@@ -534,7 +512,6 @@ function exportarPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  // Filtra com base no mês selecionado no input HTML
   const mesSelecionado = document.getElementById("mesFiltro") ? document.getElementById("mesFiltro").value : "";
   let dadosFiltrados = [...dadosGlobal];
 
@@ -542,7 +519,6 @@ function exportarPDF() {
     dadosFiltrados = dadosFiltrados.filter(d => d.data && d.data.startsWith(mesSelecionado));
   }
 
-  // Filtra os dados com base no técnico atual (Se for TODOS, pega a lista inteira do mês)
   if (tecnicoAtual !== "TODOS") {
     dadosFiltrados = dadosFiltrados.filter(d => String(d.tecnico).toLowerCase() === tecnicoAtual.toLowerCase());
   }
@@ -552,11 +528,9 @@ function exportarPDF() {
     return;
   }
 
-  // Ordena os registros por data (mais antigo para o mais recente)
   dadosFiltrados.sort((a, b) => new Date(a.data) - new Date(b.data));
 
-  // --- CONFIGURAÇÃO DE DESIGN (PADRÃO NERI) ---
-  const corPrimaria = [15, 23, 42]; // #0F172A
+  const corPrimaria = [15, 23, 42]; 
   let paginaAtual = 1;
 
   function verificarMesAnoExtenso(anoMes) {
@@ -567,11 +541,9 @@ function exportarPDF() {
   }
 
   function desenharCabecalho() {
-    // Topo escuro elegante
     doc.setFillColor(corPrimaria[0], corPrimaria[1], corPrimaria[2]);
     doc.rect(0, 0, 210, 40, "F");
 
-    // Tentar desenhar a logo se ela existir no HTML
     const imgLogo = document.getElementById("logoNERI");
     if (imgLogo && imgLogo.src) {
       try {
@@ -581,7 +553,6 @@ function exportarPDF() {
       }
     }
 
-    // Títulos do Relatório
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
@@ -589,7 +560,7 @@ function exportarPDF() {
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.setTextColor(148, 163, 184); // Cinza claro
+    doc.setTextColor(148, 163, 184); 
 
     const textoFiltro = tecnicoAtual === "TODOS" ? "RELATÓRIO GERAL DE MOVIMENTAÇÃO" : `RELATÓRIO INDIVIDUAL: ${tecnicoAtual.toUpperCase()}`;
     doc.text(textoFiltro, 48, 23);
@@ -598,19 +569,142 @@ function exportarPDF() {
     doc.text(labelPeriodo, 48, 29);
     doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}`, 48, 35);
 
-    // Cabeçalho da Tabela
     let yTabela = 50;
-    doc.setFillColor(30, 41, 59); // #1E293B
+    doc.setFillColor(30, 41, 59); 
     doc.rect(10, yTabela - 5, 190, 8, "F");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(255, 255, 255);
     
-    // Alinhamento das colunas dependendo se é Geral ou Individual
     doc.text("DATA", 13, yTabela);
     if (tecnicoAtual === "TODOS") {
       doc.text("VEÍCULO / TÉCNICO", 40, yTabela);
       doc.text("KM REGISTRADO", 90, yTabela);
     } else {
-      doc.text("KM REGISTRADO",
+      doc.text("KM REGISTRADO", 55, yTabela);
+    }
+    doc.text("LITROS", 125, yTabela);
+    doc.text("VALOR (R$)", 153, yTabela);
+    doc.text("MÉDIA (KM/L)", 178, yTabela);
+  }
+
+  desenharCabecalho();
+
+  let y = 58;
+  let totalKm = 0;
+  let totalLitros = 0;
+  let totalValor = 0;
+
+  function verificarPagina() {
+    if (y > 270) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Página ${paginaAtual}`, 190, 287);
+
+      doc.addPage();
+      paginaAtual++;
+      desenharCabecalho();
+      y = 58;
+    }
+  }
+
+  dadosFiltrados.forEach((d, indice) => {
+    const km = Number(d.km) || 0;
+    const litros = Number(d.litros) || 0;
+    const valor = Number(d.valor) || 0;
+    
+    totalKm += km;
+    totalLitros += litros;
+    totalValor += valor;
+
+    doc.setFillColor(indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248);
+    doc.rect(10, y - 5, 190, 8, "F");
+    doc.setDrawColor(241, 245, 249);
+    doc.rect(10, y - 5, 190, 8, "S");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+
+    let dataFormatada = String(d.data).split("T")[0];
+    if (dataFormatada.includes("-")) {
+      const partes = dataFormatada.split("-");
+      dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    doc.text(dataFormatada, 13, y);
+
+    if (tecnicoAtual === "TODOS") {
+      doc.text(String(d.tecnico || "-"), 40, y);
+      doc.text(km.toLocaleString("pt-BR"), 90, y);
+    } else {
+      doc.text(km.toLocaleString("pt-BR"), 55, y);
+    }
+
+    doc.text(litros.toFixed(2), 125, y);
+    doc.text(valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 153, y);
+    
+    const media = litros > 0 ? km / litros : 0;
+    doc.text(media > 0 ? `${media.toFixed(2)} km/l` : "-", 178, y);
+
+    y += 8;
+    verificarPagina();
+  });
+
+  if (y > 240) { 
+    y += 5;
+    verificarPagina();
+  } else {
+    y += 5;
+  }
+
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(10, y, 190, 32, 2, 2, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text("RESUMO ACUMULADO DO PERÍODO", 15, y + 8);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`DISTÂNCIA TOTAL PERCORRIDA: ${totalKm.toLocaleString("pt-BR")} KM`, 15, y + 17);
+  doc.text(`TOTAL DE COMBUSTÍVEL: ${totalLitros.toFixed(2)} LITROS`, 15, y + 24);
+
+  doc.text(`VALOR TOTAL INVESTIDO: ${totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`, 115, y + 17);
+  const mediaGeral = totalLitros > 0 ? totalKm / totalLitros : 0;
+  doc.text(`MÉDIA GERAL DA FROTA: ${mediaGeral > 0 ? `${mediaGeral.toFixed(2)} KM/L` : "-"}`, 115, y + 24);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Página ${paginaAtual}`, 190, 287);
+
+  const sulfixoMes = mesSelecionado ? `_${mesSelecionado}` : "";
+  const nomeArquivo = tecnicoAtual === "TODOS" ? `Relatorio_Geral_Frota${sulfixoMes}.pdf` : `Relatorio_Frota_${tecnicoAtual}${sulfixoMes}.pdf`;
+  
+  doc.save(nomeArquivo);
+}
+
+// =================================================================
+// CONTROLE DO MENU DROPDOWN CASCATA
+// =================================================================
+function toggleDropdown() {
+  const dropdown = document.getElementById("dropdownLista");
+  dropdown.classList.toggle("show-dropdown");
+}
+
+window.addEventListener("click", function(event) {
+  if (!event.target.matches('.btn-dropdown')) {
+    const dropdowns = document.getElementsByClassName("dropdown-conteudo");
+    for (let i = 0; i < dropdowns.length; i++) {
+      const openDropdown = dropdowns[i];
+      if (openDropdown.classList.contains('show-dropdown')) {
+        openDropdown.classList.remove('show-dropdown');
+      }
+    }
+  }
+});
