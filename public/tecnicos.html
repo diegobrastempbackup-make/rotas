@@ -127,15 +127,11 @@
 </head>
 <body>
 
-<div class="sidebar">
-    <h2>NERI 2.0</h2>
-    <div style="font-size:11px; color:var(--texto-secundario); text-transform:uppercase; font-weight:bold; margin-bottom:15px; padding-left:5px;">Navegação</div>
-    <button class="menu-btn" onclick="window.location.href='/index.html'">📊 Dashboard</button>
-    <button class="menu-btn" onclick="window.location.href='/dados.html'">📂 Lançar Dados</button>
-    <button class="menu-btn" onclick="window.location.href='/estoque.html'">📦 Almoxarifado</button>
-    <button class="menu-btn" style="background: var(--primaria); color: white; border-color: transparent;">👥 Gerenciar Técnicos</button>
-    <button class="menu-btn" onclick="localStorage.clear(); window.location.href='/login.html'" style="margin-top: auto; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">🚪 Sair</button>
-</div>
+<button class="menu-btn" onclick="navegarSeguro('/index.html')">📊 Dashboard</button>
+<button class="menu-btn" onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
+<button class="menu-btn" onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+<button class="menu-btn" style="background: var(--primaria); color: white; border-color: transparent;">👥 Gerenciar Técnicos</button>
+<button class="menu-btn" onclick="localStorage.clear(); window.location.replace('/login.html')" style="margin-top: auto; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">🚪 Sair</button>
 
 <div class="conteudo-principal">
     <div class="header-painel">

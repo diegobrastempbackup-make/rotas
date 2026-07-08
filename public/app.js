@@ -97,6 +97,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const btnDados = document.getElementById("btnIrParaDados");
   const btnCadastrar = document.getElementById("btnMenuCadastro");
   const btnEstoque = document.getElementById("btnIrParaEstoque");
+  const btnGerenciarTecnicos = document.getElementById("btnMenuTecnicosAdvanced");
   const perfilBadge = document.getElementById("perfilTipo");
 
   if (perfilBadge && tipoDashboard) {
@@ -107,19 +108,22 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (tipoDashboard === "master") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
-    if (btnCadastrar) btnCadastrar.style.display = "block"; // Mudado para block para o master ver!
+    if (btnCadastrar) btnCadastrar.style.display = "block"; 
+    if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "block";
   } else if (tipoDashboard === "admin") {
     if (btnDados) btnDados.style.display = "block";
     if (btnEstoque) btnEstoque.style.display = "block";
     if (btnCadastrar) btnCadastrar.style.display = "none";
+    if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "block";
   } else if (tipoDashboard === "simples") {
     if (btnDados) btnDados.style.display = "none";
     if (btnCadastrar) btnCadastrar.style.display = "none";
     if (btnEstoque) btnEstoque.style.display = "none";
+    if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "none";
   }
 
   carregarDados();
-}); // <--- Agora este fechamento está correto porque a função foi aberta lá no topo!
+}); 
 
 // =================================================================
 // NAVEGAÇÃO DO MENU
@@ -127,6 +131,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 function irParaEstoque() {
   const token = localStorage.getItem("token");
   window.location.href = `/estoque.html?token=${token}`;
+}
+
+// NOVA FUNÇÃO COM O TOKEN INJETADO NA URL
+function irParaTecnicos() {
+  const token = localStorage.getItem("token");
+  window.location.href = `/tecnicos.html?token=${token}`;
 }
 
 function acessar() {
@@ -701,21 +711,22 @@ function exportarPDF() {
   
   doc.save(nomeArquivo);
 }
-// Função para abrir e fechar a lista cascata
-    function toggleDropdown() {
-      const dropdown = document.getElementById("dropdownLista");
-      dropdown.classList.toggle("show-dropdown");
-    }
 
-    // Fecha a lista se o usuário clicar fora dela
-    window.addEventListener("click", function(event) {
-      if (!event.target.matches('.btn-dropdown')) {
-        const dropdowns = document.getElementsByClassName("dropdown-conteudo");
-        for (let i = 0; i < dropdowns.length; i++) {
-          const openDropdown = dropdowns[i];
-          if (openDropdown.classList.contains('show-dropdown')) {
-            openDropdown.classList.remove('show-dropdown');
-          }
-        }
+// Função para abrir e fechar a lista cascata
+function toggleDropdown() {
+  const dropdown = document.getElementById("dropdownLista");
+  dropdown.classList.toggle("show-dropdown");
+}
+
+// Fecha a lista se o usuário clicar fora dela
+window.addEventListener("click", function(event) {
+  if (!event.target.matches('.btn-dropdown')) {
+    const dropdowns = document.getElementsByClassName("dropdown-conteudo");
+    for (let i = 0; i < dropdowns.length; i++) {
+      const openDropdown = dropdowns[i];
+      if (openDropdown.classList.contains('show-dropdown')) {
+        openDropdown.classList.remove('show-dropdown');
       }
-    });
+    }
+  }
+});

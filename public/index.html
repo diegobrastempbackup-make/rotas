@@ -12,7 +12,7 @@
 
   <style>
     /* Esconde os botões sensíveis por padrão antes da checagem do script */
-    #btnIrParaDados, #btnMenuCadastro, #btnIrParaEstoque {
+    #btnIrParaDados, #btnMenuCadastro, #btnIrParaEstoque, #btnMenuTecnicosAdvanced {
       display: none;
     }
 
@@ -77,6 +77,7 @@
       const btnCadastrar = document.getElementById("btnMenuCadastro");
       const btnEstoque = document.getElementById("btnIrParaEstoque");
       const btnRelatorio = document.getElementById("btnExtrairRelatorio");
+      const btnGerenciarTecnicos = document.getElementById("btnMenuTecnicosAdvanced");
       const perfilBadge = document.getElementById("perfilTipo");
 
       // Atualiza o Badge do Perfil na barra lateral
@@ -90,18 +91,21 @@
         if (btnEstoque) btnEstoque.style.display = "block";
         if (btnCadastrar) btnCadastrar.style.display = "block";
         if (btnRelatorio) btnRelatorio.style.display = "block";
+        if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "block";
         
       } else if (usuarioTipo === "admin") {
         if (btnDados) btnDados.style.display = "block";
         if (btnEstoque) btnEstoque.style.display = "block";
         if (btnCadastrar) btnCadastrar.style.display = "none";
         if (btnRelatorio) btnRelatorio.style.display = "block";
+        if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "block";
         
       } else if (usuarioTipo === "simples") {
         if (btnDados) btnDados.style.display = "none";
         if (btnEstoque) btnEstoque.style.display = "none";
         if (btnCadastrar) btnCadastrar.style.display = "none";
         if (btnRelatorio) btnRelatorio.style.display = "block";
+        if (btnGerenciarTecnicos) btnGerenciarTecnicos.style.display = "none";
       }
     });
   </script>
@@ -116,11 +120,10 @@
     </div>
 
     <div class="menu">
-      <button id="btnMenuTecnicosAdvanced" onclick="window.location.href='/tecnicos.html'">👥 Gerenciar Técnicos</button>
-      
+      <p onclick="filtrar('TODOS')" style="cursor:pointer; padding: 5px 10px;">📊 Geral</p>
       
       <div class="dropdown-tecnicos">
-        <button onclick="toggleDropdown()" class="btn-dropdown">👥 Técnicos ▾</button>
+        <button onclick="toggleDropdown()" class="btn-dropdown">👥 Gráficos de Técnicos ▾</button>
         <div id="dropdownLista" class="dropdown-conteudo">
           <p onclick="filtrar('Sibele')">Sibele</p>
           <p onclick="filtrar('Empresa')">Empresa</p>
@@ -148,6 +151,8 @@
       <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
       <button id="btnIrParaEstoque" onclick="irParaEstoque()">📦 Estoque</button>
       
+      <button id="btnMenuTecnicosAdvanced" onclick="irParaTecnicos()">👥 Gerenciar Técnicos</button>
+
       <button id="btnMenuCadastro" onclick="abrirModalGerenciamento()" class="btn-gerenciar">
         👤 Gerenciar Usuários
       </button>

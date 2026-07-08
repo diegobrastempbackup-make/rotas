@@ -198,3 +198,9 @@ async function deletarTecnico(id) {
         console.error(err);
     }
 }
+
+// Função para navegar entre as telas mantendo a segurança do token na URL
+function navegarSeguro(rota) {
+    const tokenAtual = localStorage.getItem("token");
+    window.location.href = `${rota}?token=${tokenAtual}`;
+}
