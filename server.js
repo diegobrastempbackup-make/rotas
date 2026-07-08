@@ -1,200 +1,541 @@
-const token = localStorage.getItem("token");
-let cacheTecnicos = [];
+const express = require("express"); 
+const cors = require("cors");
+const { MongoClient, ObjectId } = require("mongodb"); 
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
-// Trava inicial de Segurança
-if (!token) {
-    window.location.replace("/login.html");
-}
+const app = express();
 
-document.addEventListener("DOMContentLoaded", async () => {
-    await carregarTecnicos();
-    
-    // Listeners para filtragem dinâmica em tempo real
-    document.getElementById("buscaNome").addEventListener("input", filtrarTabela);
-    document.getElementById("filtroStatus").addEventListener("change", filtrarTabela);
+const PORT = process.env.PORT || 10000;
+const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
+
+// MONGO
+const uri = process.env.MONGO_URI;
+const client = new MongoClient(uri);
+let db = null;
+
+// MIDDLEWARES
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+
+// MIDDLEWARE DE AUTENTICAÇÃO
+const autenticarToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ erro: "Acesso negado. Token não fornecido." });
+  }
+
+  try {
+    const verificado = jwt.verify(token, JWT_SECRET);
+    req.usuario = verificado;
+    next();
+  } catch (err) {
+    return res.status(403).json({ erro: "Token inválido ou expirado." });
+  }
+};
+
+// ROTAS DE PÁGINAS (FRONT-END)
+
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/public/login.html");
 });
 
-async function carregarTecnicos() {
-    try {
-        const res = await fetch("/api/tecnicos", {
-            headers: { "Authorization": `Bearer ${token}` }
-        });
-        
-        if (!res.ok) return console.error("Erro ao autenticar requisição");
-        
-        cacheTecnicos = await res.json();
-        atualizarCardsIndicadores();
-        renderizarTabela(cacheTecnicos);
-    } catch (err) {
-        console.error("Falha ao carregar técnicos:", err);
+app.get("/dados.html", (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.redirect("/login.html");
+  try {
+    jwt.verify(token, JWT_SECRET);
+    res.sendFile(__dirname + "/public/dados.html");
+  } catch (err) {
+    res.redirect("/login.html");
+  }
+});
+
+app.get("/estoque.html", (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.redirect("/login.html");
+  try {
+    jwt.verify(token, JWT_SECRET);
+    res.sendFile(__dirname + "/public/estoque.html");
+  } catch (err) {
+    res.redirect("/login.html");
+  }
+});
+
+app.get("/tecnicos.html", (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.redirect("/login.html");
+  try {
+    jwt.verify(token, JWT_SECRET);
+    res.sendFile(__dirname + "/public/tecnicos.html");
+  } catch (err) {
+    res.redirect("/login.html");
+  }
+});
+
+app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
+app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
+
+// --- API: ROTAS DO SISTEMA (BACK-END) ---
+
+// LOGIN
+app.post("/login", async (req, res) => {
+  try {
+    const { usuario, senha } = req.body;
+    const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
+
+    if (!usuarioBanco) {
+      return res.status(401).json({ erro: "Usuário não encontrado" });
     }
-}
 
-function atualizarCardsIndicadores() {
-    const ativos = cacheTecnicos.filter(t => t.status === "Ativo" || !t.status).length; // Fallback se antigo for nulo
-    const ferias = cacheTecnicos.filter(t => t.status === "Em Férias").length;
-    const afastados = cacheTecnicos.filter(t => t.status === "Afastado").length;
-    const desligados = cacheTecnicos.filter(t => t.status === "Desligado").length;
-    
-    const totalGlobal = ativos + ferias + afastados; // Equipe ativa de campo
-    const totalComDesligados = cacheTecnicos.length;
-
-    document.getElementById("cardAtivos").innerText = ativos;
-    document.getElementById("cardFerias").innerText = ferias;
-    document.getElementById("cardAfastados").innerText = afastados;
-    document.getElementById("cardDesligados").innerText = desligados;
-
-    // Cálculo percentual seguro (evita divisão por zero)
-    document.getElementById("pctAtivos").innerText = totalGlobal > 0 ? `${Math.round((ativos/totalGlobal)*100)}% da equipe` : "0% da equipe";
-    document.getElementById("pctFerias").innerText = totalGlobal > 0 ? `${Math.round((ferias/totalGlobal)*100)}% da equipe` : "0% da equipe";
-    document.getElementById("pctAfastados").innerText = totalGlobal > 0 ? `${Math.round((afastados/totalGlobal)*100)}% da equipe` : "0% da equipe";
-    document.getElementById("pctDesligados").innerText = `${desligados} do total geral`;
-}
-
-function renderizarTabela(lista) {
-    const corpo = document.getElementById("corpoTabelaTecnicos");
-    corpo.innerHTML = "";
-
-    if (lista.length === 0) {
-        corpo.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--texto-secundario);">Nenhum técnico localizado com os filtros aplicados.</td></tr>`;
-        return;
+    const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
+    if (!senhaValida) {
+      return res.status(401).json({ erro: "Senha incorreta" });
     }
 
-    lista.forEach(t => {
-        const statusReal = t.status || "Ativo"; // Trata registros passados que continham apenas o nome
-        let classeBadge = "badge-ativo";
-        
-        if (statusReal === "Em Férias") classeBadge = "badge-ferias";
-        if (statusReal === "Afastado") classeBadge = "badge-afastado";
-        if (statusReal === "Desligado") classeBadge = "badge-desligado";
+    const token = jwt.sign(
+      { id: usuarioBanco._id, tipo: usuarioBanco.tipo },
+      JWT_SECRET,
+      { expiresIn: "12h" }
+    );
 
-        const dataCriacao = t.criadoEm ? new Date(t.criadoEm).toLocaleDateString("pt-BR") : "Histórico";
+    res.json({
+      ok: true,
+      token,
+      nome: usuarioBanco.nome,
+      tipo: usuarioBanco.tipo
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao realizar login" });
+  }
+});
 
-        corpo.innerHTML += `
-            <tr>
-                <td><strong>${t.nome}</strong></td>
-                <td><span class="badge ${classeBadge}">${statusReal}</span></td>
-                <td>${t.telefone || "-"}</td>
-                <td>${t.email || "-"}</td>
-                <td>${t.veiculo || "-"}</td>
-                <td>${t.placa || "-"}</td>
-                <td>${dataCriacao}</td>
-                <td>
-                    <button class="btn-mini btn-editar" onclick="prepararEdicao('${t._id}')">Editar</button>
-                    <button class="btn-mini btn-excluir" onclick="deletarTecnico('${t._id}')">Excluir</button>
-                </td>
-            </tr>
-        `;
+// CADASTRO
+app.post("/cadastro", autenticarToken, async (req, res) => {
+  try {
+     if (req.usuario?.tipo !== "master") {
+    return res.status(403).json({
+        erro: "Você não tem permissão para cadastrar usuários."
     });
 }
 
-function filtrarTabela() {
-    const termoBusca = document.getElementById("buscaNome").value.toLowerCase().trim();
-    const statusSelecionado = document.getElementById("filtroStatus").value;
+    const { nome, usuario, senha, tipo } = req.body;
+    if (!nome || !usuario || !senha || !tipo) {
+      return res.status(400).json({ erro: "Preencha todos os campos obrigatórios" });
+    }
 
-    const listaFiltrada = cacheTecnicos.filter(t => {
-        const statusReal = t.status || "Ativo";
-        const matchesNome = t.nome.toLowerCase().includes(termoBusca);
-        const matchesStatus = statusSelecionado === "TODOS" || statusReal === statusSelecionado;
-        
-        return matchesNome && matchesStatus;
+    const usuariosColl = db.collection("usuarios");
+    const existe = await usuariosColl.findOne({ usuario: usuario.toLowerCase().trim() });
+
+    if (existe) {
+      return res.status(400).json({ erro: "Este nome de usuário já está cadastrado" });
+    }
+
+    const senhaHash = await bcrypt.hash(senha, 10);
+    await usuariosColl.insertOne({
+      nome,
+      usuario: usuario.toLowerCase().trim(),
+      senha: senhaHash,
+      tipo, 
+      ativo: true,
+      criadoEm: new Date()
     });
 
-    renderizarTabela(listaFiltrada);
-}
+    res.json({ ok: true, mensagem: "Usuário criado com sucesso!" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao cadastrar usuário" });
+  }
+});
 
-// Controle de Modais
-function abrirModalCadastro() {
-    document.getElementById("modalTitulo").innerText = "Adicionar Novo Técnico";
-    document.getElementById("tecnicoId").value = "";
-    document.getElementById("formNome").value = "";
-    document.getElementById("formStatus").value = "Ativo";
-    document.getElementById("formTelefone").value = "";
-    document.getElementById("formEmail").value = "";
-    document.getElementById("formVeiculo").value = "";
-    document.getElementById("formPlaca").value = "";
-    document.getElementById("modalTecnico").style.display = "flex";
-}
+// LISTAGEM DE USUÁRIOS
+const listarUsuariosHandler = async (req, res) => {
+  try {
+    const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
+    res.json(lista);
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao listar usuários" });
+  }
+};
+app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
+app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 
-function prepararEdicao(id) {
-    const t = cacheTecnicos.find(item => item._id === id);
-    if (!t) return;
+app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario.tipo !== "master") {
+      return res.status(403).json({ erro: "Somente Master pode excluir usuários" });
+    }
+    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao excluir usuário" });
+  }
+});
 
-    document.getElementById("modalTitulo").innerText = `Editar Cadastro: ${t.nome}`;
-    document.getElementById("tecnicoId").value = t._id;
-    document.getElementById("formNome").value = t.nome;
-    document.getElementById("formStatus").value = t.status || "Ativo";
-    document.getElementById("formTelefone").value = t.telefone || "";
-    document.getElementById("formEmail").value = t.email || "";
-    document.getElementById("formVeiculo").value = t.veiculo || "";
-    document.getElementById("formPlaca").value = t.placa || "";
-    
-    document.getElementById("modalTecnico").style.display = "flex";
-}
+app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario.tipo !== "master") {
+      return res.status(403).json({ erro: "Você não tem permissão para editar usuários!" });
+    }
+    const { nome, tipo, senha } = req.body;
+    const atualizacao = { nome, tipo };
 
-function fecharModal() {
-    document.getElementById("modalTecnico").style.display = "none";
-}
+    if (senha && senha.trim() !== "") {
+      atualizacao.senha = await bcrypt.hash(senha, 10);
+    }
 
-async function salvarTecnico() {
-    const id = document.getElementById("tecnicoId").value;
-    const payload = {
-        nome: document.getElementById("formNome").value.trim(),
-        status: document.getElementById("formStatus").value,
-        telefone: document.getElementById("formTelefone").value.trim(),
-        email: document.getElementById("formEmail").value.trim(),
-        veiculo: document.getElementById("formVeiculo").value.trim(),
-        placa: document.getElementById("formPlaca").value.trim()
+    await db.collection("usuarios").updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: atualizacao }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao editar usuário" });
+  }
+});
+
+// ATUALIZAR USUÁRIO
+app.put("/usuario/:id", autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, tipo, novaSenha } = req.body;
+    let dadosAtualizados = { nome, tipo };
+
+    if (novaSenha && novaSenha.trim() !== "") {
+      const senhaHash = await bcrypt.hash(novaSenha, 10);
+      dadosAtualizados.senha = senhaHash;
+    }
+
+    await db.collection("usuarios").updateOne(
+      { _id: new ObjectId(id) },
+      { $set: dadosAtualizados }
+    );
+    res.json({ ok: true, message: "Usuário atualizado com sucesso!" });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ erro: "Erro ao atualizar usuário" });
+  }
+});
+
+app.delete("/usuario/:id", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario?.tipo !== "master") {
+      return res.status(403).json({ erro: "Você não tem permissão para excluir usuários!" });
+    }
+    const { id } = req.params;
+    await db.collection("usuarios").deleteOne({ _id: new ObjectId(id) });
+    res.json({ ok: true });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao excluir usuário" });
+  }
+});
+
+// --- SEGMENTO EVOLUÍDO DE TÉCNICOS ---
+
+// LISTAR TÉCNICOS
+app.get("/api/tecnicos", autenticarToken, async (req, res) => {
+  try {
+    const tecnicos = await db
+      .collection("tecnicos")
+      .find()
+      .sort({ nome: 1 })
+      .toArray();
+    res.json(tecnicos);
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao listar técnicos" });
+  }
+});
+
+// CADASTRAR TÉCNICO (AVANÇADO)
+app.post("/api/tecnicos", autenticarToken, async (req, res) => {
+  try {
+    const nome = (req.body.nome || "").trim();
+    const status = req.body.status || "Ativo";
+    const telefone = req.body.telefone || "";
+    const email = req.body.email || "";
+    const veiculo = req.body.veiculo || "";
+    const placa = req.body.placa || "";
+
+    if (!nome) {
+      return res.status(400).json({ erro: "Nome obrigatório" });
+    }
+
+    const existe = await db.collection("tecnicos").findOne({ nome });
+    if (existe) {
+      return res.status(400).json({ erro: "Técnico já cadastrado" });
+    }
+
+    const resultado = await db.collection("tecnicos").insertOne({
+      nome,
+      status,
+      telefone,
+      email,
+      veiculo,
+      placa,
+      criadoEm: new Date()
+    });
+
+    res.json({ ok: true, id: resultado.insertedId });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao cadastrar técnico" });
+  }
+});
+
+// ATUALIZAR TÉCNICO (NOVO ENDPOINT)
+app.put("/api/tecnicos/:id", autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, status, telefone, email, veiculo, placa } = req.body;
+
+    if (!nome) {
+      return res.status(400).json({ erro: "Nome obrigatório" });
+    }
+
+    await db.collection("tecnicos").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          nome,
+          status,
+          telefone,
+          email,
+          veiculo,
+          placa
+        }
+      }
+    );
+
+    res.json({ ok: true });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao editar técnico" });
+  }
+});
+
+// EXCLUIR TÉCNICO
+app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
+  try {
+    await db.collection("tecnicos").deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ ok: true });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao excluir técnico" });
+  }
+});
+
+// ESTOQUE
+const estoqueHandler = async (req, res) => {
+  try {
+    const estoque = await db.collection("estoque").find().toArray();
+    res.json(estoque);
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao buscar estoque" });
+  }
+};
+app.get("/api/estoque", autenticarToken, estoqueHandler);
+app.get("/estoque", autenticarToken, estoqueHandler);
+
+app.post("/api/estoque", autenticarToken, async (req, res) => {
+  try {
+    const novoItem = {
+      codigo: req.body.codigo || "",
+      nome: req.body.nome || "",
+      categoria: req.body.categoria || "",
+      localizacao: req.body.localizacao || "",
+      preco: Number(req.body.preco) || 0,
+      qtd: Number(req.body.qtd) || 0,
+      criadoEm: new Date()
     };
+    const resultado = await db.collection("estoque").insertOne(novoItem);
+    res.json({ ok: true, id: resultado.insertedId });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao salvar item" });
+  }
+});
 
-    if (!payload.nome) {
-        alert("O preenchimento do campo Nome é obrigatório.");
-        return;
-    }
-
-    try {
-        const url = id ? `/api/tecnicos/${id}` : "/api/tecnicos";
-        const metodo = id ? "PUT" : "POST";
-
-        const res = await fetch(url, {
-            method: metodo,
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const dados = await res.json();
-
-        if (!res.ok) {
-            alert(dados.erro || "Ocorreu um erro operacional no servidor.");
-            return;
+app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection("estoque").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          codigo: req.body.codigo,
+          nome: req.body.nome,
+          categoria: req.body.categoria,
+          localizacao: req.body.localizacao,
+          preco: Number(req.body.preco) || 0,
+          qtd: Number(req.body.qtd) || 0
         }
+      }
+    );
+    res.json({ ok: true });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao editar item" });
+  }
+});
 
-        fecharModal();
-        await carregarTecnicos();
-    } catch (err) {
-        console.error("Falha ao salvar:", err);
-        alert("Erro de conexão com o servidor backend.");
+app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection("estoque").deleteOne({ _id: new ObjectId(id) });
+    res.json({ ok: true });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao excluir item" });
+  }
+});
+
+// HISTÓRICO DE ESTOQUE
+const historicoEstoqueHandler = async (req, res) => {
+  try {
+    const historico = await db.collection("historico_estoque").find().toArray();
+    res.json(historico);
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao buscar histórico do estoque" });
+  }
+};
+app.get("/api/estoque/historico", autenticarToken, historicoEstoqueHandler);
+app.get("/estoque/historico", autenticarToken, historicoEstoqueHandler);
+
+app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
+  try {
+    const logs = await db
+      .collection("historico_estoque")
+      .find({ tecnico: req.params.nome })
+      .sort({ data: -1 })
+      .toArray();
+    res.json(logs);
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao buscar histórico" });
+  }
+});
+
+app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
+  try {
+    const { ferramentaId, quantidade, tipoAcao } = req.body;
+
+    if (ferramentaId && (tipoAcao === "Entrega" || tipoAcao === "Troca")) {
+      const item = await db.collection("estoque").findOne({ _id: new ObjectId(ferramentaId) });
+      if (!item) {
+        return res.status(404).json({ erro: "Item não encontrado no estoque." });
+      }
+      const saldoAtual = Number(item.qtd || 0);
+      const qtdSolicitada = Number(quantidade || 0);
+
+      if (qtdSolicitada > saldoAtual) {
+        return res.status(400).json({ erro: `Estoque insuficiente. Disponível: ${saldoAtual}` });
+      }
     }
+
+    await db.collection("historico_estoque").insertOne(req.body);
+
+    if (ferramentaId) {
+      let ajuste = 0;
+      if (tipoAcao === "Entrega") ajuste = -Number(quantidade);
+      if (tipoAcao === "Devolução" || tipoAcao === "Devolucao") ajuste = Number(quantidade);
+      if (tipoAcao === "Troca") ajuste = -Number(quantidade);
+
+      await db.collection("estoque").updateOne(
+        { _id: new ObjectId(ferramentaId) },
+        { $inc: { qtd: ajuste } }
+      );
+    }
+    res.json({ ok: true });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: "Erro ao gravar histórico" });
+  }
+});
+
+// REGISTROS
+const registrosHandler = async (req, res) => {
+  try {
+    const dados = await db.collection("registros").find().sort({ data: 1 }).toArray();
+    res.json(dados);
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao buscar registros" });
+  }
+};
+app.get("/registros", autenticarToken, registrosHandler);
+app.get("/api/registros", autenticarToken, registrosHandler);
+
+app.post("/registro", autenticarToken, async (req, res) => {
+  try {
+    let dados = req.body.dados || [];
+    if (dados.length === 0) return res.status(400).json({ erro: "Nenhum dado informado" });
+
+    const mapa = new Set();
+    dados = dados.filter(item => {
+      const chave = `${item.tecnico}_${String(item.data).split('T')[0]}`;
+      if (mapa.has(chave)) return false;
+      mapa.add(chave);
+      return true;
+    });
+
+    const operacoes = dados.map(item => {
+      const dataLimpa = item.data ? String(item.data).split('T')[0] : '';
+      if (item._id) delete item._id;
+
+      return {
+        updateOne: {
+          filter: { tecnico: item.tecnico, data: dataLimpa },
+          update: { $set: item }, 
+          upsert: true 
+        }
+      };
+    });
+
+    await db.collection("registros").bulkWrite(operacoes);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao salvar dados" });
+  }
+});
+
+app.delete("/registro/:id", autenticarToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(id) });
+    if (resultado.deletedCount === 1) {
+      res.json({ ok: true, message: "Registro apagado com sucesso!" });
+    } else {
+      res.status(404).json({ erro: "Registro não encontrado" });
+    }
+  } catch (err) {
+    res.status(500).json({ erro: "Erro ao deletar registro" });
+  }
+});
+
+// Arquivos estáticos da pasta public
+app.use(express.static(__dirname + "/public", { index: false }));
+
+// INICIALIZAÇÃO SINCRONIZADA
+async function iniciarSistema() {
+  try {
+    console.log("🔄 Conectando ao MongoDB Atlas...");
+    await client.connect();
+    db = client.db("rotas");
+    console.log("✅ Mongo conectado com sucesso!");
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor NERI rodando perfeitamente na porta ${PORT}`);
+    });
+  } catch (err) {
+    console.error("❌ Erro crítico ao conectar ao MongoDB:", err);
+    process.exit(1);
+  }
 }
 
-async function deletarTecnico(id) {
-    if (!confirm("Tem certeza absoluta que deseja remover este técnico permanentemente do sistema?")) return;
-
-    try {
-        const res = await fetch(`/api/tecnicos/${id}`, {
-            method: "DELETE",
-            headers: { "Authorization": `Bearer ${token}` }
-        });
-
-        if (res.ok) {
-            await carregarTecnicos();
-        } else {
-            alert("Não foi possível excluir o técnico no momento.");
-        }
-    } catch (err) {
-        console.error(err);
-    }
-}
+iniciarSistema();

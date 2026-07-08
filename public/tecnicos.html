@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Técnicos - NERI 2.0</title>
+    <style>
+        :root {
+            --bg-principal: #0F172A;
+            --bg-card: #1E293B;
+            --bg-linha-par: #131C2E;
+            --texto-principal: #f8fafc;
+            --texto-secundario: #94a3b8;
+            --borda: rgba(255, 255, 255, 0.05);
+            --sucesso: #10b981;
+            --alerta: #f59e0b;
+            --perigo: #ef4444;
+            --info: #06b6d4;
+            --primaria: #2563EB;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--texto-principal);
+            margin: 0; padding: 0;
+            display: flex; min-height: 100vh;
+        }
+
+        /* Sidebar similar ao Layout */
+        .sidebar {
+            width: 250px; background-color: rgba(15, 23, 42, 0.95);
+            border-right: 1px solid var(--borda);
+            display: flex; flex-direction: column; padding: 20px;
+            box-shadow: 5px 0 20px rgba(0, 0, 0, 0.4);
+        }
+        .sidebar h2 { font-size: 1.2rem; margin-top: 0; color: #3B82F6; font-weight: 800; letter-spacing: 1px;}
+        .menu-btn {
+            width: 100%; padding: 12px; background: rgba(37, 99, 235, 0.1);
+            border: 1px solid rgba(37, 99, 235, 0.2); color: #60A5FA;
+            border-radius: 10px; font-weight: bold; cursor: pointer;
+            text-align: left; margin-bottom: 10px; transition: 0.2s;
+        }
+        .menu-btn:hover { background: #2563EB; color: white; transform: translateY(-2px); }
+
+        /* Conteúdo central */
+        .conteudo-principal { flex: 1; padding: 25px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto;}
+        
+        .header-painel h1 { font-size: 1.6rem; margin: 0; font-weight: bold; }
+        .header-painel p { font-size: 0.85rem; color: var(--texto-secundario); margin: 4px 0 0 0; }
+
+        /* Grade de Indicadores (Cards) */
+        .cards-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;
+        }
+        .card {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.7));
+            border-radius: 12px; padding: 18px; border: 1px solid var(--borda);
+            display: flex; flex-direction: column; position: relative; overflow: hidden;
+        }
+        .card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; }
+        .card.ativos::before { background: var(--sucesso); }
+        .card.ferias::before { background: var(--info); }
+        .card.afastados::before { background: var(--alerta); }
+        .card.desligados::before { background: var(--perigo); }
+        
+        .card-titulo { font-size: 0.8rem; font-weight: bold; color: var(--texto-secundario); text-transform: uppercase; }
+        .card-valor { font-size: 1.8rem; font-weight: 800; margin: 8px 0 4px 0; }
+        .card-sub { font-size: 0.75rem; color: var(--sucesso); font-weight: bold; }
+        .card.desligados .card-sub { color: var(--texto-secundario); }
+
+        /* Área de Filtros */
+        .area-filtros {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(30, 41, 59, 0.4); padding: 15px; border-radius: 10px; border: 1px solid var(--borda);
+            flex-wrap: wrap; gap: 12px;
+        }
+        .filtros-esquerda { display: flex; gap: 10px; flex: 1; max-width: 600px; }
+        input, select {
+            background-color: var(--bg-principal); border: 1px solid var(--borda);
+            color: var(--texto-principal); padding: 10px; border-radius: 8px; font-size: 0.9rem; outline: none;
+        }
+        input:focus, select:focus { border-color: var(--primaria); }
+        .btn-acao {
+            padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 0.9rem;
+            transition: 0.2s; display: flex; align-items: center; gap: 5px;
+        }
+        .btn-primario { background-color: var(--primaria); color: white; }
+        .btn-primario:hover { background-color: #3b82f6; }
+
+        /* Tabela Estilizada Dark */
+        .painel-tabela { background-color: var(--bg-card); border-radius: 12px; border: 1px solid var(--borda); padding: 10px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { color: var(--texto-secundario); font-size: 0.75rem; padding: 14px 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 14px 16px; border-bottom: 1px solid var(--borda); font-size: 0.9rem; color: #e2e8f0; }
+        tr:nth-child(even) td { background-color: var(--bg-linha-par); }
+        
+        /* Badges de Status baseados no Design */
+        .badge {
+            padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; display: inline-block;
+        }
+        .badge-ativo { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        .badge-ferias { background: rgba(6, 182, 212, 0.15); color: #22d3ee; }
+        .badge-afastado { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+        .badge-desligado { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+        .btn-mini {
+            border: none; padding: 6px 10px; border-radius: 6px; color: white; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: 0.2s;
+        }
+        .btn-editar { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); margin-right: 5px; }
+        .btn-editar:hover { background: var(--primaria); color: white; }
+        .btn-excluir { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-excluir:hover { background: var(--perigo); color: white; }
+
+        /* Modais */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-conteudo { background-color: var(--bg-card); padding: 25px; border-radius: 16px; width: 480px; border: 1px solid var(--borda); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .modal h3 { margin-top: 0; margin-bottom: 20px; font-size: 1.3rem; border-left: 4px solid var(--primaria); padding-left: 10px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+        .form-full { width: 100%; display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+        .form-full label, .form-grid div label { font-size: 0.75rem; color: var(--texto-secundario); font-weight: bold; text-transform: uppercase; }
+        
+        .modal-botoes { margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px; }
+        .btn-cancelar { background: transparent; color: var(--texto-secundario); border: 1px solid #475569; }
+        .btn-cancelar:hover { background: rgba(255,255,255,0.05); }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>NERI 2.0</h2>
+    <div style="font-size:11px; color:var(--texto-secundario); text-transform:uppercase; font-weight:bold; margin-bottom:15px; padding-left:5px;">Navegação</div>
+    <button class="menu-btn" onclick="window.location.href='/index.html'">📊 Dashboard</button>
+    <button class="menu-btn" onclick="window.location.href='/dados.html'">📂 Lançar Dados</button>
+    <button class="menu-btn" onclick="window.location.href='/estoque.html'">📦 Almoxarifado</button>
+    <button class="menu-btn" style="background: var(--primaria); color: white; border-color: transparent;">👥 Gerenciar Técnicos</button>
+    <button class="menu-btn" onclick="localStorage.clear(); window.location.href='/login.html'" style="margin-top: auto; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">🚪 Sair</button>
+</div>
+
+<div class="conteudo-principal">
+    <div class="header-painel">
+        <h1>Dashboard de Técnicos</h1>
+        <p>Visão geral, controle de atividade e status da frota de campo</p>
+    </div>
+
+    <div class="cards-grid">
+        <div class="card ativos">
+            <span class="card-titulo">Técnicos Ativos</span>
+            <span class="card-valor" id="cardAtivos">0</span>
+            <span class="card-sub" id="pctAtivos">0% da equipe</span>
+        </div>
+        <div class="card ferias">
+            <span class="card-titulo">Técnicos em Férias</span>
+            <span class="card-valor" id="cardFerias">0</span>
+            <span class="card-sub" id="pctFerias" style="color: var(--info);">0% da equipe</span>
+        </div>
+        <div class="card afastados">
+            <span class="card-titulo">Técnicos Afastados</span>
+            <span class="card-valor" id="cardAfastados">0</span>
+            <span class="card-sub" id="pctAfastados" style="color: var(--alerta);">0% da equipe</span>
+        </div>
+        <div class="card desligados">
+            <span class="card-titulo">Técnicos Desligados</span>
+            <span class="card-valor" id="cardDesligados">0</span>
+            <span class="card-sub" id="pctDesligados" style="color: var(--texto-secundario)">0 do total</span>
+        </div>
+    </div>
+
+    <div class="area-filtros">
+        <div class="filtros-esquerda">
+            <input type="text" id="buscaNome" placeholder="🔍 Buscar técnico por nome..." style="flex: 2;">
+            <select id="filtroStatus" style="flex: 1;">
+                <option value="TODOS">Todos os status</option>
+                <option value="Ativo">Ativos</option>
+                <option value="Em Férias">Em Férias</option>
+                <option value="Afastado">Afastados</option>
+                <option value="Desligado">Desligados</option>
+            </select>
+        </div>
+        <button class="btn-acao btn-primario" onclick="abrirModalCadastro()">+ Adicionar Técnico</button>
+    </div>
+
+    <div class="painel-tabela">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Status</th>
+                    <th>Telefone</th>
+                    <th>E-mail</th>
+                    <th>Veículo</th>
+                    <th>Placa</th>
+                    <th>Data de Criação</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="corpoTabelaTecnicos"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modalTecnico" class="modal">
+    <div class="modal-conteudo">
+        <h3 id="modalTitulo">Adicionar Novo Técnico</h3>
+        <input type="hidden" id="tecnicoId">
+        
+        <div class="form-full">
+            <label>Nome Completo do Técnico</label>
+            <input type="text" id="formNome" placeholder="Ex: João Santos">
+        </div>
+
+        <div class="form-grid">
+            <div>
+                <label>Status Atual</label>
+                <select id="formStatus">
+                    <option value="Ativo">Ativo</option>
+                    <option value="Em Férias">Em Férias</option>
+                    <option value="Afastado">Afastado</option>
+                    <option value="Desligado">Desligado</option>
+                </select>
+            </div>
+            <div>
+                <label>Telefone / WhatsApp</label>
+                <input type="text" id="formTelefone" placeholder="(19) 99999-1111">
+            </div>
+        </div>
+
+        <div class="form-full">
+            <label>E-mail Corporativo</label>
+            <input type="email" id="formEmail" placeholder="joao.santos@neri.com">
+        </div>
+
+        <div class="form-grid">
+            <div>
+                <label>Modelo do Veículo</label>
+                <input type="text" id="formVeiculo" placeholder="Ex: Fiat Strada">
+            </div>
+            <div>
+                <label>Placa</label>
+                <input type="text" id="formPlaca" placeholder="Ex: ABC1D23">
+            </div>
+        </div>
+
+        <div class="modal-botoes">
+            <button class="btn-acao btn-cancelar" onclick="fecharModal()">Cancelar</button>
+            <button class="btn-acao btn-primario" onclick="salvarTecnico()">Gravar Alterações</button>
+        </div>
+    </div>
+</div>
+
+<script src="tecnicos.js"></script>
+</body>
+</html>
