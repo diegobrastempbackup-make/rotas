@@ -22,6 +22,7 @@ async function renderizarListaTecnicos() {
             headers: { "Authorization": `Bearer ${token}` }
         });
         window.listaTecnicos = await res.json();
+        
         const listaEsq = document.getElementById("listaTecnicosEsq");
         const containerGerenciar = document.getElementById("listaGerenciarTecnicosContainer");
 
@@ -29,12 +30,14 @@ async function renderizarListaTecnicos() {
         containerGerenciar.innerHTML = "";
 
         window.listaTecnicos.forEach(t => {
-            const li = document.createElement("li");
-            li.className = `tecnico-item ${window.tecnicoSelecionado === t.nome ? "selecionado" : ""}`;
-            li.innerText = t.nome;
-            li.onclick = () => selecionarTecnico(t.nome);
-            listaEsq.appendChild(li);
+            // Criação do item para o dropdown
+            const divItem = document.createElement("div");
+            divItem.className = `tecnico-item ${window.tecnicoSelecionado === t.nome ? "selecionado" : ""}`;
+            divItem.innerText = t.nome;
+            divItem.onclick = () => selecionarTecnico(t.nome);
+            listaEsq.appendChild(divItem);
 
+            // Criação do item para o gerenciador de exclusão
             containerGerenciar.innerHTML += `
                 <div class="item-gerenciamento">
                     <span>${t.nome}</span>
@@ -50,17 +53,36 @@ async function renderizarListaTecnicos() {
 }
 window.renderizarListaTecnicos = renderizarListaTecnicos;
 
+// Funções do Menu Dropdown
+function toggleDropdown() {
+    document.getElementById("listaTecnicosEsq").classList.toggle("show-dropdown");
+}
+window.toggleDropdown = toggleDropdown;
+
+window.addEventListener("click", function(event) {
+    if (!event.target.matches('.btn-dropdown') && !event.target.closest('.btn-dropdown')) {
+        const dropdown = document.getElementById("listaTecnicosEsq");
+        if (dropdown && dropdown.classList.contains('show-dropdown')) {
+            dropdown.classList.remove('show-dropdown');
+        }
+    }
+});
+
 function selecionarTecnico(nome) {
     window.tecnicoSelecionado = nome;
 
     // Esconde o Almoxarifado Geral
     document.getElementById("containerEstoquePrincipal").style.display = "none";
+    document.getElementById("logoCentro").style.display = "none";
 
     // Mostra o Histórico do Técnico
     document.getElementById("containerHistorico").style.display = "block";
     document.getElementById("tituloHistoricoTecnico").innerText = `Estoque e Cautela - ${nome}`;
 
-    renderizarListaTecnicos();
+    // Fecha o dropdown após selecionar
+    document.getElementById("listaTecnicosEsq").classList.remove('show-dropdown');
+
+    renderizarListaTecnicos(); // Atualiza a classe de "selecionado"
     carregarLogs(nome);
 }
 window.selecionarTecnico = selecionarTecnico;
@@ -70,6 +92,7 @@ window.mostrarTelaInicial = () => {
 
     // Esconde o Histórico do Técnico
     document.getElementById("containerHistorico").style.display = "none";
+    document.getElementById("logoCentro").style.display = "none";
 
     // Mostra o Almoxarifado Geral
     document.getElementById("containerEstoquePrincipal").style.display = "block";
@@ -90,10 +113,12 @@ window.guardarTecnico = async () => {
             body: JSON.stringify({ nome })
         });
         const resultado = await res.json();
+        
         if (!res.ok) {
             alert(resultado.erro || "Erro ao cadastrar técnico");
             return;
         }
+        
         input.value = "";
         await renderizarListaTecnicos();
     } catch (erro) {
@@ -220,7 +245,6 @@ window.salvarEdicaoFerramenta = async () => {
     carregarEstoque();
 };
 
-
 // LANÇAMENTO DE MOVIMENTAÇÕES E HISTÓRICO 
 window.salvarLinhaHistorico = async () => {
     if (!window.tecnicoSelecionado) return alert("Por favor, selecione um técnico primeiro!");
@@ -302,17 +326,15 @@ async function carregarLogs(nome) {
 }
 window.carregarLogs = carregarLogs;
 
-
 // EXTRAÇÃO DE RELATÓRIO PDF
 window.emitirPDFIndividual = () => {
     if (!window.tecnicoSelecionado) return alert("Selecione um técnico para extrair!");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
-    // Configurações de Paleta de Cores do Index (Slate / Dark)
-    const corPrimaria = [15, 23, 42];    // #0F172A
-    const corTextoSec = [148, 163, 184]; // #94A3B8
-    const corLinhaPar = [241, 245, 249]; // Fundo cinza claro para zebrado
+    const corPrimaria = [15, 23, 42];    
+    const corTextoSec = [148, 163, 184]; 
+    const corLinhaPar = [241, 245, 249]; 
     
     // CABEÇALHO 
     doc.setFillColor(...corPrimaria);
@@ -325,7 +347,7 @@ window.emitirPDFIndividual = () => {
     
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(10);
-    doc.setTextColor(186, 230, 253); // azul claro
+    doc.setTextColor(186, 230, 253); 
     doc.text(`TÉCNICO RESPONSÁVEL: ${window.tecnicoSelecionado.toUpperCase()}`, 14, 24);
     doc.text(`EMISSÃO: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 30);
     
@@ -338,8 +360,7 @@ window.emitirPDFIndividual = () => {
     
     y += 6;
     
-    // Desenhar Cabeçalho da Tabela estilizada
-    doc.setFillColor(30, 41, 59); // #1E293B
+    doc.setFillColor(30, 41, 59); 
     doc.rect(14, y, 182, 8, "F");
     
     doc.setFontSize(9);
@@ -364,19 +385,15 @@ window.emitirPDFIndividual = () => {
     linhas.forEach(tr => {
         const tds = tr.querySelectorAll("td");
         if (tds.length >= 5) {
-            // Quebra dinamicamente o texto da observação
             const obsTexto = tds[4].innerText || "-";
             const linhasObs = doc.splitTextToSize(obsTexto, 48);
             
-            // Quebra o texto da ferramenta
             const ferramentaTexto = tds[2].innerText || "Nenhum";
             const linhasFerramenta = doc.splitTextToSize(ferramentaTexto, 55);
             
-            // Calcula a altura necessária
             const totalLinhas = Math.max(linhasObs.length, linhasFerramenta.length);
             const alturaLinha = totalLinhas > 1 ? (totalLinhas * 5) + 2 : 7;
 
-            // Nova página se estourar o limite
             if (y + alturaLinha > 275) { 
                 doc.addPage(); 
                 y = 20; 
@@ -393,16 +410,17 @@ window.emitirPDFIndividual = () => {
             doc.text(tds[0].innerText, 16, y + 5);
             
             const acao = tds[1].innerText;
-            if (acao.includes("Entrega")) doc.setTextColor(16, 185, 129);
-            else if (acao.includes("Troca")) doc.setTextColor(239, 68, 68);
-            else if (acao.includes("Devolu")) doc.setTextColor(37, 99, 235);
-            else doc.setTextColor(245, 158, 11);
+            if (acao.includes("Entrega")) doc.setTextColor(16, 185, 129); 
+            else if (acao.includes("Troca")) doc.setTextColor(239, 68, 68); 
+            else if (acao.includes("Devolu")) doc.setTextColor(37, 99, 235); 
+            else doc.setTextColor(245, 158, 11); 
             
             doc.setFont("Helvetica", "bold");
             doc.text(acao, 42, y + 5);
             
             doc.setFont("Helvetica", "normal");
             doc.setTextColor(51, 65, 85);
+            
             doc.text(linhasFerramenta, 72, y + 5);
             doc.text(tds[3].innerText, 134, y + 5);
             doc.text(linhasObs, 147, y + 5);
@@ -412,7 +430,6 @@ window.emitirPDFIndividual = () => {
         }
     });
     
-    // ASSINATURA DE CONTROLE 
     y += 15;
     if (y > 260) { doc.addPage(); y = 30; }
     
