@@ -18,10 +18,11 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// MIDDLEWARE DE AUTENTICAÇÃO
+// MIDDLEWARE DE AUTENTICAÇÃO REVISADO
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Aceita tanto 'Bearer <token>' quanto '<token>' puro para evitar quebras de compatibilidade
+  const token = authHeader && (authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader);
 
   if (!token) {
     return res.status(401).json({ erro: "Acesso negado. Token não fornecido." });
@@ -37,7 +38,6 @@ const autenticarToken = (req, res, next) => {
 };
 
 // ROTAS DE PÁGINAS (FRONT-END)
-
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
 });
@@ -97,18 +97,16 @@ app.post("/login", async (req, res) => {
       tipo: usuarioBanco.tipo
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ erro: "Erro ao realizar login" });
   }
 });
 
-// CADASTRO
+// CADASTRO DE USUÁRIOS
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master") {
-      return res.status(403).json({
-        erro: "Você não tem permissão para cadastrar usuários."
-      });
+      return res.status(403).json({ erro: "Você não tem permissão para cadastrar usuários." });
     }
 
     const { nome, usuario, senha, tipo } = req.body;
@@ -135,12 +133,12 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
 
     res.json({ ok: true, mensagem: "Usuário criado com sucesso!" });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ erro: "Erro ao cadastrar usuário" });
   }
 });
 
-// LISTAGEM DE USUÁRIOS
+// LISTAGEM E GERENCIAMENTO DE USUÁRIOS
 const listarUsuariosHandler = async (req, res) => {
   try {
     const lista = await db.collection("usuarios").find().project({ senha: 0 }).toArray();
@@ -155,11 +153,8 @@ app.get("/usuarios", autenticarToken, listarUsuariosHandler);
 app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "master") {
-      return res.status(403).json({
-        erro: "Somente Master pode excluir usuários"
-      });
+      return res.status(403).json({ erro: "Somente Master pode excluir usuários" });
     }
-
     await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ ok: true });
   } catch (err) {
@@ -171,9 +166,7 @@ app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
 app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "master") {
-      return res.status(403).json({
-        erro: "Você não tem permissão para editar usuários!"
-      });
+      return res.status(403).json({ erro: "Você não tem permissão para editar usuários!" });
     }
 
     const { nome, tipo, senha } = req.body;
@@ -195,27 +188,21 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// ATUALIZAR USUÁRIO (Compatibilidade legada)
+// ROTAS LEGADAS DE USUÁRIO (Para compatibilidade se houver chamadas antigas)
 app.put("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, tipo, novaSenha } = req.body;
-
     let dadosAtualizados = { nome, tipo };
 
     if (novaSenha && novaSenha.trim() !== "") {
-      const senhaHash = await bcrypt.hash(novaSenha, 10);
-      dadosAtualizados.senha = senhaHash;
+      dadosAtualizados.senha = await bcrypt.hash(novaSenha, 10);
     }
 
-    await db.collection("usuarios").updateOne(
-      { _id: new ObjectId(id) },
-      { $set: dadosAtualizados }
-    );
-
+    await db.collection("usuarios").updateOne({ _id: new ObjectId(id) }, { $set: dadosAtualizados });
     res.json({ ok: true, message: "Usuário atualizado com sucesso!" });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ erro: "Erro ao atualizar usuário" });
   }
 });
@@ -223,13 +210,9 @@ app.put("/usuario/:id", autenticarToken, async (req, res) => {
 app.delete("/usuario/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master") {
-      return res.status(403).json({
-        erro: "Você não tem permissão para excluir usuários!"
-      });
+      return res.status(403).json({ erro: "Você não tem permissão para excluir usuários!" });
     }
-
-    const { id } = req.params;
-    await db.collection("usuarios").deleteOne({ _id: new ObjectId(id) });
+    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ ok: true });
   } catch (erro) {
     console.error(erro);
@@ -238,17 +221,13 @@ app.delete("/usuario/:id", autenticarToken, async (req, res) => {
 });
 
 // =================================================================
-// SEÇÃO: GESTÃO DE TÉCNICOS (MÓDULO DE FROTAS / DADOS COMPLETO)
+// GESTÃO DE TÉCNICOS (MÓDULO DE FROTAS / COMBUSTÍVEL)
 // =================================================================
 
-// LISTAR TODOS OS TÉCNICOS
+// 1. LISTAR TODOS OS TÉCNICOS DA FROTA
 app.get("/api/tecnicos", autenticarToken, async (req, res) => {
   try {
-    const tecnicos = await db
-      .collection("tecnicos")
-      .find()
-      .sort({ nome: 1 })
-      .toArray();
+    const tecnicos = await db.collection("tecnicos").find().sort({ nome: 1 }).toArray();
     res.json(tecnicos);
   } catch (erro) {
     console.error(erro);
@@ -256,7 +235,7 @@ app.get("/api/tecnicos", autenticarToken, async (req, res) => {
   }
 });
 
-// LISTAR APENAS OS TÉCNICOS ATIVOS (Filtrados de forma limpa sem dados de estoque)
+// 2. LISTAR APENAS OS TÉCNICOS ATIVOS DA FROTA (Usado nos Dropdowns de dados e dashboards)
 app.get("/api/tecnicos/ativos", autenticarToken, async (req, res) => {
   try {
     const listaTecnicos = await db.collection("tecnicos")
@@ -270,18 +249,14 @@ app.get("/api/tecnicos/ativos", autenticarToken, async (req, res) => {
   }
 });
 
-// CADASTRAR TÉCNICO NO SISTEMA PRINCIPAL
+// 3. ADICIONAR TÉCNICO NA FROTA
 app.post("/api/tecnicos", autenticarToken, async (req, res) => {
   try {
     const nome = (req.body.nome || "").trim();
-    if (!nome) {
-      return res.status(400).json({ erro: "Nome obrigatório" });
-    }
+    if (!nome) return res.status(400).json({ erro: "Nome obrigatório" });
 
     const existe = await db.collection("tecnicos").findOne({ nome });
-    if (existe) {
-      return res.status(400).json({ erro: "Técnico já cadastrado" });
-    }
+    if (existe) return res.status(400).json({ erro: "Técnico já cadastrado" });
 
     const resultado = await db.collection("tecnicos").insertOne({ 
       nome, 
@@ -295,7 +270,7 @@ app.post("/api/tecnicos", autenticarToken, async (req, res) => {
   }
 });
 
-// EXCLUIR TÉCNICO
+// 4. EXCLUIR TÉCNICO DA FROTA
 app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
   try {
     await db.collection("tecnicos").deleteOne({ _id: new ObjectId(req.params.id) });
@@ -307,7 +282,7 @@ app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
 });
 
 // =================================================================
-// SEÇÃO: GESTÃO DE ESTOQUE
+// GESTÃO DE ESTOQUE
 // =================================================================
 
 const estoqueHandler = async (req, res) => {
@@ -321,7 +296,6 @@ const estoqueHandler = async (req, res) => {
 app.get("/api/estoque", autenticarToken, estoqueHandler);
 app.get("/estoque", autenticarToken, estoqueHandler);
 
-// CADASTRAR ITEM NO ESTOQUE
 app.post("/api/estoque", autenticarToken, async (req, res) => {
   try {
     const novoItem = {
@@ -341,12 +315,10 @@ app.post("/api/estoque", autenticarToken, async (req, res) => {
   }
 });
 
-// EDITAR ITEM DO ESTOQUE
 app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
   try {
-    const { id } = req.params;
     await db.collection("estoque").updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new ObjectId(req.params.id) },
       { $set: {
           codigo: req.body.codigo,
           nome: req.body.nome,
@@ -364,11 +336,9 @@ app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// EXCLUIR ITEM DO ESTOQUE
 app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    await db.collection("estoque").deleteOne({ _id: new ObjectId(id) });
+    await db.collection("estoque").deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ ok: true });
   } catch (erro) {
     console.error(erro);
@@ -376,11 +346,6 @@ app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
   }
 });
 
-// =================================================================
-// SEÇÃO: REGISTROS E SINCRO DE PLANILHA (MÓDULO PRINCIPAL)
-// =================================================================
-
-// LOGS / HISTÓRICO GERAL DO ESTOQUE
 app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
   try {
     const logs = await db.collection("estoque_historico").find().sort({ data: -1 }).toArray();
@@ -390,7 +355,10 @@ app.get("/api/estoque/historico", autenticarToken, async (req, res) => {
   }
 });
 
-// MOSTRAR TODOS OS REGISTROS DE DADOS DO ANO/MÊS
+// =================================================================
+// REGISTROS DA PLANILHA (SISTEMA DE COMBUSTÍVEL)
+// =================================================================
+
 app.get("/api/registros", autenticarToken, async (req, res) => {
   try {
     const registros = await db.collection("registros").find().toArray();
@@ -400,7 +368,6 @@ app.get("/api/registros", autenticarToken, async (req, res) => {
   }
 });
 
-// ENVIAR / SALVAR COMPLETO (Sincronização em Lote)
 app.post("/api/registros", autenticarToken, async (req, res) => {
   try {
     const dados = req.body;
@@ -437,11 +404,9 @@ app.post("/api/registros", autenticarToken, async (req, res) => {
   }
 });
 
-// APAGAR REGISTRO
 app.delete("/registro/:id", autenticarToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(id) });
+    const resultado = await db.collection("registros").deleteOne({ _id: new ObjectId(req.params.id) });
     if (resultado.deletedCount === 1) {
       res.json({ ok: true, message: "Registro apagado com sucesso!" });
     } else {
@@ -455,19 +420,19 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
 // Arquivos estáticos da pasta public
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO SINCRONIZADA E SEGURO
+// INICIALIZAÇÃO DO SERVIDOR
 async function iniciarSistema() {
   try {
     console.log("🔄 Conectando ao MongoDB Atlas...");
     await client.connect();
-    db = client.db("neri_sistema"); // Certifique-se de que o nome está alinhado ao seu banco
+    db = client.db("neri_sistema");
     console.log("✅ Conectado com sucesso ao Banco de Dados.");
     
     app.listen(PORT, () => {
-      console.log(`🚀 Servidor a rodar na porta http://localhost:${PORT}`);
+      console.log(`🚀 Servidor rodando com sucesso na porta: ${PORT}`);
     });
   } catch (err) {
-    console.error("❌ Falha crítica ao iniciar o servidor principal:", err);
+    console.error("❌ Falha crítica ao iniciar o servidor:", err);
     process.exit(1);
   }
 }
