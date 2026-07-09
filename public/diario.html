@@ -53,7 +53,7 @@
         .btn-sucesso { background: #10B981; color: white; flex: 1; padding: 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .btn-insucesso { background: #EF4444; color: white; flex: 1; padding: 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-        .btn-nav-pequeno { background: #3B82F6; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-right: 5px; font-size: 12px; }
+        .btn-nav-pequeno { border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; flex: 1; display: flex; justify-content: center; align-items: center; gap: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
 
         .loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.9); z-index:999; display:flex; justify-content:center; align-items:center; flex-direction:column; display: none; }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
@@ -68,7 +68,6 @@
         <h2 id="nomeTecnico">Carregando...</h2>
     </div>
 
-    <!-- Topo: Painel de Resumo -->
     <div class="resumo-dia">
         <div class="resumo-box"><div class="resumo-valor" id="resumoKM">0</div><div class="resumo-titulo">KM Total</div></div>
         <div class="resumo-box"><div class="resumo-valor" id="resumoM" style="color:#F59E0B;">0</div><div class="resumo-titulo">Manhã</div></div>
@@ -79,7 +78,6 @@
         <div style="text-align: center; color: #94A3B8; margin-top: 50px;">A buscar rotas de hoje...</div>
     </div>
 
-    <!-- Tela de Carregamento -->
     <div class="loading-overlay" id="loader"><div class="spinner"></div><div style="color:white; font-weight:bold;">A sincronizar...</div></div>
 
 <script>
@@ -94,7 +92,7 @@
     let itinerarioDia = [];
     let dataDeHojeBR = "";
 
-    // Fórmula para calcular Distância em Linha Reta entre pontos GPS
+    // Fórmula para calcular Distância
     function calcularDistanciaKM(lat1, lon1, lat2, lon2) {
         const R = 6371; 
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -126,19 +124,17 @@
         let qtdM = 0; let qtdT = 0;
         let kmTotal = 0;
         
-        // Conta Manhã e Tarde
         itinerarioDia.forEach(item => {
             if(item.periodo === 'MANHA') qtdM++; else qtdT++;
         });
 
-        // Calcula KM aproximado ponto a ponto
         for(let i = 0; i < itinerarioDia.length - 1; i++) {
             kmTotal += calcularDistanciaKM(itinerarioDia[i].lat, itinerarioDia[i].lon, itinerarioDia[i+1].lat, itinerarioDia[i+1].lon);
         }
 
         document.getElementById("resumoM").innerText = qtdM;
         document.getElementById("resumoT").innerText = qtdT;
-        document.getElementById("resumoKM").innerText = (kmTotal * 1.3).toFixed(1); // x1.3 para compensar curvas de rua
+        document.getElementById("resumoKM").innerText = (kmTotal * 1.3).toFixed(1); 
     }
 
     function renderizarLista() {
@@ -147,9 +143,11 @@
 
         itinerarioDia.forEach((cliente, index) => {
             const seq = index + 1;
-            const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
             
-            // Define o design dos botões baseado no Status Atual
+            // Novos Links Duplos de GPS
+            const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
+            const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${cliente.lat},${cliente.lon}`;
+            
             let botoesHTML = "";
             let iconeStatus = "▼";
 
@@ -180,9 +178,11 @@
                     </div>
                     
                     <div class="paragem-body" id="body-${index}">
-                        <div style="margin-bottom: 15px;">
-                            <button class="btn-nav-pequeno" onclick="window.open('${wazeUrl}', '_blank')">🧭 Abrir GPS (Waze)</button>
+                        <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                            <button class="btn-nav-pequeno" style="background-color: #00C3FF; color: #0F172A;" onclick="window.open('${wazeUrl}', '_blank')">🧭 Waze</button>
+                            <button class="btn-nav-pequeno" style="background-color: #10B981; color: white;" onclick="window.open('${mapsUrl}', '_blank')">🗺️ Maps</button>
                         </div>
+                        
                         <div class="info-linha"><span class="info-titulo">Endereço</span><span class="info-valor">${cliente.rua}, ${cliente.cidade}</span></div>
                         <div class="info-linha"><span class="info-titulo">Serviço</span><span class="info-valor" style="color:#F59E0B;">${cliente.servico || 'Padrão'}</span></div>
                         
@@ -193,7 +193,6 @@
         });
     }
 
-    // Abre apenas 1 sanfona de cada vez
     function toggleCard(indexExpandir) {
         itinerarioDia.forEach((_, index) => {
             const body = document.getElementById(`body-${index}`);
@@ -205,11 +204,9 @@
         });
     }
 
-    // Comunica ao servidor a nova cor/etapa
     async function mudarStatus(codigoOs, novoStatus, campoCronometro, indexArray) {
         document.getElementById("loader").style.display = "flex";
         
-        // Pega a hora exata do telemóvel do técnico (Ex: 14:32:00)
         const horaExata = new Date().toLocaleTimeString('pt-BR', { hour12: false });
 
         try {
@@ -227,12 +224,10 @@
             });
 
             if (res.ok) {
-                // Se o servidor aceitou, atualiza a tela do telemóvel localmente
                 itinerarioDia[indexArray].status = novoStatus;
                 renderizarLista();
-                document.getElementById(`body-${indexArray}`).style.display = "block"; // Mantém aberto
+                document.getElementById(`body-${indexArray}`).style.display = "block"; 
                 
-                // Se finalizou, fecha este card automaticamente para limpar a visão
                 if(novoStatus === 'sucesso' || novoStatus === 'insucesso') {
                     setTimeout(() => { document.getElementById(`body-${indexArray}`).style.display = "none"; }, 800);
                 }

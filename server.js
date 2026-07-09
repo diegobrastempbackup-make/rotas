@@ -238,18 +238,24 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo } = req.body;
         
-        // Ex: Atualiza o status para "deslocamento" e marca "horaSaida": "14:30:00"
         let atualizacao = { "itinerario.$.status": novoStatus };
         if (campoTempo && valorTempo) {
             atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         }
 
+        // A MÁGICA: Agora o servidor ignora maiúsculas/minúsculas e aceita Códigos OS como Texto ou Número
         const resultado = await db.collection("planejamento_rotas").updateOne(
-            { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id, "itinerario.codigo": codigoOs },
+            { 
+                data: data, 
+                tecnico: new RegExp(`^${tecnico}$`, 'i'), // 'i' significa Case Insensitive
+                cliente_id: req.usuario.cliente_id, 
+                "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } 
+            },
             { $set: atualizacao }
         );
 
-        if (resultado.modifiedCount > 0) res.json({ ok: true });
+        // Usamos matchedCount em vez de modifiedCount para garantir estabilidade na internet móvel
+        if (resultado.matchedCount > 0) res.json({ ok: true });
         else res.status(400).json({ erro: "Paragem não encontrada" });
     } catch (err) {
         res.status(500).json({ erro: "Erro ao atualizar status." });
