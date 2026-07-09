@@ -3,93 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login NERI</title>
-
+  <title>Login NERI 2.0</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+        background: #0F172A; 
+        min-height: 100vh; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        font-family: Arial, sans-serif; 
+        padding: 20px;
     }
+    
+    .card { 
+        width: 100%; 
+        max-width: 400px; 
+        background: #1E293B; 
+        padding: 40px 30px; 
+        border-radius: 20px; 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+        text-align: center; 
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .logo { width: 220px; max-width: 100%; margin-bottom: 25px; }
+    .titulo { color: white; margin-bottom: 10px; font-size: 22px; font-weight: bold; }
+    .subtitulo { color: #94A3B8; font-size: 13px; margin-bottom: 30px; }
 
-    body {
-      background: #0F172A;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: Arial, sans-serif;
+    input { 
+        width: 100%; 
+        padding: 15px; 
+        margin: 8px 0; 
+        border: 1px solid rgba(255,255,255,0.1); 
+        border-radius: 10px; 
+        outline: none; 
+        font-size: 15px; 
+        background: #0F172A; 
+        color: white; 
+        transition: border-color 0.3s; 
     }
+    input:focus { border-color: #3B82F6; }
+    input::placeholder { color: #64748B; }
 
-    .card {
-      width: 420px;
-      background: #1E293B;
-      padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 0 25px rgba(0,0,0,.4);
-      text-align: center;
+    button { 
+        width: 100%; 
+        padding: 15px; 
+        margin-top: 20px; 
+        background: #2563EB; 
+        color: white; 
+        border: none; 
+        border-radius: 10px; 
+        cursor: pointer; 
+        font-size: 16px; 
+        font-weight: bold; 
+        transition: background 0.2s, transform 0.1s; 
     }
+    button:hover { background: #1D4ED8; }
+    button:active { transform: scale(0.98); }
 
-    .logo {
-      width: 280px;
-      max-width: 100%;
-      margin-bottom: 30px;
-    }
-
-    input {
-      width: 100%;
-      padding: 14px;
-      margin: 10px 0;
-      border: none;
-      border-radius: 10px;
-      outline: none;
-      font-size: 15px;
-      background: #0F172A;
-      color: white;
-    }
-
-    input::placeholder {
-      color: #94A3B8;
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      margin-top: 10px;
-      background: #22C55E;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 16px;
-      font-weight: bold;
-      transition: background 0.2s;
-    }
-
-    button:hover {
-      background: #16A34A;
-    }
-
-    .titulo {
-      color: white;
-      margin-bottom: 20px;
-      font-size: 22px;
-    }
+    .rodape { margin-top: 25px; color: #64748B; font-size: 12px; }
   </style>
 </head>
 <body>
 
 <div class="card">
-  <img src="logo.svg" class="logo" alt="NERI">
+  <img src="logo.svg" class="logo" alt="Plataforma NERI">
+  <div class="titulo">Acesso ao Sistema</div>
+  <div class="subtitulo">Plataforma de Gestão de Frotas e Almoxarifado</div>
 
-  <div class="titulo">
-    Gestão de Frotas
+  <input id="usuario" type="text" placeholder="Utilizador / Login" autocomplete="off" autocapitalize="off">
+  <input id="senha" type="password" placeholder="Palavra-passe">
+
+  <button onclick="entrar()">Entrar na Conta</button>
+  
+  <div class="rodape">
+      © Diego Neri - SaaS Fleet Management
   </div>
-
-  <input id="usuario" placeholder="Usuário">
-  <input id="senha" type="password" placeholder="Senha">
-
-  <button onclick="entrar()">Entrar</button>
 </div>
 
 <script>
@@ -97,75 +87,60 @@ async function entrar() {
   const usuario = document.getElementById("usuario").value.trim();
   const senha = document.getElementById("senha").value;
 
-  if (!usuario || !senha) {
-    alert("Preencha usuário e senha");
-    return;
-  }
+  if (!usuario || !senha) return alert("Preencha o utilizador e a palavra-passe!");
 
   try {
-    // Rota alterada para se comunicar com o endpoint correto do seu server.js (/api/login)
     const resposta = await fetch("/login", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ usuario, senha })
     });
 
     const dados = await resposta.json();
+    if (!resposta.ok) return alert(dados.erro || "Erro ao efetuar login. Verifique as credenciais.");
 
-    if (!resposta.ok) {
-      alert(dados.erro || "Erro ao fazer login");
-      return;
-    }
-
-    // 1. Grava o token obtido do backend
+    // Guarda a chave de acesso (Token)
     localStorage.setItem("token", dados.token);
     
-    // 2. Acessa de forma segura o objeto interno retornado pelo MongoDB
     const nomeUsuario = dados.nome || "";
-let tipoDefinido = String(dados.tipo || "").toLowerCase().trim();
+    let tipoDefinido = String(dados.tipo || "").toLowerCase().trim();
 
-localStorage.setItem("usuarioNome", nomeUsuario);
-localStorage.setItem("usuarioTipo", tipoDefinido);
+    localStorage.setItem("usuarioNome", nomeUsuario);
 
-    // 3. CAPTURA RÍGIDA DO ESTOQUE (Verifica se tipo é estoque OU se é "simples" com carimbo no nome)
+    // Regra de segurança legada para o Estoque
     if (tipoDefinido === "estoque" || (tipoDefinido === "simples" && (nomeUsuario.toUpperCase().includes("ESTOQUE") || nomeUsuario.toUpperCase().includes("[ESTOQUE]")))) {
       tipoDefinido = "estoque";
     }
 
     localStorage.setItem("usuarioTipo", tipoDefinido);
 
-    // 4. REDIRECIONAMENTO SEPARADO POR NÍVEL DE ACESSO
+    // ==========================================
+    // A MAGIA DA REDIREÇÃO INTELIGENTE
+    // ==========================================
     if (tipoDefinido === "estoque") {
+      // 📦 Vai para o Almoxarifado
+      window.location.replace(`/estoque.html?token=${dados.token}`);
+      
+    } else if (tipoDefinido === "simples") {
+      // 📱 Vai para o Diário de Bordo (App Mobile c/ Câmara OCR)
+      window.location.replace(`/diario.html?token=${dados.token}`);
+      
+    } else if (tipoDefinido === "master" || tipoDefinido === "admin" || tipoDefinido === "superadmin") {
+      // 📊 Vai para o Painel de Gestão (Dashboard)
+      window.location.replace(`/index.html?token=${dados.token}`);
+      
+    } else {
+      alert("Perfil de utilizador inválido. Contacte o suporte.");
+    }
 
-  window.location.replace(`/estoque.html?token=${dados.token}`);
-
-} else if (
-  tipoDefinido === "master" ||
-  tipoDefinido === "admin" ||
-  tipoDefinido === "simples"
-) {
-
-  window.location.replace(`/index.html?token=${dados.token}`);
-
-} else {
-
-  alert("Perfil de usuário inválido.");
-}
-
-  } catch (err) {
-    console.error(err);
-    alert("Erro ao conectar ao servidor. Certifique-se de que o backend está rodando.");
+  } catch (err) { 
+      alert("Erro ao conectar ao servidor. Verifique a sua ligação à internet."); 
   }
 }
 
-// Permite efetuar o login ao pressionar a tecla Enter dentro dos inputs
-document.getElementById("senha").addEventListener("keypress", function(event) {
-  if (event.key === "Enter") entrar();
-});
-document.getElementById("usuario").addEventListener("keypress", function(event) {
-  if (event.key === "Enter") entrar();
+// Permite fazer login ao pressionar a tecla "Enter" no teclado
+document.getElementById("senha").addEventListener("keypress", function(e) { 
+    if (e.key === "Enter") entrar(); 
 });
 </script>
 

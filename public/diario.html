@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Diário de Bordo - NERI</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #0F172A; color: white; display: flex; flex-direction: column; min-height: 100vh; }
+        .header { background: #1E293B; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .header img { height: 30px; }
+        .header .user { font-size: 14px; color: #94A3B8; font-weight: bold; }
+        
+        .container { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 15px; }
+        
+        .card { background: #1E293B; padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .card h3 { margin: 0 0 15px 0; color: #60A5FA; font-size: 18px; }
+
+        label { display: block; font-size: 13px; color: #94A3B8; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; outline: none; }
+        input:focus, select:focus { border-color: #3B82F6; }
+
+        /* Botão da Câmera Gigante */
+        .btn-camera { background: linear-gradient(135deg, #10B981, #059669); color: white; padding: 18px; border: none; border-radius: 10px; width: 100%; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); transition: 0.2s; }
+        .btn-camera:active { transform: scale(0.98); }
+        
+        /* Botão de Envio */
+        .btn-enviar { background: #2563EB; color: white; padding: 16px; border: none; border-radius: 10px; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-enviar:active { background: #1D4ED8; }
+
+        /* Esconder input de arquivo original */
+        input[type="file"] { display: none; }
+
+        /* Overlay de Carregamento da IA */
+        #loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <img src="logo.svg" alt="NERI">
+    <div class="user" id="nomeUsuarioLogado">Técnico</div>
+</div>
+
+<div class="container">
+    
+    <label for="capturaCamera" class="btn-camera">
+        📷 LER PAINEL COM A CÂMERA
+    </label>
+    <input type="file" id="capturaCamera" accept="image/*" capture="environment" onchange="processarImagemOCR(event)">
+
+    <div class="card">
+        <h3>Lançamento de Atividade</h3>
+        
+        <label>Técnico Responsável</label>
+        <select id="campoTecnico"></select>
+
+        <label>Data da Ocorrência</label>
+        <input type="date" id="campoData">
+
+        <label>O que está a registar?</label>
+        <select id="campoTipo" onchange="mudarFormulario()">
+            <option value="kmIni">Início do Dia (KM Inicial)</option>
+            <option value="kmFim">Fim do Dia (KM Final)</option>
+            <option value="abastecimento">Abastecimento na Bomba</option>
+        </select>
+
+        <label id="lblKm">Quilometragem (KM)</label>
+        <input type="number" id="campoKm" placeholder="Ex: 148988">
+
+        <div id="areaAbastecimento" style="display: none;">
+            <label>Quantidade de Litros</label>
+            <input type="number" id="campoLitros" placeholder="Ex: 10.5" step="0.01">
+            
+            <label>Valor Total (R$)</label>
+            <input type="number" id="campoValor" placeholder="Ex: 43.90" step="0.01">
+        </div>
+
+        <button class="btn-enviar" onclick="salvarDiario()">💾 Guardar Registo</button>
+    </div>
+    
+    <button onclick="sair()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 12px; border-radius: 10px; width: 100%; font-weight: bold; margin-top: 10px;">Sair do Sistema</button>
+</div>
+
+<div id="loading">
+    <div class="spinner"></div>
+    <div style="font-weight: bold; color: white;">A IA está a ler a imagem...</div>
+    <div style="font-size: 12px; color: #94A3B8; margin-top: 5px;">A foto não será guardada.</div>
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+if (!token) window.location.replace("/login.html");
+
+document.getElementById("nomeUsuarioLogado").innerText = localStorage.getItem("usuarioNome") || "Técnico";
+
+// Configura a data para Hoje por defeito
+const hoje = new Date();
+const dataFormatada = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+document.getElementById("campoData").value = dataFormatada;
+
+// Carrega os Técnicos para o select
+async function carregarTecnicos() {
+    try {
+        const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
+        const lista = await res.json();
+        const select = document.getElementById("campoTecnico");
+        const meuNome = localStorage.getItem("usuarioNome").toLowerCase();
+        
+        lista.filter(t => t.status === "Ativo" || !t.status).forEach(t => {
+            const option = document.createElement("option");
+            option.value = t.nome;
+            option.text = t.nome;
+            select.appendChild(option);
+            // Auto-seleciona se o nome do login bater com o nome do cadastro
+            if (t.nome.toLowerCase().includes(meuNome) || meuNome.includes(t.nome.toLowerCase())) {
+                option.selected = true;
+            }
+        });
+    } catch (e) { console.error(e); }
+}
+carregarTecnicos();
+
+// Alterna os campos dependendo do tipo de registo
+function mudarFormulario() {
+    const tipo = document.getElementById("campoTipo").value;
+    const areaAbs = document.getElementById("areaAbastecimento");
+    const lblKm = document.getElementById("lblKm");
+
+    if (tipo === "abastecimento") {
+        areaAbs.style.display = "block";
+        lblKm.innerText = "KM no momento do Abastecimento";
+    } else {
+        areaAbs.style.display = "none";
+        lblKm.innerText = "Quilometragem Lida (KM)";
+    }
+}
+
+// 🧠 O CORAÇÃO DO SISTEMA OCR (INTELIGÊNCIA ARTIFICIAL)
+async function processarImagemOCR(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    document.getElementById("loading").style.display = "flex";
+
+    try {
+        // Pede ao Tesseract para ler a imagem em português
+        const resultado = await Tesseract.recognize(file, 'por');
+        const texto = resultado.data.text;
+        
+        // Expressão Regular: Procura números que tenham entre 4 a 6 dígitos (Ex: 148988 ou 149055)
+        const numerosEncontrados = texto.match(/\b\d{4,6}\b/g);
+
+        if (numerosEncontrados) {
+            // Se encontrar vários números grandes na tela, pega o maior (geralmente é o KM total)
+            const kmIdentificado = Math.max(...numerosEncontrados.map(Number));
+            document.getElementById("campoKm").value = kmIdentificado;
+            alert(`✅ Sucesso! A câmara leu o KM: ${kmIdentificado}\n\nPor favor, verifique no ecrã se o número está correto.`);
+        } else {
+            alert("⚠️ Não consegui encontrar o KM na foto. Verifique se não houve reflexo de luz e digite manualmente.");
+        }
+    } catch (erro) {
+        alert("Ocorreu um erro ao processar a imagem. Por favor, digite os valores manualmente.");
+    } finally {
+        document.getElementById("loading").style.display = "none";
+        event.target.value = ""; // Limpa a memória do arquivo tirado
+    }
+}
+
+// Envia os dados cruzados com os dados já existentes no servidor (Para evitar perda de dados se preenchido atrasado)
+async function salvarDiario() {
+    const tecnico = document.getElementById("campoTecnico").value;
+    const data = document.getElementById("campoData").value;
+    const tipo = document.getElementById("campoTipo").value;
+    const kmLido = Number(document.getElementById("campoKm").value);
+    const litros = Number(document.getElementById("campoLitros").value);
+    const valor = parseFloat(document.getElementById("campoValor").value.replace(",", "."));
+
+    if (!tecnico || !data || !kmLido) return alert("Preencha a Data, Técnico e o KM!");
+    if (tipo === "abastecimento" && (!litros || !valor)) return alert("Preencha os Litros e o Valor do abastecimento!");
+
+    try {
+        // 1. PRIMEIRO PASSO: Busca se já existe registo deste técnico neste dia
+        const resBusca = await fetch("/api/registros", { headers: { "Authorization": `Bearer ${token}` } });
+        const todosRegistos = await resBusca.json();
+        
+        // Acha a linha de hoje (se existir)
+        let registoDoDia = todosRegistos.find(r => r.tecnico === tecnico && String(r.data).startsWith(data));
+        
+        // Se não existir, cria um esqueleto limpo
+        if (!registoDoDia) {
+            registoDoDia = { tecnico, data, kmIni: 0, kmFim: 0, km: 0, consumo: 0, abastAnt: "", abastAtual: "", litros: 0, valor: 0 };
+        }
+
+        // 2. SEGUNDO PASSO: Injeta o que ele acabou de digitar
+        if (tipo === "kmIni") registoDoDia.kmIni = kmLido;
+        if (tipo === "kmFim") registoDoDia.kmFim = kmLido;
+        if (tipo === "abastecimento") {
+            registoDoDia.abastAtual = kmLido;
+            registoDoDia.litros = litros;
+            registoDoDia.valor = valor;
+        }
+
+        // 3. TERCEIRO PASSO: O sistema de IA calcula as médias automaticamente
+        if (registoDoDia.kmFim > 0 && registoDoDia.kmIni > 0) {
+            registoDoDia.km = registoDoDia.kmFim - registoDoDia.kmIni;
+        }
+        if (registoDoDia.km > 0 && registoDoDia.litros > 0) {
+            registoDoDia.consumo = (registoDoDia.km / registoDoDia.litros).toFixed(2);
+        }
+
+        // 4. ENVIA PARA O SERVIDOR!
+        const resPost = await fetch("/registro", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({ dados: [registoDoDia] })
+        });
+
+        if (resPost.ok) {
+            alert("🚀 Registo guardado com sucesso na base de dados!");
+            document.getElementById("campoKm").value = "";
+            document.getElementById("campoLitros").value = "";
+            document.getElementById("campoValor").value = "";
+        } else {
+            alert("Erro ao gravar registo.");
+        }
+    } catch (err) {
+        alert("Erro de comunicação com a plataforma.");
+    }
+}
+
+function sair() {
+    localStorage.clear();
+    window.location.replace("/login.html");
+}
+</script>
+</body>
+</html>
