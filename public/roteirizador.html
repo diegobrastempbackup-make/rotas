@@ -6,10 +6,8 @@
     <title>Roteirizador Inteligente - NERI</title>
     
     <link rel="stylesheet" href="style.css?v=2">
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
@@ -17,34 +15,41 @@
         .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
         .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
         
-        /* Área de Upload */
         .upload-area { border: 2px dashed rgba(59, 130, 246, 0.5); background: rgba(30, 41, 59, 0.5); padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
         .upload-area:hover { background: rgba(30, 41, 59, 0.8); border-color: #3B82F6; }
         .upload-area input { display: none; }
         .upload-area h3 { color: #60A5FA; margin: 0 0 10px 0; }
         .upload-area p { color: #94A3B8; font-size: 13px; margin: 0; }
 
-        /* Painel de Controle de Rotas (Escondido até carregar o Excel) */
         #painelRotas { display: none; flex-grow: 1; display: flex; gap: 20px; margin-top: 10px; }
         
-        .lista-tecnicos { width: 350px; background: #1E293B; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; overflow: hidden; }
-        .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 16px; }
+        .painel-esquerdo { width: 350px; display: flex; flex-direction: column; gap: 15px; }
+
+        .caixa-busca { background: #1E293B; padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .caixa-busca h3 { margin: 0 0 10px 0; color: #60A5FA; font-size: 14px; }
+        .caixa-busca input { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; }
+        .caixa-busca button { width: 100%; padding: 10px; background: #3B82F6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
         
+        .lista-tecnicos { background: #1E293B; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
+        .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 14px; }
+        
+        .lista-clientes { flex-grow: 1; overflow-y: auto; }
         .tecnico-item { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
         .tecnico-item:hover { background: rgba(59, 130, 246, 0.1); }
         .tecnico-item.ativo { background: rgba(59, 130, 246, 0.2); border-left: 4px solid #3B82F6; }
-        .tecnico-nome { font-weight: bold; color: #E2E8F0; }
-        .tecnico-stats { font-size: 12px; color: #94A3B8; margin-top: 4px; }
+        .tecnico-nome { font-weight: bold; color: #E2E8F0; font-size: 13px; }
+        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 4px; }
         
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
 
-        .lista-clientes { flex-grow: 1; overflow-y: auto; }
-        
         .badge-turno { font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
         .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; }
         .badge-tarde { background: rgba(16, 185, 129, 0.2); color: #10B981; }
+
+        /* Estilo do Pino Numerado */
+        .custom-pin { background: transparent; border: none; }
     </style>
     <script>
         function navegarSeguro(rota) { const token = localStorage.getItem("token"); window.location.href = `${rota}?token=${token}`; }
@@ -54,13 +59,13 @@
 
 <div class="container">
     <div class="sidebar">
-        <div class="logo-area"><img src="logo.svg" class="logo" alt="Logo NERI" style="max-width: 100%; height: auto; margin-bottom: 10px;" /></div>
+        <div class="logo-area"><img src="logo.svg" class="logo" alt="Logo NERI" style="max-width: 100%; margin-bottom: 10px;" /></div>
         <div class="menu">
             <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
             <button onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
             <button style="background: #2563EB; color: white; border-color: #3B82F6;">🗺️ Roteirizador</button>
             <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
-            <hr><button onclick="navegarSeguro('/tecnicos.html')">⚙️ Administração</button><hr>
+            <hr><button onclick="navegarSeguro('/tecnicos.html')" id="btnAdmin" style="display:none;">⚙️ Administração</button><hr>
             <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">🚪 Sair</button>
         </div>
     </div>
@@ -68,7 +73,7 @@
     <div class="main">
         <div class="header-painel">
             <h1>Roteirizador de Frotas</h1>
-            <p>Faça upload da sua folha de serviços (Excel/CSV). O sistema fará a divisão por técnico e calculará a rota ideal.</p>
+            <p>Faça upload da folha, veja o percurso sequencial e salve o histórico diário.</p>
         </div>
 
         <label class="upload-area" id="areaUpload">
@@ -78,13 +83,22 @@
         </label>
 
         <div id="painelRotas">
-            <div class="lista-tecnicos">
-                <div class="lista-tecnicos-header" style="display: flex; justify-content: space-between; align-items: center;">
-    <h3>Equipa em Rota Hoje</h3>
-    <button onclick="limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px;">🔄 Nova Planilha</button>
-</div>
-                <div class="lista-clientes" id="listaTecnicosUI">
+            <div class="painel-esquerdo">
+                
+                <div class="caixa-busca">
+                    <h3>🔍 Consultar Histórico</h3>
+                    <input type="date" id="buscaData" title="Pesquisar roteiro por Data">
+                    <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código (Ex: 80890)">
+                    <button onclick="buscarHistorico()">Buscar Planeamento</button>
+                </div>
+
+                <div class="lista-tecnicos">
+                    <div class="lista-tecnicos-header">
+                        <h3>Equipa em Rota Hoje</h3>
+                        <button onclick="limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px;">🔄 Novo</button>
                     </div>
+                    <div class="lista-clientes" id="listaTecnicosUI"></div>
+                </div>
             </div>
             
             <div id="mapaArea">
@@ -95,9 +109,12 @@
 </div>
 
 <script>
-    // Validação de Segurança
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
+    const usuarioTipo = localStorage.getItem("usuarioTipo");
+    if (usuarioTipo === "master" || usuarioTipo === "superadmin" || usuarioTipo === "admin") {
+        document.getElementById("btnAdmin").style.display = "block";
+    }
 
     let mapa = null;
     let layerGrupo = null; 
@@ -116,8 +133,6 @@
             document.getElementById("painelRotas").style.display = "flex";
             renderizarListaTecnicos();
             setTimeout(() => { mapa.invalidateSize(); }, 500);
-        } else {
-            document.getElementById("painelRotas").style.display = "none";
         }
     });
 
@@ -125,24 +140,20 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A analisar rotas e duplicados...</h3>`;
+        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A analisar rotas...</h3>`;
 
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, {type: 'array'});
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
                 
                 if (jsonData.length === 0) return alert("⚠️ Excel vazio.");
 
                 const dadosNormalizados = jsonData.map(linha => {
                     let novaLinha = {};
-                    for (let chave in linha) {
-                        let chaveLimpa = chave.trim().toUpperCase(); 
-                        novaLinha[chaveLimpa] = linha[chave];
-                    }
+                    for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; }
                     return novaLinha;
                 });
                 
@@ -152,12 +163,10 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // O CÉREBRO DA CONSOLIDACÃO DE PARAGENS
     function agruparPorTecnico(linhas) {
         dadosGlobaisRotas = {};
         let ordensPorTecnico = {};
 
-        // PASSO 1: Junta todas as ordens brutas por Técnico primeiro
         linhas.forEach(linha => {
             const tecnico = linha["TÉCNICO"] || linha["TECNICO"] || "SEM NOME";
             if (!linha["CÓDIGO"] && !linha["CLIENTE"] && tecnico === "SEM NOME") return;
@@ -167,75 +176,46 @@
 
             let cepLimpo = String(linha["CEP"] || "").replace(/\D/g, '').trim(); 
             let cepFormatado = cepLimpo.padStart(8, '0'); 
-            if (cepFormatado.length === 8) {
-                cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
-            }
+            if (cepFormatado.length === 8) cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
 
-            const rua = String(linha["ENDEREÇO"] || linha["ENDERECO"] || "").trim();
-            const cidade = String(linha["CIDADE"] || "São Paulo").trim();
-
-            if (!ordensPorTecnico[tecnico]) {
-                ordensPorTecnico[tecnico] = [];
-            }
+            if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
             ordensPorTecnico[tecnico].push({
                 codigo: linha["CÓDIGO"] || linha["CODIGO"] || "",
                 cliente: String(linha["CLIENTE"] || "Sem Nome").trim(),
                 servico: linha["SERVIÇO"] || linha["SERVICO"] || "",
-                rua: rua,
-                cidade: city = cidade,
+                rua: String(linha["ENDEREÇO"] || linha["ENDERECO"] || "").trim(),
+                cidade: String(linha["CIDADE"] || "São Paulo").trim(),
                 cep: cepFormatado,
                 detalhes: linha["DETALHES O.S"] || linha["DETALHES O.S."] || "",
-                periodo: periodoOriginal // Guardado temporariamente para a análise
+                periodo: periodoOriginal 
             });
         });
 
-        // PASSO 2: Varre a lista de cada técnico caçando o mesmo endereço
+        // Consolidação inteligente de paragens
         Object.keys(ordensPorTecnico).forEach(tecnico => {
             let listaOrdens = ordensPorTecnico[tecnico];
-
             listaOrdens.forEach(ordemAtual => {
-                // Procura outras ordens do MESMO técnico no MESMO endereço
-                let duplicadas = listaOrdens.filter(o => 
-                    o.rua.toLowerCase() === ordemAtual.rua.toLowerCase() && 
-                    o.codigo !== ordemAtual.codigo
-                );
-
+                let duplicadas = listaOrdens.filter(o => o.rua.toLowerCase() === ordemAtual.rua.toLowerCase() && o.codigo !== ordemAtual.codigo);
                 if (duplicadas.length > 0) {
-                    // Verifica se existe um choque de horários (uma de manhã e outra de tarde)
                     let temManha = ordemAtual.periodo === 'MANHA' || duplicadas.some(o => o.periodo === 'MANHA');
                     let temTarde = ordemAtual.periodo === 'TARDE' || duplicadas.some(o => o.periodo === 'TARDE');
-
                     if (temManha && temTarde) {
-                        // Verifica se todos os registos desse endereço pertencem ao mesmo cliente
                         let mesmoCliente = duplicadas.every(o => o.cliente.toLowerCase() === ordemAtual.cliente.toLowerCase());
-
-                        if (mesmoCliente) {
-                            // 🗓️ REGRA CLIENTE IGUAL -> Puxa tudo para a MANHÃ
-                            ordemAtual.periodo = 'MANHA';
-                            duplicadas.forEach(o => o.periodo = 'MANHA');
-                        } else {
-                            // 🏢 REGRA CLIENTES DIFERENTES -> Empurra tudo para a TARDE
-                            ordemAtual.periodo = 'TARDE';
-                            duplicadas.forEach(o => o.periodo = 'TARDE');
-                        }
+                        let novoPeriodo = mesmoCliente ? 'MANHA' : 'TARDE';
+                        ordemAtual.periodo = novoPeriodo;
+                        duplicadas.forEach(o => o.periodo = novoPeriodo);
                     }
                 }
             });
 
-            // PASSO 3: Agora sim, separa definitivamente as ordens corrigidas nos blocos finais
             dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
-            
             listaOrdens.forEach(ordem => {
-                if (ordem.periodo === 'MANHA') {
-                    dadosGlobaisRotas[tecnico].manha.push(ordem);
-                } else {
-                    dadosGlobaisRotas[tecnico].tarde.push(ordem);
-                }
+                if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
+                else dadosGlobaisRotas[tecnico].tarde.push(ordem);
             });
         });
 
-        // Guarda os dados processados e limpos na memória
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
@@ -267,7 +247,7 @@
         });
 
         divLista.innerHTML += `
-            <div style="padding: 15px; margin-top: 10px;">
+            <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
                 <button onclick="salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
                     💾 Salvar Planeamento no Banco
                 </button>
@@ -287,11 +267,13 @@
         const todosClientes = [...dadosTecnico.manha, ...dadosTecnico.tarde];
         
         const toast = document.createElement("div");
-        toast.innerText = `A traçar rota inteligente para ${nome}...`;
-        toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3);";
+        toast.innerText = `A desenhar percurso de ${nome}...`;
+        toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;";
         document.getElementById("mapaArea").appendChild(toast);
 
         let pinosEncontrados = 0;
+        let coordenadasRota = []; // Armazena os pontos para desenhar a linha
+        let sequencia = 1; // Número do pino
 
         for(let cliente of todosClientes) {
             try {
@@ -303,10 +285,7 @@
                         let resCep = await fetch(`https://cep.awesomeapi.com.br/json/${cepNumeros}`);
                         if(resCep.ok) {
                             let dadosCep = await resCep.json();
-                            if(dadosCep.lat && dadosCep.lng) {
-                                lat = parseFloat(dadosCep.lat);
-                                lon = parseFloat(dadosCep.lng);
-                            }
+                            if(dadosCep.lat && dadosCep.lng) { lat = parseFloat(dadosCep.lat); lon = parseFloat(dadosCep.lng); }
                         }
                     } catch(e) {}
                 }
@@ -318,37 +297,53 @@
                         let resNom = await fetch(urlBusca);
                         if(resNom.ok) {
                             let locNom = await resNom.json();
-                            if (locNom && locNom.length > 0) {
-                                lat = parseFloat(locNom[0].lat);
-                                lon = parseFloat(locNom[0].lon);
-                            }
+                            if (locNom && locNom.length > 0) { lat = parseFloat(locNom[0].lat); lon = parseFloat(locNom[0].lon); }
                         }
                         await new Promise(r => setTimeout(r, 1500)); 
                     } catch(e) {}
                 }
                 
                 if (lat && lon) {
-                    const pino = L.marker([lat, lon]).bindPopup(`
+                    coordenadasRota.push([lat, lon]);
+
+                    // PINO COM NÚMERO
+                    const customIcon = L.divIcon({
+                        className: 'custom-pin',
+                        html: `<div style="background-color: #EF4444; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 14px;">${sequencia}</div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+
+                    const pino = L.marker([lat, lon], {icon: customIcon}).bindPopup(`
                         <div style="font-family:Arial,sans-serif; font-size:13px; color:#1E293B;">
-                            <strong style="color: #2563EB; font-size:14px;">📍 OS: ${cliente.codigo}</strong><br>
+                            <strong style="color: #EF4444; font-size:15px;">Paragem #${sequencia}</strong><br>
+                            <strong style="color: #2563EB;">📍 OS: ${cliente.codigo}</strong><br>
                             <strong>Cliente:</strong> ${cliente.cliente}<br>
                             <strong>Endereço:</strong> ${cliente.rua}<br>
-                            <strong>CEP:</strong> ${cliente.cep} (${cliente.cidade})<br>
                             ${cliente.detalhes ? `<strong>Obs:</strong> <span style="color:#D97706;">${cliente.detalhes}</span>` : ''}
                         </div>
                     `);
                     pino.addTo(layerGrupo);
                     pinosEncontrados++;
+                    sequencia++;
                 }
             } catch(e) { console.error("Erro na busca:", cliente.cliente); }
         }
         
+        // DESENHAR A LINHA DA ROTA SE HOUVER MAIS DE 1 PONTO
+        if (coordenadasRota.length > 1) {
+            L.polyline(coordenadasRota, {
+                color: '#3B82F6', 
+                weight: 4, 
+                opacity: 0.8,
+                dashArray: '8, 8' // Faz a linha ficar tracejada
+            }).addTo(layerGrupo);
+        }
+
         toast.remove();
 
         if (pinosEncontrados > 0) {
             mapa.fitBounds(layerGrupo.getBounds(), {padding: [50, 50]});
-        } else {
-            alert("⚠️ Nenhum endereço localizado. Limpe a planilha anterior e envie o ficheiro novamente.");
         }
     }
 
@@ -359,8 +354,25 @@
         }
     }
 
+    // NOVAS FUNÇÕES PARA A LIGAÇÃO COM O BANCO DE DADOS (PRÓXIMA ETAPA)
     function salvarHistoricoBanco() {
-        alert("O sistema de gravação será a nossa próxima etapa no servidor!");
+        const hojeLocal = new Date().toISOString().split('T')[0];
+        const dataRoteiro = prompt("Confirme ou digite a data deste roteiro (Formato AAAA-MM-DD):", hojeLocal);
+        
+        if (!dataRoteiro) return;
+
+        alert(`✅ A sua interface está 100% preparada!\n\nOs dados da data ${dataRoteiro} estão prontos para serem guardados. Para que a pesquisa de histórico comece a funcionar de verdade, o nosso próximo e último passo será ensinar o ficheiro 'server.js' a guardar estes ficheiros JSON.`);
+    }
+
+    function buscarHistorico() {
+        const data = document.getElementById("buscaData").value;
+        const codigo = document.getElementById("buscaCodigo").value.trim();
+
+        if (!data && !codigo) {
+            return alert("Por favor, preencha a Data ou o Código para pesquisar.");
+        }
+
+        alert("A interface de pesquisa está concluída! \nAssim que implementarmos o Banco de Dados de Rotas no 'server.js', ao clicar aqui o sistema vai puxar o mapa exato desse dia ou dessa OS.");
     }
 </script>
 </body>
