@@ -100,6 +100,7 @@
     if (!token) window.location.replace("/login.html");
 
     let mapa = null;
+    let layerGrupo = null; // Grupo de pinos do mapa
     let dadosGlobaisRotas = {}; 
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -108,15 +109,13 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(mapa);
         
-        // RECUPERA A MEMÓRIA AO ABRIR A PÁGINA
+        // RECUPERA A MEMÓRIA
         const rotasGuardadas = localStorage.getItem("planilhaRotas");
         if (rotasGuardadas) {
             dadosGlobaisRotas = JSON.parse(rotasGuardadas);
             document.getElementById("areaUpload").style.display = "none";
             document.getElementById("painelRotas").style.display = "flex";
             renderizarListaTecnicos();
-            
-            // O mapa precisa de um fôlego para se redimensionar
             setTimeout(() => { mapa.invalidateSize(); }, 500);
         } else {
             document.getElementById("painelRotas").style.display = "none";
@@ -127,23 +126,17 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A analisar a folha de Excel...</h3><p>Limpando dados e organizando equipas...</p>`;
+        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A analisar a folha de Excel...</h3>`;
 
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, {type: 'array'});
-                
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
                 
-                if (jsonData.length === 0) {
-                    alert("⚠️ A primeira folha do seu Excel parece estar vazia.");
-                    return;
-                }
+                if (jsonData.length === 0) return alert("⚠️ Excel vazio.");
 
                 const dadosNormalizados = jsonData.map(linha => {
                     let novaLinha = {};
@@ -155,52 +148,46 @@
                 });
                 
                 agruparPorTecnico(dadosNormalizados);
-            } catch (erro) {
-                alert("❌ Erro ao ler o ficheiro: " + erro.message);
-            }
+            } catch (erro) { alert("❌ Erro: " + erro.message); }
         };
         reader.readAsArrayBuffer(file);
     }
 
     function agruparPorTecnico(linhas) {
         dadosGlobaisRotas = {};
-        let totalLidos = 0;
 
         linhas.forEach(linha => {
             const tecnico = linha["TÉCNICO"] || linha["TECNICO"] || "SEM NOME";
             if (!linha["CÓDIGO"] && !linha["CLIENTE"] && tecnico === "SEM NOME") return;
 
-            const horario = String(linha["HORÁRIO"] || linha["HORARIO"] || "").trim().toUpperCase();
+            // RESOLUÇÃO DO BUG MANHÃ/TARDE (Olha só para a 1ª letra)
+            const horarioRaw = String(linha["HORÁRIO"] || linha["HORARIO"] || "").trim().toUpperCase();
+            const primeiraLetra = horarioRaw.charAt(0);
             
             if (!dadosGlobaisRotas[tecnico]) {
                 dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             }
 
-            const enderecoCompleto = `${linha["ENDEREÇO"] || linha["ENDERECO"] || ""}, ${linha["DISTRITO"] || ""} - CEP: ${linha["CEP"] || ""}`;
+            // A morada otimizada para o GPS encontrar melhor
+            const enderecoFormatado = `${linha["ENDEREÇO"] || linha["ENDERECO"] || ""}, ${linha["CIDADE"] || ""}`;
 
             const clienteOcorrencia = {
                 codigo: linha["CÓDIGO"] || linha["CODIGO"] || "",
                 cliente: linha["CLIENTE"] || "Sem Nome",
                 servico: linha["SERVIÇO"] || linha["SERVICO"] || "",
-                enderecoTexto: enderecoCompleto
+                enderecoTexto: enderecoFormatado,
+                cep: linha["CEP"] || ""
             };
 
-            if (horario.includes("MANH")) {
+            // Se começa com M é Manhã, caso contrário é Tarde
+            if (primeiraLetra === 'M') {
                 dadosGlobaisRotas[tecnico].manha.push(clienteOcorrencia);
             } else {
                 dadosGlobaisRotas[tecnico].tarde.push(clienteOcorrencia);
             }
-            totalLidos++;
         });
 
-        if (totalLidos === 0) {
-            alert("⚠️ Não consegui encontrar os dados. Verifique os nomes das colunas.");
-            return;
-        }
-
-        // GRAVA OS DADOS NA MEMÓRIA DO NAVEGADOR
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
         
@@ -229,24 +216,86 @@
                 </div>
             `;
         });
+
+        // Botão para salvar histórico
+        divLista.innerHTML += `
+            <div style="padding: 15px; margin-top: 10px;">
+                <button onclick="salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                    💾 Salvar Planeamento no Banco
+                </button>
+            </div>
+        `;
     }
 
-    function selecionarTecnico(nome, elementoHTML) {
+    // A MÁGICA DA FASE 2: DESENHAR OS PINOS NO MAPA!
+    async function selecionarTecnico(nome, elementoHTML) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         elementoHTML.classList.add('ativo');
 
         const dadosTecnico = dadosGlobaisRotas[nome];
-        console.log(`Dados do Técnico:`, dadosTecnico);
         
-        alert(`Sucesso!\nO painel carregou as rotas de: ${nome}\nTotal Manhã: ${dadosTecnico.manha.length} | Total Tarde: ${dadosTecnico.tarde.length}`);
+        // Limpa os pinos anteriores do mapa
+        if (layerGrupo) { mapa.removeLayer(layerGrupo); }
+        layerGrupo = L.featureGroup().addTo(mapa);
+
+        // Junta todos os clientes (Manhã e Tarde)
+        const todosClientes = [...dadosTecnico.manha, ...dadosTecnico.tarde];
+        
+        // Alerta suave (Não trava a tela)
+        const toast = document.createElement("div");
+        toast.innerText = `A traçar a rota de ${nome} no mapa... (${todosClientes.length} paragens)`;
+        toast.style = "position:absolute; top:20px; right:20px; background:#3B82F6; color:white; padding:10px 20px; border-radius:8px; z-index:1000;";
+        document.getElementById("mapaArea").appendChild(toast);
+
+        let pinosEncontrados = 0;
+
+        // Procura a coordenada de cada um
+        for(let cliente of todosClientes) {
+            try {
+                // API Gratuita de GPS (OpenStreetMap)
+                const urlGPS = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cliente.enderecoTexto)}`;
+                const res = await fetch(urlGPS);
+                const localizacao = await res.json();
+                
+                if(localizacao && localizacao.length > 0) {
+                    const lat = localizacao[0].lat;
+                    const lon = localizacao[0].lon;
+                    
+                    // Coloca o pino vermelho e cria um balão com os dados
+                    const pino = L.marker([lat, lon]).bindPopup(`
+                        <strong style="color: #2563EB;">${cliente.codigo} - ${cliente.cliente}</strong><br>
+                        ${cliente.enderecoTexto}<br>
+                        <small style="color: #64748B;">Serviço: ${cliente.servico}</small>
+                    `);
+                    pino.addTo(layerGrupo);
+                    pinosEncontrados++;
+                }
+                
+                // Pausa de 1 segundo entre pesquisas para não bloquear a API gratuita
+                await new Promise(r => setTimeout(r, 1000));
+            } catch(e) { console.error("Falha ao achar:", cliente.enderecoTexto); }
+        }
+        
+        toast.remove();
+
+        // Faz o mapa dar "Zoom" para mostrar todos os pinos de uma vez
+        if (pinosEncontrados > 0) {
+            mapa.fitBounds(layerGrupo.getBounds(), {padding: [50, 50]});
+        } else {
+            alert("Aviso: O satélite não conseguiu encontrar essas moradas com precisão. Tente colocar a rua e a cidade mais claras no Excel.");
+        }
     }
 
-    // FUNÇÃO PARA APAGAR A MEMÓRIA E SUBIR PLANILHA NOVA
     function limparRotas() {
         if(confirm("Tem a certeza que deseja limpar as rotas de hoje e carregar um novo Excel?")) {
             localStorage.removeItem("planilhaRotas");
             window.location.reload();
         }
+    }
+
+    // Função preparatória para guardar o Histórico
+    function salvarHistoricoBanco() {
+        alert("O painel já organizou os dados com sucesso!\n\nPara as rotas ficarem salvas para sempre (podendo ser pesquisadas pelo Código e Data), precisamos de criar um novo cofre no 'server.js'. Este será o nosso próximo passo técnico!");
     }
 </script>
 </body>
