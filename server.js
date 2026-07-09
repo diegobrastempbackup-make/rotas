@@ -3,11 +3,18 @@ const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb"); 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const https = require("https"); // <-- Novo módulo nativo para o Ping
 
 const app = express();
 
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
+
+// =====================================================================
+// ⚠️ COLOQUE AQUI O LINK REAL DO SEU SISTEMA NO RENDER
+// Exemplo: "https://neri-frota-app.onrender.com"
+const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com/login.html"; 
+// =====================================================================
 
 // MONGO
 const uri = process.env.MONGO_URI;
@@ -41,6 +48,11 @@ app.get("/dados.html", (req, res) => { if (!req.query.token) return res.redirect
 app.get("/estoque.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/estoque.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
 
+// ROTA ANTI-HIBERNAÇÃO
+app.get("/ping", (req, res) => {
+  res.status(200).send("Servidor acordado!");
+});
+
 // --- LOGIN (Com trava de conta suspensa) ---
 app.post("/login", async (req, res) => {
   try {
@@ -49,7 +61,6 @@ app.post("/login", async (req, res) => {
     
     if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
     
-    // 🛑 NOVA TRAVA: Bloqueia acesso se a conta (ou empresa) estiver suspensa
     if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso. Contacte a administração." });
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
@@ -107,11 +118,9 @@ app.put("/api/empresas/:id/status", autenticarToken, async (req, res) => {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
     const { ativo } = req.body;
     
-    // Procura o cliente_id desta empresa
     const empresaMaster = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
     
     if(empresaMaster) {
-        // Bloqueia/Desbloqueia TODOS os utilizadores desta empresa de uma vez
         await db.collection("usuarios").updateMany(
             { cliente_id: empresaMaster.cliente_id },
             { $set: { ativo: ativo } }
@@ -129,7 +138,6 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
     
     if(empresaMaster && empresaMaster.cliente_id) {
         const cid = empresaMaster.cliente_id;
-        // Exclusão Total (LGPD): Limpa toda a sujidade da empresa cancelada
         await db.collection("usuarios").deleteMany({ cliente_id: cid });
         await db.collection("tecnicos_dashboard").deleteMany({ cliente_id: cid });
         await db.collection("tecnicos").deleteMany({ cliente_id: cid });
@@ -140,7 +148,6 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
-
 
 // --- UTILIZADORES GERAIS ---
 app.post("/cadastro", autenticarToken, async (req, res) => {
@@ -255,6 +262,15 @@ async function iniciarSistema() {
       });
       console.log("👑 Conta Super Admin Criada: neri.admin / neri2026");
     }
+
+    // 🚀 O LOOP ANTI-HIBERNAÇÃO (Pinga a cada 14 minutos)
+    setInterval(() => {
+      https.get(`${URL_DO_SEU_SISTEMA}/ping`, (resp) => {
+        console.log(`⏱️ [${new Date().toLocaleTimeString()}] Ping automático enviado. Render mantido acordado!`);
+      }).on("error", (err) => {
+        console.log("⚠️ Falha no ping automático:", err.message);
+      });
+    }, 14 * 60 * 1000); 
 
     app.listen(PORT, () => console.log(`🚀 Motor SaaS NERI 2.0 a correr na porta ${PORT}`));
   } catch (err) { console.error("❌ Erro:", err); process.exit(1); }
