@@ -4,15 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>App do Técnico - NERI</title>
+    
+    <!-- Bibliotecas do Mapa -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0F172A; color: white; -webkit-tap-highlight-color: transparent; }
         
-        /* Cabeçalho Fixo */
         .header { background-color: #1E293B; padding: 20px 15px; text-align: center; border-bottom: 3px solid #3B82F6; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .header h2 { margin: 0; font-size: 18px; color: #E2E8F0; text-transform: uppercase; letter-spacing: 1px; }
         .btn-sair { position: absolute; top: 15px; right: 15px; background: rgba(239, 68, 68, 0.1); color: #EF4444; border: 1px solid #EF4444; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
-        /* Resumo do Dia (Cards Topo) */
         .resumo-dia { display: flex; justify-content: space-between; gap: 10px; padding: 15px; background: #172033; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .resumo-box { flex: 1; background: #1E293B; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
         .resumo-valor { font-size: 20px; font-weight: bold; color: #3B82F6; margin-bottom: 4px; }
@@ -20,15 +23,12 @@
 
         .container { padding: 15px; padding-bottom: 80px; }
         
-        /* Lista Sanfona (Cards de Paragem) */
         .paragem-card { background: #1E293B; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border-left: 5px solid #64748B; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        
-        /* Cores de Status */
-        .status-pendente { border-left-color: #64748B; } /* Cinza */
-        .status-deslocamento { border-left-color: #FACC15; } /* Amarelo */
-        .status-chegada { border-left-color: #F97316; } /* Laranja */
-        .status-sucesso { border-left-color: #10B981; opacity: 0.7; } /* Verde */
-        .status-insucesso { border-left-color: #EF4444; opacity: 0.7; } /* Vermelho */
+        .status-pendente { border-left-color: #64748B; } 
+        .status-deslocamento { border-left-color: #FACC15; } 
+        .status-chegada { border-left-color: #F97316; } 
+        .status-sucesso { border-left-color: #10B981; opacity: 0.7; } 
+        .status-insucesso { border-left-color: #EF4444; opacity: 0.7; } 
 
         .paragem-header { padding: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .paragem-header:active { background: rgba(255,255,255,0.05); }
@@ -38,16 +38,14 @@
         .p-cliente { color: #E2E8F0; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
         .p-icon { font-size: 18px; color: #94A3B8; transition: transform 0.3s; }
 
-        /* Detalhes (Conteúdo Expandido) */
         .paragem-body { display: none; padding: 15px; background: rgba(15, 23, 42, 0.4); border-top: 1px solid rgba(255,255,255,0.05); }
         .info-linha { margin-bottom: 12px; }
         .info-titulo { color: #94A3B8; font-size: 12px; display: block; margin-bottom: 2px; text-transform: uppercase; }
         .info-valor { color: #F8FAFC; font-size: 14px; line-height: 1.4; }
 
-        /* Botões de Ação Dinâmicos */
-        .btn-gigante { width: 100%; padding: 16px; font-size: 15px; font-weight: bold; text-align: center; border-radius: 8px; border: none; cursor: pointer; margin-top: 10px; display: flex; justify-content: center; align-items: center; gap: 8px; }
-        .btn-deslocamento { background: #FACC15; color: #422006; }
-        .btn-cheguei { background: #F97316; color: white; }
+        .btn-gigante { width: 100%; padding: 16px; font-size: 15px; font-weight: bold; text-align: center; border-radius: 8px; border: none; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-deslocamento { background: #FACC15; color: #422006; margin-top: 10px; }
+        .btn-cheguei { background: #F97316; color: white; margin-top: 10px; }
         
         .botoes-duplos { display: flex; gap: 10px; margin-top: 10px; }
         .btn-sucesso { background: #10B981; color: white; flex: 1; padding: 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
@@ -59,6 +57,7 @@
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+        .custom-pin { background: transparent; border: none; }
     </style>
 </head>
 <body>
@@ -74,8 +73,22 @@
         <div class="resumo-box"><div class="resumo-valor" id="resumoT" style="color:#10B981;">0</div><div class="resumo-titulo">Tarde</div></div>
     </div>
 
+    <!-- NOVO BOTÃO DE MAPA -->
+    <div style="padding: 15px 15px 0 15px;">
+        <button class="btn-gigante" style="background-color: #3B82F6; color: white;" onclick="abrirMapa()">🗺️ Visualizar Mapa do Dia</button>
+    </div>
+
     <div class="container" id="listaOrdens">
         <div style="text-align: center; color: #94A3B8; margin-top: 50px;">A buscar rotas de hoje...</div>
+    </div>
+
+    <!-- TELA DO MAPA (FLUTUANTE) -->
+    <div id="modalMapa" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0F172A; z-index:1000; flex-direction:column;">
+        <div style="background:#1E293B; padding:20px 15px; display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #3B82F6;">
+            <h3 style="margin:0; color:white; font-size: 18px;">Minha Rota</h3>
+            <button onclick="fecharMapa()" style="background:#EF4444; color:white; border:none; padding:8px 15px; border-radius:6px; font-weight:bold; cursor:pointer;">Fechar</button>
+        </div>
+        <div id="mapaTecnico" style="flex:1; width:100%;"></div>
     </div>
 
     <div class="loading-overlay" id="loader"><div class="spinner"></div><div style="color:white; font-weight:bold;">A sincronizar...</div></div>
@@ -91,8 +104,9 @@
 
     let itinerarioDia = [];
     let dataDeHojeBR = "";
+    let mapaTecnico = null;
+    let layerGrupoTecnico = null;
 
-    // Fórmula para calcular Distância
     function calcularDistanciaKM(lat1, lon1, lat2, lon2) {
         const R = 6371; 
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -124,10 +138,7 @@
         let qtdM = 0; let qtdT = 0;
         let kmTotal = 0;
         
-        itinerarioDia.forEach(item => {
-            if(item.periodo === 'MANHA') qtdM++; else qtdT++;
-        });
-
+        itinerarioDia.forEach(item => { if(item.periodo === 'MANHA') qtdM++; else qtdT++; });
         for(let i = 0; i < itinerarioDia.length - 1; i++) {
             kmTotal += calcularDistanciaKM(itinerarioDia[i].lat, itinerarioDia[i].lon, itinerarioDia[i+1].lat, itinerarioDia[i+1].lon);
         }
@@ -143,8 +154,6 @@
 
         itinerarioDia.forEach((cliente, index) => {
             const seq = index + 1;
-            
-            // Novos Links Duplos de GPS
             const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
             const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${cliente.lat},${cliente.lon}`;
             
@@ -156,11 +165,7 @@
             } else if (cliente.status === 'deslocamento') {
                 botoesHTML = `<button class="btn-gigante btn-cheguei" onclick="mudarStatus('${cliente.codigo}', 'chegada', 'horaChegada', ${index})">📍 Cheguei no Cliente</button>`;
             } else if (cliente.status === 'chegada') {
-                botoesHTML = `
-                    <div class="botoes-duplos">
-                        <button class="btn-sucesso" onclick="mudarStatus('${cliente.codigo}', 'sucesso', 'horaFinal', ${index})">✅ Sucesso</button>
-                        <button class="btn-insucesso" onclick="mudarStatus('${cliente.codigo}', 'insucesso', 'horaFinal', ${index})">❌ Insucesso</button>
-                    </div>`;
+                botoesHTML = `<div class="botoes-duplos"><button class="btn-sucesso" onclick="mudarStatus('${cliente.codigo}', 'sucesso', 'horaFinal', ${index})">✅ Sucesso</button><button class="btn-insucesso" onclick="mudarStatus('${cliente.codigo}', 'insucesso', 'horaFinal', ${index})">❌ Insucesso</button></div>`;
             } else {
                 iconeStatus = cliente.status === 'sucesso' ? "✅" : "❌";
                 botoesHTML = `<div style="text-align:center; padding:10px; color:#94A3B8; font-weight:bold;">Serviço Finalizado</div>`;
@@ -182,10 +187,8 @@
                             <button class="btn-nav-pequeno" style="background-color: #00C3FF; color: #0F172A;" onclick="window.open('${wazeUrl}', '_blank')">🧭 Waze</button>
                             <button class="btn-nav-pequeno" style="background-color: #10B981; color: white;" onclick="window.open('${mapsUrl}', '_blank')">🗺️ Maps</button>
                         </div>
-                        
                         <div class="info-linha"><span class="info-titulo">Endereço</span><span class="info-valor">${cliente.rua}, ${cliente.cidade}</span></div>
                         <div class="info-linha"><span class="info-titulo">Serviço</span><span class="info-valor" style="color:#F59E0B;">${cliente.servico || 'Padrão'}</span></div>
-                        
                         <div id="areaBotoes-${index}">${botoesHTML}</div>
                     </div>
                 </div>
@@ -196,48 +199,76 @@
     function toggleCard(indexExpandir) {
         itinerarioDia.forEach((_, index) => {
             const body = document.getElementById(`body-${index}`);
-            if (index === indexExpandir) {
-                body.style.display = body.style.display === "block" ? "none" : "block";
-            } else {
-                body.style.display = "none";
-            }
+            if (index === indexExpandir) body.style.display = body.style.display === "block" ? "none" : "block";
+            else body.style.display = "none";
         });
     }
 
     async function mudarStatus(codigoOs, novoStatus, campoCronometro, indexArray) {
         document.getElementById("loader").style.display = "flex";
-        
         const horaExata = new Date().toLocaleTimeString('pt-BR', { hour12: false });
 
         try {
             const res = await fetch('/api/rotas/status', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({
-                    data: dataDeHojeBR,
-                    tecnico: nomeUsuario,
-                    codigoOs: codigoOs,
-                    novoStatus: novoStatus,
-                    campoTempo: campoCronometro,
-                    valorTempo: horaExata
-                })
+                body: JSON.stringify({ data: dataDeHojeBR, tecnico: nomeUsuario, codigoOs: codigoOs, novoStatus: novoStatus, campoTempo: campoCronometro, valorTempo: horaExata })
             });
 
             if (res.ok) {
                 itinerarioDia[indexArray].status = novoStatus;
                 renderizarLista();
                 document.getElementById(`body-${indexArray}`).style.display = "block"; 
-                
-                if(novoStatus === 'sucesso' || novoStatus === 'insucesso') {
-                    setTimeout(() => { document.getElementById(`body-${indexArray}`).style.display = "none"; }, 800);
-                }
+                if(novoStatus === 'sucesso' || novoStatus === 'insucesso') { setTimeout(() => { document.getElementById(`body-${indexArray}`).style.display = "none"; }, 800); }
             } else { alert("❌ Erro ao comunicar com a base."); }
-        } catch (e) {
-            alert("❌ Sem internet. Verifique o seu sinal 4G/Wifi.");
-        } finally {
-            document.getElementById("loader").style.display = "none";
-        }
+        } catch (e) { alert("❌ Sem internet. Verifique o seu sinal 4G/Wifi."); } 
+        finally { document.getElementById("loader").style.display = "none"; }
     }
+
+    // --- NOVA FUNÇÃO: RENDERIZAR MAPA NO CELULAR ---
+    function abrirMapa() {
+        if(itinerarioDia.length === 0) return alert("Não há rotas para desenhar no mapa.");
+        document.getElementById("modalMapa").style.display = "flex";
+        
+        if (!mapaTecnico) {
+            let startLat = itinerarioDia[0].lat; let startLon = itinerarioDia[0].lon;
+            mapaTecnico = L.map('mapaTecnico').setView([startLat, startLon], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapaTecnico);
+        }
+
+        if(layerGrupoTecnico) mapaTecnico.removeLayer(layerGrupoTecnico);
+        layerGrupoTecnico = L.featureGroup().addTo(mapaTecnico);
+
+        let latlngs = [];
+        itinerarioDia.forEach((cliente, index) => {
+            const seq = index + 1;
+            latlngs.push([cliente.lat, cliente.lon]);
+            
+            let corPino = "#64748B";
+            if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
+            else if (cliente.status === 'chegada') corPino = "#F97316"; 
+            else if (cliente.status === 'sucesso') corPino = "#10B981"; 
+            else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
+
+            const miniIcon = L.divIcon({
+                className: 'custom-pin',
+                html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 12px;">${seq}</div>`,
+                iconSize: [24, 24], iconAnchor: [12, 12]
+            });
+            
+            L.marker([cliente.lat, cliente.lon], {icon: miniIcon}).bindPopup(`<b>#${seq} - ${cliente.cliente}</b><br>OS: ${cliente.codigo}`).addTo(layerGrupoTecnico);
+        });
+
+        if(latlngs.length > 0) {
+            L.polyline(latlngs, {color: '#3B82F6', weight: 3, dashArray: '5, 5'}).addTo(layerGrupoTecnico);
+            mapaTecnico.fitBounds(layerGrupoTecnico.getBounds(), {padding: [30, 30]});
+        }
+        
+        // Força a renderização do mapa ao abrir o modal
+        setTimeout(() => { mapaTecnico.invalidateSize(); }, 300);
+    }
+
+    function fecharMapa() { document.getElementById("modalMapa").style.display = "none"; }
 
     function sair() { localStorage.clear(); window.location.replace("/login.html"); }
 

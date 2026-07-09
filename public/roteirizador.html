@@ -441,14 +441,17 @@
         if (coordOSRM.length > 1) {
             let ultimoPonto = rotaFatiada[rotaFatiada.length - 1];
             
-            // O Carrinho individual
-            const carIcon = L.divIcon({
-                className: 'custom-pin',
-                html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 Viatura</div>`,
-                iconSize: [80, 25], iconAnchor: [40, 12]
-            });
-            L.marker([ultimoPonto.lat, ultimoPonto.lon], {icon: carIcon, zIndexOffset: 1000}).addTo(layerGrupo);
-
+            // O Carrinho individual (Agora com o Nome e Regra de Partida)
+            let jaIniciou = rotaFatiada.some(p => p.status !== 'pendente');
+            
+            if (jaIniciou) {
+                const carIcon = L.divIcon({
+                    className: 'custom-pin',
+                    html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 ${tecnicoAtivo.split(' ')[0]}</div>`,
+                    iconSize: [80, 25], iconAnchor: [40, 12]
+                });
+                L.marker([ultimoPonto.lat, ultimoPonto.lon], {icon: carIcon, zIndexOffset: 1000}).addTo(layerGrupo);
+            }
             // Tenta desenhar a linha azul na estrada
             try {
                 let resRota = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordOSRM.join(';')}?overview=full&geometries=geojson`);
