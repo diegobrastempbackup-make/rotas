@@ -517,19 +517,29 @@
         }
     }
 
+    // ==========================================
+    // LIGAÇÃO COM O BANCO DE DADOS (COM DATA BRASILEIRA)
+    // ==========================================
+
     async function salvarHistoricoBanco() {
-        // Bloqueio de segurança: só salva se um técnico estiver ativo
         if (!tecnicoAtivo || rotaAtiva.length === 0) {
             return alert("⚠️ Por favor, clique num técnico e gere a rota antes de salvar.");
         }
 
-        const hojeLocal = new Date().toISOString().split('T')[0];
-        const dataRoteiro = prompt(`A guardar o roteiro de: ${tecnicoAtivo}\n\nConfirme a data (Formato AAAA-MM-DD):`, hojeLocal);
+        // Gera a data de hoje automaticamente no formato DD/MM/AAAA
+        const dataAtual = new Date();
+        const dia = String(dataAtual.getDate()).padStart(2, '0');
+        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+        const ano = dataAtual.getFullYear();
+        const hojeBR = `${dia}/${mes}/${ano}`;
+
+        // Pede a confirmação forçando o formato correto
+        let dataRoteiro = prompt(`A guardar o roteiro de: ${tecnicoAtivo}\n\nConfirme a data exata (Apenas formato DD/MM/AAAA):`, hojeBR);
         
-        if (!dataRoteiro) return; // Utilizador cancelou
+        if (!dataRoteiro) return;
+        dataRoteiro = dataRoteiro.trim(); // Limpa espaços acidentais
 
         try {
-            // Envia o pacote de dados ultraleve para o server.js
             const res = await fetch('/api/rotas', {
                 method: 'POST',
                 headers: { 
@@ -537,7 +547,7 @@
                     'Authorization': `Bearer ${token}` 
                 },
                 body: JSON.stringify({
-                    data: dataRoteiro,
+                    data: dataRoteiro, // Salva lindamente como DD/MM/AAAA
                     tecnico: tecnicoAtivo,
                     itinerario: rotaAtiva
                 })
@@ -546,7 +556,7 @@
             if (res.ok) {
                 alert(`✅ Sucesso! Roteiro de ${tecnicoAtivo} guardado para o dia ${dataRoteiro}.`);
             } else {
-                alert("❌ Erro ao guardar o planeamento.");
+                alert("❌ Erro ao guardar o planeamento no servidor.");
             }
         } catch(e) {
             alert("❌ Falha na ligação com o servidor.");
@@ -554,33 +564,41 @@
     }
 
     async function buscarHistorico() {
-        const dataBusca = document.getElementById("buscaData").value;
+        let dataInput = document.getElementById("buscaData").value;
         const codigoBusca = document.getElementById("buscaCodigo").value.trim();
 
-        if (!dataBusca && !codigoBusca) {
+        if (!dataInput && !codigoBusca) {
             return alert("⚠️ Preencha a Data ou o Código da OS para pesquisar.");
         }
 
+        let dataFormatadaParaBusca = "";
+        
+        // Se o Gestor usou o calendário, o HTML devolve AAAA-MM-DD. 
+        // O código abaixo inverte para DD/MM/AAAA para cruzar perfeitamente com o Banco de Dados.
+        if (dataInput) {
+            const partes = dataInput.split('-');
+            dataFormatadaParaBusca = `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
         let url = '/api/rotas?';
-        if (dataBusca) url += `data=${dataBusca}&`;
-        if (codigoBusca) url += `codigo=${codigoBusca}`;
+        if (dataFormatadaParaBusca) url += `data=${encodeURIComponent(dataFormatadaParaBusca)}&`;
+        if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}`;
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
             const rotasEncontradas = await res.json();
 
             if (rotasEncontradas.length === 0) {
-                return alert("Nenhum roteiro encontrado com esses dados.");
+                return alert("❌ Nenhum roteiro encontrado.\n\nDica: Lembre-se de salvar os roteiros apenas com a data (ex: 23/06/2026). Se você salvou com palavras misturadas antes, pesquise apenas pelo Código da OS!");
             }
 
-            // Puxa a primeira rota encontrada e injeta no mapa!
+            // Injeta o roteiro histórico de volta no mapa!
             const roteiro = rotasEncontradas[0];
             tecnicoAtivo = roteiro.tecnico;
             rotaAtiva = roteiro.itinerario;
 
-            alert(`✅ Histórico Localizado!\nTécnico: ${tecnicoAtivo}\nData do Roteiro: ${roteiro.data}\nTotal de Clientes: ${rotaAtiva.length}`);
+            alert(`✅ Histórico Localizado!\nTécnico: ${tecnicoAtivo}\nData: ${roteiro.data}\nTotal de Clientes: ${rotaAtiva.length}`);
             
-            // Ativa o painel de edição e redesenha a linha azul na tela exatamente como foi salva
             document.getElementById("painelItinerario").style.display = "block";
             atualizarTela();
 

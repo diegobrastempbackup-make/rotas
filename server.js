@@ -168,23 +168,32 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 // NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE (Salvar no Banco Ultra Leve)
 // =====================================================================
 
-app.post('/api/rotas', autenticarToken, async (req, res) => {
+app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
-      const { data, tecnico, itinerario } = req.body;
-      if (!data || !tecnico || !itinerario) {
-          return res.status(400).json({ erro: "Dados incompletos" });
+      const { data, codigo } = req.query;
+      let filtro = { cliente_id: req.usuario.cliente_id };
+
+      // Se o gestor buscar por Data (Ex: 23/06/2026)
+      if (data) filtro.data = data;
+      
+      // Se o gestor buscar por Código
+      if (codigo) {
+          // A MÁGICA: Converte a pesquisa para procurar tanto como Texto quanto como Número!
+          const codigoNum = Number(codigo);
+          
+          if (!isNaN(codigoNum)) {
+              // Se for apenas números (Ex: 80890), procura os dois formatos no banco
+              filtro["itinerario.codigo"] = { $in: [codigo, String(codigo), codigoNum] };
+          } else {
+              // Se tiver letras misturadas (Ex: OS-80890), procura ignorando maiúsculas e minúsculas
+              filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
+          }
       }
 
-      // Upsert: Se a rota já existir para esse dia e técnico, ele subscreve. Se não, cria uma nova.
-      await db.collection("planejamento_rotas").updateOne(
-          { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
-          { $set: { itinerario: itinerario, atualizadoEm: new Date() } },
-          { upsert: true }
-      );
-
-      res.json({ mensagem: "Roteiro salvo com sucesso!" });
+      const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
+      res.json(rotas);
   } catch (err) {
-      res.status(500).json({ erro: "Erro ao salvar roteiro." });
+      res.status(500).json({ erro: "Erro ao buscar roteiros." });
   }
 });
 
