@@ -580,6 +580,9 @@
         }
     }
 
+    // Variável global para guardar o histórico temporariamente na memória
+    window.historicoRotasMemoria = [];
+
     async function buscarHistorico() {
         let dataInput = document.getElementById("buscaData").value;
         const codigoBusca = document.getElementById("buscaCodigo").value.trim();
@@ -590,8 +593,6 @@
 
         let dataFormatadaParaBusca = "";
         
-        // Se o Gestor usou o calendário, o HTML devolve AAAA-MM-DD. 
-        // O código abaixo inverte para DD/MM/AAAA para cruzar perfeitamente com o Banco de Dados.
         if (dataInput) {
             const partes = dataInput.split('-');
             dataFormatadaParaBusca = `${partes[2]}/${partes[1]}/${partes[0]}`;
@@ -606,22 +607,65 @@
             const rotasEncontradas = await res.json();
 
             if (rotasEncontradas.length === 0) {
-                return alert("❌ Nenhum roteiro encontrado.\n\nDica: Lembre-se de salvar os roteiros apenas com a data (ex: 23/06/2026). Se você salvou com palavras misturadas antes, pesquise apenas pelo Código da OS!");
+                return alert("❌ Nenhum roteiro encontrado.");
             }
 
-            // Injeta o roteiro histórico de volta no mapa!
-            const roteiro = rotasEncontradas[0];
-            tecnicoAtivo = roteiro.tecnico;
-            rotaAtiva = roteiro.itinerario;
+            // CENÁRIO 1: Pesquisou por OS (Achou apenas 1 roteiro)
+            if (rotasEncontradas.length === 1 && codigoBusca) {
+                const roteiro = rotasEncontradas[0];
+                tecnicoAtivo = roteiro.tecnico;
+                rotaAtiva = roteiro.itinerario;
 
-            alert(`✅ Histórico Localizado!\nTécnico: ${tecnicoAtivo}\nData: ${roteiro.data}\nTotal de Clientes: ${rotaAtiva.length}`);
-            
-            document.getElementById("painelItinerario").style.display = "block";
-            atualizarTela();
+                alert(`✅ Histórico Localizado!\nTécnico: ${tecnicoAtivo}\nData: ${roteiro.data}`);
+                document.getElementById("painelItinerario").style.display = "block";
+                atualizarTela();
+            } 
+            // CENÁRIO 2: Pesquisou por Data (Achou vários técnicos)
+            else {
+                alert(`✅ Foram encontrados ${rotasEncontradas.length} roteiros para a data ${rotasEncontradas[0].data}.\n\nEscolha o técnico no painel lateral esquerdo para visualizar o mapa!`);
+                
+                window.historicoRotasMemoria = rotasEncontradas;
+                
+                // Limpa o mapa atual
+                if (layerGrupo) { mapa.removeLayer(layerGrupo); }
+                document.getElementById("painelItinerario").style.display = "none";
+                
+                // Reconstrói o menu da esquerda com a "Equipa do Passado"
+                const divLista = document.getElementById("listaTecnicosUI");
+                divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Histórico de ${rotasEncontradas[0].data}</h4>`;
+                
+                rotasEncontradas.forEach((roteiro, idx) => {
+                    let countM = 0; let countT = 0;
+                    roteiro.itinerario.forEach(c => { if(c.periodo === 'MANHA') countM++; else countT++; });
+
+                    divLista.innerHTML += `
+                        <div class="tecnico-item" id="hist-tecnico-${idx}" onclick="carregarRotaHistorica(${idx})">
+                            <div><div class="tecnico-nome">${roteiro.tecnico}</div><div class="tecnico-stats">Total: ${roteiro.itinerario.length} paragens</div></div>
+                            <div>
+                                ${countM > 0 ? `<span class="badge-turno badge-manha">M: ${countM}</span>` : ''}
+                                ${countT > 0 ? `<span class="badge-turno badge-tarde">T: ${countT}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
 
         } catch(e) {
             alert("❌ Erro ao buscar dados no servidor.");
         }
+    }
+
+    // Função Nova: Carrega o mapa quando clicar no nome do técnico histórico
+    function carregarRotaHistorica(idx) {
+        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
+        document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo');
+        
+        const roteiro = window.historicoRotasMemoria[idx];
+        tecnicoAtivo = roteiro.tecnico;
+        rotaAtiva = roteiro.itinerario;
+        
+        document.getElementById("painelItinerario").style.display = "block";
+        atualizarTela();
     }
 </script>
 </body>
