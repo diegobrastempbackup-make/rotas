@@ -125,7 +125,7 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A ler Excel...</h3>`;
+        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A analisar rotas e duplicados...</h3>`;
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -152,23 +152,21 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // O CÉREBRO DA CONSOLIDACÃO DE PARAGENS
     function agruparPorTecnico(linhas) {
         dadosGlobaisRotas = {};
+        let ordensPorTecnico = {};
 
+        // PASSO 1: Junta todas as ordens brutas por Técnico primeiro
         linhas.forEach(linha => {
             const tecnico = linha["TÉCNICO"] || linha["TECNICO"] || "SEM NOME";
             if (!linha["CÓDIGO"] && !linha["CLIENTE"] && tecnico === "SEM NOME") return;
 
             const horarioRaw = String(linha["HORÁRIO"] || linha["HORARIO"] || "").trim().toUpperCase();
-            const primeiraLetra = horarioRaw.charAt(0);
-            
-            if (!dadosGlobaisRotas[tecnico]) {
-                dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
-            }
+            const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
 
             let cepLimpo = String(linha["CEP"] || "").replace(/\D/g, '').trim(); 
             let cepFormatado = cepLimpo.padStart(8, '0'); 
-            
             if (cepFormatado.length === 8) {
                 cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
             }
@@ -176,23 +174,68 @@
             const rua = String(linha["ENDEREÇO"] || linha["ENDERECO"] || "").trim();
             const cidade = String(linha["CIDADE"] || "São Paulo").trim();
 
-            const clienteOcorrencia = {
+            if (!ordensPorTecnico[tecnico]) {
+                ordensPorTecnico[tecnico] = [];
+            }
+
+            ordensPorTecnico[tecnico].push({
                 codigo: linha["CÓDIGO"] || linha["CODIGO"] || "",
-                cliente: linha["CLIENTE"] || "Sem Nome",
+                cliente: String(linha["CLIENTE"] || "Sem Nome").trim(),
                 servico: linha["SERVIÇO"] || linha["SERVICO"] || "",
                 rua: rua,
-                cidade: cidade,
+                cidade: city = cidade,
                 cep: cepFormatado,
-                detalhes: linha["DETALHES O.S"] || linha["DETALHES O.S."] || ""
-            };
-
-            if (primeiraLetra === 'M') {
-                dadosGlobaisRotas[tecnico].manha.push(clienteOcorrencia);
-            } else {
-                dadosGlobaisRotas[tecnico].tarde.push(clienteOcorrencia);
-            }
+                detalhes: linha["DETALHES O.S"] || linha["DETALHES O.S."] || "",
+                periodo: periodoOriginal // Guardado temporariamente para a análise
+            });
         });
 
+        // PASSO 2: Varre a lista de cada técnico caçando o mesmo endereço
+        Object.keys(ordensPorTecnico).forEach(tecnico => {
+            let listaOrdens = ordensPorTecnico[tecnico];
+
+            listaOrdens.forEach(ordemAtual => {
+                // Procura outras ordens do MESMO técnico no MESMO endereço
+                let duplicadas = listaOrdens.filter(o => 
+                    o.rua.toLowerCase() === ordemAtual.rua.toLowerCase() && 
+                    o.codigo !== ordemAtual.codigo
+                );
+
+                if (duplicadas.length > 0) {
+                    // Verifica se existe um choque de horários (uma de manhã e outra de tarde)
+                    let temManha = ordemAtual.periodo === 'MANHA' || duplicadas.some(o => o.periodo === 'MANHA');
+                    let temTarde = ordemAtual.periodo === 'TARDE' || duplicadas.some(o => o.periodo === 'TARDE');
+
+                    if (temManha && temTarde) {
+                        // Verifica se todos os registos desse endereço pertencem ao mesmo cliente
+                        let mesmoCliente = duplicadas.every(o => o.cliente.toLowerCase() === ordemAtual.cliente.toLowerCase());
+
+                        if (mesmoCliente) {
+                            // 🗓️ REGRA CLIENTE IGUAL -> Puxa tudo para a MANHÃ
+                            ordemAtual.periodo = 'MANHA';
+                            duplicadas.forEach(o => o.periodo = 'MANHA');
+                        } else {
+                            // 🏢 REGRA CLIENTES DIFERENTES -> Empurra tudo para a TARDE
+                            ordemAtual.periodo = 'TARDE';
+                            duplicadas.forEach(o => o.periodo = 'TARDE');
+                        }
+                    }
+                }
+            });
+
+            // PASSO 3: Agora sim, separa definitivamente as ordens corrigidas nos blocos finais
+            dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
+            
+            listaOrdens.forEach(ordem => {
+                if (ordem.periodo === 'MANHA') {
+                    dadosGlobaisRotas[tecnico].manha.push(ordem);
+                } else {
+                    dadosGlobaisRotas[tecnico].tarde.push(ordem);
+                }
+            });
+        });
+
+        // Guarda os dados processados e limpos na memória
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
@@ -232,7 +275,6 @@
         `;
     }
 
-    // MOTOR DUPLO DE ALTA PRECISÃO (BrasilAPI + Satélite)
     async function selecionarTecnico(nome, elementoHTML) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         elementoHTML.classList.add('ativo');
@@ -245,7 +287,7 @@
         const todosClientes = [...dadosTecnico.manha, ...dadosTecnico.tarde];
         
         const toast = document.createElement("div");
-        toast.innerText = `A procurar coordenadas reais para ${nome}...`;
+        toast.innerText = `A traçar rota inteligente para ${nome}...`;
         toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3);";
         document.getElementById("mapaArea").appendChild(toast);
 
@@ -256,40 +298,35 @@
                 let lat = null, lon = null;
                 let cepNumeros = cliente.cep.replace(/\D/g, '');
 
-                // TENTATIVA 1: API do Governo Brasileiro (A melhor para CEPs)
                 if (cepNumeros.length === 8) {
                     try {
-                        let resCep = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepNumeros}`);
+                        let resCep = await fetch(`https://cep.awesomeapi.com.br/json/${cepNumeros}`);
                         if(resCep.ok) {
                             let dadosCep = await resCep.json();
-                            if(dadosCep.location && dadosCep.location.coordinates && dadosCep.location.coordinates.latitude) {
-                                lon = parseFloat(dadosCep.location.coordinates.longitude);
-                                lat = parseFloat(dadosCep.location.coordinates.latitude);
+                            if(dadosCep.lat && dadosCep.lng) {
+                                lat = parseFloat(dadosCep.lat);
+                                lon = parseFloat(dadosCep.lng);
                             }
                         }
-                    } catch(e) {} // Se a BrasilAPI falhar, ignora e avança para a tentativa 2
+                    } catch(e) {}
                 }
 
-                // TENTATIVA 2: Limpa a vírgula da rua e usa o Satélite OpenStreetMap
                 if (!lat || !lon) {
                     try {
-                        // Corta tudo o que estiver depois da vírgula (Ex: "AL Xingu, " vira "AL Xingu")
                         let nomeRua = cliente.rua.split(',')[0].trim();
-                        
-                        let urlBusca = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(nomeRua + ', ' + cliente.cidade + ', Brasil')}`;
+                        let urlBusca = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(nomeRua + ', ' + cliente.cidade + ', Brasil')}&email=suporte@neri.com.br`;
                         let resNom = await fetch(urlBusca);
-                        let locNom = await resNom.json();
-                        
-                        if (locNom && locNom.length > 0) {
-                            lat = parseFloat(locNom[0].lat);
-                            lon = parseFloat(locNom[0].lon);
+                        if(resNom.ok) {
+                            let locNom = await resNom.json();
+                            if (locNom && locNom.length > 0) {
+                                lat = parseFloat(locNom[0].lat);
+                                lon = parseFloat(locNom[0].lon);
+                            }
                         }
-                        // Pausa educada para não sermos bloqueados pelo satélite
-                        await new Promise(r => setTimeout(r, 1000));
+                        await new Promise(r => setTimeout(r, 1500)); 
                     } catch(e) {}
                 }
                 
-                // Se achou por um caminho ou por outro, planta o pino!
                 if (lat && lon) {
                     const pino = L.marker([lat, lon]).bindPopup(`
                         <div style="font-family:Arial,sans-serif; font-size:13px; color:#1E293B;">
@@ -303,7 +340,7 @@
                     pino.addTo(layerGrupo);
                     pinosEncontrados++;
                 }
-            } catch(e) { console.error("Erro geral na busca do cliente:", cliente.cliente); }
+            } catch(e) { console.error("Erro na busca:", cliente.cliente); }
         }
         
         toast.remove();
@@ -311,12 +348,12 @@
         if (pinosEncontrados > 0) {
             mapa.fitBounds(layerGrupo.getBounds(), {padding: [50, 50]});
         } else {
-            alert("⚠️ Nenhum endereço localizado. Tente atualizar a página e carregar o ficheiro novamente.");
+            alert("⚠️ Nenhum endereço localizado. Limpe a planilha anterior e envie o ficheiro novamente.");
         }
     }
 
     function limparRotas() {
-        if(confirm("Tem a certeza que deseja limpar as rotas de hoje e carregar um novo Excel?")) {
+        if(confirm("Deseja limpar as rotas de hoje e carregar um novo Excel?")) {
             localStorage.removeItem("planilhaRotas");
             window.location.reload();
         }
