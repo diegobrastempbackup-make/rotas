@@ -129,7 +129,7 @@
 </div>
 
 <script>
-    const token = localStorage.getItem("token");
+   const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
     const usuarioTipo = localStorage.getItem("usuarioTipo");
     if (usuarioTipo === "master" || usuarioTipo === "superadmin" || usuarioTipo === "admin") {
@@ -178,6 +178,16 @@
         } catch(e) { alert("Erro de ligação."); }
     }
 
+    // Leitor Flexível de Cabeçalhos (Encontra a coluna mesmo se o nome estiver misturado)
+    function buscarValorNaLinha(linha, palavrasChave) {
+        for (let chave of Object.keys(linha)) {
+            for (let palavra of palavrasChave) {
+                if (chave.includes(palavra)) return linha[chave];
+            }
+        }
+        return "";
+    }
+
     function processarExcel(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -203,22 +213,29 @@
     function agruparPorTecnico(linhas) {
         dadosGlobaisRotas = {};
         let ordensPorTecnico = {};
+
         linhas.forEach(linha => {
-            const tecnico = linha["TÉCNICO"] || linha["TECNICO"] || "SEM NOME";
-            if (!linha["CÓDIGO"] && !linha["CLIENTE"] && tecnico === "SEM NOME") return;
-            const horarioRaw = String(linha["HORÁRIO"] || linha["HORARIO"] || "").trim().toUpperCase();
+            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
+            const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
+            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
+            
+            if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
+
+            const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
             const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
-            let cepLimpo = String(linha["CEP"] || "").replace(/\D/g, '').trim(); 
+            
+            let cepOriginal = String(buscarValorNaLinha(linha, ["CEP"]));
+            let cepLimpo = cepOriginal.replace(/\D/g, '').trim(); 
             let cepFormatado = cepLimpo.padStart(8, '0'); 
             if (cepFormatado.length === 8) cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
             ordensPorTecnico[tecnico].push({
-                codigo: linha["CÓDIGO"] || linha["CODIGO"] || "",
-                cliente: String(linha["CLIENTE"] || "Sem Nome").trim(),
-                servico: linha["SERVIÇO"] || linha["SERVICO"] || "",
-                rua: String(linha["ENDEREÇO"] || linha["ENDERECO"] || "").trim(),
-                cidade: String(linha["CIDADE"] || "São Paulo").trim(),
+                codigo: codigo,
+                cliente: String(cliente).trim(),
+                servico: buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]),
+                rua: String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim(),
+                cidade: String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo",
                 cep: cepFormatado,
                 periodo: periodoOriginal 
             });
@@ -226,7 +243,11 @@
 
         Object.keys(ordensPorTecnico).forEach(tecnico => {
             let listaOrdens = ordensPorTecnico[tecnico];
+            
+            // CONSOLIDAÇÃO DE PARAGENS (Agora imune a endereços vazios)
             listaOrdens.forEach(ordemAtual => {
+                if(ordemAtual.rua === "") return;
+
                 let duplicadas = listaOrdens.filter(o => o.rua.toLowerCase() === ordemAtual.rua.toLowerCase() && o.codigo !== ordemAtual.codigo);
                 if (duplicadas.length > 0) {
                     let temManha = ordemAtual.periodo === 'MANHA' || duplicadas.some(o => o.periodo === 'MANHA');
@@ -239,6 +260,7 @@
                     }
                 }
             });
+
             dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             listaOrdens.forEach(ordem => {
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
@@ -328,7 +350,7 @@
         tecnicoAtivo = nome;
         
         const toast = document.createElement("div");
-        toast.innerText = `A separar Manhã e Tarde para ${nome}...`;
+        toast.innerText = `A otimizar Manhã e Tarde de ${nome}...`;
         toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;";
         document.getElementById("mapaArea").appendChild(toast);
 
@@ -339,7 +361,6 @@
         for (let cliente of dadosTecnico.manha) {
             let coords = await obterCoordenadasSilenciosa(cliente);
             coordsManha.push({ ...cliente, lat: coords ? coords.lat : configGalpao.lat, lon: coords ? coords.lon : configGalpao.lon, precisaCorrecao: !coords });
-            await new Promise(r => setTimeout(r, 600)); // Pequena pausa
         }
         
         // 2. Processa a Tarde de forma isolada
@@ -347,19 +368,17 @@
         for (let cliente of dadosTecnico.tarde) {
             let coords = await obterCoordenadasSilenciosa(cliente);
             coordsTarde.push({ ...cliente, lat: coords ? coords.lat : configGalpao.lat, lon: coords ? coords.lon : configGalpao.lon, precisaCorrecao: !coords });
-            await new Promise(r => setTimeout(r, 600));
         }
 
-        // 3. Roteirização Rigorosa (Manhã -> Tarde)
+        // 3. Roteirização Rigorosa (Sempre Galpão -> Manhã -> Tarde)
         let rotaManha = otimizarSequencia(coordsManha, configGalpao.lat, configGalpao.lon);
         
-        // O ponto de partida da tarde é o último cliente da manhã (se houver manhã)
         let latFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lat : configGalpao.lat;
         let lonFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lon : configGalpao.lon;
         
         let rotaTarde = otimizarSequencia(coordsTarde, latFimManha, lonFimManha);
 
-        // Junta as listas, garantindo que a Manhã vem SEMPRE primeiro
+        // A união garante que toda a manhã vem antes da tarde
         rotaAtiva = [...rotaManha, ...rotaTarde];
         toast.remove();
         
@@ -404,7 +423,6 @@
 
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             
-            // HTML do Item Arrastável (Drag & Drop)
             htmlLista += `
                 <div class="itinerario-item" draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})" ondragenter="destacarAlvo(event)" ondragleave="removerDestaque(event)">
                     <div class="drag-handle" title="Segure e arraste para mudar a ordem">☰</div>
@@ -438,52 +456,33 @@
         mapa.fitBounds(layerGrupo.getBounds(), {padding: [50, 50]});
     }
 
-    // ==========================================
-    // SISTEMA DE DRAG AND DROP (ARRASTAR E LARGAR)
-    // ==========================================
     let itemArrastadoIndice = null;
 
     function iniciarArraste(e, index) {
         itemArrastadoIndice = index;
         e.dataTransfer.effectAllowed = 'move';
-        // Hack para tornar o fundo levemente transparente no arrasto
         e.target.style.opacity = '0.5'; 
     }
 
     function permitirSoltar(e) { e.preventDefault(); }
-    
-    function destacarAlvo(e) {
-        if(e.currentTarget.classList) e.currentTarget.classList.add('drag-over');
-    }
-    
-    function removerDestaque(e) {
-        if(e.currentTarget.classList) e.currentTarget.classList.remove('drag-over');
-    }
+    function destacarAlvo(e) { if(e.currentTarget.classList) e.currentTarget.classList.add('drag-over'); }
+    function removerDestaque(e) { if(e.currentTarget.classList) e.currentTarget.classList.remove('drag-over'); }
 
     function soltarItem(e, indexAlvo) {
         e.preventDefault();
         e.currentTarget.classList.remove('drag-over');
-        
-        // Remove a transparência do item que estava a ser arrastado
         document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
         
-        // Remove da posição antiga e insere na nova posição
         let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0];
         rotaAtiva.splice(indexAlvo, 0, item);
-        
-        // Redesenha as linhas do mapa e os números
         atualizarTela();
     }
 
-    // ==========================================
-    // EDIÇÃO MANUAL DO ENDEREÇO
-    // ==========================================
     async function editarEndereco(index) {
         let cliente = rotaAtiva[index];
         let novoEnd = prompt(`Edite o endereço da OS ${cliente.codigo}:\nInsira a Rua e Cidade (sem vírgulas soltas).`, `${cliente.rua}, ${cliente.cidade}`);
-        
         if (!novoEnd) return; 
 
         cliente.rua = novoEnd;
@@ -527,6 +526,9 @@
     function buscarHistorico() {
         alert("Interface de pesquisa pronta. Ativaremos no próximo passo com o server.js!");
     }
+</script>
+</body>
+</html>
 </script>
 </body>
 </html>
