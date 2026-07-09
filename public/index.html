@@ -98,15 +98,18 @@
   </div>
 
   <div class="main">
+    
     <div class="cards">
       <div class="card azul">
         <div class="card-titulo">💰 Gasto Total</div>
         <div id="gastoTotal" class="card-valor">R$ 0,00</div>
+        <div id="trendGasto" class="trend-badge trend-neutral">Aguardando dados...</div>
       </div>
 
       <div class="card verde">
         <div class="card-titulo">🛣 KM Total</div>
         <div id="kmTotal" class="card-valor">0 KM</div>
+        <div id="trendKm" class="trend-badge trend-neutral">Aguardando dados...</div>
       </div>
 
       <div class="card amarelo">
@@ -114,10 +117,38 @@
         <div style="font-size:13px; margin-top:10px; display:flex; flex-direction:column; gap:4px;">
           <div>Gasto: <span id="gastoIndividual" style="font-weight:bold; color:#F8FAFC;">R$ 0,00</span></div>
           <div>KM: <span id="kmIndividual" style="font-weight:bold; color:#F8FAFC;">0 KM</span></div>
-          <div>Média: <span id="mediaIndividual" style="font-weight:bold; color:#F8FAFC;">0.0 KM/L</span></div>
+          <div>Média Atual: <span id="mediaIndividual" style="font-weight:bold; color:#F8FAFC;">0.0 KM/L</span></div>
         </div>
+        <div id="trendConsumo" class="trend-badge trend-neutral" style="margin-top: 8px;">Aguardando dados...</div>
       </div>
     </div> 
+
+    <div class="podium-grid" id="painelPodium">
+        <div class="podium-card">
+            <div class="podium-icon icon-eficiencia">🏆</div>
+            <div class="podium-info">
+                <span class="podium-titulo">Mais Eficiente (KM/L)</span>
+                <span class="podium-nome" id="podiumEfiNome">-</span>
+                <span class="podium-valor" id="podiumEfiValor">0.0 KM/L</span>
+            </div>
+        </div>
+        <div class="podium-card">
+            <div class="podium-icon icon-distancia">🛣️</div>
+            <div class="podium-info">
+                <span class="podium-titulo">Maior Distância</span>
+                <span class="podium-nome" id="podiumDistNome">-</span>
+                <span class="podium-valor" id="podiumDistValor">0 KM</span>
+            </div>
+        </div>
+        <div class="podium-card">
+            <div class="podium-icon icon-gasto">🚨</div>
+            <div class="podium-info">
+                <span class="podium-titulo">Maior Gasto (Alerta)</span>
+                <span class="podium-nome" id="podiumGastoNome">-</span>
+                <span class="podium-valor" id="podiumGastoValor">R$ 0,00</span>
+            </div>
+        </div>
+    </div>
 
     <div class="graficos">
       <div class="grafico"><canvas id="g1"></canvas></div>
