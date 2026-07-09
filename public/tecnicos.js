@@ -4,34 +4,93 @@ let cacheTecnicos = [];
 if (!token) window.location.replace("/login.html");
 
 document.addEventListener("DOMContentLoaded", async () => {
-    // Esconde a aba de usuários se não for Master
     const usuarioTipo = localStorage.getItem("usuarioTipo");
-    if (usuarioTipo !== "master") {
-        document.getElementById("btnTabUsuarios").style.display = "none";
+    
+    // Mostra a aba de Usuários se for Master ou SuperAdmin
+    if (usuarioTipo === "master" || usuarioTipo === "superadmin") {
+        document.getElementById("btnTabUsuarios").style.display = "flex";
+    }
+
+    // Mostra a aba SaaS apenas para o Deus do Sistema
+    if (usuarioTipo === "superadmin") {
+        document.getElementById("btnTabEmpresas").style.display = "flex";
+        await carregarEmpresas();
     }
 
     await carregarTecnicos();
-    await carregarUsuarios(); // Carrega os usuários também
+    await carregarUsuarios();
 
     document.getElementById("buscaNome").addEventListener("input", filtrarTabela);
     document.getElementById("filtroStatus").addEventListener("change", filtrarTabela);
 });
 
-// ================= CONTROLE DE ABAS =================
+// ABAS
 function mudarAba(abaSelecionada) {
     document.getElementById("abaTecnicos").style.display = abaSelecionada === 'tecnicos' ? 'block' : 'none';
     document.getElementById("abaUsuarios").style.display = abaSelecionada === 'usuarios' ? 'block' : 'none';
+    document.getElementById("abaEmpresas").style.display = abaSelecionada === 'empresas' ? 'block' : 'none';
     
     document.getElementById("btnTabTecnicos").className = abaSelecionada === 'tecnicos' ? 'tab-btn ativa' : 'tab-btn';
     document.getElementById("btnTabUsuarios").className = abaSelecionada === 'usuarios' ? 'tab-btn ativa' : 'tab-btn';
+    document.getElementById("btnTabEmpresas").className = abaSelecionada === 'empresas' ? 'tab-btn ativa' : 'tab-btn';
 }
 
-// ================= CONTROLE DE MODAIS (CORRIGIDO PARA .ativo) =================
-function fecharModal(idModal) {
-    document.getElementById(idModal).classList.remove("ativo");
+function fecharModal(idModal) { document.getElementById(idModal).classList.remove("ativo"); }
+
+// --- GESTÃO DE CLIENTES (SAAS) ---
+async function carregarEmpresas() {
+    try {
+        const res = await fetch("/api/empresas", { headers: { "Authorization": `Bearer ${token}` } });
+        const empresas = await res.json();
+        const corpo = document.getElementById("corpoTabelaEmpresas");
+        corpo.innerHTML = "";
+        
+        empresas.forEach(emp => {
+            const dataReg = emp.criadoEm ? new Date(emp.criadoEm).toLocaleDateString("pt-BR") : "-";
+            corpo.innerHTML += `
+                <tr>
+                    <td><strong>${emp.empresaNome || 'Desconhecida'}</strong></td>
+                    <td>${emp.nome}</td>
+                    <td><span class="badge badge-ativo" style="background: rgba(16,185,129,0.15); color: #10B981;">${emp.usuario}</span></td>
+                    <td>${dataReg}</td>
+                </tr>
+            `;
+        });
+    } catch (err) { console.error("Erro ao carregar empresas"); }
 }
 
-// ================= LÓGICA DE TÉCNICOS =================
+function abrirModalEmpresa() {
+    document.getElementById("regEmpresa").value = "";
+    document.getElementById("regNome").value = "";
+    document.getElementById("regUsuario").value = "";
+    document.getElementById("regSenha").value = "";
+    document.getElementById("modalEmpresa").classList.add("ativo");
+}
+
+async function salvarNovaEmpresa() {
+    const empresa = document.getElementById("regEmpresa").value.trim();
+    const nome = document.getElementById("regNome").value.trim();
+    const usuario = document.getElementById("regUsuario").value.trim();
+    const senha = document.getElementById("regSenha").value;
+
+    if (!empresa || !nome || !usuario || !senha) return alert("Preencha todos os campos.");
+
+    try {
+        const res = await fetch("/nova-empresa", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({ empresa, nome, usuario, senha })
+        });
+        const dados = await res.json();
+        if (!res.ok) return alert(dados.erro || "Falha no registo.");
+
+        alert(`Cliente ${empresa} criado com sucesso! O painel dele já está isolado.`);
+        fecharModal('modalEmpresa');
+        await carregarEmpresas();
+    } catch (err) { alert("Erro de conexão."); }
+}
+
+// --- TÉCNICOS ---
 async function carregarTecnicos() {
     try {
         const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
@@ -47,35 +106,21 @@ function atualizarCardsIndicadores() {
     const ferias = cacheTecnicos.filter(t => t.status === "Em Férias").length;
     const afastados = cacheTecnicos.filter(t => t.status === "Afastado").length;
     const desligados = cacheTecnicos.filter(t => t.status === "Desligado").length;
-    
-    const totalGlobal = ativos + ferias + afastados;
     document.getElementById("cardAtivos").innerText = ativos;
     document.getElementById("cardFerias").innerText = ferias;
     document.getElementById("cardAfastados").innerText = afastados;
     document.getElementById("cardDesligados").innerText = desligados;
-
-    document.getElementById("pctAtivos").innerText = totalGlobal > 0 ? `${Math.round((ativos/totalGlobal)*100)}% da equipe` : "0% da equipe";
-    document.getElementById("pctFerias").innerText = totalGlobal > 0 ? `${Math.round((ferias/totalGlobal)*100)}% da equipe` : "0% da equipe";
-    document.getElementById("pctAfastados").innerText = totalGlobal > 0 ? `${Math.round((afastados/totalGlobal)*100)}% da equipe` : "0% da equipe";
-    document.getElementById("pctDesligados").innerText = `${desligados} do total geral`;
 }
 
 function renderizarTabela(lista) {
     const corpo = document.getElementById("corpoTabelaTecnicos");
     corpo.innerHTML = "";
-    if (lista.length === 0) {
-        corpo.innerHTML = `<tr><td colspan="8" style="text-align:center;">Nenhum técnico localizado.</td></tr>`;
-        return;
-    }
-
     lista.forEach(t => {
         const statusReal = t.status || "Ativo";
         let classeBadge = "badge-ativo";
         if (statusReal === "Em Férias") classeBadge = "badge-ferias";
         if (statusReal === "Afastado") classeBadge = "badge-afastado";
         if (statusReal === "Desligado") classeBadge = "badge-desligado";
-
-        const dataCriacao = t.criadoEm ? new Date(t.criadoEm).toLocaleDateString("pt-BR") : "Histórico";
 
         corpo.innerHTML += `
             <tr>
@@ -85,7 +130,6 @@ function renderizarTabela(lista) {
                 <td>${t.email || "-"}</td>
                 <td>${t.veiculo || "-"}</td>
                 <td>${t.placa || "-"}</td>
-                <td>${dataCriacao}</td>
                 <td>
                     <button class="btn-mini btn-editar" onclick="prepararEdicaoTecnico('${t._id}')">Editar</button>
                     <button class="btn-mini btn-excluir" onclick="deletarTecnico('${t._id}')">Excluir</button>
@@ -114,7 +158,7 @@ function abrirModalTecnico() {
     document.getElementById("formEmail").value = "";
     document.getElementById("formVeiculo").value = "";
     document.getElementById("formPlaca").value = "";
-    document.getElementById("modalTecnico").classList.add("ativo"); // Corrigido para .ativo
+    document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 function prepararEdicaoTecnico(id) {
@@ -128,7 +172,7 @@ function prepararEdicaoTecnico(id) {
     document.getElementById("formEmail").value = t.email || "";
     document.getElementById("formVeiculo").value = t.veiculo || "";
     document.getElementById("formPlaca").value = t.placa || "";
-    document.getElementById("modalTecnico").classList.add("ativo"); // Corrigido para .ativo
+    document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 async function salvarTecnico() {
@@ -161,7 +205,7 @@ async function deletarTecnico(id) {
     } catch (err) { console.error(err); }
 }
 
-// ================= LÓGICA DE USUÁRIOS (MIGRADA DO APP.JS) =================
+// --- USUÁRIOS ---
 async function carregarUsuarios() {
     const corpo = document.getElementById("corpoTabelaUsuarios");
     corpo.innerHTML = `<tr><td colspan="4" style="text-align:center;">Carregando...</td></tr>`;
@@ -171,28 +215,19 @@ async function carregarUsuarios() {
         corpo.innerHTML = "";
         
         usuarios.forEach(u => {
-            let exibicaoNome = u.nome;
-            let exibicaoTipo = u.tipo;
-
-            if (u.nome && u.nome.toUpperCase().includes("ESTOQUE")) {
-                exibicaoNome = u.nome.replace(" [ESTOQUE]", "").replace(" ESTOQUE", "").trim();
-                exibicaoTipo = "estoque";
-            }
-
-            let badge = "";
-            if (exibicaoTipo === "master") badge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#FBBF24;">Master</span>`;
-            else if (exibicaoTipo === "admin") badge = `<span class="badge" style="background:rgba(96,165,250,0.15); color:#60A5FA;">Admin</span>`;
-            else if (exibicaoTipo === "estoque") badge = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34D399;">Estoque</span>`;
-            else badge = `<span class="badge" style="background:rgba(148,163,184,0.15); color:#94A3B8;">Simples</span>`;
+            let badge = `<span class="badge" style="background:rgba(148,163,184,0.15); color:#94A3B8;">Simples</span>`;
+            if (u.tipo === "master") badge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#FBBF24;">Master</span>`;
+            else if (u.tipo === "admin") badge = `<span class="badge" style="background:rgba(96,165,250,0.15); color:#60A5FA;">Admin</span>`;
+            else if (u.tipo === "estoque") badge = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34D399;">Estoque</span>`;
+            else if (u.tipo === "superadmin") badge = `<span class="badge" style="background:rgba(139, 92, 246, 0.15); color:#8B5CF6;">Super Admin</span>`;
 
             corpo.innerHTML += `
                 <tr>
-                    <td><strong>${exibicaoNome}</strong></td>
+                    <td><strong>${u.nome}</strong></td>
                     <td>${u.usuario}</td>
                     <td>${badge}</td>
                     <td>
-                        <button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}', '${exibicaoNome}', '${u.usuario}', '${exibicaoTipo}')">Editar</button>
-                        <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>
+                        ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}', '${u.nome}', '${u.usuario}', '${u.tipo}')">Editar</button><button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
                     </td>
                 </tr>
             `;
@@ -208,9 +243,8 @@ function abrirModalUsuario() {
     document.getElementById("cadUsuario").disabled = false; 
     document.getElementById("cadSenha").value = "";
     document.getElementById("lblSenha").innerText = "Senha de Acesso";
-    document.getElementById("cadSenha").placeholder = "Digite a senha";
     document.getElementById("cadTipo").value = "simples";
-    document.getElementById("modalUsuario").classList.add("ativo"); // Usa a classe oficial do style.css
+    document.getElementById("modalUsuario").classList.add("ativo"); 
 }
 
 function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
@@ -221,7 +255,6 @@ function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
     document.getElementById("cadUsuario").disabled = true; 
     document.getElementById("cadSenha").value = "";
     document.getElementById("lblSenha").innerText = "Nova Senha (vazio mantém a atual)";
-    document.getElementById("cadSenha").placeholder = "Apenas se for alterar";
     document.getElementById("cadTipo").value = tipoReal;
     document.getElementById("modalUsuario").classList.add("ativo");
 }
@@ -260,7 +293,7 @@ async function salvarUsuario() {
 }
 
 async function deletarUsuario(id) {
-    if (!confirm("Atenção! Deseja remover este usuário permanentemente?")) return;
+    if (!confirm("Deseja remover este usuário permanentemente?")) return;
     try {
         const res = await fetch(`/api/usuarios/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
         if (res.ok) await carregarUsuarios();
