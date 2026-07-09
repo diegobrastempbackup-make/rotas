@@ -3,281 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Diário de Bordo - NERI</title>
+    <title>App do Técnico - NERI</title>
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background-color: #0F172A; 
-            color: white; 
-            -webkit-tap-highlight-color: transparent;
-        }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0F172A; color: white; -webkit-tap-highlight-color: transparent; }
         
         /* Cabeçalho Fixo */
-        .header { 
-            background-color: #1E293B; 
-            padding: 20px 15px; 
-            text-align: center; 
-            border-bottom: 3px solid #3B82F6; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+        .header { background-color: #1E293B; padding: 20px 15px; text-align: center; border-bottom: 3px solid #3B82F6; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .header h2 { margin: 0; font-size: 18px; color: #E2E8F0; text-transform: uppercase; letter-spacing: 1px; }
-        .header p { margin: 5px 0 0 0; color: #94A3B8; font-size: 13px; font-weight: bold; }
-        .btn-sair { 
-            position: absolute; 
-            top: 15px; 
-            right: 15px; 
-            background: rgba(239, 68, 68, 0.1); 
-            color: #EF4444; 
-            border: 1px solid #EF4444; 
-            padding: 6px 12px; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            font-weight: bold;
-        }
+        .btn-sair { position: absolute; top: 15px; right: 15px; background: rgba(239, 68, 68, 0.1); color: #EF4444; border: 1px solid #EF4444; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
-        .container { padding: 20px 15px; padding-bottom: 80px; }
+        /* Resumo do Dia (Cards Topo) */
+        .resumo-dia { display: flex; justify-content: space-between; gap: 10px; padding: 15px; background: #172033; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .resumo-box { flex: 1; background: #1E293B; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .resumo-valor { font-size: 20px; font-weight: bold; color: #3B82F6; margin-bottom: 4px; }
+        .resumo-titulo { font-size: 11px; color: #94A3B8; text-transform: uppercase; }
+
+        .container { padding: 15px; padding-bottom: 80px; }
         
-        .card-aviso { 
-            background-color: #1E293B; 
-            padding: 30px 20px; 
-            text-align: center; 
-            border-radius: 12px; 
-            margin-top: 30px; 
-            border: 1px solid rgba(255,255,255,0.05); 
-        }
+        /* Lista Sanfona (Cards de Paragem) */
+        .paragem-card { background: #1E293B; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border-left: 5px solid #64748B; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         
-        /* Cartão da Paragem Atual */
-        .cliente-card { 
-            background: linear-gradient(145deg, #1E293B, #172033); 
-            padding: 25px 20px; 
-            border-radius: 16px; 
-            border-left: 5px solid #3B82F6; 
-            box-shadow: 0 10px 20px rgba(0,0,0,0.4); 
-        }
-        .cliente-card h3 { 
-            margin: 0 0 15px 0; 
-            font-size: 18px; 
-            color: #60A5FA; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-        }
-        .badge-os { 
-            color: white; 
-            font-size: 14px; 
-            background: #3B82F6; 
-            padding: 4px 10px; 
-            border-radius: 6px; 
-            font-weight: bold;
-        }
-        
+        /* Cores de Status */
+        .status-pendente { border-left-color: #64748B; } /* Cinza */
+        .status-deslocamento { border-left-color: #FACC15; } /* Amarelo */
+        .status-chegada { border-left-color: #F97316; } /* Laranja */
+        .status-sucesso { border-left-color: #10B981; opacity: 0.7; } /* Verde */
+        .status-insucesso { border-left-color: #EF4444; opacity: 0.7; } /* Vermelho */
+
+        .paragem-header { padding: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .paragem-header:active { background: rgba(255,255,255,0.05); }
+        .p-seq { font-size: 18px; font-weight: bold; color: white; width: 35px; }
+        .p-info { flex: 1; padding: 0 10px; }
+        .p-os { color: #60A5FA; font-size: 13px; font-weight: bold; margin-bottom: 3px; display: block; }
+        .p-cliente { color: #E2E8F0; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+        .p-icon { font-size: 18px; color: #94A3B8; transition: transform 0.3s; }
+
+        /* Detalhes (Conteúdo Expandido) */
+        .paragem-body { display: none; padding: 15px; background: rgba(15, 23, 42, 0.4); border-top: 1px solid rgba(255,255,255,0.05); }
         .info-linha { margin-bottom: 12px; }
-        .info-titulo { color: #94A3B8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px; }
-        .info-valor { color: #F8FAFC; font-size: 16px; font-weight: 500; }
-        
-        /* Botões de Ação */
-        .botoes-acao { display: flex; flex-direction: column; gap: 12px; margin-top: 25px; }
-        
-        .btn-gigante { 
-            width: 100%;
-            padding: 18px; 
-            font-size: 16px; 
-            font-weight: bold; 
-            text-align: center; 
-            border-radius: 10px; 
-            border: none; 
-            cursor: pointer; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            gap: 10px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        }
-        
-        .btn-waze { background-color: #00C3FF; color: #0F172A; }
-        .btn-maps { background-color: #10B981; color: white; }
-        .btn-cheguei { background-color: #F59E0B; color: white; margin-top: 15px; }
-        .btn-finalizar { background-color: #EF4444; color: white; }
-        
-        .btn-gigante:active { transform: scale(0.98); }
-        .btn-gigante:disabled { opacity: 0.5; pointer-events: none; }
+        .info-titulo { color: #94A3B8; font-size: 12px; display: block; margin-bottom: 2px; text-transform: uppercase; }
+        .info-valor { color: #F8FAFC; font-size: 14px; line-height: 1.4; }
 
-        .estado-servico {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 14px;
-            font-weight: bold;
-            color: #10B981;
-            display: none;
-            padding: 10px;
-            background: rgba(16, 185, 129, 0.1);
-            border-radius: 8px;
-        }
+        /* Botões de Ação Dinâmicos */
+        .btn-gigante { width: 100%; padding: 16px; font-size: 15px; font-weight: bold; text-align: center; border-radius: 8px; border: none; cursor: pointer; margin-top: 10px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-deslocamento { background: #FACC15; color: #422006; }
+        .btn-cheguei { background: #F97316; color: white; }
+        
+        .botoes-duplos { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-sucesso { background: #10B981; color: white; flex: 1; padding: 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-insucesso { background: #EF4444; color: white; flex: 1; padding: 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-        .progresso-texto { text-align: center; margin-top: 25px; font-size: 13px; color: #64748B; font-weight: bold; }
+        .btn-nav-pequeno { background: #3B82F6; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-right: 5px; font-size: 12px; }
+
+        .loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.9); z-index:999; display:flex; justify-content:center; align-items:center; flex-direction:column; display: none; }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
     </style>
 </head>
 <body>
 
     <div class="header">
-        <button class="btn-sair" onclick="sair()">🚪 Sair</button>
+        <button class="btn-sair" onclick="sair()">Sair</button>
         <h2 id="nomeTecnico">Carregando...</h2>
-        <p id="dataHoje">Buscando Rota...</p>
     </div>
 
-    <div class="container" id="telaPrincipal">
-        <!-- O conteúdo dinâmico é injetado aqui -->
+    <!-- Topo: Painel de Resumo -->
+    <div class="resumo-dia">
+        <div class="resumo-box"><div class="resumo-valor" id="resumoKM">0</div><div class="resumo-titulo">KM Total</div></div>
+        <div class="resumo-box"><div class="resumo-valor" id="resumoM" style="color:#F59E0B;">0</div><div class="resumo-titulo">Manhã</div></div>
+        <div class="resumo-box"><div class="resumo-valor" id="resumoT" style="color:#10B981;">0</div><div class="resumo-titulo">Tarde</div></div>
     </div>
+
+    <div class="container" id="listaOrdens">
+        <div style="text-align: center; color: #94A3B8; margin-top: 50px;">A buscar rotas de hoje...</div>
+    </div>
+
+    <!-- Tela de Carregamento -->
+    <div class="loading-overlay" id="loader"><div class="spinner"></div><div style="color:white; font-weight:bold;">A sincronizar...</div></div>
 
 <script>
     const token = localStorage.getItem("token");
     const nomeUsuario = localStorage.getItem("nomeUsuario"); 
-    const tipoUsuario = localStorage.getItem("usuarioTipo");
     
-    // Bloqueio de segurança
-    if (!token || tipoUsuario !== "tecnico") {
-        window.location.replace("/login.html");
-    }
+    if (!token) window.location.replace("/login.html");
 
-    // Limpa o nome para mostrar apenas o primeiro e último nome
     const nomePartes = nomeUsuario.split(' ');
-    const nomeCurto = nomePartes.length > 1 ? `${nomePartes[0]} ${nomePartes[nomePartes.length-1]}` : nomePartes[0];
-    document.getElementById("nomeTecnico").innerText = `🚗 ${nomeCurto}`;
+    document.getElementById("nomeTecnico").innerText = `🚗 ${nomePartes[0]} ${nomePartes[nomePartes.length-1] || ''}`;
 
-    let rotaDoDia = [];
-    let clienteAtualIndex = parseInt(localStorage.getItem("paragemAtualIndex")) || 0;
+    let itinerarioDia = [];
+    let dataDeHojeBR = "";
+
+    // Fórmula para calcular Distância em Linha Reta entre pontos GPS
+    function calcularDistanciaKM(lat1, lon1, lat2, lon2) {
+        const R = 6371; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
 
     async function buscarRotaDoServidor() {
         const dataAtual = new Date();
-        const dia = String(dataAtual.getDate()).padStart(2, '0');
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        const ano = dataAtual.getFullYear();
-        const hojeBR = `${dia}/${mes}/${ano}`;
+        dataDeHojeBR = `${String(dataAtual.getDate()).padStart(2, '0')}/${String(dataAtual.getMonth() + 1).padStart(2, '0')}/${dataAtual.getFullYear()}`;
         
-        document.getElementById("dataHoje").innerText = `📅 Rota de ${hojeBR}`;
-
         try {
-            const res = await fetch(`/api/rotas?data=${encodeURIComponent(hojeBR)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const rotasDeHoje = await res.json();
+            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const rotas = await res.json();
+            const minhaRota = rotas.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
 
-            // Encontra a rota específica deste técnico
-            const minhaRota = rotasDeHoje.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
-
-            if (minhaRota && minhaRota.itinerario && minhaRota.itinerario.length > 0) {
-                rotaDoDia = minhaRota.itinerario;
-                renderizarClienteAtual();
+            if (minhaRota && minhaRota.itinerario.length > 0) {
+                itinerarioDia = minhaRota.itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
+                atualizarResumoTopo();
+                renderizarLista();
             } else {
-                mostrarAviso("Nenhum roteiro enviado para si hoje.<br><br>☕ Bom descanso!");
+                document.getElementById("listaOrdens").innerHTML = `<div style="text-align:center; margin-top:40px; padding:20px; background:#1E293B; border-radius:12px;">🎉 Nenhuma rota para hoje. Bom descanso!</div>`;
+            }
+        } catch (e) { alert("Falha na ligação com a central."); }
+    }
+
+    function atualizarResumoTopo() {
+        let qtdM = 0; let qtdT = 0;
+        let kmTotal = 0;
+        
+        // Conta Manhã e Tarde
+        itinerarioDia.forEach(item => {
+            if(item.periodo === 'MANHA') qtdM++; else qtdT++;
+        });
+
+        // Calcula KM aproximado ponto a ponto
+        for(let i = 0; i < itinerarioDia.length - 1; i++) {
+            kmTotal += calcularDistanciaKM(itinerarioDia[i].lat, itinerarioDia[i].lon, itinerarioDia[i+1].lat, itinerarioDia[i+1].lon);
+        }
+
+        document.getElementById("resumoM").innerText = qtdM;
+        document.getElementById("resumoT").innerText = qtdT;
+        document.getElementById("resumoKM").innerText = (kmTotal * 1.3).toFixed(1); // x1.3 para compensar curvas de rua
+    }
+
+    function renderizarLista() {
+        const container = document.getElementById("listaOrdens");
+        container.innerHTML = "";
+
+        itinerarioDia.forEach((cliente, index) => {
+            const seq = index + 1;
+            const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
+            
+            // Define o design dos botões baseado no Status Atual
+            let botoesHTML = "";
+            let iconeStatus = "▼";
+
+            if (cliente.status === 'pendente') {
+                botoesHTML = `<button class="btn-gigante btn-deslocamento" onclick="mudarStatus('${cliente.codigo}', 'deslocamento', 'horaSaida', ${index})">🚗 Iniciar Deslocamento</button>`;
+            } else if (cliente.status === 'deslocamento') {
+                botoesHTML = `<button class="btn-gigante btn-cheguei" onclick="mudarStatus('${cliente.codigo}', 'chegada', 'horaChegada', ${index})">📍 Cheguei no Cliente</button>`;
+            } else if (cliente.status === 'chegada') {
+                botoesHTML = `
+                    <div class="botoes-duplos">
+                        <button class="btn-sucesso" onclick="mudarStatus('${cliente.codigo}', 'sucesso', 'horaFinal', ${index})">✅ Sucesso</button>
+                        <button class="btn-insucesso" onclick="mudarStatus('${cliente.codigo}', 'insucesso', 'horaFinal', ${index})">❌ Insucesso</button>
+                    </div>`;
+            } else {
+                iconeStatus = cliente.status === 'sucesso' ? "✅" : "❌";
+                botoesHTML = `<div style="text-align:center; padding:10px; color:#94A3B8; font-weight:bold;">Serviço Finalizado</div>`;
             }
 
-        } catch (e) {
-            mostrarAviso("Falha de ligação com a central. Tente recarregar a página.");
-        }
-    }
-
-    function renderizarClienteAtual() {
-        // Guarda o progresso no telemóvel para se ele fechar o navegador sem querer, não perder a viagem
-        localStorage.setItem("paragemAtualIndex", clienteAtualIndex);
-
-        if (clienteAtualIndex >= rotaDoDia.length) {
-            return mostrarAviso("🎉 Parabéns!<br><br>Você finalizou todas as ordens de serviço planeadas para hoje.<br><br>Pode retornar à base.");
-        }
-
-        const cliente = rotaDoDia[clienteAtualIndex];
-        const tela = document.getElementById("telaPrincipal");
-
-        // Links Universais de Navegação (Funcionam em Android e iOS)
-        const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
-        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${cliente.lat},${cliente.lon}`;
-
-        tela.innerHTML = `
-            <div class="cliente-card">
-                <h3>Paragem #${clienteAtualIndex + 1} <span class="badge-os">OS: ${cliente.codigo}</span></h3>
-                
-                <div class="info-linha">
-                    <span class="info-titulo">Cliente</span>
-                    <span class="info-valor">${cliente.cliente}</span>
-                </div>
-                
-                <div class="info-linha">
-                    <span class="info-titulo">Serviço Solicitado</span>
-                    <span class="info-valor" style="color: #F59E0B;">${cliente.servico || 'Não especificado'}</span>
-                </div>
-
-                <div class="info-linha">
-                    <span class="info-titulo">Endereço de Destino</span>
-                    <span class="info-valor">${cliente.rua}, ${cliente.cidade}</span>
-                </div>
-                
-                <div id="statusCheckIn" class="estado-servico">✔️ Chegada Registada! Em atendimento.</div>
-
-                <div class="botoes-acao">
-                    <div style="display:flex; gap:10px;">
-                        <button class="btn-gigante btn-waze" id="btnWaze" onclick="window.open('${wazeUrl}', '_blank')">
-                            🧭 Waze
-                        </button>
-                        <button class="btn-gigante btn-maps" id="btnMaps" onclick="window.open('${mapsUrl}', '_blank')">
-                            🗺️ Maps
-                        </button>
+            container.innerHTML += `
+                <div class="paragem-card status-${cliente.status}" id="card-${index}">
+                    <div class="paragem-header" onclick="toggleCard(${index})">
+                        <div class="p-seq">#${seq}</div>
+                        <div class="p-info">
+                            <span class="p-os">OS: ${cliente.codigo}</span>
+                            <div class="p-cliente">${cliente.cliente}</div>
+                        </div>
+                        <div class="p-icon" id="icon-${index}">${iconeStatus}</div>
                     </div>
                     
-                    <button class="btn-gigante btn-cheguei" id="btnCheguei" onclick="marcarChegada()">
-                        📍 Registar Chegada
-                    </button>
-                    
-                    <button class="btn-gigante btn-finalizar" id="btnFinalizar" onclick="finalizarServico()" style="display:none;">
-                        🏁 Finalizar Serviço
-                    </button>
+                    <div class="paragem-body" id="body-${index}">
+                        <div style="margin-bottom: 15px;">
+                            <button class="btn-nav-pequeno" onclick="window.open('${wazeUrl}', '_blank')">🧭 Abrir GPS (Waze)</button>
+                        </div>
+                        <div class="info-linha"><span class="info-titulo">Endereço</span><span class="info-valor">${cliente.rua}, ${cliente.cidade}</span></div>
+                        <div class="info-linha"><span class="info-titulo">Serviço</span><span class="info-valor" style="color:#F59E0B;">${cliente.servico || 'Padrão'}</span></div>
+                        
+                        <div id="areaBotoes-${index}">${botoesHTML}</div>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="progresso-texto">
-                Progresso: ${clienteAtualIndex} de ${rotaDoDia.length} serviços concluídos.
-            </div>
-        `;
+            `;
+        });
     }
 
-    function marcarChegada() {
-        // Altera a interface visual para modo "Em Atendimento"
-        document.getElementById('btnWaze').style.display = 'none';
-        document.getElementById('btnMaps').style.display = 'none';
-        document.getElementById('btnCheguei').style.display = 'none';
-        
-        document.getElementById('statusCheckIn').style.display = 'block';
-        document.getElementById('btnFinalizar').style.display = 'flex';
-        
-        // (No futuro, este botão enviará o horário exato para o server.js)
+    // Abre apenas 1 sanfona de cada vez
+    function toggleCard(indexExpandir) {
+        itinerarioDia.forEach((_, index) => {
+            const body = document.getElementById(`body-${index}`);
+            if (index === indexExpandir) {
+                body.style.display = body.style.display === "block" ? "none" : "block";
+            } else {
+                body.style.display = "none";
+            }
+        });
     }
 
-    function finalizarServico() {
-        if(confirm("Confirma a conclusão do serviço nesta OS?")) {
-            // (No futuro, este botão enviará o horário de saída para o server.js)
-            clienteAtualIndex++; 
-            renderizarClienteAtual();
+    // Comunica ao servidor a nova cor/etapa
+    async function mudarStatus(codigoOs, novoStatus, campoCronometro, indexArray) {
+        document.getElementById("loader").style.display = "flex";
+        
+        // Pega a hora exata do telemóvel do técnico (Ex: 14:32:00)
+        const horaExata = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+
+        try {
+            const res = await fetch('/api/rotas/status', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    data: dataDeHojeBR,
+                    tecnico: nomeUsuario,
+                    codigoOs: codigoOs,
+                    novoStatus: novoStatus,
+                    campoTempo: campoCronometro,
+                    valorTempo: horaExata
+                })
+            });
+
+            if (res.ok) {
+                // Se o servidor aceitou, atualiza a tela do telemóvel localmente
+                itinerarioDia[indexArray].status = novoStatus;
+                renderizarLista();
+                document.getElementById(`body-${indexArray}`).style.display = "block"; // Mantém aberto
+                
+                // Se finalizou, fecha este card automaticamente para limpar a visão
+                if(novoStatus === 'sucesso' || novoStatus === 'insucesso') {
+                    setTimeout(() => { document.getElementById(`body-${indexArray}`).style.display = "none"; }, 800);
+                }
+            } else { alert("❌ Erro ao comunicar com a base."); }
+        } catch (e) {
+            alert("❌ Sem internet. Verifique o seu sinal 4G/Wifi.");
+        } finally {
+            document.getElementById("loader").style.display = "none";
         }
     }
 
-    function mostrarAviso(msg) {
-        document.getElementById("telaPrincipal").innerHTML = `
-            <div class="card-aviso">
-                <h3 style="color:#94A3B8; font-size:18px; line-height: 1.5;">${msg}</h3>
-            </div>
-        `;
-    }
+    function sair() { localStorage.clear(); window.location.replace("/login.html"); }
 
-    function sair() {
-        localStorage.clear();
-        window.location.replace("/login.html");
-    }
-
-    // Inicia a aplicação e carrega a rota
     buscarRotaDoServidor();
 </script>
 </body>

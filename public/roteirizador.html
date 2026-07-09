@@ -25,6 +25,8 @@
         .caixa-busca h3 { margin: 0 0 10px 0; color: #60A5FA; font-size: 14px; }
         .caixa-busca input { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; }
         .caixa-busca button { width: 100%; padding: 10px; background: #3B82F6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-relatorio { background: #10B981 !important; margin-top: 10px; transition: 0.2s; }
+        .btn-relatorio:hover { background: #059669 !important; }
         
         .lista-tecnicos { background: #1E293B; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
         .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
@@ -39,22 +41,25 @@
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
 
-        /* Painel Itinerário com DRAG AND DROP */
         #painelItinerario { display: none; position: absolute; top: 15px; right: 15px; width: 340px; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.1); z-index: 1000; border-radius: 12px; padding: 15px; max-height: 90%; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
         
-        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
+        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #64748B; margin-bottom: 8px; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
         .itinerario-item:active { cursor: grabbing; border-color: #3B82F6; box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3); transform: scale(1.02); }
-        .itinerario-item.drag-over { border-top: 3px solid #10B981; } /* Linha verde que mostra onde vai cair */
+        .itinerario-item.drag-over { border-top: 3px solid #10B981; }
 
         .drag-handle { color: #64748B; padding-right: 10px; font-size: 18px; display: flex; align-items: center; }
         .itinerario-info { flex-grow: 1; margin: 0 5px; cursor: default; }
         
-        .btn-mini { background: #F59E0B; color: white; border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12px; font-weight: bold; }
-        .btn-mini:hover { background: #D97706; }
+        .btn-mini { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn-mini:hover { background: #2563EB; }
         
         .badge-turno { font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; }
         .badge-tarde { background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981; }
+        
+        /* Legenda Radar */
+        .legenda-radar { display: flex; gap: 8px; font-size: 10px; color: #94A3B8; margin-top: 10px; flex-wrap: wrap; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 3px; }
 
         .custom-pin { background: transparent; border: none; }
     </style>
@@ -79,35 +84,30 @@
 
     <div class="main">
         <div class="header-painel">
-            <h1>Roteirizador de Frotas</h1>
-            <p>Controlo total: Arraste os cards para reorganizar a rota e edite endereços instantaneamente.</p>
+            <h1>Roteirizador & Telemetria</h1>
+            <p>Controle as frotas e acompanhe as cores a mudar ao vivo à medida que o técnico avança.</p>
         </div>
 
         <label class="upload-area" id="areaUpload">
             <input type="file" id="arquivoExcel" accept=".xlsx, .xls, .csv" onchange="processarExcel(event)">
-            <h3>📥 Clique ou arraste a sua folha de Excel aqui</h3>
+            <h3>📥 Clique ou arraste a sua folha de Excel aqui para Planear</h3>
             <p>Formatos suportados: .XLSX, .XLS, .CSV</p>
         </label>
 
         <div id="painelRotas">
             <div class="painel-esquerdo">
                 <div class="caixa-busca">
-                    <h3>🔍 Consultar Histórico</h3>
+                    <h3>🔍 Radar e Histórico</h3>
                     <input type="date" id="buscaData" title="Pesquisar roteiro por Data">
-                    <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código (Ex: 80890)">
+                    <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS">
                     <button onclick="buscarHistorico()">Buscar Planeamento</button>
-                </div>
-
-                <div class="caixa-busca">
-                    <h3 style="color: #10B981;">📍 Ponto de Partida Base</h3>
-                    <p id="txtGalpaoAtual" style="color: #94A3B8; font-size: 12px; margin: 0 0 10px 0; line-height: 1.4;"></p>
-                    <button onclick="alterarGalpao()" style="background: transparent; border: 1px solid #10B981; color: #10B981; padding: 8px; border-radius: 6px; cursor: pointer; width: 100%;">Alterar Endereço</button>
+                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 Extrair Relatório (Excel)</button>
                 </div>
 
                 <div class="lista-tecnicos">
                     <div class="lista-tecnicos-header">
-                        <h3>Equipa em Rota Hoje</h3>
-                        <button onclick="limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px;">🔄 Novo</button>
+                        <h3>Equipa em Operação</h3>
+                        <button onclick="limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px;">🔄 Limpar / Novo</button>
                     </div>
                     <div class="lista-clientes" id="listaTecnicosUI"></div>
                 </div>
@@ -117,11 +117,20 @@
                 <div id="mapa"></div>
                 
                 <div id="painelItinerario">
-                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
-                        🛠️ Editor de Sequência
-                        <div style="font-size: 10px; color: #10B981; margin-top: 4px; font-weight: normal;">Arraste os cards (☰) para mudar a ordem.</div>
+                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; display:flex; justify-content:space-between;">
+                        <span>🛠️ Itinerário e Status</span>
+                        <span id="txtKMTarefa" style="color:#10B981; font-size:12px;">-- km</span>
                     </h3>
-                    <div id="listaItinerarioUI" style="margin-top: 10px;"></div>
+                    
+                    <div class="legenda-radar">
+                        <div><span class="dot" style="background:#64748B;"></span>Pendente</div>
+                        <div><span class="dot" style="background:#FACC15;"></span>Em Trânsito</div>
+                        <div><span class="dot" style="background:#F97316;"></span>No Local</div>
+                        <div><span class="dot" style="background:#10B981;"></span>Sucesso</div>
+                        <div><span class="dot" style="background:#EF4444;"></span>Insucesso</div>
+                    </div>
+
+                    <div id="listaItinerarioUI" style="margin-top: 15px;"></div>
                 </div>
             </div>
         </div>
@@ -129,7 +138,7 @@
 </div>
 
 <script>
-   const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
     const usuarioTipo = localStorage.getItem("usuarioTipo");
     if (usuarioTipo === "master" || usuarioTipo === "superadmin" || usuarioTipo === "admin") {
@@ -138,8 +147,7 @@
 
     let configGalpao = JSON.parse(localStorage.getItem("configGalpao"));
     if (!configGalpao) {
-        configGalpao = { lat: -23.5184, lon: -46.7461, nome: "Galpão Principal", endereco: "Rua Antonio Ayrosa 191, Vila dos Remedios" };
-        localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
+        configGalpao = { lat: -23.5184, lon: -46.7461, nome: "Base Operacional", endereco: "Rua Antonio Ayrosa 191" };
     }
 
     let mapa = null;
@@ -147,9 +155,11 @@
     let dadosGlobaisRotas = {}; 
     let rotaAtiva = []; 
     let tecnicoAtivo = ""; 
+    let dataAtiva = ""; // Para o refresh
+    let autoRefreshInterval = null;
+    let visualizandoHistorico = false;
 
     document.addEventListener("DOMContentLoaded", () => {
-        document.getElementById("txtGalpaoAtual").innerText = `Atual: ${configGalpao.endereco}`;
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
         
@@ -158,32 +168,33 @@
             dadosGlobaisRotas = JSON.parse(rotasGuardadas);
             document.getElementById("areaUpload").style.display = "none";
             document.getElementById("painelRotas").style.display = "flex";
-            renderizarListaTecnicos();
+            renderizarListaTecnicosModoNovo();
             setTimeout(() => { mapa.invalidateSize(); }, 500);
         }
     });
 
-    async function alterarGalpao() {
-        const novoEndereco = prompt("Digite o endereço completo do novo ponto de partida:\n(Ex: Avenida Paulista 1000, São Paulo)", configGalpao.endereco);
-        if (!novoEndereco || novoEndereco === configGalpao.endereco) return;
-        try {
-            let resNom = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(novoEndereco + ', Brasil')}&email=suporte@neri.com.br`);
-            let locNom = await resNom.json();
-            if (locNom && locNom.length > 0) {
-                configGalpao = { lat: parseFloat(locNom[0].lat), lon: parseFloat(locNom[0].lon), nome: "Base Operacional", endereco: novoEndereco };
-                localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
-                alert("✅ Ponto de Partida atualizado!");
-                window.location.reload(); 
-            } else alert("❌ Não consegui encontrar esse endereço.");
-        } catch(e) { alert("Erro de ligação."); }
+    function calcularDistancia(lat1, lon1, lat2, lon2) {
+        const R = 6371; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    // Leitor Flexível de Cabeçalhos (Encontra a coluna mesmo se o nome estiver misturado)
+    function calcularKMTodos() {
+        let km = 0;
+        let lastLat = configGalpao.lat;
+        let lastLon = configGalpao.lon;
+        rotaAtiva.forEach(p => {
+            km += calcularDistancia(lastLat, lastLon, p.lat, p.lon);
+            lastLat = p.lat; lastLon = p.lon;
+        });
+        return (km * 1.3).toFixed(1); 
+    }
+
     function buscarValorNaLinha(linha, palavrasChave) {
         for (let chave of Object.keys(linha)) {
-            for (let palavra of palavrasChave) {
-                if (chave.includes(palavra)) return linha[chave];
-            }
+            for (let palavra of palavrasChave) { if (chave.includes(palavra)) return linha[chave]; }
         }
         return "";
     }
@@ -198,11 +209,8 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, {type: 'array'});
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
-                if (jsonData.length === 0) return alert("⚠️ Excel vazio.");
                 const dadosNormalizados = jsonData.map(linha => {
-                    let novaLinha = {};
-                    for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; }
-                    return novaLinha;
+                    let novaLinha = {}; for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; } return novaLinha;
                 });
                 agruparPorTecnico(dadosNormalizados);
             } catch (erro) { alert("❌ Erro: " + erro.message); }
@@ -218,9 +226,7 @@
             const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
             const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
             const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
-            
             if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
-
             const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
             const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
             
@@ -231,36 +237,15 @@
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
             ordensPorTecnico[tecnico].push({
-                codigo: codigo,
-                cliente: String(cliente).trim(),
-                servico: buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]),
+                codigo: codigo, cliente: String(cliente).trim(), servico: buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]),
                 rua: String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim(),
                 cidade: String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo",
-                cep: cepFormatado,
-                periodo: periodoOriginal 
+                cep: cepFormatado, periodo: periodoOriginal, status: 'pendente' 
             });
         });
 
         Object.keys(ordensPorTecnico).forEach(tecnico => {
             let listaOrdens = ordensPorTecnico[tecnico];
-            
-            // CONSOLIDAÇÃO DE PARAGENS (Agora imune a endereços vazios)
-            listaOrdens.forEach(ordemAtual => {
-                if(ordemAtual.rua === "") return;
-
-                let duplicadas = listaOrdens.filter(o => o.rua.toLowerCase() === ordemAtual.rua.toLowerCase() && o.codigo !== ordemAtual.codigo);
-                if (duplicadas.length > 0) {
-                    let temManha = ordemAtual.periodo === 'MANHA' || duplicadas.some(o => o.periodo === 'MANHA');
-                    let temTarde = ordemAtual.periodo === 'TARDE' || duplicadas.some(o => o.periodo === 'TARDE');
-                    if (temManha && temTarde) {
-                        let mesmoCliente = duplicadas.every(o => o.cliente.toLowerCase() === ordemAtual.cliente.toLowerCase());
-                        let novoPeriodo = mesmoCliente ? 'MANHA' : 'TARDE';
-                        ordemAtual.periodo = novoPeriodo;
-                        duplicadas.forEach(o => o.periodo = novoPeriodo);
-                    }
-                }
-            });
-
             dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             listaOrdens.forEach(ordem => {
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
@@ -271,76 +256,51 @@
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
-        renderizarListaTecnicos();
+        renderizarListaTecnicosModoNovo();
         setTimeout(() => { mapa.invalidateSize(); }, 500);
     }
 
-    function renderizarListaTecnicos() {
+    function renderizarListaTecnicosModoNovo() {
+        visualizandoHistorico = false;
+        pararAutoRefresh();
         const divLista = document.getElementById("listaTecnicosUI");
-        divLista.innerHTML = "";
+        divLista.innerHTML = `<h4 style="color:#60A5FA; margin: 0 0 10px 15px; font-size:12px;">Planilha Não Salva</h4>`;
+        
         Object.keys(dadosGlobaisRotas).forEach(nome => {
             const t = dadosGlobaisRotas[nome];
             const total = t.manha.length + t.tarde.length;
             divLista.innerHTML += `
                 <div class="tecnico-item" id="tecnico-${nome.replace(/\s+/g, '')}" onclick="iniciarCalculoTecnico('${nome}')">
                     <div><div class="tecnico-nome">${nome}</div><div class="tecnico-stats">Total: ${total} paragens</div></div>
-                    <div>
-                        ${t.manha.length > 0 ? `<span class="badge-turno badge-manha">M: ${t.manha.length}</span>` : ''}
-                        ${t.tarde.length > 0 ? `<span class="badge-turno badge-tarde">T: ${t.tarde.length}</span>` : ''}
-                    </div>
                 </div>
             `;
         });
         divLista.innerHTML += `
             <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
-                <button onclick="salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
-                    💾 Salvar Planeamento no Banco
-                </button>
+                <button onclick="salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">💾 Salvar Planeamento no Banco</button>
             </div>
         `;
     }
 
-    function calcularDistancia(lat1, lon1, lat2, lon2) {
-        const R = 6371; 
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
     function otimizarSequencia(pontos, inicioLat, inicioLon) {
-        let naoVisitados = [...pontos];
-        let rotaOrdenada = [];
-        let atualLat = inicioLat;
-        let atualLon = inicioLon;
+        let naoVisitados = [...pontos]; let rotaOrdenada = []; let atualLat = inicioLat; let atualLon = inicioLon;
         while (naoVisitados.length > 0) {
-            let indiceMaisProximo = 0;
-            let menorDistancia = Infinity;
+            let idx = 0; let menorDist = Infinity;
             for (let i = 0; i < naoVisitados.length; i++) {
                 let dist = calcularDistancia(atualLat, atualLon, naoVisitados[i].lat, naoVisitados[i].lon);
-                if (dist < menorDistancia) { menorDistancia = dist; indiceMaisProximo = i; }
+                if (dist < menorDist) { menorDist = dist; idx = i; }
             }
-            let proximoPonto = naoVisitados.splice(indiceMaisProximo, 1)[0];
-            rotaOrdenada.push(proximoPonto);
-            atualLat = proximoPonto.lat;
-            atualLon = proximoPonto.lon;
+            let px = naoVisitados.splice(idx, 1)[0]; rotaOrdenada.push(px); atualLat = px.lat; atualLon = px.lon;
         }
         return rotaOrdenada;
     }
 
     async function obterCoordenadasSilenciosa(cliente) {
-        let lat = null, lon = null;
         let cepBusca = cliente.cep.replace(/\D/g, '');
         if (cepBusca.length === 8) {
-            try {
-                let resCep = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
-                if (resCep.ok) { let d = await resCep.json(); if (d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) }; }
-            } catch(e) {}
+            try { let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`); if (r.ok) { let d = await r.json(); if (d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) }; } } catch(e) {}
         }
-        try {
-            let resNom = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cliente.rua.split(',')[0].trim() + ', ' + cliente.cidade + ', Brasil')}`);
-            if (resNom.ok) { let d = await resNom.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
-        } catch(e) {}
+        try { let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cliente.rua.split(',')[0].trim() + ', ' + cliente.cidade + ', Brasil')}`); if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; } } catch(e) {}
         return null; 
     }
 
@@ -349,36 +309,17 @@
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
         tecnicoAtivo = nome;
         
-        const toast = document.createElement("div");
-        toast.innerText = `A otimizar Manhã e Tarde de ${nome}...`;
-        toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;";
-        document.getElementById("mapaArea").appendChild(toast);
-
+        const toast = document.createElement("div"); toast.innerText = `A otimizar roteiro...`; toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000;"; document.getElementById("mapaArea").appendChild(toast);
         const dadosTecnico = dadosGlobaisRotas[nome];
         
-        // 1. Processa a Manhã de forma isolada
-        let coordsManha = [];
-        for (let cliente of dadosTecnico.manha) {
-            let coords = await obterCoordenadasSilenciosa(cliente);
-            coordsManha.push({ ...cliente, lat: coords ? coords.lat : configGalpao.lat, lon: coords ? coords.lon : configGalpao.lon, precisaCorrecao: !coords });
-        }
-        
-        // 2. Processa a Tarde de forma isolada
-        let coordsTarde = [];
-        for (let cliente of dadosTecnico.tarde) {
-            let coords = await obterCoordenadasSilenciosa(cliente);
-            coordsTarde.push({ ...cliente, lat: coords ? coords.lat : configGalpao.lat, lon: coords ? coords.lon : configGalpao.lon, precisaCorrecao: !coords });
-        }
+        let coordsManha = []; for (let c of dadosTecnico.manha) { let crds = await obterCoordenadasSilenciosa(c); coordsManha.push({ ...c, lat: crds ? crds.lat : configGalpao.lat, lon: crds ? crds.lon : configGalpao.lon, precisaCorrecao: !crds, status: 'pendente' }); }
+        let coordsTarde = []; for (let c of dadosTecnico.tarde) { let crds = await obterCoordenadasSilenciosa(c); coordsTarde.push({ ...c, lat: crds ? crds.lat : configGalpao.lat, lon: crds ? crds.lon : configGalpao.lon, precisaCorrecao: !crds, status: 'pendente' }); }
 
-        // 3. Roteirização Rigorosa (Sempre Galpão -> Manhã -> Tarde)
         let rotaManha = otimizarSequencia(coordsManha, configGalpao.lat, configGalpao.lon);
-        
         let latFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lat : configGalpao.lat;
         let lonFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lon : configGalpao.lon;
-        
         let rotaTarde = otimizarSequencia(coordsTarde, latFimManha, lonFimManha);
 
-        // A união garante que toda a manhã vem antes da tarde
         rotaAtiva = [...rotaManha, ...rotaTarde];
         toast.remove();
         
@@ -390,326 +331,281 @@
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
 
-        const iconeGalpao = L.divIcon({
-            className: 'custom-pin',
-            html: `<div style="background-color: #000; color: white; border-radius: 8px; padding: 4px; border: 2px solid #10B981; box-shadow: 0 4px 8px rgba(0,0,0,0.5); font-size: 12px; font-weight:bold; white-space: nowrap; transform: translateX(-30%);">🏢 ${configGalpao.nome}</div>`,
-            iconSize: [40, 20]
-        });
+        document.getElementById("txtKMTarefa").innerText = `${calcularKMTodos()} KM Estimados`;
+
+        const iconeGalpao = L.divIcon({ className: 'custom-pin', html: `<div style="background: #000; color: white; border-radius: 8px; padding: 4px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap;">🏢 Base</div>`, iconSize: [40, 20] });
         L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
 
         let htmlLista = "";
-        let coordenadasParaOSRM = [`${configGalpao.lon},${configGalpao.lat}`];
+        let coordOSRM = [`${configGalpao.lon},${configGalpao.lat}`];
 
         rotaAtiva.forEach((cliente, index) => {
             const seq = index + 1;
-            coordenadasParaOSRM.push(`${cliente.lon},${cliente.lat}`);
-            let corPino = cliente.precisaCorrecao ? "#F59E0B" : "#EF4444";
+            coordOSRM.push(`${cliente.lon},${cliente.lat}`);
+            
+            let corPino = "#64748B"; 
+            if (cliente.precisaCorrecao) corPino = "#000000"; 
+            else if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
+            else if (cliente.status === 'chegada') corPino = "#F97316"; 
+            else if (cliente.status === 'sucesso') corPino = "#10B981"; 
+            else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
             
             const customIcon = L.divIcon({
                 className: 'custom-pin',
                 html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 14px;">${seq}</div>`,
-                iconSize: [28, 28],
-                iconAnchor: [14, 14]
+                iconSize: [28, 28], iconAnchor: [14, 14]
             });
             
+            let statusPopup = cliente.status.toUpperCase();
             L.marker([cliente.lat, cliente.lon], {icon: customIcon}).bindPopup(`
-                <div style="font-family:Arial,sans-serif; font-size:13px; color:#1E293B;">
-                    <strong style="color: ${corPino}; font-size:15px;">Paragem #${seq}</strong><br>
+                <div style="font-size:13px; color:#1E293B;">
+                    <strong style="color: ${corPino}; font-size:15px;">Paragem #${seq} - ${statusPopup}</strong><br>
                     <strong style="color: #2563EB;">📍 OS: ${cliente.codigo}</strong><br>
                     <strong>Endereço:</strong> ${cliente.rua}<br>
-                    ${cliente.precisaCorrecao ? '<strong style="color:red;">⚠️ Satélite não achou! Edite no painel lateral.</strong>' : ''}
+                    ${cliente.precisaCorrecao ? '<strong style="color:red;">⚠️ Satélite não achou endereço exato.</strong>' : ''}
                 </div>
             `).addTo(layerGrupo);
 
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             
             htmlLista += `
-                <div class="itinerario-item" draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})" ondragenter="destacarAlvo(event)" ondragleave="removerDestaque(event)">
-                    <div class="drag-handle" title="Segure e arraste para mudar a ordem">☰</div>
+                <div class="itinerario-item" draggable="true" style="border-left-color: ${corPino};" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})">
+                    <div class="drag-handle" title="Segure para mudar a ordem" style="${visualizandoHistorico ? 'display:none;' : ''}">☰</div>
                     <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
                     <div class="itinerario-info">
                         <div style="color: white; font-size: 12px; font-weight:bold;">OS: ${cliente.codigo} ${badgeHTML}</div>
-                        <div style="color: #94A3B8; font-size: 10px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; max-height:24px;">${cliente.rua}</div>
+                        <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
+                        ${cliente.status !== 'pendente' ? `<div style="font-size:9px; color:${corPino}; text-transform:uppercase; font-weight:bold; margin-top:2px;">Status: ${cliente.status}</div>` : ''}
                     </div>
-                    <div class="itinerario-controles">
-                        <button class="btn-mini" onclick="editarEndereco(${index})" title="Editar Endereço">✏️ Edite</button>
-                    </div>
+                    ${!visualizandoHistorico ? `<button class="btn-mini" onclick="editarEndereco(${index})">📍</button>` : ''}
                 </div>
             `;
         });
 
         document.getElementById("listaItinerarioUI").innerHTML = htmlLista;
 
-        if (coordenadasParaOSRM.length > 1) {
+        if (coordOSRM.length > 1) {
             try {
-                let urlRotas = `https://router.project-osrm.org/route/v1/driving/${coordenadasParaOSRM.join(';')}?overview=full&geometries=geojson`;
-                let resRota = await fetch(urlRotas);
+                let resRota = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordOSRM.join(';')}?overview=full&geometries=geojson`);
                 let dadosRota = await resRota.json();
                 if (dadosRota.routes && dadosRota.routes.length > 0) {
-                    L.geoJSON(dadosRota.routes[0].geometry, { style: { color: '#3B82F6', weight: 4, opacity: 0.8 } }).addTo(layerGrupo);
-                } else {
-                    L.polyline(rotaAtiva.map(c => [c.lat, c.lon]), { color: '#3B82F6', weight: 3, dashArray: '8, 8' }).addTo(layerGrupo);
-                }
+                    L.geoJSON(dadosRota.routes[0].geometry, { style: { color: 'rgba(59, 130, 246, 0.4)', weight: 4 } }).addTo(layerGrupo);
+                } else { L.polyline(rotaAtiva.map(c => [c.lat, c.lon]), { color: 'rgba(59, 130, 246, 0.4)', weight: 3, dashArray: '8, 8' }).addTo(layerGrupo); }
             } catch(e) {}
         }
-        
-        mapa.fitBounds(layerGrupo.getBounds(), {padding: [50, 50]});
+        mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
     }
 
     let itemArrastadoIndice = null;
-
-    function iniciarArraste(e, index) {
-        itemArrastadoIndice = index;
-        e.dataTransfer.effectAllowed = 'move';
-        e.target.style.opacity = '0.5'; 
-    }
-
+    function iniciarArraste(e, index) { if(visualizandoHistorico) return; itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
     function permitirSoltar(e) { e.preventDefault(); }
-    function destacarAlvo(e) { if(e.currentTarget.classList) e.currentTarget.classList.add('drag-over'); }
-    function removerDestaque(e) { if(e.currentTarget.classList) e.currentTarget.classList.remove('drag-over'); }
-
     function soltarItem(e, indexAlvo) {
-        e.preventDefault();
-        e.currentTarget.classList.remove('drag-over');
-        document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
-        
-        if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
-        
-        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0];
-        rotaAtiva.splice(indexAlvo, 0, item);
+        e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
+        if (visualizandoHistorico || itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
+        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item);
         atualizarTela();
     }
 
     async function editarEndereco(index) {
-        let cliente = rotaAtiva[index];
-        let novoEnd = prompt(`Edite o endereço da OS ${cliente.codigo}:\nInsira a Rua e Cidade (sem vírgulas soltas).`, `${cliente.rua}, ${cliente.cidade}`);
-        if (!novoEnd) return; 
-
-        cliente.rua = novoEnd;
-        cliente.precisaCorrecao = false;
-        
-        const toast = document.createElement("div");
-        toast.innerText = `A procurar novo endereço...`;
-        toast.style = "position:absolute; top:20px; right:20px; background:#F59E0B; color:white; padding:10px 20px; border-radius:8px; z-index:1000;";
-        document.getElementById("mapaArea").appendChild(toast);
-
-        try {
-            let resNom = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(novoEnd + ', Brasil')}`);
-            let locNom = await resNom.json();
-            if (locNom && locNom.length > 0) {
-                cliente.lat = parseFloat(locNom[0].lat);
-                cliente.lon = parseFloat(locNom[0].lon);
-                toast.remove();
-                atualizarTela();
-            } else {
-                cliente.precisaCorrecao = true;
-                toast.remove();
-                alert("Ainda não encontrei! Tente simplificar o nome da rua ou do bairro.");
-                atualizarTela();
-            }
-        } catch(e) { toast.remove(); alert("Falha na ligação com o satélite."); }
+        let cliente = rotaAtiva[index]; let novoEnd = prompt(`Edite endereço OS ${cliente.codigo}:`, `${cliente.rua}, ${cliente.cidade}`);
+        if (!novoEnd) return; cliente.rua = novoEnd; cliente.precisaCorrecao = false;
+        try { let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(novoEnd + ', Brasil')}`); let d = await res.json(); if(d && d.length>0) { cliente.lat=parseFloat(d[0].lat); cliente.lon=parseFloat(d[0].lon); } } catch(e){}
+        atualizarTela();
     }
 
-    function limparRotas() {
-        if(confirm("Deseja limpar as rotas de hoje e carregar um novo Excel?")) {
-            localStorage.removeItem("planilhaRotas");
-            window.location.reload();
-        }
-    }
-
-    // ==========================================
-    // LIGAÇÃO COM O BANCO DE DADOS (COM DATA BRASILEIRA)
-    // ==========================================
+    function limparRotas() { if(confirm("Limpar tela atual?")) { localStorage.removeItem("planilhaRotas"); window.location.reload(); } }
 
     async function salvarHistoricoBanco() {
-        if (!tecnicoAtivo || rotaAtiva.length === 0) {
-            return alert("⚠️ Por favor, clique num técnico e gere a rota antes de salvar.");
-        }
-
-        const dataAtual = new Date();
-        const dia = String(dataAtual.getDate()).padStart(2, '0');
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        const ano = dataAtual.getFullYear();
-        const hojeBR = `${dia}/${mes}/${ano}`;
-
-        let dataRoteiro = prompt(`A guardar o roteiro de: ${tecnicoAtivo}\n\nConfirme a data exata (Apenas formato DD/MM/AAAA):`, hojeBR);
-        
-        if (!dataRoteiro) return;
-        dataRoteiro = dataRoteiro.trim();
-
-        // Alerta visual de que está a trabalhar
-        const toast = document.createElement("div");
-        toast.innerText = `A comunicar com o Banco de Dados...`;
-        toast.style = "position:absolute; top:20px; right:20px; background:#3B82F6; color:white; padding:10px 20px; border-radius:8px; z-index:1000;";
-        document.getElementById("mapaArea").appendChild(toast);
-
+        if (!tecnicoAtivo || rotaAtiva.length === 0) return alert("⚠️ Selecione um técnico.");
+        const hoje = new Date(); const dBR = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth()+1).padStart(2, '0')}/${hoje.getFullYear()}`;
+        let dataInput = prompt("Data (DD/MM/AAAA):", dBR); if (!dataInput) return;
         try {
-            const res = await fetch('/api/rotas', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` 
-                },
-                body: JSON.stringify({
-                    data: dataRoteiro,
-                    tecnico: tecnicoAtivo,
-                    itinerario: rotaAtiva
-                })
-            });
-
-            toast.remove();
-
-            if (res.ok) {
-                alert(`✅ Sucesso! Roteiro de ${tecnicoAtivo} guardado para o dia ${dataRoteiro}.`);
-            } else {
-                // O DETETIVE DE ERROS: Descobre o motivo exato da falha
-                if (res.status === 401 || res.status === 403) {
-                    alert("⚠️ A sua sessão expirou por segurança. Faça o Login novamente.");
-                    localStorage.clear();
-                    window.location.replace('/login.html');
-                    return;
-                }
-                
-                // Tenta ler o erro enviado pelo servidor (se não conseguir, assume que o Render caiu)
-                const erroServidor = await res.json().catch(() => ({ erro: "O servidor Render ainda está a reiniciar. Aguarde 1 minuto e tente de novo." }));
-                alert(`❌ Erro do Servidor:\n${erroServidor.erro}`);
-            }
-        } catch(e) {
-            if(toast) toast.remove();
-            alert("❌ Falha na ligação. O servidor pode estar offline.");
-        }
+            const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: dataInput.trim(), tecnico: tecnicoAtivo, itinerario: rotaAtiva }) });
+            if (res.ok) alert(`✅ Roteiro de ${tecnicoAtivo} guardado para ${dataInput}.`); else alert("❌ Falha no servidor.");
+        } catch(e) { alert("❌ Erro."); }
     }
 
-    // Variável global para guardar o histórico temporariamente na memória
-    window.historicoRotasMemoria = [];
-
-    // Variável global para guardar o histórico temporariamente na memória
     window.historicoRotasMemoria = [];
 
     async function buscarHistorico() {
         let dataInput = document.getElementById("buscaData").value;
         const codigoBusca = document.getElementById("buscaCodigo").value.trim();
-
-        if (!dataInput && !codigoBusca) {
-            return alert("⚠️ Preencha a Data ou o Código da OS para pesquisar.");
-        }
-
-        let dataFormatadaParaBusca = "";
+        if (!dataInput && !codigoBusca) return alert("⚠️ Preencha Data ou Código.");
         
-        if (dataInput) {
-            const partes = dataInput.split('-');
-            dataFormatadaParaBusca = `${partes[2]}/${partes[1]}/${partes[0]}`;
-        }
-
-        let url = '/api/rotas?';
-        if (dataFormatadaParaBusca) url += `data=${encodeURIComponent(dataFormatadaParaBusca)}&`;
-        if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}`;
+        let dFormatada = ""; if (dataInput) { const p = dataInput.split('-'); dFormatada = `${p[2]}/${p[1]}/${p[0]}`; dataAtiva = dFormatada; }
+        let url = '/api/rotas?'; if (dFormatada) url += `data=${encodeURIComponent(dFormatada)}&`; if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}`;
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
             const rotasEncontradas = await res.json();
+            if (rotasEncontradas.length === 0) return alert("❌ Nenhum roteiro.");
 
-            if (rotasEncontradas.length === 0) {
-                return alert("❌ Nenhum roteiro encontrado.");
-            }
+            visualizandoHistorico = true;
+            window.historicoRotasMemoria = rotasEncontradas;
+            
+            if (layerGrupo) { mapa.removeLayer(layerGrupo); }
+            document.getElementById("painelItinerario").style.display = "none";
+            
+            const divLista = document.getElementById("listaTecnicosUI");
+            divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando: ${rotasEncontradas[0].data}</h4>`;
+            
+            rotasEncontradas.forEach((roteiro, idx) => {
+                let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
+                roteiro.itinerario.forEach(c => { if(statusCount[c.status] !== undefined) statusCount[c.status]++; else statusCount.pendente++; });
 
-            // CENÁRIO 1: Pesquisou por OS (Achou apenas 1 roteiro)
-            if (rotasEncontradas.length === 1 && codigoBusca) {
-                const roteiro = rotasEncontradas[0];
-                tecnicoAtivo = roteiro.tecnico;
-                rotaAtiva = roteiro.itinerario;
+                let concluídos = statusCount.sucesso + statusCount.insucesso;
+                let perc = Math.round((concluídos / roteiro.itinerario.length) * 100);
 
-                alert(`✅ Histórico Localizado!\nTécnico: ${tecnicoAtivo}\nData: ${roteiro.data}`);
-                document.getElementById("painelItinerario").style.display = "block";
-                atualizarTela();
-            } 
-            // CENÁRIO 2: Pesquisou por Data (Achou vários técnicos)
-            else {
-                window.historicoRotasMemoria = rotasEncontradas;
-                
-                // Limpa o mapa atual
-                if (layerGrupo) { mapa.removeLayer(layerGrupo); }
-                document.getElementById("painelItinerario").style.display = "none";
-                
-                // Reconstrói o menu da esquerda com a "Equipa do Passado" e o botão de Lixeira
-                const divLista = document.getElementById("listaTecnicosUI");
-                divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Histórico de ${rotasEncontradas[0].data}</h4>`;
-                
-                rotasEncontradas.forEach((roteiro, idx) => {
-                    let countM = 0; let countT = 0;
-                    roteiro.itinerario.forEach(c => { if(c.periodo === 'MANHA') countM++; else countT++; });
-
-                    divLista.innerHTML += `
-                        <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">
-                            <div style="flex-grow: 1; cursor: pointer;" onclick="carregarRotaHistorica(${idx})">
-                                <div class="tecnico-nome">${roteiro.tecnico}</div>
-                                <div class="tecnico-stats">Total: ${roteiro.itinerario.length} paragens</div>
-                                <div style="margin-top: 4px;">
-                                    ${countM > 0 ? `<span class="badge-turno badge-manha">M: ${countM}</span>` : ''}
-                                    ${countT > 0 ? `<span class="badge-turno badge-tarde">T: ${countT}</span>` : ''}
-                                </div>
-                            </div>
-                            <button onclick="deletarRotaHistorica('${roteiro._id}', event)" style="background: transparent; border: none; color: #EF4444; cursor: pointer; font-size: 16px; padding: 5px; border-radius: 4px;" title="Excluir Rota" onmouseover="this.style.background='rgba(239, 68, 68, 0.2)'" onmouseout="this.style.background='transparent'">🗑️</button>
+                divLista.innerHTML += `
+                    <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">
+                        <div style="flex-grow: 1; cursor: pointer;" onclick="carregarRotaHistorica(${idx}, true)">
+                            <div class="tecnico-nome">${roteiro.tecnico}</div>
+                            <div class="tecnico-stats" style="color:#10B981; font-weight:bold;">Progresso: ${perc}%</div>
                         </div>
-                    `;
-                });
-            }
-
-        } catch(e) {
-            alert("❌ Erro ao buscar dados no servidor.");
-        }
+                        <button onclick="deletarRotaHistorica('${roteiro._id}', event)" style="background:transparent; border:none; color:#EF4444; font-size:14px; cursor:pointer;">🗑️</button>
+                    </div>
+                `;
+            });
+        } catch(e) { alert("❌ Erro."); }
     }
 
-    // Função que apaga a rota
-    async function deletarRotaHistorica(id, event) {
-        event.stopPropagation(); // Impede que o clique na lixeira abra o mapa acidentalmente
+    function carregarRotaHistorica(idx, clickManual) {
+        if(clickManual) {
+            document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
+            document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo');
+        }
+        const roteiro = window.historicoRotasMemoria[idx];
+        tecnicoAtivo = roteiro.tecnico;
+        rotaAtiva = roteiro.itinerario;
         
-        if(!confirm("⚠️ Tem a certeza que deseja apagar esta rota do histórico?\nEsta ação não pode ser desfeita.")) return;
+        document.getElementById("painelItinerario").style.display = "block";
+        atualizarTela();
+        if (clickManual && dataAtiva) iniciarAutoRefresh();
+    }
+
+    async function deletarRotaHistorica(id, event) {
+        event.stopPropagation(); if(!confirm("⚠️ Apagar rota?")) return;
+        try { const res = await fetch(`/api/rotas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if(res.ok) buscarHistorico(); } catch(e){}
+    }
+
+    function iniciarAutoRefresh() {
+        pararAutoRefresh();
+        autoRefreshInterval = setInterval(async () => {
+            if (!visualizandoHistorico || !tecnicoAtivo || !dataAtiva) { pararAutoRefresh(); return; }
+            try {
+                const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataAtiva)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const rotasEncontradas = await res.json();
+                const rotaAtualizada = rotasEncontradas.find(r => r.tecnico === tecnicoAtivo);
+                if (rotaAtualizada) {
+                    let houveMudanca = JSON.stringify(rotaAtiva) !== JSON.stringify(rotaAtualizada.itinerario);
+                    if (houveMudanca) {
+                        rotaAtiva = rotaAtualizada.itinerario;
+                        window.historicoRotasMemoria = rotasEncontradas;
+                        atualizarTela();
+                    }
+                }
+            } catch(e) {} 
+        }, 20000); 
+    }
+
+    function pararAutoRefresh() { if (autoRefreshInterval) clearInterval(autoRefreshInterval); }
+
+    // ==========================================
+    // EXTRAÇÃO DE RELATÓRIO EXCEL (AUDITORIA E TELEMETRIA)
+    // ==========================================
+    function calcularDiferencaMinutos(inicio, fim) {
+        if(!inicio || !fim || inicio === "-" || fim === "-") return "-";
+        try {
+            const [h1, m1, s1] = inicio.split(':').map(Number);
+            const [h2, m2, s2] = fim.split(':').map(Number);
+            let d1 = new Date(2000, 0, 1, h1, m1, s1 || 0);
+            let d2 = new Date(2000, 0, 1, h2, m2, s2 || 0);
+            let diffMins = Math.floor((d2 - d1) / 60000);
+            if(diffMins < 0) diffMins += 24 * 60; // Se passou de meia-noite
+            return diffMins;
+        } catch(e) { return "-"; }
+    }
+
+    async function exportarRelatorioExcel() {
+        const dataInput = document.getElementById("buscaData").value;
+        let url = '/api/rotas';
+        let nomeArquivo = 'Telemetria_Equipa_Geral.xlsx';
+        
+        if (dataInput) {
+            const p = dataInput.split('-');
+            const dFormatada = `${p[2]}/${p[1]}/${p[0]}`;
+            url += `?data=${encodeURIComponent(dFormatada)}`;
+            nomeArquivo = `Telemetria_Equipa_${p[2]}_${p[1]}_${p[0]}.xlsx`;
+        } else {
+            if(!confirm("Atenção: A data está vazia. Isso irá descarregar o histórico de TODAS as rotas já feitas na plataforma. Deseja continuar?")) return;
+        }
+
+        const toast = document.createElement("div"); 
+        toast.innerText = `A gerar relatório Excel...`; 
+        toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; 
+        document.getElementById("mapaArea").appendChild(toast);
 
         try {
-            const res = await fetch(`/api/rotas/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            let rotas = await res.json();
+            
+            if(rotas.length === 0) {
+                toast.remove();
+                return alert("❌ Não há nenhuma rota gravada para esse período.");
+            }
+
+            // --- A MÁGICA DA ESCOLHA (INDIVIDUAL VS COLETIVO) ---
+            if (tecnicoAtivo) {
+                const baixarIndividual = confirm(`Tem o técnico ${tecnicoAtivo} selecionado no mapa.\n\nClique em [OK] para extrair APENAS o relatório dele.\nClique em [Cancelar] para extrair de TODA A EQUIPA.`);
+                
+                if (baixarIndividual) {
+                    // Filtra para manter apenas o técnico escolhido
+                    rotas = rotas.filter(r => r.tecnico === tecnicoAtivo);
+                    // Muda o nome do ficheiro para o nome dele para facilitar a organização
+                    nomeArquivo = `Telemetria_${tecnicoAtivo.split(' ')[0]}_${dataInput ? dataInput : 'Geral'}.xlsx`;
+                }
+            }
+            // -----------------------------------------------------
+
+            if(rotas.length === 0) {
+                toast.remove();
+                return alert("❌ Nenhuma rota encontrada para o filtro aplicado.");
+            }
+
+            let dadosExcel = [];
+            
+            rotas.forEach(roteiro => {
+                roteiro.itinerario.forEach((item, idx) => {
+                    dadosExcel.push({
+                        "Data da Rota": roteiro.data,
+                        "Técnico": roteiro.tecnico,
+                        "Sequência": idx + 1,
+                        "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde",
+                        "Código OS": item.codigo,
+                        "Cliente": item.cliente,
+                        "Serviço": item.servico || "-",
+                        "Desfecho": (item.status || 'pendente').toUpperCase(),
+                        "Hora Início Deslocamento": item.horaSaida || "-",
+                        "Hora Chegada (No Local)": item.horaChegada || "-",
+                        "Hora Fim Serviço": item.horaFinal || "-",
+                        "Tempo de Trânsito (Minutos)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada),
+                        "Tempo de Execução (Minutos)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal)
+                    });
+                });
             });
 
-            if (res.ok) {
-                // Atualiza a pesquisa automaticamente para a rota sumir da tela
-                buscarHistorico(); 
-            } else {
-                alert("❌ Erro ao apagar a rota no servidor.");
-            }
+            const worksheet = XLSX.utils.json_to_sheet(dadosExcel);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria");
+            XLSX.writeFile(workbook, nomeArquivo);
+            
+            toast.remove();
+            alert("✅ Relatório descarregado com sucesso!");
         } catch(e) {
-            alert("❌ Falha na ligação ao servidor.");
+            if(toast) toast.remove();
+            alert("❌ Erro ao extrair relatório. Tente novamente.");
         }
     }
-
-    function carregarRotaHistorica(idx) {
-        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
-        document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo');
-        
-        const roteiro = window.historicoRotasMemoria[idx];
-        tecnicoAtivo = roteiro.tecnico;
-        rotaAtiva = roteiro.itinerario;
-        
-        document.getElementById("painelItinerario").style.display = "block";
-        atualizarTela();
-    }
-
-    // Função Nova: Carrega o mapa quando clicar no nome do técnico histórico
-    function carregarRotaHistorica(idx) {
-        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
-        document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo');
-        
-        const roteiro = window.historicoRotasMemoria[idx];
-        tecnicoAtivo = roteiro.tecnico;
-        rotaAtiva = roteiro.itinerario;
-        
-        document.getElementById("painelItinerario").style.display = "block";
-        atualizarTela();
-    }
-</script>
-</body>
-</html> 
 </script>
 </body>
 </html>

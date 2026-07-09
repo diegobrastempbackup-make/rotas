@@ -49,6 +49,7 @@ app.get("/dados.html", (req, res) => { if (!req.query.token) return res.redirect
 app.get("/estoque.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/estoque.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
 app.get("/roteirizador.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/roteirizador.html"); } catch (err) { res.redirect("/login.html"); }});
+app.get("/diario.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/diario.html"); } catch (err) { res.redirect("/login.html"); }});
 
 // ROTA ANTI-HIBERNAÇÃO
 app.get("/ping", (req, res) => {
@@ -165,7 +166,7 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE (Salvar no Banco Ultra Leve)
+// NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE
 // =====================================================================
 
 // 1. GUARDAR ROTA
@@ -176,10 +177,15 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
           return res.status(400).json({ erro: "Dados incompletos" });
       }
 
-      // Upsert: Atualiza se já existir, cria se for novo
+      // Adiciona o status inicial "pendente" a todos os itens se não existir
+      const itinerarioFormatado = itinerario.map(item => ({
+          ...item,
+          status: item.status || 'pendente'
+      }));
+
       await db.collection("planejamento_rotas").updateOne(
           { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
-          { $set: { itinerario: itinerario, atualizadoEm: new Date() } },
+          { $set: { itinerario: itinerarioFormatado, atualizadoEm: new Date() } },
           { upsert: true }
       );
 
@@ -212,6 +218,7 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       res.status(500).json({ erro: "Erro ao buscar roteiros." });
   }
 });
+
 // 3. EXCLUIR ROTA
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   try {
@@ -219,15 +226,34 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
           _id: new ObjectId(req.params.id),
           cliente_id: req.usuario.cliente_id
       });
-      
-      if (resultado.deletedCount === 1) {
-          res.json({ ok: true, mensagem: "Rota excluída com sucesso" });
-      } else {
-          res.status(404).json({ erro: "Rota não encontrada" });
-      }
+      if (resultado.deletedCount === 1) res.json({ ok: true });
+      else res.status(404).json({ erro: "Não encontrada" });
   } catch (err) {
-      res.status(500).json({ erro: "Erro ao excluir rota." });
+      res.status(500).json({ erro: "Erro ao excluir." });
   }
+});
+
+// 4. ATUALIZAR STATUS DA PARAGEM (TELEMETRIA EM TEMPO REAL)
+app.put('/api/rotas/status', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo } = req.body;
+        
+        // Ex: Atualiza o status para "deslocamento" e marca "horaSaida": "14:30:00"
+        let atualizacao = { "itinerario.$.status": novoStatus };
+        if (campoTempo && valorTempo) {
+            atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
+        }
+
+        const resultado = await db.collection("planejamento_rotas").updateOne(
+            { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id, "itinerario.codigo": codigoOs },
+            { $set: atualizacao }
+        );
+
+        if (resultado.modifiedCount > 0) res.json({ ok: true });
+        else res.status(400).json({ erro: "Paragem não encontrada" });
+    } catch (err) {
+        res.status(500).json({ erro: "Erro ao atualizar status." });
+    }
 });
 
 // =====================================================================
