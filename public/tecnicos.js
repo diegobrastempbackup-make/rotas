@@ -139,7 +139,7 @@ async function salvarNovaEmpresa() {
     } catch (err) { alert("Erro de conexão."); }
 }
 
-// --- TÉCNICOS E USUÁRIOS (Sem Alterações) ---
+// --- TÉCNICOS E USUÁRIOS ---
 async function carregarTecnicos() {
     try {
         const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
@@ -267,6 +267,7 @@ async function carregarUsuarios() {
             if (u.tipo === "master") badge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#FBBF24;">Master</span>`;
             else if (u.tipo === "admin") badge = `<span class="badge" style="background:rgba(96,165,250,0.15); color:#60A5FA;">Admin</span>`;
             else if (u.tipo === "estoque") badge = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34D399;">Estoque</span>`;
+            else if (u.tipo === "tecnico") badge = `<span class="badge" style="background:rgba(6, 182, 212, 0.15); color:#22D3EE;">Técnico</span>`;
             else if (u.tipo === "superadmin") badge = `<span class="badge" style="background:rgba(139, 92, 246, 0.15); color:#8B5CF6;">Super Admin</span>`;
 
             corpo.innerHTML += `
