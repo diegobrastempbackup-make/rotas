@@ -39,15 +39,18 @@
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
 
-        /* Estilos do Novo Painel de Itinerário Manual */
-        #painelItinerario { display: none; position: absolute; top: 15px; right: 15px; width: 320px; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.1); z-index: 1000; border-radius: 12px; padding: 15px; max-height: 90%; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
-        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .itinerario-info { flex-grow: 1; margin: 0 10px; }
-        .itinerario-controles { display: flex; flex-direction: column; gap: 4px; }
-        .btn-mini { background: #3B82F6; color: white; border: none; border-radius: 4px; padding: 4px; cursor: pointer; font-size: 10px; }
-        .btn-mini:hover { background: #2563EB; }
-        .btn-edit { background: #F59E0B; }
-        .btn-edit:hover { background: #D97706; }
+        /* Painel Itinerário com DRAG AND DROP */
+        #painelItinerario { display: none; position: absolute; top: 15px; right: 15px; width: 340px; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.1); z-index: 1000; border-radius: 12px; padding: 15px; max-height: 90%; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
+        
+        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
+        .itinerario-item:active { cursor: grabbing; border-color: #3B82F6; box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3); transform: scale(1.02); }
+        .itinerario-item.drag-over { border-top: 3px solid #10B981; } /* Linha verde que mostra onde vai cair */
+
+        .drag-handle { color: #64748B; padding-right: 10px; font-size: 18px; display: flex; align-items: center; }
+        .itinerario-info { flex-grow: 1; margin: 0 5px; cursor: default; }
+        
+        .btn-mini { background: #F59E0B; color: white; border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn-mini:hover { background: #D97706; }
         
         .badge-turno { font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; }
@@ -77,7 +80,7 @@
     <div class="main">
         <div class="header-painel">
             <h1>Roteirizador de Frotas</h1>
-            <p>Controlo total: Otimização separada por turno e edição manual da sequência e moradas.</p>
+            <p>Controlo total: Arraste os cards para reorganizar a rota e edite endereços instantaneamente.</p>
         </div>
 
         <label class="upload-area" id="areaUpload">
@@ -98,7 +101,7 @@
                 <div class="caixa-busca">
                     <h3 style="color: #10B981;">📍 Ponto de Partida Base</h3>
                     <p id="txtGalpaoAtual" style="color: #94A3B8; font-size: 12px; margin: 0 0 10px 0; line-height: 1.4;"></p>
-                    <button onclick="alterarGalpao()" style="background: transparent; border: 1px solid #10B981; color: #10B981;">Alterar Endereço</button>
+                    <button onclick="alterarGalpao()" style="background: transparent; border: 1px solid #10B981; color: #10B981; padding: 8px; border-radius: 6px; cursor: pointer; width: 100%;">Alterar Endereço</button>
                 </div>
 
                 <div class="lista-tecnicos">
@@ -113,10 +116,11 @@
             <div id="mapaArea">
                 <div id="mapa"></div>
                 
-                <!-- NOVO PAINEL DE EDIÇÃO MANUAL (ITINERÁRIO) -->
                 <div id="painelItinerario">
-                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">🛠️ Sequência da Rota</h3>
-                    <p style="color: #94A3B8; font-size: 11px;">Altere a ordem ou edite endereços caso haja erros.</p>
+                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                        🛠️ Editor de Sequência
+                        <div style="font-size: 10px; color: #10B981; margin-top: 4px; font-weight: normal;">Arraste os cards (☰) para mudar a ordem.</div>
+                    </h3>
                     <div id="listaItinerarioUI" style="margin-top: 10px;"></div>
                 </div>
             </div>
@@ -141,8 +145,8 @@
     let mapa = null;
     let layerGrupo = null; 
     let dadosGlobaisRotas = {}; 
-    let rotaAtiva = []; // Guarda a sequência atual que estamos a editar
-    let tecnicoAtivo = ""; // Guarda o nome do técnico atual
+    let rotaAtiva = []; 
+    let tecnicoAtivo = ""; 
 
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("txtGalpaoAtual").innerText = `Atual: ${configGalpao.endereco}`;
@@ -222,7 +226,6 @@
 
         Object.keys(ordensPorTecnico).forEach(tecnico => {
             let listaOrdens = ordensPorTecnico[tecnico];
-            // Consolidação (Mantida)
             listaOrdens.forEach(ordemAtual => {
                 let duplicadas = listaOrdens.filter(o => o.rua.toLowerCase() === ordemAtual.rua.toLowerCase() && o.codigo !== ordemAtual.codigo);
                 if (duplicadas.length > 0) {
@@ -275,9 +278,6 @@
         `;
     }
 
-    // ==========================================
-    // NOVOS MOTORES DE ROTA E MAPA
-    // ==========================================
     function calcularDistancia(lat1, lon1, lat2, lon2) {
         const R = 6371; 
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -319,57 +319,58 @@
             let resNom = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cliente.rua.split(',')[0].trim() + ', ' + cliente.cidade + ', Brasil')}`);
             if (resNom.ok) { let d = await resNom.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
         } catch(e) {}
-        return null; // Retorna nulo para ser editado depois
+        return null; 
     }
 
-    // Função que inicia o processo ao clicar no técnico
     async function iniciarCalculoTecnico(nome) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
         tecnicoAtivo = nome;
         
         const toast = document.createElement("div");
-        toast.innerText = `A estruturar Inteligência por Período para ${nome}...`;
+        toast.innerText = `A separar Manhã e Tarde para ${nome}...`;
         toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;";
         document.getElementById("mapaArea").appendChild(toast);
 
         const dadosTecnico = dadosGlobaisRotas[nome];
-        let clientesComGPS = [];
-
-        // 1. Pega as Coordenadas de todos
-        for (let cliente of [...dadosTecnico.manha, ...dadosTecnico.tarde]) {
+        
+        // 1. Processa a Manhã de forma isolada
+        let coordsManha = [];
+        for (let cliente of dadosTecnico.manha) {
             let coords = await obterCoordenadasSilenciosa(cliente);
-            if (coords) clientesComGPS.push({ ...cliente, lat: coords.lat, lon: coords.lon });
-            else clientesComGPS.push({ ...cliente, lat: configGalpao.lat, lon: configGalpao.lon, precisaCorrecao: true }); 
-            // Se falhar, joga no galpão provisoriamente para o utilizador arranjar no painel de edição
+            coordsManha.push({ ...cliente, lat: coords ? coords.lat : configGalpao.lat, lon: coords ? coords.lon : configGalpao.lon, precisaCorrecao: !coords });
+            await new Promise(r => setTimeout(r, 600)); // Pequena pausa
+        }
+        
+        // 2. Processa a Tarde de forma isolada
+        let coordsTarde = [];
+        for (let cliente of dadosTecnico.tarde) {
+            let coords = await obterCoordenadasSilenciosa(cliente);
+            coordsTarde.push({ ...cliente, lat: coords ? coords.lat : configGalpao.lat, lon: coords ? coords.lon : configGalpao.lon, precisaCorrecao: !coords });
+            await new Promise(r => setTimeout(r, 600));
         }
 
-        // 2. SEPARAÇÃO ESTRITA MANHÃ E TARDE
-        let coordsManha = clientesComGPS.filter(c => c.periodo === 'MANHA');
-        let coordsTarde = clientesComGPS.filter(c => c.periodo === 'TARDE');
-
+        // 3. Roteirização Rigorosa (Manhã -> Tarde)
         let rotaManha = otimizarSequencia(coordsManha, configGalpao.lat, configGalpao.lon);
         
-        // A tarde começa de onde a manhã terminou!
+        // O ponto de partida da tarde é o último cliente da manhã (se houver manhã)
         let latFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lat : configGalpao.lat;
         let lonFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lon : configGalpao.lon;
         
         let rotaTarde = otimizarSequencia(coordsTarde, latFimManha, lonFimManha);
 
+        // Junta as listas, garantindo que a Manhã vem SEMPRE primeiro
         rotaAtiva = [...rotaManha, ...rotaTarde];
         toast.remove();
-
-        // 3. Desenha na tela
+        
         document.getElementById("painelItinerario").style.display = "block";
         atualizarTela();
     }
 
-    // A Mágica de Desenhar e renderizar o painel flutuante
     async function atualizarTela() {
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
 
-        // Galpão Fixo
         const iconeGalpao = L.divIcon({
             className: 'custom-pin',
             html: `<div style="background-color: #000; color: white; border-radius: 8px; padding: 4px; border: 2px solid #10B981; box-shadow: 0 4px 8px rgba(0,0,0,0.5); font-size: 12px; font-weight:bold; white-space: nowrap; transform: translateX(-30%);">🏢 ${configGalpao.nome}</div>`,
@@ -383,8 +384,6 @@
         rotaAtiva.forEach((cliente, index) => {
             const seq = index + 1;
             coordenadasParaOSRM.push(`${cliente.lon},${cliente.lat}`);
-
-            // Cor do pino muda se precisa de correção manual
             let corPino = cliente.precisaCorrecao ? "#F59E0B" : "#EF4444";
             
             const customIcon = L.divIcon({
@@ -403,21 +402,19 @@
                 </div>
             `).addTo(layerGrupo);
 
-            // Adiciona na lista do painel lateral flutuante
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             
+            // HTML do Item Arrastável (Drag & Drop)
             htmlLista += `
-                <div class="itinerario-item">
+                <div class="itinerario-item" draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})" ondragenter="destacarAlvo(event)" ondragleave="removerDestaque(event)">
+                    <div class="drag-handle" title="Segure e arraste para mudar a ordem">☰</div>
                     <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
                     <div class="itinerario-info">
                         <div style="color: white; font-size: 12px; font-weight:bold;">OS: ${cliente.codigo} ${badgeHTML}</div>
                         <div style="color: #94A3B8; font-size: 10px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; max-height:24px;">${cliente.rua}</div>
-                        ${cliente.precisaCorrecao ? '<div style="color:#F59E0B; font-size:9px;">⚠️ Endereço Inválido</div>' : ''}
                     </div>
                     <div class="itinerario-controles">
-                        <button class="btn-mini" onclick="moverItem(${index}, -1)" title="Subir" ${index === 0 ? 'disabled style="opacity:0.3"' : ''}>▲</button>
-                        <button class="btn-mini btn-edit" onclick="editarEndereco(${index})" title="Editar Endereço">✏️</button>
-                        <button class="btn-mini" onclick="moverItem(${index}, 1)" title="Descer" ${index === rotaAtiva.length - 1 ? 'disabled style="opacity:0.3"' : ''}>▼</button>
+                        <button class="btn-mini" onclick="editarEndereco(${index})" title="Editar Endereço">✏️ Edite</button>
                     </div>
                 </div>
             `;
@@ -442,42 +439,76 @@
     }
 
     // ==========================================
-    // FUNÇÕES DA "MESA DE EDIÇÃO" MANUAL
+    // SISTEMA DE DRAG AND DROP (ARRASTAR E LARGAR)
     // ==========================================
-    function moverItem(index, direcao) {
-        if (index + direcao < 0 || index + direcao >= rotaAtiva.length) return;
-        // Troca os itens de lugar na Array
-        let temp = rotaAtiva[index];
-        rotaAtiva[index] = rotaAtiva[index + direcao];
-        rotaAtiva[index + direcao] = temp;
-        // Redesenha tudo com a nova sequência
+    let itemArrastadoIndice = null;
+
+    function iniciarArraste(e, index) {
+        itemArrastadoIndice = index;
+        e.dataTransfer.effectAllowed = 'move';
+        // Hack para tornar o fundo levemente transparente no arrasto
+        e.target.style.opacity = '0.5'; 
+    }
+
+    function permitirSoltar(e) { e.preventDefault(); }
+    
+    function destacarAlvo(e) {
+        if(e.currentTarget.classList) e.currentTarget.classList.add('drag-over');
+    }
+    
+    function removerDestaque(e) {
+        if(e.currentTarget.classList) e.currentTarget.classList.remove('drag-over');
+    }
+
+    function soltarItem(e, indexAlvo) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        
+        // Remove a transparência do item que estava a ser arrastado
+        document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
+        
+        if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
+        
+        // Remove da posição antiga e insere na nova posição
+        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0];
+        rotaAtiva.splice(indexAlvo, 0, item);
+        
+        // Redesenha as linhas do mapa e os números
         atualizarTela();
     }
 
+    // ==========================================
+    // EDIÇÃO MANUAL DO ENDEREÇO
+    // ==========================================
     async function editarEndereco(index) {
         let cliente = rotaAtiva[index];
-        let novoEnd = prompt(`Edite o endereço da OS ${cliente.codigo}:\nInsira a Rua, Número e Cidade.`, `${cliente.rua}, ${cliente.cidade}`);
+        let novoEnd = prompt(`Edite o endereço da OS ${cliente.codigo}:\nInsira a Rua e Cidade (sem vírgulas soltas).`, `${cliente.rua}, ${cliente.cidade}`);
         
-        if (!novoEnd) return; // Utilizador cancelou
+        if (!novoEnd) return; 
 
         cliente.rua = novoEnd;
         cliente.precisaCorrecao = false;
+        
+        const toast = document.createElement("div");
+        toast.innerText = `A procurar novo endereço...`;
+        toast.style = "position:absolute; top:20px; right:20px; background:#F59E0B; color:white; padding:10px 20px; border-radius:8px; z-index:1000;";
+        document.getElementById("mapaArea").appendChild(toast);
 
-        // Busca o satélite novamente pelo novo texto
         try {
             let resNom = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(novoEnd + ', Brasil')}`);
             let locNom = await resNom.json();
             if (locNom && locNom.length > 0) {
                 cliente.lat = parseFloat(locNom[0].lat);
                 cliente.lon = parseFloat(locNom[0].lon);
-                alert("Endereço corrigido e mapa atualizado!");
+                toast.remove();
                 atualizarTela();
             } else {
                 cliente.precisaCorrecao = true;
-                alert("Ainda não encontrei! Tente colocar menos detalhes ou o nome do bairro.");
+                toast.remove();
+                alert("Ainda não encontrei! Tente simplificar o nome da rua ou do bairro.");
                 atualizarTela();
             }
-        } catch(e) { alert("Falha na ligação com o mapa."); }
+        } catch(e) { toast.remove(); alert("Falha na ligação com o satélite."); }
     }
 
     function limparRotas() {
