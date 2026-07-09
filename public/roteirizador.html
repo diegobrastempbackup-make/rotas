@@ -517,18 +517,80 @@
         }
     }
 
-    function salvarHistoricoBanco() {
+    async function salvarHistoricoBanco() {
+        // Bloqueio de segurança: só salva se um técnico estiver ativo
+        if (!tecnicoAtivo || rotaAtiva.length === 0) {
+            return alert("⚠️ Por favor, clique num técnico e gere a rota antes de salvar.");
+        }
+
         const hojeLocal = new Date().toISOString().split('T')[0];
-        const dataRoteiro = prompt("Confirme a data deste roteiro (AAAA-MM-DD):", hojeLocal);
-        if (dataRoteiro) alert(`Interface pronta. Próximo passo: guardar no server.js!`);
+        const dataRoteiro = prompt(`A guardar o roteiro de: ${tecnicoAtivo}\n\nConfirme a data (Formato AAAA-MM-DD):`, hojeLocal);
+        
+        if (!dataRoteiro) return; // Utilizador cancelou
+
+        try {
+            // Envia o pacote de dados ultraleve para o server.js
+            const res = await fetch('/api/rotas', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    data: dataRoteiro,
+                    tecnico: tecnicoAtivo,
+                    itinerario: rotaAtiva
+                })
+            });
+
+            if (res.ok) {
+                alert(`✅ Sucesso! Roteiro de ${tecnicoAtivo} guardado para o dia ${dataRoteiro}.`);
+            } else {
+                alert("❌ Erro ao guardar o planeamento.");
+            }
+        } catch(e) {
+            alert("❌ Falha na ligação com o servidor.");
+        }
     }
 
-    function buscarHistorico() {
-        alert("Interface de pesquisa pronta. Ativaremos no próximo passo com o server.js!");
+    async function buscarHistorico() {
+        const dataBusca = document.getElementById("buscaData").value;
+        const codigoBusca = document.getElementById("buscaCodigo").value.trim();
+
+        if (!dataBusca && !codigoBusca) {
+            return alert("⚠️ Preencha a Data ou o Código da OS para pesquisar.");
+        }
+
+        let url = '/api/rotas?';
+        if (dataBusca) url += `data=${dataBusca}&`;
+        if (codigoBusca) url += `codigo=${codigoBusca}`;
+
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            const rotasEncontradas = await res.json();
+
+            if (rotasEncontradas.length === 0) {
+                return alert("Nenhum roteiro encontrado com esses dados.");
+            }
+
+            // Puxa a primeira rota encontrada e injeta no mapa!
+            const roteiro = rotasEncontradas[0];
+            tecnicoAtivo = roteiro.tecnico;
+            rotaAtiva = roteiro.itinerario;
+
+            alert(`✅ Histórico Localizado!\nTécnico: ${tecnicoAtivo}\nData do Roteiro: ${roteiro.data}\nTotal de Clientes: ${rotaAtiva.length}`);
+            
+            // Ativa o painel de edição e redesenha a linha azul na tela exatamente como foi salva
+            document.getElementById("painelItinerario").style.display = "block";
+            atualizarTela();
+
+        } catch(e) {
+            alert("❌ Erro ao buscar dados no servidor.");
+        }
     }
 </script>
 </body>
-</html>
+</html> 
 </script>
 </body>
 </html>

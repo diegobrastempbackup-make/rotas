@@ -3,7 +3,7 @@ const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb"); 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const https = require("https"); // <-- Novo módulo nativo para o Ping
+const https = require("https"); 
 
 const app = express();
 
@@ -11,12 +11,11 @@ const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // =====================================================================
-// ⚠️ COLOQUE AQUI O LINK REAL DO SEU SISTEMA NO RENDER
-// Exemplo: "https://neri-frota-app.onrender.com"
+// URL DO SEU SISTEMA NO RENDER (Para o Ping Anti-Hibernação)
 const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com/login.html"; 
 // =====================================================================
 
-// MONGO
+// MONGO DB
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
@@ -35,32 +34,36 @@ const autenticarToken = (req, res, next) => {
   } catch (err) { return res.status(403).json({ erro: "Token inválido." }); }
 };
 
-// FILTRO SAAS 
+// FILTRO SAAS (Separa os dados de cada empresa)
 const getFiltroSaaS = (req) => {
   if (req.usuario.tipo === "superadmin") return {}; 
   return { cliente_id: req.usuario.cliente_id };
 };
 
+// =====================================================================
 // ROTAS DE PÁGINAS FRONT-END
+// =====================================================================
 app.get("/", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/dados.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/dados.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/estoque.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/estoque.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
+app.get("/roteirizador.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/roteirizador.html"); } catch (err) { res.redirect("/login.html"); }});
 
 // ROTA ANTI-HIBERNAÇÃO
 app.get("/ping", (req, res) => {
   res.status(200).send("Servidor acordado!");
 });
 
-// --- LOGIN (Com trava de conta suspensa) ---
+// =====================================================================
+// LOGIN E GESTÃO DE UTILIZADORES / EMPRESAS
+// =====================================================================
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     
     if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
-    
     if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso. Contacte a administração." });
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
@@ -76,14 +79,11 @@ app.post("/login", async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao realizar login" }); }
 });
 
-// --- ROTA PROTEGIDA: CRIAR NOVA EMPRESA ---
 app.post("/nova-empresa", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
-
     const { empresa, nome, usuario, senha } = req.body;
     if (!empresa || !nome || !usuario || !senha) return res.status(400).json({ erro: "Preencha todos os campos." });
-
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (existe) return res.status(400).json({ erro: "Login já em uso." });
 
@@ -91,20 +91,13 @@ app.post("/nova-empresa", autenticarToken, async (req, res) => {
     const senhaHash = await bcrypt.hash(senha, 10);
 
     await db.collection("usuarios").insertOne({
-      cliente_id: novoClienteId,
-      empresaNome: empresa.trim(),
-      nome,
-      usuario: usuario.toLowerCase().trim(),
-      senha: senhaHash,
-      tipo: "master",
-      ativo: true,
-      criadoEm: new Date()
+      cliente_id: novoClienteId, empresaNome: empresa.trim(), nome, usuario: usuario.toLowerCase().trim(),
+      senha: senhaHash, tipo: "master", ativo: true, criadoEm: new Date()
     });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro ao criar empresa" }); }
 });
 
-// --- GESTÃO DE EMPRESAS: LISTAR, BLOQUEAR E EXCLUIR (SÓ SUPER ADMIN) ---
 app.get("/api/empresas", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
@@ -117,15 +110,8 @@ app.put("/api/empresas/:id/status", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
     const { ativo } = req.body;
-    
     const empresaMaster = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
-    
-    if(empresaMaster) {
-        await db.collection("usuarios").updateMany(
-            { cliente_id: empresaMaster.cliente_id },
-            { $set: { ativo: ativo } }
-        );
-    }
+    if(empresaMaster) await db.collection("usuarios").updateMany({ cliente_id: empresaMaster.cliente_id }, { $set: { ativo: ativo } });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -133,43 +119,31 @@ app.put("/api/empresas/:id/status", autenticarToken, async (req, res) => {
 app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
-    
     const empresaMaster = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
-    
     if(empresaMaster && empresaMaster.cliente_id) {
         const cid = empresaMaster.cliente_id;
-        await db.collection("usuarios").deleteMany({ cliente_id: cid });
-        await db.collection("tecnicos_dashboard").deleteMany({ cliente_id: cid });
-        await db.collection("tecnicos").deleteMany({ cliente_id: cid });
-        await db.collection("estoque").deleteMany({ cliente_id: cid });
-        await db.collection("historico_estoque").deleteMany({ cliente_id: cid });
-        await db.collection("registros").deleteMany({ cliente_id: cid });
+        const colecoes = ["usuarios", "tecnicos_dashboard", "tecnicos", "estoque", "historico_estoque", "registros", "planejamento_rotas"];
+        for(let col of colecoes) await db.collection(col).deleteMany({ cliente_id: cid });
     }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// --- UTILIZADORES GERAIS ---
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
     const { nome, usuario, senha, tipo } = req.body;
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (existe) return res.status(400).json({ erro: "Login já em uso" });
-
     const senhaHash = await bcrypt.hash(senha, 10);
-    await db.collection("usuarios").insertOne({
-      cliente_id: req.usuario.cliente_id, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date()
-    });
+    await db.collection("usuarios").insertOne({ cliente_id: req.usuario.cliente_id, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date() });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
-const listarUsuariosHandler = async (req, res) => {
-  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).toArray()); } 
-  catch (err) { res.status(500).json({ erro: "Erro" }); }
-};
-app.get("/api/usuarios", autenticarToken, listarUsuariosHandler);
+app.get("/api/usuarios", autenticarToken, async (req, res) => {
+  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); }
+});
 
 app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
@@ -190,7 +164,51 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// --- RESTANTES ENDPOINTS (COM FILTRO SAAS APLICADO) ---
+// =====================================================================
+// NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE (Salvar no Banco Ultra Leve)
+// =====================================================================
+
+app.post('/api/rotas', autenticarToken, async (req, res) => {
+  try {
+      const { data, tecnico, itinerario } = req.body;
+      if (!data || !tecnico || !itinerario) {
+          return res.status(400).json({ erro: "Dados incompletos" });
+      }
+
+      // Upsert: Se a rota já existir para esse dia e técnico, ele subscreve. Se não, cria uma nova.
+      await db.collection("planejamento_rotas").updateOne(
+          { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
+          { $set: { itinerario: itinerario, atualizadoEm: new Date() } },
+          { upsert: true }
+      );
+
+      res.json({ mensagem: "Roteiro salvo com sucesso!" });
+  } catch (err) {
+      res.status(500).json({ erro: "Erro ao salvar roteiro." });
+  }
+});
+
+app.get('/api/rotas', autenticarToken, async (req, res) => {
+  try {
+      const { data, codigo } = req.query;
+      let filtro = { cliente_id: req.usuario.cliente_id };
+
+      // Se o gestor buscar por Data
+      if (data) filtro.data = data;
+      
+      // Se o gestor buscar por Código (Ex: OS 80890) - Procura dentro da lista JSON!
+      if (codigo) filtro["itinerario.codigo"] = codigo;
+
+      const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
+      res.json(rotas);
+  } catch (err) {
+      res.status(500).json({ erro: "Erro ao buscar roteiros." });
+  }
+});
+
+// =====================================================================
+// RESTANTES MÓDULOS (Dashboard, Almoxarifado, Registros)
+// =====================================================================
 app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { const { nome, status, telefone, email, veiculo, placa } = req.body; const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Técnico já registado" }); await db.collection("tecnicos_dashboard").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", telefone, email, veiculo, placa, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { nome: req.body.nome.trim(), status: req.body.status, telefone: req.body.telefone, email: req.body.email, veiculo: req.body.veiculo, placa: req.body.placa } }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
@@ -241,13 +259,12 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => { try { await d
 
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO
+// INICIALIZAÇÃO E LIGAÇÃO À BASE DE DADOS
 async function iniciarSistema() {
   try {
     console.log("🔄 A ligar à base de dados...");
     await client.connect(); db = client.db("rotas"); console.log("✅ Conexão estabelecida!");
     
-    // Migração de Segurança para os seus dados não se perderem
     const defaultClienteId = "neri_matriz_01";
     for (let col of ["usuarios", "tecnicos", "tecnicos_dashboard", "estoque", "historico_estoque", "registros"]) {
       await db.collection(col).updateMany({ cliente_id: { $exists: false } }, { $set: { cliente_id: defaultClienteId } });
@@ -263,7 +280,7 @@ async function iniciarSistema() {
       console.log("👑 Conta Super Admin Criada: neri.admin / neri2026");
     }
 
-    // 🚀 O LOOP ANTI-HIBERNAÇÃO (Pinga a cada 14 minutos)
+    // LOOP ANTI-HIBERNAÇÃO
     setInterval(() => {
       https.get(`${URL_DO_SEU_SISTEMA}/ping`, (resp) => {
         console.log(`⏱️ [${new Date().toLocaleTimeString()}] Ping automático enviado. Render mantido acordado!`);
