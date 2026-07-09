@@ -153,24 +153,20 @@
                     localStorage.setItem("usuarioTipo", dados.tipo);
                     localStorage.setItem("nomeUsuario", dados.nome);
 
-                    // 2. A PORTA GIRATÓRIA (Redirecionamento Rigoroso)
+                    // 2. A PORTA GIRATÓRIA (Agora com o token colado na URL)
                     const tipo = dados.tipo;
 
                     if (tipo === "tecnico") {
-                        // Técnico na rua: Vai para a App do Mapa
-                        window.location.replace("diario.html");
+                        window.location.replace(`diario.html?token=${dados.token}`);
                         
                     } else if (tipo === "estoque") {
-                        // Pessoal do Armazém: Vai para as ferramentas
-                        window.location.replace("estoque.html");
+                        window.location.replace(`estoque.html?token=${dados.token}`);
                         
                     } else if (tipo === "master" || tipo === "superadmin" || tipo === "admin" || tipo === "simples") {
-                        // Pessoal do Escritório (Gestores e Auditores): Vão para o Dashboard Central
-                        window.location.replace("index.html");
+                        window.location.replace(`index.html?token=${dados.token}`);
                         
                     } else {
-                        // Prevenção de segurança de última linha
-                        window.location.replace("dados.html");
+                        window.location.replace(`dados.html?token=${dados.token}`);
                     }
                 } else {
                     erroMsg.innerText = dados.erro || "Erro de autenticação.";
