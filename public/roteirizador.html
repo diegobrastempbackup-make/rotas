@@ -104,7 +104,7 @@
     let dadosGlobaisRotas = {}; 
 
     document.addEventListener("DOMContentLoaded", () => {
-        mapa = L.map('mapa').setView([-23.5505, -46.6333], 11); // Focado na Grande SP
+        mapa = L.map('mapa').setView([-23.5505, -46.6333], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(mapa);
@@ -125,7 +125,7 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A processar dados pelo CEP...</h3><p>Reconstruindo os zeros ocultos do Excel...</p>`;
+        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A ler Excel...</h3>`;
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -166,9 +166,8 @@
                 dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             }
 
-            // CORREÇÃO DO ZERO À ESQUERDA DO CEP (Essencial para o Brasil)
-            let cepLimpo = String(linha["CEP"] || "").replace(/\D/g, '').trim(); // Remove letras ou hífens
-            let cepFormatado = cepLimpo.padStart(8, '0'); // Se tiver 7 dígitos, vira 8 colocando o 0 na frente!
+            let cepLimpo = String(linha["CEP"] || "").replace(/\D/g, '').trim(); 
+            let cepFormatado = cepLimpo.padStart(8, '0'); 
             
             if (cepFormatado.length === 8) {
                 cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
@@ -233,7 +232,7 @@
         `;
     }
 
-    // MOTOR DE BUSCA DUPLO INTELIGENTE
+    // MOTOR DUPLO DE ALTA PRECISÃO (BrasilAPI + Satélite)
     async function selecionarTecnico(nome, elementoHTML) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         elementoHTML.classList.add('ativo');
@@ -246,7 +245,7 @@
         const todosClientes = [...dadosTecnico.manha, ...dadosTecnico.tarde];
         
         const toast = document.createElement("div");
-        toast.innerText = `Buscando coordenadas por CEP para ${nome}...`;
+        toast.innerText = `A procurar coordenadas reais para ${nome}...`;
         toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3);";
         document.getElementById("mapaArea").appendChild(toast);
 
@@ -255,27 +254,42 @@
         for(let cliente of todosClientes) {
             try {
                 let lat = null, lon = null;
+                let cepNumeros = cliente.cep.replace(/\D/g, '');
 
-                // TENTATIVA 1: Endereço completo estruturado com o CEP corrigido
-                let urlExata = `https://nominatim.openstreetmap.org/search?format=json&street=${encodeURIComponent(cliente.rua)}&postalcode=${encodeURIComponent(cliente.cep)}&city=${encodeURIComponent(cliente.cidade)}&country=Brazil`;
-                let res = await fetch(urlExata);
-                let localizacao = await res.json();
-                
-                if (localizacao && localizacao.length > 0) {
-                    lat = localizacao[0].lat;
-                    lon = localizacao[0].lon;
-                } else {
-                    // TENTATIVA 2 (FILTRO DE SEGURANÇA): Busca pura pelo CEP corrigido
-                    let urlFallback = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(cliente.cep)}&country=Brazil`;
-                    let resFb = await fetch(urlFallback);
-                    let locFb = await resFb.json();
-                    if (locFb && locFb.length > 0) {
-                        lat = locFb[0].lat;
-                        lon = locFb[0].lon;
-                    }
+                // TENTATIVA 1: API do Governo Brasileiro (A melhor para CEPs)
+                if (cepNumeros.length === 8) {
+                    try {
+                        let resCep = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepNumeros}`);
+                        if(resCep.ok) {
+                            let dadosCep = await resCep.json();
+                            if(dadosCep.location && dadosCep.location.coordinates && dadosCep.location.coordinates.latitude) {
+                                lon = parseFloat(dadosCep.location.coordinates.longitude);
+                                lat = parseFloat(dadosCep.location.coordinates.latitude);
+                            }
+                        }
+                    } catch(e) {} // Se a BrasilAPI falhar, ignora e avança para a tentativa 2
+                }
+
+                // TENTATIVA 2: Limpa a vírgula da rua e usa o Satélite OpenStreetMap
+                if (!lat || !lon) {
+                    try {
+                        // Corta tudo o que estiver depois da vírgula (Ex: "AL Xingu, " vira "AL Xingu")
+                        let nomeRua = cliente.rua.split(',')[0].trim();
+                        
+                        let urlBusca = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(nomeRua + ', ' + cliente.cidade + ', Brasil')}`;
+                        let resNom = await fetch(urlBusca);
+                        let locNom = await resNom.json();
+                        
+                        if (locNom && locNom.length > 0) {
+                            lat = parseFloat(locNom[0].lat);
+                            lon = parseFloat(locNom[0].lon);
+                        }
+                        // Pausa educada para não sermos bloqueados pelo satélite
+                        await new Promise(r => setTimeout(r, 1000));
+                    } catch(e) {}
                 }
                 
-                // Se encontrou por qualquer um dos caminhos, espeta o pino no mapa!
+                // Se achou por um caminho ou por outro, planta o pino!
                 if (lat && lon) {
                     const pino = L.marker([lat, lon]).bindPopup(`
                         <div style="font-family:Arial,sans-serif; font-size:13px; color:#1E293B;">
@@ -289,10 +303,7 @@
                     pino.addTo(layerGrupo);
                     pinosEncontrados++;
                 }
-                
-                // Aguarda 1 segundo (Regra obrigatória da API de mapas para não ser bloqueado)
-                await new Promise(r => setTimeout(r, 1000));
-            } catch(e) { console.error("Erro na busca do cliente:", cliente.cliente); }
+            } catch(e) { console.error("Erro geral na busca do cliente:", cliente.cliente); }
         }
         
         toast.remove();
@@ -300,7 +311,7 @@
         if (pinosEncontrados > 0) {
             mapa.fitBounds(layerGrupo.getBounds(), {padding: [50, 50]});
         } else {
-            alert("⚠️ Nenhum CEP foi localizado. Verifique se a coluna de CEPs do Excel possui dados válidos.");
+            alert("⚠️ Nenhum endereço localizado. Tente atualizar a página e carregar o ficheiro novamente.");
         }
     }
 
@@ -312,7 +323,7 @@
     }
 
     function salvarHistoricoBanco() {
-        alert("Excelente! O sistema validou os dados.\n\nPara gravarmos este planeamento permanentemente e podermos consultar o histórico de visitas de qualquer técnico no futuro, o nosso próximo passo é configurar o 'server.js' com a rota de histórico!");
+        alert("O sistema de gravação será a nossa próxima etapa no servidor!");
     }
 </script>
 </body>
