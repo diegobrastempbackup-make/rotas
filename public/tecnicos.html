@@ -154,7 +154,16 @@
         <div class="form-group"><label>Nome Completo</label><input type="text" id="cadNome"></div>
         <div class="form-group"><label>Login (Usuário)</label><input type="text" id="cadUsuario"></div>
         <div class="form-group"><label id="lblSenha">Senha de Acesso</label><input type="password" id="cadSenha"></div>
-        <div class="form-group"><label>Nível de Permissão</label><select id="cadTipo"><option value="simples">Acesso Simples (Lançamentos)</option><option value="estoque">Estoque (Almoxarifado)</option><option value="admin">Administrador (Relatórios)</option><option value="master">Master (Controle Total)</option></select></div>
+        <div class="form-group">
+    <label>Nível de Permissão</label>
+    <select id="cadTipo">
+        <option value="simples">Acesso Simples (Lançamentos)</option>
+        <option value="estoque">Estoque (Almoxarifado)</option>
+        <option value="tecnico">Técnico (App Rota)</option>
+        <option value="admin">Administrador (Relatórios)</option>
+        <option value="master">Master (Controle Total)</option>
+    </select>
+</div>
         <button class="btn-bloco" style="background:#10B981;" onclick="salvarUsuario()">Salvar Usuário</button>
     </div>
 </div>
