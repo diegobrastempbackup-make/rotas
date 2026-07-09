@@ -3,16 +3,29 @@ let cacheTecnicos = [];
 
 if (!token) window.location.replace("/login.html");
 
+// Função para ler a verdadeira identidade dentro do Token de segurança
+function obterNivelRealDoToken() {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload).tipo;
+    } catch (e) { return null; }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     const usuarioTipo = localStorage.getItem("usuarioTipo");
+    const tipoReal = obterNivelRealDoToken(); // Aqui ele descobre a verdade!
     
     // Mostra a aba de Usuários se for Master ou SuperAdmin
-    if (usuarioTipo === "master" || usuarioTipo === "superadmin") {
+    if (usuarioTipo === "master" || tipoReal === "superadmin") {
         document.getElementById("btnTabUsuarios").style.display = "flex";
     }
 
     // Mostra a aba SaaS apenas para o Deus do Sistema
-    if (usuarioTipo === "superadmin") {
+    if (tipoReal === "superadmin") {
         document.getElementById("btnTabEmpresas").style.display = "flex";
         await carregarEmpresas();
     }
