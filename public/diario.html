@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Diário de Bordo - NERI</title>
+    <!-- Inteligência Artificial para leitura da imagem (OCR) -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; background: #0F172A; color: white; display: flex; flex-direction: column; min-height: 100vh; }
@@ -17,22 +18,21 @@
         .card h3 { margin: 0 0 15px 0; color: #60A5FA; font-size: 18px; }
 
         label { display: block; font-size: 13px; color: #94A3B8; margin-bottom: 5px; font-weight: bold; }
-        input, select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; outline: none; }
+        input, select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; outline: none; appearance: none; }
         input:focus, select:focus { border-color: #3B82F6; }
+        
+        /* Estilo para quando a caixa está bloqueada (Técnico não pode mudar o nome) */
+        select:disabled { background: #1E293B; color: #94A3B8; border-color: rgba(255,255,255,0.05); opacity: 1; }
 
-        /* Botão da Câmera Gigante */
-        .btn-camera { background: linear-gradient(135deg, #10B981, #059669); color: white; padding: 18px; border: none; border-radius: 10px; width: 100%; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); transition: 0.2s; }
+        .btn-camera { background: linear-gradient(135deg, #10B981, #059669); color: white; padding: 18px; border: none; border-radius: 10px; width: 100%; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); transition: 0.2s; text-align: center; }
         .btn-camera:active { transform: scale(0.98); }
         
-        /* Botão de Envio */
         .btn-enviar { background: #2563EB; color: white; padding: 16px; border: none; border-radius: 10px; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .btn-enviar:active { background: #1D4ED8; }
 
-        /* Esconder input de arquivo original */
         input[type="file"] { display: none; }
 
-        /* Overlay de Carregamento da IA */
-        #loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        #loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px; }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -55,19 +55,20 @@
         <h3>Lançamento de Atividade</h3>
         
         <label>Técnico Responsável</label>
+        <!-- A caixa Select agora será controlada pelo JS -->
         <select id="campoTecnico"></select>
 
         <label>Data da Ocorrência</label>
         <input type="date" id="campoData">
 
         <label>O que está a registar?</label>
-        <select id="campoTipo" onchange="mudarFormulario()">
+        <select id="campoTipo" onchange="mudarFormulario()" style="background-image: url('data:image/svg+xml;utf8,<svg fill=\"white\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 10l5 5 5-5z\"/></svg>'); background-repeat: no-repeat; background-position-x: 95%; background-position-y: 12px;">
             <option value="kmIni">Início do Dia (KM Inicial)</option>
             <option value="kmFim">Fim do Dia (KM Final)</option>
             <option value="abastecimento">Abastecimento na Bomba</option>
         </select>
 
-        <label id="lblKm">Quilometragem (KM)</label>
+        <label id="lblKm">Quilometragem Lida (KM)</label>
         <input type="number" id="campoKm" placeholder="Ex: 148988">
 
         <div id="areaAbastecimento" style="display: none;">
@@ -86,44 +87,53 @@
 
 <div id="loading">
     <div class="spinner"></div>
-    <div style="font-weight: bold; color: white;">A IA está a ler a imagem...</div>
-    <div style="font-size: 12px; color: #94A3B8; margin-top: 5px;">A foto não será guardada.</div>
+    <div style="font-weight: bold; color: white; font-size: 18px;">A tratar a imagem do painel...</div>
+    <div style="font-size: 13px; color: #94A3B8; margin-top: 10px; max-width: 300px;">A inteligência artificial está a remover o fundo preto para encontrar os números. Aguarde.</div>
 </div>
 
 <script>
 const token = localStorage.getItem("token");
 if (!token) window.location.replace("/login.html");
 
-document.getElementById("nomeUsuarioLogado").innerText = localStorage.getItem("usuarioNome") || "Técnico";
+const nomeLogado = localStorage.getItem("usuarioNome") || "Técnico";
+const tipoLogado = localStorage.getItem("usuarioTipo") || "simples";
+document.getElementById("nomeUsuarioLogado").innerText = nomeLogado;
 
-// Configura a data para Hoje por defeito
 const hoje = new Date();
 const dataFormatada = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 document.getElementById("campoData").value = dataFormatada;
 
-// Carrega os Técnicos para o select
 async function carregarTecnicos() {
     try {
         const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
         const lista = await res.json();
         const select = document.getElementById("campoTecnico");
-        const meuNome = localStorage.getItem("usuarioNome").toLowerCase();
+        const meuNome = nomeLogado.toLowerCase();
         
-        lista.filter(t => t.status === "Ativo" || !t.status).forEach(t => {
-            const option = document.createElement("option");
-            option.value = t.nome;
-            option.text = t.nome;
-            select.appendChild(option);
-            // Auto-seleciona se o nome do login bater com o nome do cadastro
-            if (t.nome.toLowerCase().includes(meuNome) || meuNome.includes(t.nome.toLowerCase())) {
-                option.selected = true;
-            }
-        });
+        // REGRA DE SEGURANÇA: Se for Técnico (Simples), trava no nome dele.
+        if (tipoLogado === "simples") {
+            // Tenta encontrar o técnico na base que bate com o nome do utilizador
+            let tecnicoEncontrado = lista.find(t => t.nome.toLowerCase() === meuNome || t.nome.toLowerCase().includes(meuNome) || meuNome.includes(t.nome.toLowerCase()));
+            
+            let nomeParaExibir = tecnicoEncontrado ? tecnicoEncontrado.nome : nomeLogado;
+            
+            // Cria apenas 1 opção e bloqueia a caixa!
+            select.innerHTML = `<option value="${nomeParaExibir}">${nomeParaExibir}</option>`;
+            select.disabled = true; 
+        } 
+        // Se for um Master a usar o telemóvel, ele pode escolher qualquer um
+        else {
+            lista.filter(t => t.status === "Ativo" || !t.status).forEach(t => {
+                const option = document.createElement("option");
+                option.value = t.nome;
+                option.text = t.nome;
+                select.appendChild(option);
+            });
+        }
     } catch (e) { console.error(e); }
 }
 carregarTecnicos();
 
-// Alterna os campos dependendo do tipo de registo
 function mudarFormulario() {
     const tipo = document.getElementById("campoTipo").value;
     const areaAbs = document.getElementById("areaAbastecimento");
@@ -138,7 +148,6 @@ function mudarFormulario() {
     }
 }
 
-// 🧠 O CORAÇÃO DO SISTEMA OCR (INTELIGÊNCIA ARTIFICIAL)
 async function processarImagemOCR(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -146,30 +155,53 @@ async function processarImagemOCR(event) {
     document.getElementById("loading").style.display = "flex";
 
     try {
-        // Pede ao Tesseract para ler a imagem em português
-        const resultado = await Tesseract.recognize(file, 'por');
-        const texto = resultado.data.text;
+        const imgUrl = URL.createObjectURL(file);
+        const img = new Image();
+        await new Promise(resolve => { img.onload = resolve; img.src = imgUrl; });
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            let r = data[i], g = data[i+1], b = data[i+2];
+            let cinza = (r + g + b) / 3;
+            cinza = 255 - cinza;
+            data[i] = cinza;
+            data[i+1] = cinza;
+            data[i+2] = cinza;
+        }
+        ctx.putImageData(imageData, 0, 0);
         
-        // Expressão Regular: Procura números que tenham entre 4 a 6 dígitos (Ex: 148988 ou 149055)
-        const numerosEncontrados = texto.match(/\b\d{4,6}\b/g);
+        const imagemTratada = canvas.toDataURL("image/jpeg");
+
+        const resultado = await Tesseract.recognize(imagemTratada, 'eng');
+        let texto = resultado.data.text;
+        
+        texto = texto.replace(/O/g, '0').replace(/o/g, '0').replace(/l/g, '1').replace(/I/g, '1');
+
+        const numerosEncontrados = texto.match(/\d{4,7}/g);
 
         if (numerosEncontrados) {
-            // Se encontrar vários números grandes na tela, pega o maior (geralmente é o KM total)
             const kmIdentificado = Math.max(...numerosEncontrados.map(Number));
             document.getElementById("campoKm").value = kmIdentificado;
-            alert(`✅ Sucesso! A câmara leu o KM: ${kmIdentificado}\n\nPor favor, verifique no ecrã se o número está correto.`);
+            alert(`✅ KM Encontrado: ${kmIdentificado}\n\nPor favor, confirme no campo se o número está correto, pois os reflexos do vidro podem atrapalhar.`);
         } else {
-            alert("⚠️ Não consegui encontrar o KM na foto. Verifique se não houve reflexo de luz e digite manualmente.");
+            alert("⚠️ Devido ao reflexo ou ao fundo do painel, a câmara não conseguiu focar com clareza nos números. Por favor, digite o valor manualmente.");
         }
+
     } catch (erro) {
-        alert("Ocorreu um erro ao processar a imagem. Por favor, digite os valores manualmente.");
+        alert("Ocorreu um erro no leitor. Digite o KM manualmente.");
     } finally {
         document.getElementById("loading").style.display = "none";
-        event.target.value = ""; // Limpa a memória do arquivo tirado
+        event.target.value = ""; 
     }
 }
 
-// Envia os dados cruzados com os dados já existentes no servidor (Para evitar perda de dados se preenchido atrasado)
 async function salvarDiario() {
     const tecnico = document.getElementById("campoTecnico").value;
     const data = document.getElementById("campoData").value;
@@ -182,19 +214,14 @@ async function salvarDiario() {
     if (tipo === "abastecimento" && (!litros || !valor)) return alert("Preencha os Litros e o Valor do abastecimento!");
 
     try {
-        // 1. PRIMEIRO PASSO: Busca se já existe registo deste técnico neste dia
         const resBusca = await fetch("/api/registros", { headers: { "Authorization": `Bearer ${token}` } });
         const todosRegistos = await resBusca.json();
-        
-        // Acha a linha de hoje (se existir)
         let registoDoDia = todosRegistos.find(r => r.tecnico === tecnico && String(r.data).startsWith(data));
         
-        // Se não existir, cria um esqueleto limpo
         if (!registoDoDia) {
             registoDoDia = { tecnico, data, kmIni: 0, kmFim: 0, km: 0, consumo: 0, abastAnt: "", abastAtual: "", litros: 0, valor: 0 };
         }
 
-        // 2. SEGUNDO PASSO: Injeta o que ele acabou de digitar
         if (tipo === "kmIni") registoDoDia.kmIni = kmLido;
         if (tipo === "kmFim") registoDoDia.kmFim = kmLido;
         if (tipo === "abastecimento") {
@@ -203,7 +230,6 @@ async function salvarDiario() {
             registoDoDia.valor = valor;
         }
 
-        // 3. TERCEIRO PASSO: O sistema de IA calcula as médias automaticamente
         if (registoDoDia.kmFim > 0 && registoDoDia.kmIni > 0) {
             registoDoDia.km = registoDoDia.kmFim - registoDoDia.kmIni;
         }
@@ -211,7 +237,6 @@ async function salvarDiario() {
             registoDoDia.consumo = (registoDoDia.km / registoDoDia.litros).toFixed(2);
         }
 
-        // 4. ENVIA PARA O SERVIDOR!
         const resPost = await fetch("/registro", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
@@ -219,7 +244,7 @@ async function salvarDiario() {
         });
 
         if (resPost.ok) {
-            alert("🚀 Registo guardado com sucesso na base de dados!");
+            alert("🚀 Lançamento efetuado com sucesso!");
             document.getElementById("campoKm").value = "";
             document.getElementById("campoLitros").value = "";
             document.getElementById("campoValor").value = "";
