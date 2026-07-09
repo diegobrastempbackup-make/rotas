@@ -100,16 +100,15 @@
     if (!token) window.location.replace("/login.html");
 
     let mapa = null;
-    let layerGrupo = null; // Grupo de pinos do mapa
+    let layerGrupo = null; 
     let dadosGlobaisRotas = {}; 
 
     document.addEventListener("DOMContentLoaded", () => {
-        mapa = L.map('mapa').setView([-23.5505, -46.6333], 10); 
+        mapa = L.map('mapa').setView([-23.5505, -46.6333], 11); // Focado na Grande SP
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(mapa);
         
-        // RECUPERA A MEMÓRIA
         const rotasGuardadas = localStorage.getItem("planilhaRotas");
         if (rotasGuardadas) {
             dadosGlobaisRotas = JSON.parse(rotasGuardadas);
@@ -126,7 +125,7 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A analisar a folha de Excel...</h3>`;
+        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A processar dados pelo CEP...</h3><p>Reconstruindo os zeros ocultos do Excel...</p>`;
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -160,7 +159,6 @@
             const tecnico = linha["TÉCNICO"] || linha["TECNICO"] || "SEM NOME";
             if (!linha["CÓDIGO"] && !linha["CLIENTE"] && tecnico === "SEM NOME") return;
 
-            // RESOLUÇÃO DO BUG MANHÃ/TARDE (Olha só para a 1ª letra)
             const horarioRaw = String(linha["HORÁRIO"] || linha["HORARIO"] || "").trim().toUpperCase();
             const primeiraLetra = horarioRaw.charAt(0);
             
@@ -168,18 +166,27 @@
                 dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             }
 
-            // A morada otimizada para o GPS encontrar melhor
-            const enderecoFormatado = `${linha["ENDEREÇO"] || linha["ENDERECO"] || ""}, ${linha["CIDADE"] || ""}`;
+            // CORREÇÃO DO ZERO À ESQUERDA DO CEP (Essencial para o Brasil)
+            let cepLimpo = String(linha["CEP"] || "").replace(/\D/g, '').trim(); // Remove letras ou hífens
+            let cepFormatado = cepLimpo.padStart(8, '0'); // Se tiver 7 dígitos, vira 8 colocando o 0 na frente!
+            
+            if (cepFormatado.length === 8) {
+                cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
+            }
+
+            const rua = String(linha["ENDEREÇO"] || linha["ENDERECO"] || "").trim();
+            const cidade = String(linha["CIDADE"] || "São Paulo").trim();
 
             const clienteOcorrencia = {
                 codigo: linha["CÓDIGO"] || linha["CODIGO"] || "",
                 cliente: linha["CLIENTE"] || "Sem Nome",
                 servico: linha["SERVIÇO"] || linha["SERVICO"] || "",
-                enderecoTexto: enderecoFormatado,
-                cep: linha["CEP"] || ""
+                rua: rua,
+                cidade: cidade,
+                cep: cepFormatado,
+                detalhes: linha["DETALHES O.S"] || linha["DETALHES O.S."] || ""
             };
 
-            // Se começa com M é Manhã, caso contrário é Tarde
             if (primeiraLetra === 'M') {
                 dadosGlobaisRotas[tecnico].manha.push(clienteOcorrencia);
             } else {
@@ -217,7 +224,6 @@
             `;
         });
 
-        // Botão para salvar histórico
         divLista.innerHTML += `
             <div style="padding: 15px; margin-top: 10px;">
                 <button onclick="salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
@@ -227,62 +233,74 @@
         `;
     }
 
-    // A MÁGICA DA FASE 2: DESENHAR OS PINOS NO MAPA!
+    // MOTOR DE BUSCA DUPLO INTELIGENTE
     async function selecionarTecnico(nome, elementoHTML) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         elementoHTML.classList.add('ativo');
 
         const dadosTecnico = dadosGlobaisRotas[nome];
         
-        // Limpa os pinos anteriores do mapa
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
 
-        // Junta todos os clientes (Manhã e Tarde)
         const todosClientes = [...dadosTecnico.manha, ...dadosTecnico.tarde];
         
-        // Alerta suave (Não trava a tela)
         const toast = document.createElement("div");
-        toast.innerText = `A traçar a rota de ${nome} no mapa... (${todosClientes.length} paragens)`;
-        toast.style = "position:absolute; top:20px; right:20px; background:#3B82F6; color:white; padding:10px 20px; border-radius:8px; z-index:1000;";
+        toast.innerText = `Buscando coordenadas por CEP para ${nome}...`;
+        toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3);";
         document.getElementById("mapaArea").appendChild(toast);
 
         let pinosEncontrados = 0;
 
-        // Procura a coordenada de cada um
         for(let cliente of todosClientes) {
             try {
-                // API Gratuita de GPS (OpenStreetMap)
-                const urlGPS = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cliente.enderecoTexto)}`;
-                const res = await fetch(urlGPS);
-                const localizacao = await res.json();
+                let lat = null, lon = null;
+
+                // TENTATIVA 1: Endereço completo estruturado com o CEP corrigido
+                let urlExata = `https://nominatim.openstreetmap.org/search?format=json&street=${encodeURIComponent(cliente.rua)}&postalcode=${encodeURIComponent(cliente.cep)}&city=${encodeURIComponent(cliente.cidade)}&country=Brazil`;
+                let res = await fetch(urlExata);
+                let localizacao = await res.json();
                 
-                if(localizacao && localizacao.length > 0) {
-                    const lat = localizacao[0].lat;
-                    const lon = localizacao[0].lon;
-                    
-                    // Coloca o pino vermelho e cria um balão com os dados
+                if (localizacao && localizacao.length > 0) {
+                    lat = localizacao[0].lat;
+                    lon = localizacao[0].lon;
+                } else {
+                    // TENTATIVA 2 (FILTRO DE SEGURANÇA): Busca pura pelo CEP corrigido
+                    let urlFallback = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(cliente.cep)}&country=Brazil`;
+                    let resFb = await fetch(urlFallback);
+                    let locFb = await resFb.json();
+                    if (locFb && locFb.length > 0) {
+                        lat = locFb[0].lat;
+                        lon = locFb[0].lon;
+                    }
+                }
+                
+                // Se encontrou por qualquer um dos caminhos, espeta o pino no mapa!
+                if (lat && lon) {
                     const pino = L.marker([lat, lon]).bindPopup(`
-                        <strong style="color: #2563EB;">${cliente.codigo} - ${cliente.cliente}</strong><br>
-                        ${cliente.enderecoTexto}<br>
-                        <small style="color: #64748B;">Serviço: ${cliente.servico}</small>
+                        <div style="font-family:Arial,sans-serif; font-size:13px; color:#1E293B;">
+                            <strong style="color: #2563EB; font-size:14px;">📍 OS: ${cliente.codigo}</strong><br>
+                            <strong>Cliente:</strong> ${cliente.cliente}<br>
+                            <strong>Endereço:</strong> ${cliente.rua}<br>
+                            <strong>CEP:</strong> ${cliente.cep} (${cliente.cidade})<br>
+                            ${cliente.detalhes ? `<strong>Obs:</strong> <span style="color:#D97706;">${cliente.detalhes}</span>` : ''}
+                        </div>
                     `);
                     pino.addTo(layerGrupo);
                     pinosEncontrados++;
                 }
                 
-                // Pausa de 1 segundo entre pesquisas para não bloquear a API gratuita
+                // Aguarda 1 segundo (Regra obrigatória da API de mapas para não ser bloqueado)
                 await new Promise(r => setTimeout(r, 1000));
-            } catch(e) { console.error("Falha ao achar:", cliente.enderecoTexto); }
+            } catch(e) { console.error("Erro na busca do cliente:", cliente.cliente); }
         }
         
         toast.remove();
 
-        // Faz o mapa dar "Zoom" para mostrar todos os pinos de uma vez
         if (pinosEncontrados > 0) {
             mapa.fitBounds(layerGrupo.getBounds(), {padding: [50, 50]});
         } else {
-            alert("Aviso: O satélite não conseguiu encontrar essas moradas com precisão. Tente colocar a rua e a cidade mais claras no Excel.");
+            alert("⚠️ Nenhum CEP foi localizado. Verifique se a coluna de CEPs do Excel possui dados válidos.");
         }
     }
 
@@ -293,9 +311,8 @@
         }
     }
 
-    // Função preparatória para guardar o Histórico
     function salvarHistoricoBanco() {
-        alert("O painel já organizou os dados com sucesso!\n\nPara as rotas ficarem salvas para sempre (podendo ser pesquisadas pelo Código e Data), precisamos de criar um novo cofre no 'server.js'. Este será o nosso próximo passo técnico!");
+        alert("Excelente! O sistema validou os dados.\n\nPara gravarmos este planeamento permanentemente e podermos consultar o histórico de visitas de qualquer técnico no futuro, o nosso próximo passo é configurar o 'server.js' com a rota de histórico!");
     }
 </script>
 </body>
