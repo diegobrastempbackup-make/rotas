@@ -168,45 +168,43 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 // NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE (Salvar no Banco Ultra Leve)
 // =====================================================================
 
-app.get('/api/rotas', autenticarToken, async (req, res) => {
+// 1. GUARDAR ROTA
+app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
-      const { data, codigo } = req.query;
-      let filtro = { cliente_id: req.usuario.cliente_id };
-
-      // Se o gestor buscar por Data (Ex: 23/06/2026)
-      if (data) filtro.data = data;
-      
-      // Se o gestor buscar por Código
-      if (codigo) {
-          // A MÁGICA: Converte a pesquisa para procurar tanto como Texto quanto como Número!
-          const codigoNum = Number(codigo);
-          
-          if (!isNaN(codigoNum)) {
-              // Se for apenas números (Ex: 80890), procura os dois formatos no banco
-              filtro["itinerario.codigo"] = { $in: [codigo, String(codigo), codigoNum] };
-          } else {
-              // Se tiver letras misturadas (Ex: OS-80890), procura ignorando maiúsculas e minúsculas
-              filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
-          }
+      const { data, tecnico, itinerario } = req.body;
+      if (!data || !tecnico || !itinerario) {
+          return res.status(400).json({ erro: "Dados incompletos" });
       }
 
-      const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
-      res.json(rotas);
+      // Upsert: Atualiza se já existir, cria se for novo
+      await db.collection("planejamento_rotas").updateOne(
+          { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
+          { $set: { itinerario: itinerario, atualizadoEm: new Date() } },
+          { upsert: true }
+      );
+
+      res.json({ mensagem: "Roteiro salvo com sucesso!" });
   } catch (err) {
-      res.status(500).json({ erro: "Erro ao buscar roteiros." });
+      res.status(500).json({ erro: "Erro ao salvar roteiro." });
   }
 });
 
+// 2. PESQUISAR ROTA
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
       let filtro = { cliente_id: req.usuario.cliente_id };
 
-      // Se o gestor buscar por Data
       if (data) filtro.data = data;
       
-      // Se o gestor buscar por Código (Ex: OS 80890) - Procura dentro da lista JSON!
-      if (codigo) filtro["itinerario.codigo"] = codigo;
+      if (codigo) {
+          const codigoNum = Number(codigo);
+          if (!isNaN(codigoNum)) {
+              filtro["itinerario.codigo"] = { $in: [codigo, String(codigo), codigoNum] };
+          } else {
+              filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
+          }
+      }
 
       const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
       res.json(rotas);
@@ -275,7 +273,7 @@ async function iniciarSistema() {
     await client.connect(); db = client.db("rotas"); console.log("✅ Conexão estabelecida!");
     
     const defaultClienteId = "neri_matriz_01";
-    for (let col of ["usuarios", "tecnicos", "tecnicos_dashboard", "estoque", "historico_estoque", "registros"]) {
+    for (let col of ["usuarios", "tecnicos", "tecnicos_dashboard", "estoque", "historico_estoque", "registros", "planejamento_rotas"]) {
       await db.collection(col).updateMany({ cliente_id: { $exists: false } }, { $set: { cliente_id: defaultClienteId } });
     }
 

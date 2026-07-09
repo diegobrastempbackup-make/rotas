@@ -526,18 +526,22 @@
             return alert("⚠️ Por favor, clique num técnico e gere a rota antes de salvar.");
         }
 
-        // Gera a data de hoje automaticamente no formato DD/MM/AAAA
         const dataAtual = new Date();
         const dia = String(dataAtual.getDate()).padStart(2, '0');
         const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
         const ano = dataAtual.getFullYear();
         const hojeBR = `${dia}/${mes}/${ano}`;
 
-        // Pede a confirmação forçando o formato correto
         let dataRoteiro = prompt(`A guardar o roteiro de: ${tecnicoAtivo}\n\nConfirme a data exata (Apenas formato DD/MM/AAAA):`, hojeBR);
         
         if (!dataRoteiro) return;
-        dataRoteiro = dataRoteiro.trim(); // Limpa espaços acidentais
+        dataRoteiro = dataRoteiro.trim();
+
+        // Alerta visual de que está a trabalhar
+        const toast = document.createElement("div");
+        toast.innerText = `A comunicar com o Banco de Dados...`;
+        toast.style = "position:absolute; top:20px; right:20px; background:#3B82F6; color:white; padding:10px 20px; border-radius:8px; z-index:1000;";
+        document.getElementById("mapaArea").appendChild(toast);
 
         try {
             const res = await fetch('/api/rotas', {
@@ -547,19 +551,32 @@
                     'Authorization': `Bearer ${token}` 
                 },
                 body: JSON.stringify({
-                    data: dataRoteiro, // Salva lindamente como DD/MM/AAAA
+                    data: dataRoteiro,
                     tecnico: tecnicoAtivo,
                     itinerario: rotaAtiva
                 })
             });
 
+            toast.remove();
+
             if (res.ok) {
                 alert(`✅ Sucesso! Roteiro de ${tecnicoAtivo} guardado para o dia ${dataRoteiro}.`);
             } else {
-                alert("❌ Erro ao guardar o planeamento no servidor.");
+                // O DETETIVE DE ERROS: Descobre o motivo exato da falha
+                if (res.status === 401 || res.status === 403) {
+                    alert("⚠️ A sua sessão expirou por segurança. Faça o Login novamente.");
+                    localStorage.clear();
+                    window.location.replace('/login.html');
+                    return;
+                }
+                
+                // Tenta ler o erro enviado pelo servidor (se não conseguir, assume que o Render caiu)
+                const erroServidor = await res.json().catch(() => ({ erro: "O servidor Render ainda está a reiniciar. Aguarde 1 minuto e tente de novo." }));
+                alert(`❌ Erro do Servidor:\n${erroServidor.erro}`);
             }
         } catch(e) {
-            alert("❌ Falha na ligação com o servidor.");
+            if(toast) toast.remove();
+            alert("❌ Falha na ligação. O servidor pode estar offline.");
         }
     }
 
