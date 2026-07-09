@@ -44,7 +44,16 @@ function irParaTecnicos() { const token = localStorage.getItem("token"); window.
 function acessar() { const tokenLogin = localStorage.getItem("token"); window.location.href = `/dados.html?token=${tokenLogin}`; }
 function sair() { localStorage.clear(); window.location.replace("/login.html"); }
 
+// FUNÇÕES DE TEMPO PARA OS INDICADORES DE TENDÊNCIA
 function obtenerMesAtual(){ const hoje = new Date(); return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2,"0")}`; }
+
+function getMesAnterior(mesYYYYMM) {
+    if (!mesYYYYMM) return null;
+    const [ano, mes] = mesYYYYMM.split("-").map(Number);
+    if (mes === 1) return `${ano - 1}-12`;
+    return `${ano}-${String(mes - 1).padStart(2, '0')}`;
+}
+
 function dadosPorMes(mes){ return dadosGlobal.filter(d => d.data && d.data.startsWith(mes)); }
 
 async function carregarDados(){
@@ -56,30 +65,112 @@ async function carregarDados(){
     if (document.getElementById("mesFiltro") && document.getElementById("g1")) {
       const mesAtual = obtenerMesAtual();
       document.getElementById("mesFiltro").value = mesAtual;
-      processar(dadosPorMes(mesAtual), tecnicoAtual);
+      processar(mesAtual, tecnicoAtual);
     }
   } catch (err) { console.error("Erro:", err); }
 }
 
-function filtrar(nome){ tecnicoAtual = nome; processar(dadosPorMes(document.getElementById("mesFiltro").value), tecnicoAtual); }
-function filtrarMes(){ processar(dadosPorMes(document.getElementById("mesFiltro").value), tecnicoAtual); }
-function limparFiltro(){ const mesAtual = obtenerMesAtual(); document.getElementById("mesFiltro").value = mesAtual; tecnicoAtual = "TODOS"; processar(dadosPorMes(mesAtual), tecnicoAtual); }
-
-function processar(dados, tecnico){
-  let valoresGerais = Array(tecnicos.length).fill(0);
-  let kmsGerais = Array(tecnicos.length).fill(0);
-  let gastoInd = 0; let kmInd = 0; let litrosInd = 0;
-
-  dados.forEach(d => {
-    const idx = tecnicos.indexOf(d.tecnico);
-    if(idx >= 0){ kmsGerais[idx] += Number(d.km) || 0; valoresGerais[idx] += Number(d.valor) || 0; }
-    if (d.tecnico === tecnico) { gastoInd += Number(d.valor) || 0; kmInd += Number(d.km) || 0; litrosInd += Number(d.litros) || 0; }
-  });
-
-  atualizarDashboard(valoresGerais, kmsGerais, tecnico, gastoInd, kmInd, litrosInd);
+function filtrar(nome){ 
+  tecnicoAtual = nome; 
+  processar(document.getElementById("mesFiltro").value, tecnicoAtual); 
 }
 
-function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
+function filtrarMes(){ 
+  processar(document.getElementById("mesFiltro").value, tecnicoAtual); 
+}
+
+function limparFiltro(){ 
+  const mesAtual = obtenerMesAtual(); 
+  document.getElementById("mesFiltro").value = mesAtual; 
+  tecnicoAtual = "TODOS"; 
+  processar(mesAtual, tecnicoAtual); 
+}
+
+function calcularTrend(atual, anterior, tipo) {
+    if (anterior === 0 && atual === 0) return { texto: "Sem histórico anterior", classe: "trend-neutral" };
+    if (anterior === 0 && atual > 0) return { texto: "▲ 100% (Novo)", classe: tipo === "gasto" ? "trend-up-bad" : "trend-up-good" };
+    if (anterior > 0 && atual === 0) return { texto: "▼ 100% (Zerado)", classe: tipo === "gasto" ? "trend-down-good" : "trend-down-bad" };
+    
+    const variacao = ((atual - anterior) / anterior) * 100;
+    const setinha = variacao > 0 ? "▲" : (variacao < 0 ? "▼" : "⏸");
+    const valorAbs = Math.abs(variacao).toFixed(1);
+    
+    let classe = "trend-neutral";
+    if (variacao > 0) {
+        classe = tipo === "gasto" ? "trend-up-bad" : "trend-up-good";
+    } else if (variacao < 0) {
+        classe = tipo === "gasto" ? "trend-down-good" : "trend-down-bad";
+    }
+    
+    return { texto: `${setinha} ${valorAbs}% vs mês ant.`, classe };
+}
+
+function processar(mesFiltrado, tecnico){
+  const mesAnterior = getMesAnterior(mesFiltrado);
+  const dadosAtuais = dadosPorMes(mesFiltrado);
+  const dadosAnt = dadosPorMes(mesAnterior);
+
+  let valoresGerais = Array(tecnicos.length).fill(0);
+  let kmsGerais = Array(tecnicos.length).fill(0);
+
+  let gastoInd = 0; let kmInd = 0; let litrosInd = 0;
+  let gastoAnt = 0; let kmAnt = 0; let litrosAnt = 0;
+
+  // Variável para calcular o Pódio da frota no mês atual
+  let statsPodium = tecnicos.map(nome => ({ nome, gasto: 0, km: 0, litros: 0, media: 0 }));
+
+  // Analisa o mês atual
+  dadosAtuais.forEach(d => {
+    const idx = tecnicos.indexOf(d.tecnico);
+    if(idx >= 0){ 
+      kmsGerais[idx] += Number(d.km) || 0; 
+      valoresGerais[idx] += Number(d.valor) || 0; 
+      
+      statsPodium[idx].gasto += Number(d.valor) || 0;
+      statsPodium[idx].km += Number(d.km) || 0;
+      statsPodium[idx].litros += Number(d.litros) || 0;
+    }
+
+    if (tecnico === "TODOS" || d.tecnico === tecnico) { 
+      gastoInd += Number(d.valor) || 0; 
+      kmInd += Number(d.km) || 0; 
+      litrosInd += Number(d.litros) || 0; 
+    }
+  });
+
+  // Calcula a média exata de cada técnico para o pódio
+  statsPodium.forEach(st => {
+      st.media = st.litros > 0 ? (st.km / st.litros) : 0;
+  });
+
+  // Analisa o mês anterior para o cenário selecionado
+  dadosAnt.forEach(d => {
+    if (tecnico === "TODOS" || d.tecnico === tecnico) {
+      gastoAnt += Number(d.valor) || 0; 
+      kmAnt += Number(d.km) || 0; 
+      litrosAnt += Number(d.litros) || 0; 
+    }
+  });
+
+  const mediaAtual = litrosInd > 0 ? (kmInd / litrosInd) : 0;
+  const mediaAnt = litrosAnt > 0 ? (kmAnt / litrosAnt) : 0;
+
+  // Calculamos a tendência comparando o Atual vs Anterior
+  const trendGasto = calcularTrend(gastoInd, gastoAnt, "gasto");
+  const trendKm = calcularTrend(kmInd, kmAnt, "km");
+  const trendConsumo = calcularTrend(mediaAtual, mediaAnt, "consumo");
+
+  atualizarDashboard(valoresGerais, kmsGerais, tecnico, gastoInd, kmInd, mediaAtual, trendGasto, trendKm, trendConsumo, statsPodium);
+}
+
+function aplicarTrendDOM(id, objTrend) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerText = objTrend.texto;
+    el.className = `trend-badge ${objTrend.classe}`;
+}
+
+function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, mediaAtual, trendGasto, trendKm, trendConsumo, statsPodium){
   if (!document.getElementById("g1")) return;
 
   const totalValor = valores.reduce((a,b)=>a+b,0);
@@ -88,17 +179,45 @@ function atualizarDashboard(valores, kms, tecnico, gastoInd, kmInd, litrosInd){
   document.getElementById("gastoTotal").innerText = totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   document.getElementById("kmTotal").innerText = totalKm.toLocaleString("pt-BR") + " KM";
 
+  // Aplica as tags coloridas de MoM (Month over Month)
+  aplicarTrendDOM("trendGasto", trendGasto);
+  aplicarTrendDOM("trendKm", trendKm);
+  aplicarTrendDOM("trendConsumo", trendConsumo);
+
   if(tecnico !== "TODOS"){
-    const mediaKM = litrosInd > 0 ? (kmInd / litrosInd) : 0;
     document.getElementById("nomeTecnicoSelecionado").innerText = tecnico;
     document.getElementById("gastoIndividual").innerText = gastoInd.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     document.getElementById("kmIndividual").innerText = kmInd.toLocaleString("pt-BR") + " KM";
-    document.getElementById("mediaIndividual").innerText = mediaKM.toFixed(1) + " KM/L";
+    document.getElementById("mediaIndividual").innerText = mediaAtual.toFixed(1) + " KM/L";
+    
+    // Esconde o pódio quando analisamos um técnico individual
+    document.getElementById("painelPodium").style.display = "none";
   } else {
     document.getElementById("nomeTecnicoSelecionado").innerText = "TODOS";
     document.getElementById("gastoIndividual").innerText = "R$ 0,00";
     document.getElementById("kmIndividual").innerText = "0 KM";
     document.getElementById("mediaIndividual").innerText = "0.0 KM/L";
+    
+    // Mostra e calcula o pódio quando estamos na visão geral da Frota
+    document.getElementById("painelPodium").style.display = "grid";
+    
+    if (statsPodium.length > 0) {
+        // Vencedor Eficiência
+        let validEfi = statsPodium.filter(t => t.litros > 0 && t.km > 0);
+        let vEfi = validEfi.length > 0 ? validEfi.reduce((p, c) => (c.media > p.media) ? c : p) : null;
+        document.getElementById("podiumEfiNome").innerText = vEfi ? vEfi.nome : "Nenhum";
+        document.getElementById("podiumEfiValor").innerText = vEfi ? `${vEfi.media.toFixed(1)} KM/L` : "0.0 KM/L";
+
+        // Vencedor Distância
+        let vDist = statsPodium.reduce((p, c) => (c.km > p.km) ? c : p);
+        document.getElementById("podiumDistNome").innerText = vDist && vDist.km > 0 ? vDist.nome : "Nenhum";
+        document.getElementById("podiumDistValor").innerText = vDist ? `${vDist.km.toLocaleString("pt-BR")} KM` : "0 KM";
+
+        // Alerta Maior Gasto
+        let vGasto = statsPodium.reduce((p, c) => (c.gasto > p.gasto) ? c : p);
+        document.getElementById("podiumGastoNome").innerText = vGasto && vGasto.gasto > 0 ? vGasto.nome : "Nenhum";
+        document.getElementById("podiumGastoValor").innerText = vGasto ? vGasto.gasto.toLocaleString("pt-BR", {style:"currency", currency:"BRL"}) : "R$ 0,00";
+    }
   }
 
   if (grafico1) { grafico1.destroy(); grafico1 = null; }
