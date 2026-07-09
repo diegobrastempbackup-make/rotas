@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roteirizador Inteligente - NERI</title>
+    
+    <link rel="stylesheet" href="style.css?v=2">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        .main { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; }
+        .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
+        .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
+        
+        /* Área de Upload */
+        .upload-area { border: 2px dashed rgba(59, 130, 246, 0.5); background: rgba(30, 41, 59, 0.5); padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
+        .upload-area:hover { background: rgba(30, 41, 59, 0.8); border-color: #3B82F6; }
+        .upload-area input { display: none; }
+        .upload-area h3 { color: #60A5FA; margin: 0 0 10px 0; }
+        .upload-area p { color: #94A3B8; font-size: 13px; margin: 0; }
+
+        /* Painel de Controle de Rotas (Escondido até carregar o Excel) */
+        #painelRotas { display: none; flex-grow: 1; display: flex; gap: 20px; margin-top: 10px; }
+        
+        .lista-tecnicos { width: 350px; background: #1E293B; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; overflow: hidden; }
+        .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 16px; }
+        
+        .tecnico-item { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .tecnico-item:hover { background: rgba(59, 130, 246, 0.1); }
+        .tecnico-item.ativo { background: rgba(59, 130, 246, 0.2); border-left: 4px solid #3B82F6; }
+        .tecnico-nome { font-weight: bold; color: #E2E8F0; }
+        .tecnico-stats { font-size: 12px; color: #94A3B8; margin-top: 4px; }
+        
+        #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
+        #mapa { width: 100%; height: 100%; }
+
+        .lista-clientes { flex-grow: 1; overflow-y: auto; }
+        
+        .badge-turno { font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
+        .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; }
+        .badge-tarde { background: rgba(16, 185, 129, 0.2); color: #10B981; }
+    </style>
+    <script>
+        function navegarSeguro(rota) { const token = localStorage.getItem("token"); window.location.href = `${rota}?token=${token}`; }
+    </script>
+</head>
+<body>
+
+<div class="container">
+    <div class="sidebar">
+        <div class="logo-area"><img src="logo.svg" class="logo" alt="Logo NERI" style="max-width: 100%; height: auto; margin-bottom: 10px;" /></div>
+        <div class="menu">
+            <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
+            <button onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
+            <button style="background: #2563EB; color: white; border-color: #3B82F6;">🗺️ Roteirizador</button>
+            <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+            <hr><button onclick="navegarSeguro('/tecnicos.html')">⚙️ Administração</button><hr>
+            <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">🚪 Sair</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="header-painel">
+            <h1>Roteirizador de Frotas</h1>
+            <p>Faça upload da sua folha de serviços (Excel/CSV). O sistema fará a divisão por técnico e calculará a rota ideal.</p>
+        </div>
+
+        <label class="upload-area" id="areaUpload">
+            <input type="file" id="arquivoExcel" accept=".xlsx, .xls, .csv" onchange="processarExcel(event)">
+            <h3>📥 Clique ou arraste a sua folha de Excel aqui</h3>
+            <p>Formatos suportados: .XLSX, .XLS, .CSV</p>
+        </label>
+
+        <div id="painelRotas">
+            <div class="lista-tecnicos">
+                <div class="lista-tecnicos-header">
+                    <h3>Equipa em Rota Hoje</h3>
+                </div>
+                <div class="lista-clientes" id="listaTecnicosUI">
+                    </div>
+            </div>
+            
+            <div id="mapaArea">
+                <div id="mapa"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Validação de Segurança
+    const token = localStorage.getItem("token");
+    if (!token) window.location.replace("/login.html");
+
+    // Inicialização do Mapa (Focado em São Paulo por defeito)
+    let mapa = null;
+    let dadosGlobaisRotas = {}; // Aqui vamos guardar os dados lidos do Excel
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Inicializa o Leaflet (Mapa)
+        mapa = L.map('mapa').setView([-23.5505, -46.6333], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapa);
+        
+        // Esconde o painel do mapa no início
+        document.getElementById("painelRotas").style.display = "none";
+    });
+
+    // Função que lê o Excel magicamente no navegador
+    function processarExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Muda a interface para mostrar que está a processar
+        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A ler a folha de Excel...</h3><p>Organizando os clientes, aguarde...</p>`;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            
+            // Pega a primeira aba do Excel
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // Converte para um formato JSON (Array de objetos)
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            
+            agruparPorTecnico(jsonData);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    // Organiza a bagunça do Excel por Técnico e Horário
+    function agruparPorTecnico(linhas) {
+        dadosGlobaisRotas = {};
+
+        linhas.forEach(linha => {
+            const tecnico = linha["Técnico"] || "SEM NOME";
+            const horario = (linha["Horário"] || "").trim().toUpperCase();
+            
+            if (!dadosGlobaisRotas[tecnico]) {
+                dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
+            }
+
+            // Junta as informações de endereço
+            const enderecoCompleto = `${linha["Endereço"]}, ${linha["Distrito"]}, ${linha["Cidade"]} - CEP: ${linha["CEP"]}`;
+
+            const clienteOcorrencia = {
+                codigo: linha["Código"],
+                cliente: linha["Cliente"],
+                servico: linha["SERVIÇO"],
+                enderecoTexto: enderecoCompleto
+            };
+
+            if (horario === "MANHÃ") dadosGlobaisRotas[tecnico].manha.push(clienteOcorrencia);
+            else dadosGlobaisRotas[tecnico].tarde.push(clienteOcorrencia);
+        });
+
+        // Esconde o botão de upload e mostra o Mapa e a Lista
+        document.getElementById("areaUpload").style.display = "none";
+        document.getElementById("painelRotas").style.display = "flex";
+        
+        // Renderiza o menu lateral de técnicos
+        renderizarListaTecnicos();
+        
+        // Atualiza o tamanho do mapa para não bugar
+        setTimeout(() => { mapa.invalidateSize(); }, 500);
+    }
+
+    function renderizarListaTecnicos() {
+        const divLista = document.getElementById("listaTecnicosUI");
+        divLista.innerHTML = "";
+
+        Object.keys(dadosGlobaisRotas).forEach(nome => {
+            const t = dadosGlobaisRotas[nome];
+            const total = t.manha.length + t.tarde.length;
+            
+            divLista.innerHTML += `
+                <div class="tecnico-item" onclick="selecionarTecnico('${nome}', this)">
+                    <div>
+                        <div class="tecnico-nome">${nome}</div>
+                        <div class="tecnico-stats">Total: ${total} paragens</div>
+                    </div>
+                    <div>
+                        ${t.manha.length > 0 ? `<span class="badge-turno badge-manha">M: ${t.manha.length}</span>` : ''}
+                        ${t.tarde.length > 0 ? `<span class="badge-turno badge-tarde">T: ${t.tarde.length}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function selecionarTecnico(nome, elementoHTML) {
+        // Marca o técnico clicado visualmente
+        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
+        elementoHTML.classList.add('ativo');
+
+        const dadosTecnico = dadosGlobaisRotas[nome];
+        console.log(`Você selecionou: ${nome}`, dadosTecnico);
+        
+        alert(`O Excel de ${nome} tem ${dadosTecnico.manha.length} clientes de manhã e ${dadosTecnico.tarde.length} à tarde.\n\nNa Fase 2, ao clicar aqui, o sistema converterá as moradas em coordenadas e traçará a rota no mapa!`);
+    }
+</script>
+</body>
+</html>

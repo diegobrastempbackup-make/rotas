@@ -1,165 +1,108 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>NERI Dashboard</title>
-  
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-  <link rel="stylesheet" href="style.css?v=2">
-
-  <style>
-    #btnIrParaDados, #btnMenuAdministracao, #btnIrParaEstoque { display: none; }
-    .main { flex-grow: 1; padding: 15px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; justify-content: flex-start !important; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; width: 100%; margin-top: 0 !important; }
-  </style>
-
-  <script>
-    const token = localStorage.getItem("token");
-    let usuarioTipo = localStorage.getItem("usuarioTipo");
-    const usuarioNome = localStorage.getItem("usuarioNome");
-
-    if (!token) window.location.replace("/login.html");
-    if (usuarioNome && usuarioNome.includes("[ESTOQUE]")) {
-      usuarioTipo = "estoque"; localStorage.setItem("usuarioTipo", "estoque");
-    }
-    if (usuarioTipo === "estoque") window.location.replace("/estoque.html");
-
-    window.addEventListener("DOMContentLoaded", () => {
-      const btnDados = document.getElementById("btnIrParaDados");
-      const btnAdmin = document.getElementById("btnMenuAdministracao");
-      const btnEstoque = document.getElementById("btnIrParaEstoque");
-      const btnRelatorio = document.getElementById("btnExtrairRelatorio");
-      const perfilBadge = document.getElementById("perfilTipo");
-
-      if (perfilBadge && usuarioTipo) perfilBadge.innerText = `Dashboard (${usuarioTipo.toUpperCase()})`;
-
-      if (usuarioTipo === "master" || usuarioTipo === "admin") {
-        if (btnDados) btnDados.style.display = "block";
-        if (btnEstoque) btnEstoque.style.display = "block";
-        if (btnRelatorio) btnRelatorio.style.display = "block";
-        if (btnAdmin) btnAdmin.style.display = "block";
-      } else if (usuarioTipo === "simples") {
-        if (btnDados) btnDados.style.display = "none";
-        if (btnEstoque) btnEstoque.style.display = "none";
-        if (btnAdmin) btnAdmin.style.display = "none";
-        if (btnRelatorio) btnRelatorio.style.display = "block";
-      }
-    });
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Geral - NERI</title>
+    <link rel="stylesheet" href="style.css?v=2">
+    <style>
+        .main { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; }
+        .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
+        .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
+        
+        .cards-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
+        .card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #3B82F6; }
+        .card.verde::before { background: #10B981; }
+        .card.amarelo::before { background: #F59E0B; }
+        .card h3 { color: #94A3B8; font-size: 13px; margin: 0 0 10px 0; text-transform: uppercase; }
+        .card .valor { color: white; font-size: 32px; font-weight: 800; margin: 0; }
+    </style>
+    <script>
+        // Função de navegação segura passando o Token
+        function navegarSeguro(rota) { 
+            const token = localStorage.getItem("token"); 
+            window.location.href = `${rota}?token=${token}`; 
+        }
+    </script>
 </head>
 <body>
 
 <div class="container">
-  <div class="sidebar">
-    <div class="logo-area">
-      <img src="logo.svg" class="logo" alt="Logo NERI" style="max-width: 100%; height: auto; margin-bottom: 10px;" />
-      <div class="user-badge" id="perfilTipo" style="margin-top: 5px;">Dashboard</div>
+    <div class="sidebar">
+        <div class="logo-area"><img src="logo.svg" class="logo" alt="Logo NERI" style="max-width: 100%; height: auto; margin-bottom: 10px;" /></div>
+        <div class="menu">
+            <button style="background: #2563EB; color: white; border-color: #3B82F6;">📊 Dashboard Geral</button>
+            <button onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
+            
+            <!-- NOVO BOTÃO DO ROTEIRIZADOR AQUI -->
+            <button onclick="navegarSeguro('/roteirizador.html')">🗺️ Roteirizador</button>
+            
+            <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+            <hr>
+            <button onclick="navegarSeguro('/tecnicos.html')" id="btnAdmin" style="display:none;">⚙️ Administração</button>
+            <hr>
+            <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">🚪 Sair</button>
+        </div>
     </div>
 
-    <div class="menu">
-      <p onclick="filtrar('TODOS')" style="cursor:pointer; padding: 5px 10px;">📊 Geral</p>
-      
-      <div class="dropdown-tecnicos">
-        <button onclick="toggleDropdown()" class="btn-dropdown">👥 Técnicos ▾</button>
-        <div id="dropdownLista" class="dropdown-conteudo"></div>
-      </div>
+    <div class="main">
+        <div class="header-painel">
+            <h1>Visão Geral da Frota</h1>
+            <p>Bem-vindo ao centro de comando. Aqui tem o resumo das operações diárias.</p>
+        </div>
 
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
-
-      <h3 style="font-size:12px; color:#94A3B8; padding-left:10px;">FILTRAR POR MÊS</h3>
-      <input type="month" id="mesFiltro" style="width:100%; background:#0F172A; border:1px solid rgba(255,255,255,0.1); color:white; padding:8px; border-radius:5px; margin-bottom:8px;">
-      <button onclick="filtrarMes()" style="margin-bottom:5px;">🔍 Buscar</button>
-      <button onclick="limparFiltro()">♻ Limpar Filtro</button>
-
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
-
-      <button id="btnExtrairRelatorio" onclick="exportarPDF()">📄 Extrair Relatório</button>
-
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
-
-      <button id="btnIrParaDados" onclick="acessar()">📂 Ir para Dados</button>
-      <button id="btnIrParaEstoque" onclick="irParaEstoque()">📦 Estoque</button>
-      
-      <button id="btnMenuAdministracao" onclick="irParaTecnicos()" class="btn-gerenciar">
-        ⚙️ Administração
-      </button>
-
-      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05);">
+        <div class="cards-resumo">
+            <div class="card verde">
+                <h3>Total de Quilómetros</h3>
+                <p class="valor" id="totalKm">0</p>
+            </div>
+            <div class="card amarelo">
+                <h3>Combustível Gasto (Litros)</h3>
+                <p class="valor" id="totalLitros">0</p>
+            </div>
+            <div class="card">
+                <h3>Custos de Abastecimento</h3>
+                <p class="valor" id="totalValor">R$ 0,00</p>
+            </div>
+        </div>
         
-      <button onclick="sair()" class="btn-sair">🚪 Sair</button>
+        <!-- O resto do seu dashboard original pode continuar abaixo desta área -->
+        
     </div>
+</div>
 
-    <div class="footer" style="font-size:11px; text-align:center; color:#64748B; margin-top:15px;">
-      © Diego Neri
-    </div>
-  </div>
+<script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.replace("/login.html");
 
-  <div class="main">
-    
-    <div class="cards">
-      <div class="card azul">
-        <div class="card-titulo">💰 Gasto Total</div>
-        <div id="gastoTotal" class="card-valor">R$ 0,00</div>
-        <div id="trendGasto" class="trend-badge trend-neutral">Aguardando dados...</div>
-      </div>
+    // Liberta o botão de Administração apenas para o Master / SuperAdmin
+    const usuarioTipo = localStorage.getItem("usuarioTipo");
+    if (usuarioTipo === "master" || usuarioTipo === "superadmin" || usuarioTipo === "admin") {
+        document.getElementById("btnAdmin").style.display = "block";
+    }
 
-      <div class="card verde">
-        <div class="card-titulo">🛣 KM Total</div>
-        <div id="kmTotal" class="card-valor">0 KM</div>
-        <div id="trendKm" class="trend-badge trend-neutral">Aguardando dados...</div>
-      </div>
+    // Lógica para carregar os números grandes do painel
+    async function carregarIndicadores() {
+        try {
+            const res = await fetch("/api/registros", { headers: { "Authorization": `Bearer ${token}` } });
+            const registros = await res.json();
+            
+            let km = 0, litros = 0, valor = 0;
+            
+            registros.forEach(r => {
+                km += Number(r.km) || 0;
+                litros += Number(r.litros) || 0;
+                valor += Number(r.valor) || 0;
+            });
 
-      <div class="card amarelo">
-        <div class="card-titulo">👤 Consumo de (<span id="nomeTecnicoSelecionado">TODOS</span>)</div>
-        <div style="font-size:13px; margin-top:10px; display:flex; flex-direction:column; gap:4px;">
-          <div>Gasto: <span id="gastoIndividual" style="font-weight:bold; color:#F8FAFC;">R$ 0,00</span></div>
-          <div>KM: <span id="kmIndividual" style="font-weight:bold; color:#F8FAFC;">0 KM</span></div>
-          <div>Média Atual: <span id="mediaIndividual" style="font-weight:bold; color:#F8FAFC;">0.0 KM/L</span></div>
-        </div>
-        <div id="trendConsumo" class="trend-badge trend-neutral" style="margin-top: 8px;">Aguardando dados...</div>
-      </div>
-    </div> 
+            document.getElementById("totalKm").innerText = km.toLocaleString('pt-BR') + " km";
+            document.getElementById("totalLitros").innerText = litros.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + " L";
+            document.getElementById("totalValor").innerText = "R$ " + valor.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        } catch (e) { console.error("Erro ao carregar dados", e); }
+    }
 
-    <div class="graficos">
-      <div class="grafico"><canvas id="g1"></canvas></div>
-      <div class="grafico"><canvas id="g2"></canvas></div>
-    </div>
-
-    <div class="podium-grid" id="painelPodium">
-        <div class="podium-card">
-            <div class="podium-icon icon-eficiencia">🏆</div>
-            <div class="podium-info">
-                <span class="podium-titulo">Mais Eficiente (KM/L)</span>
-                <span class="podium-nome" id="podiumEfiNome">-</span>
-                <span class="podium-valor" id="podiumEfiValor">0.0 KM/L</span>
-            </div>
-        </div>
-        <div class="podium-card">
-            <div class="podium-icon icon-distancia">🛣️</div>
-            <div class="podium-info">
-                <span class="podium-titulo">Maior Distância</span>
-                <span class="podium-nome" id="podiumDistNome">-</span>
-                <span class="podium-valor" id="podiumDistValor">0 KM</span>
-            </div>
-        </div>
-        <div class="podium-card">
-            <div class="podium-icon icon-gasto">🚨</div>
-            <div class="podium-info">
-                <span class="podium-titulo">Maior Gasto (Alerta)</span>
-                <span class="podium-nome" id="podiumGastoNome">-</span>
-                <span class="podium-valor" id="podiumGastoValor">R$ 0,00</span>
-            </div>
-        </div>
-    </div>
-
-  </div> 
-</div> 
-
-<img id="logoNERI" src="/logo.png" style="display:none;" alt="Logo Oculta">
-
-<script src="app.js?v=2"></script>
+    carregarIndicadores();
+</script>
 </body>
 </html>
