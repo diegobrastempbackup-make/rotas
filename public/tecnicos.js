@@ -3,7 +3,6 @@ let cacheTecnicos = [];
 
 if (!token) window.location.replace("/login.html");
 
-// Função para ler a verdadeira identidade dentro do Token de segurança
 function obterNivelRealDoToken() {
     try {
         const base64Url = token.split('.')[1];
@@ -17,14 +16,12 @@ function obterNivelRealDoToken() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     const usuarioTipo = localStorage.getItem("usuarioTipo");
-    const tipoReal = obterNivelRealDoToken(); // Aqui ele descobre a verdade!
+    const tipoReal = obterNivelRealDoToken(); 
     
-    // Mostra a aba de Usuários se for Master ou SuperAdmin
     if (usuarioTipo === "master" || tipoReal === "superadmin") {
         document.getElementById("btnTabUsuarios").style.display = "flex";
     }
 
-    // Mostra a aba SaaS apenas para o Deus do Sistema
     if (tipoReal === "superadmin") {
         document.getElementById("btnTabEmpresas").style.display = "flex";
         await carregarEmpresas();
@@ -37,7 +34,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("filtroStatus").addEventListener("change", filtrarTabela);
 });
 
-// ABAS
 function mudarAba(abaSelecionada) {
     document.getElementById("abaTecnicos").style.display = abaSelecionada === 'tecnicos' ? 'block' : 'none';
     document.getElementById("abaUsuarios").style.display = abaSelecionada === 'usuarios' ? 'block' : 'none';
@@ -60,16 +56,56 @@ async function carregarEmpresas() {
         
         empresas.forEach(emp => {
             const dataReg = emp.criadoEm ? new Date(emp.criadoEm).toLocaleDateString("pt-BR") : "-";
+            
+            // Lógica do Status e Cores
+            const statusText = emp.ativo !== false ? "Ativo" : "Bloqueado";
+            const badgeClass = emp.ativo !== false ? "badge-ativo" : "badge-desligado";
+            const btnStatusTexto = emp.ativo !== false ? "Bloquear Acesso" : "Desbloquear";
+            const novoStatus = emp.ativo !== false ? false : true;
+
             corpo.innerHTML += `
                 <tr>
                     <td><strong>${emp.empresaNome || 'Desconhecida'}</strong></td>
                     <td>${emp.nome}</td>
-                    <td><span class="badge badge-ativo" style="background: rgba(16,185,129,0.15); color: #10B981;">${emp.usuario}</span></td>
+                    <td><span style="color:#94A3B8;">${emp.usuario}</span></td>
+                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
                     <td>${dataReg}</td>
+                    <td>
+                        <button class="btn-mini" style="background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3);" onclick="alternarStatusEmpresa('${emp._id}', ${novoStatus})">${btnStatusTexto}</button>
+                        <button class="btn-mini btn-excluir" onclick="excluirEmpresa('${emp._id}', '${emp.empresaNome}')">Excluir Cliente</button>
+                    </td>
                 </tr>
             `;
         });
     } catch (err) { console.error("Erro ao carregar empresas"); }
+}
+
+async function alternarStatusEmpresa(id, novoStatus) {
+    const acao = novoStatus ? "desbloquear" : "suspender";
+    if(!confirm(`Deseja realmente ${acao} o acesso desta empresa e de todos os seus funcionários?`)) return;
+    
+    try {
+        const res = await fetch(`/api/empresas/${id}/status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({ ativo: novoStatus })
+        });
+        if(res.ok) await carregarEmpresas();
+        else alert("Erro ao alterar o estado do cliente.");
+    } catch(err) { alert("Erro de conexão."); }
+}
+
+async function excluirEmpresa(id, nome) {
+    if(!confirm(`⚠️ ATENÇÃO EXTREMA: Deseja EXCLUIR PERMANENTEMENTE a empresa '${nome}' e todos os seus dados (técnicos, stock e relatórios)? \nEsta ação não tem retorno!`)) return;
+    
+    try {
+        const res = await fetch(`/api/empresas/${id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if(res.ok) await carregarEmpresas();
+        else alert("Erro ao excluir cliente do sistema.");
+    } catch(err) { alert("Erro de conexão."); }
 }
 
 function abrirModalEmpresa() {
@@ -103,7 +139,7 @@ async function salvarNovaEmpresa() {
     } catch (err) { alert("Erro de conexão."); }
 }
 
-// --- TÉCNICOS ---
+// --- TÉCNICOS E USUÁRIOS (Sem Alterações) ---
 async function carregarTecnicos() {
     try {
         const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
@@ -218,7 +254,6 @@ async function deletarTecnico(id) {
     } catch (err) { console.error(err); }
 }
 
-// --- USUÁRIOS ---
 async function carregarUsuarios() {
     const corpo = document.getElementById("corpoTabelaUsuarios");
     corpo.innerHTML = `<tr><td colspan="4" style="text-align:center;">Carregando...</td></tr>`;

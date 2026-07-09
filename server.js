@@ -28,7 +28,7 @@ const autenticarToken = (req, res, next) => {
   } catch (err) { return res.status(403).json({ erro: "Token inválido." }); }
 };
 
-// FILTRO SAAS (Se for superadmin vê tudo, se não, apenas a sua empresa)
+// FILTRO SAAS 
 const getFiltroSaaS = (req) => {
   if (req.usuario.tipo === "superadmin") return {}; 
   return { cliente_id: req.usuario.cliente_id };
@@ -41,12 +41,16 @@ app.get("/dados.html", (req, res) => { if (!req.query.token) return res.redirect
 app.get("/estoque.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/estoque.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
 
-// --- LOGIN ---
+// --- LOGIN (Com trava de conta suspensa) ---
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
+    
     if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
+    
+    // 🛑 NOVA TRAVA: Bloqueia acesso se a conta (ou empresa) estiver suspensa
+    if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso. Contacte a administração." });
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta" });
@@ -61,11 +65,10 @@ app.post("/login", async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao realizar login" }); }
 });
 
-// --- ROTA PROTEGIDA: CRIAR NOVA EMPRESA (SÓ SUPER ADMIN) ---
+// --- ROTA PROTEGIDA: CRIAR NOVA EMPRESA ---
 app.post("/nova-empresa", autenticarToken, async (req, res) => {
   try {
-    // Trava de Segurança Máxima
-    if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Apenas o dono do sistema pode criar clientes." });
+    if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
 
     const { empresa, nome, usuario, senha } = req.body;
     if (!empresa || !nome || !usuario || !senha) return res.status(400).json({ erro: "Preencha todos os campos." });
@@ -90,7 +93,7 @@ app.post("/nova-empresa", autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao criar empresa" }); }
 });
 
-// --- LISTAR EMPRESAS (SÓ SUPER ADMIN) ---
+// --- GESTÃO DE EMPRESAS: LISTAR, BLOQUEAR E EXCLUIR (SÓ SUPER ADMIN) ---
 app.get("/api/empresas", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
@@ -98,6 +101,46 @@ app.get("/api/empresas", autenticarToken, async (req, res) => {
     res.json(empresas);
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
+
+app.put("/api/empresas/:id/status", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
+    const { ativo } = req.body;
+    
+    // Procura o cliente_id desta empresa
+    const empresaMaster = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
+    
+    if(empresaMaster) {
+        // Bloqueia/Desbloqueia TODOS os utilizadores desta empresa de uma vez
+        await db.collection("usuarios").updateMany(
+            { cliente_id: empresaMaster.cliente_id },
+            { $set: { ativo: ativo } }
+        );
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: "Erro" }); }
+});
+
+app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
+    
+    const empresaMaster = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
+    
+    if(empresaMaster && empresaMaster.cliente_id) {
+        const cid = empresaMaster.cliente_id;
+        // Exclusão Total (LGPD): Limpa toda a sujidade da empresa cancelada
+        await db.collection("usuarios").deleteMany({ cliente_id: cid });
+        await db.collection("tecnicos_dashboard").deleteMany({ cliente_id: cid });
+        await db.collection("tecnicos").deleteMany({ cliente_id: cid });
+        await db.collection("estoque").deleteMany({ cliente_id: cid });
+        await db.collection("historico_estoque").deleteMany({ cliente_id: cid });
+        await db.collection("registros").deleteMany({ cliente_id: cid });
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: "Erro" }); }
+});
+
 
 // --- UTILIZADORES GERAIS ---
 app.post("/cadastro", autenticarToken, async (req, res) => {
@@ -203,7 +246,6 @@ async function iniciarSistema() {
       await db.collection(col).updateMany({ cliente_id: { $exists: false } }, { $set: { cliente_id: defaultClienteId } });
     }
 
-    // 🌟 A SUA CONTA DE DEUS (SUPER ADMIN) FICA GARANTIDA AQUI
     const superAdmin = await db.collection("usuarios").findOne({ tipo: "superadmin" });
     if (!superAdmin) {
       const senhaHash = await bcrypt.hash("neri2026", 10);
