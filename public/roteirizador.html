@@ -583,6 +583,9 @@
     // Variável global para guardar o histórico temporariamente na memória
     window.historicoRotasMemoria = [];
 
+    // Variável global para guardar o histórico temporariamente na memória
+    window.historicoRotasMemoria = [];
+
     async function buscarHistorico() {
         let dataInput = document.getElementById("buscaData").value;
         const codigoBusca = document.getElementById("buscaCodigo").value.trim();
@@ -622,15 +625,13 @@
             } 
             // CENÁRIO 2: Pesquisou por Data (Achou vários técnicos)
             else {
-                alert(`✅ Foram encontrados ${rotasEncontradas.length} roteiros para a data ${rotasEncontradas[0].data}.\n\nEscolha o técnico no painel lateral esquerdo para visualizar o mapa!`);
-                
                 window.historicoRotasMemoria = rotasEncontradas;
                 
                 // Limpa o mapa atual
                 if (layerGrupo) { mapa.removeLayer(layerGrupo); }
                 document.getElementById("painelItinerario").style.display = "none";
                 
-                // Reconstrói o menu da esquerda com a "Equipa do Passado"
+                // Reconstrói o menu da esquerda com a "Equipa do Passado" e o botão de Lixeira
                 const divLista = document.getElementById("listaTecnicosUI");
                 divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Histórico de ${rotasEncontradas[0].data}</h4>`;
                 
@@ -639,12 +640,16 @@
                     roteiro.itinerario.forEach(c => { if(c.periodo === 'MANHA') countM++; else countT++; });
 
                     divLista.innerHTML += `
-                        <div class="tecnico-item" id="hist-tecnico-${idx}" onclick="carregarRotaHistorica(${idx})">
-                            <div><div class="tecnico-nome">${roteiro.tecnico}</div><div class="tecnico-stats">Total: ${roteiro.itinerario.length} paragens</div></div>
-                            <div>
-                                ${countM > 0 ? `<span class="badge-turno badge-manha">M: ${countM}</span>` : ''}
-                                ${countT > 0 ? `<span class="badge-turno badge-tarde">T: ${countT}</span>` : ''}
+                        <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">
+                            <div style="flex-grow: 1; cursor: pointer;" onclick="carregarRotaHistorica(${idx})">
+                                <div class="tecnico-nome">${roteiro.tecnico}</div>
+                                <div class="tecnico-stats">Total: ${roteiro.itinerario.length} paragens</div>
+                                <div style="margin-top: 4px;">
+                                    ${countM > 0 ? `<span class="badge-turno badge-manha">M: ${countM}</span>` : ''}
+                                    ${countT > 0 ? `<span class="badge-turno badge-tarde">T: ${countT}</span>` : ''}
+                                </div>
                             </div>
+                            <button onclick="deletarRotaHistorica('${roteiro._id}', event)" style="background: transparent; border: none; color: #EF4444; cursor: pointer; font-size: 16px; padding: 5px; border-radius: 4px;" title="Excluir Rota" onmouseover="this.style.background='rgba(239, 68, 68, 0.2)'" onmouseout="this.style.background='transparent'">🗑️</button>
                         </div>
                     `;
                 });
@@ -653,6 +658,41 @@
         } catch(e) {
             alert("❌ Erro ao buscar dados no servidor.");
         }
+    }
+
+    // Função que apaga a rota
+    async function deletarRotaHistorica(id, event) {
+        event.stopPropagation(); // Impede que o clique na lixeira abra o mapa acidentalmente
+        
+        if(!confirm("⚠️ Tem a certeza que deseja apagar esta rota do histórico?\nEsta ação não pode ser desfeita.")) return;
+
+        try {
+            const res = await fetch(`/api/rotas/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                // Atualiza a pesquisa automaticamente para a rota sumir da tela
+                buscarHistorico(); 
+            } else {
+                alert("❌ Erro ao apagar a rota no servidor.");
+            }
+        } catch(e) {
+            alert("❌ Falha na ligação ao servidor.");
+        }
+    }
+
+    function carregarRotaHistorica(idx) {
+        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
+        document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo');
+        
+        const roteiro = window.historicoRotasMemoria[idx];
+        tecnicoAtivo = roteiro.tecnico;
+        rotaAtiva = roteiro.itinerario;
+        
+        document.getElementById("painelItinerario").style.display = "block";
+        atualizarTela();
     }
 
     // Função Nova: Carrega o mapa quando clicar no nome do técnico histórico

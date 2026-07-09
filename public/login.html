@@ -1,148 +1,188 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login NERI 2.0</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-        background: #0F172A; 
-        min-height: 100vh; 
-        display: flex; 
-        justify-content: center; 
-        align-items: center; 
-        font-family: Arial, sans-serif; 
-        padding: 20px;
-    }
-    
-    .card { 
-        width: 100%; 
-        max-width: 400px; 
-        background: #1E293B; 
-        padding: 40px 30px; 
-        border-radius: 20px; 
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
-        text-align: center; 
-        border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    
-    .logo { width: 220px; max-width: 100%; margin-bottom: 25px; }
-    .titulo { color: white; margin-bottom: 10px; font-size: 22px; font-weight: bold; }
-    .subtitulo { color: #94A3B8; font-size: 13px; margin-bottom: 30px; }
-
-    input { 
-        width: 100%; 
-        padding: 15px; 
-        margin: 8px 0; 
-        border: 1px solid rgba(255,255,255,0.1); 
-        border-radius: 10px; 
-        outline: none; 
-        font-size: 15px; 
-        background: #0F172A; 
-        color: white; 
-        transition: border-color 0.3s; 
-    }
-    input:focus { border-color: #3B82F6; }
-    input::placeholder { color: #64748B; }
-
-    button { 
-        width: 100%; 
-        padding: 15px; 
-        margin-top: 20px; 
-        background: #2563EB; 
-        color: white; 
-        border: none; 
-        border-radius: 10px; 
-        cursor: pointer; 
-        font-size: 16px; 
-        font-weight: bold; 
-        transition: background 0.2s, transform 0.1s; 
-    }
-    button:hover { background: #1D4ED8; }
-    button:active { transform: scale(0.98); }
-
-    .rodape { margin-top: 25px; color: #64748B; font-size: 12px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - NERI 2.0</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #0F172A; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            color: white; 
+        }
+        .login-box { 
+            background-color: #1E293B; 
+            padding: 40px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
+            width: 100%; 
+            max-width: 380px; 
+            text-align: center; 
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .login-box h2 { 
+            margin-top: 0; 
+            color: #E2E8F0; 
+            font-size: 24px; 
+            margin-bottom: 30px;
+        }
+        .input-group { 
+            margin-bottom: 20px; 
+            text-align: left; 
+        }
+        .input-group label { 
+            display: block; 
+            margin-bottom: 8px; 
+            color: #94A3B8; 
+            font-size: 14px; 
+        }
+        .input-group input { 
+            width: 100%; 
+            padding: 12px; 
+            border-radius: 8px; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            background-color: #0F172A; 
+            color: white; 
+            box-sizing: border-box; 
+            font-size: 15px;
+            transition: 0.3s;
+        }
+        .input-group input:focus { 
+            outline: none; 
+            border-color: #3B82F6; 
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .btn-login { 
+            width: 100%; 
+            padding: 12px; 
+            background-color: #3B82F6; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: 0.3s; 
+            margin-top: 10px;
+        }
+        .btn-login:hover { 
+            background-color: #2563EB; 
+        }
+        .btn-login:disabled { 
+            background-color: #475569; 
+            cursor: not-allowed; 
+        }
+        .erro-msg { 
+            color: #EF4444; 
+            margin-top: 15px; 
+            font-size: 14px; 
+            min-height: 20px; 
+        }
+        .logo-container img {
+            max-width: 150px;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
 
-<div class="card">
-  <img src="logo.svg" class="logo" alt="Plataforma NERI">
-  <div class="titulo">Acesso ao Sistema</div>
-  <div class="subtitulo">Plataforma de Gestão de Frotas e Almoxarifado</div>
+    <div class="login-box">
+        <div class="logo-container">
+            <!-- Coloque o caminho correto da sua logo se necessário -->
+            <img src="logo.svg" alt="NERI Logo" onerror="this.style.display='none'">
+        </div>
+        <h2>Acesso ao Sistema</h2>
+        
+        <div class="input-group">
+            <label for="usuario">Utilizador</label>
+            <input type="text" id="usuario" placeholder="Digite o seu login" autocomplete="username">
+        </div>
+        
+        <div class="input-group">
+            <label for="senha">Palavra-passe</label>
+            <input type="password" id="senha" placeholder="Digite a sua senha" autocomplete="current-password">
+        </div>
+        
+        <button class="btn-login" id="btn-entrar" onclick="fazerLogin()">Entrar</button>
+        
+        <div class="erro-msg" id="erro-msg"></div>
+    </div>
 
-  <input id="usuario" type="text" placeholder="Utilizador / Login" autocomplete="off" autocapitalize="off">
-  <input id="senha" type="password" placeholder="Palavra-passe">
+    <script>
+        // Permite usar a tecla "Enter" para fazer login
+        document.getElementById("senha").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                fazerLogin();
+            }
+        });
 
-  <button onclick="entrar()">Entrar na Conta</button>
-  
-  <div class="rodape">
-      © Diego Neri - SaaS Fleet Management
-  </div>
-</div>
+        async function fazerLogin() {
+            const usuario = document.getElementById('usuario').value.trim();
+            const senha = document.getElementById('senha').value.trim();
+            const erroMsg = document.getElementById('erro-msg');
+            const btn = document.getElementById('btn-entrar');
 
-<script>
-async function entrar() {
-  const usuario = document.getElementById("usuario").value.trim();
-  const senha = document.getElementById("senha").value;
+            if (!usuario || !senha) {
+                erroMsg.innerText = "Por favor, preencha todos os campos.";
+                return;
+            }
 
-  if (!usuario || !senha) return alert("Preencha o utilizador e a palavra-passe!");
+            erroMsg.innerText = "";
+            btn.innerText = "Aguarde...";
+            btn.disabled = true;
 
-  try {
-    const resposta = await fetch("/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usuario, senha })
-    });
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario, senha })
+                });
 
-    const dados = await resposta.json();
-    if (!resposta.ok) return alert(dados.erro || "Erro ao efetuar login. Verifique as credenciais.");
+                const dados = await res.json();
 
-    // Guarda a chave de acesso (Token)
-    localStorage.setItem("token", dados.token);
-    
-    const nomeUsuario = dados.nome || "";
-    let tipoDefinido = String(dados.tipo || "").toLowerCase().trim();
+                if (res.ok) {
+                    // 1. Guarda os dados vitais no navegador
+                    localStorage.setItem("token", dados.token);
+                    localStorage.setItem("usuarioTipo", dados.tipo);
+                    localStorage.setItem("nomeUsuario", dados.nome);
 
-    localStorage.setItem("usuarioNome", nomeUsuario);
+                    // 2. A PORTA GIRATÓRIA (Redirecionamento Rigoroso)
+                    const tipo = dados.tipo;
 
-    // Regra de segurança legada para o Estoque
-    if (tipoDefinido === "estoque" || (tipoDefinido === "simples" && (nomeUsuario.toUpperCase().includes("ESTOQUE") || nomeUsuario.toUpperCase().includes("[ESTOQUE]")))) {
-      tipoDefinido = "estoque";
-    }
-
-    localStorage.setItem("usuarioTipo", tipoDefinido);
-
-    // ==========================================
-    // A MAGIA DA REDIREÇÃO INTELIGENTE
-    // ==========================================
-    if (tipoDefinido === "estoque") {
-      // 📦 Vai para o Almoxarifado
-      window.location.replace(`/estoque.html?token=${dados.token}`);
-      
-    } else if (tipoDefinido === "simples") {
-      // 📱 Vai para o Diário de Bordo (App Mobile c/ Câmara OCR)
-      window.location.replace(`/diario.html?token=${dados.token}`);
-      
-    } else if (tipoDefinido === "master" || tipoDefinido === "admin" || tipoDefinido === "superadmin") {
-      // 📊 Vai para o Painel de Gestão (Dashboard)
-      window.location.replace(`/index.html?token=${dados.token}`);
-      
-    } else {
-      alert("Perfil de utilizador inválido. Contacte o suporte.");
-    }
-
-  } catch (err) { 
-      alert("Erro ao conectar ao servidor. Verifique a sua ligação à internet."); 
-  }
-}
-
-// Permite fazer login ao pressionar a tecla "Enter" no teclado
-document.getElementById("senha").addEventListener("keypress", function(e) { 
-    if (e.key === "Enter") entrar(); 
-});
-</script>
-
+                    if (tipo === "tecnico") {
+                        // Técnico na rua: Vai para a App do Mapa
+                        window.location.replace("diario.html");
+                        
+                    } else if (tipo === "estoque") {
+                        // Pessoal do Armazém: Vai para as ferramentas
+                        window.location.replace("estoque.html");
+                        
+                    } else if (tipo === "master" || tipo === "superadmin" || tipo === "admin" || tipo === "simples") {
+                        // Pessoal do Escritório (Gestores e Auditores): Vão para o Dashboard Central
+                        window.location.replace("index.html");
+                        
+                    } else {
+                        // Prevenção de segurança de última linha
+                        window.location.replace("dados.html");
+                    }
+                } else {
+                    erroMsg.innerText = dados.erro || "Erro de autenticação.";
+                    btn.innerText = "Entrar";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                erroMsg.innerText = "Falha de ligação com o servidor.";
+                btn.innerText = "Entrar";
+                btn.disabled = false;
+            }
+        }
+    </script>
 </body>
 </html>

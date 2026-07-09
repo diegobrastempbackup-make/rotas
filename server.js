@@ -212,6 +212,23 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       res.status(500).json({ erro: "Erro ao buscar roteiros." });
   }
 });
+// 3. EXCLUIR ROTA
+app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
+  try {
+      const resultado = await db.collection("planejamento_rotas").deleteOne({
+          _id: new ObjectId(req.params.id),
+          cliente_id: req.usuario.cliente_id
+      });
+      
+      if (resultado.deletedCount === 1) {
+          res.json({ ok: true, mensagem: "Rota excluída com sucesso" });
+      } else {
+          res.status(404).json({ erro: "Rota não encontrada" });
+      }
+  } catch (err) {
+      res.status(500).json({ erro: "Erro ao excluir rota." });
+  }
+});
 
 // =====================================================================
 // RESTANTES MÓDULOS (Dashboard, Almoxarifado, Registros)

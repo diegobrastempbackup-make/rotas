@@ -4,262 +4,281 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Diário de Bordo - NERI</title>
-    <!-- Inteligência Artificial para leitura da imagem (OCR) -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0F172A; color: white; display: flex; flex-direction: column; min-height: 100vh; }
-        .header { background: #1E293B; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .header img { height: 30px; }
-        .header .user { font-size: 14px; color: #94A3B8; font-weight: bold; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #0F172A; 
+            color: white; 
+            -webkit-tap-highlight-color: transparent;
+        }
         
-        .container { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 15px; }
+        /* Cabeçalho Fixo */
+        .header { 
+            background-color: #1E293B; 
+            padding: 20px 15px; 
+            text-align: center; 
+            border-bottom: 3px solid #3B82F6; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h2 { margin: 0; font-size: 18px; color: #E2E8F0; text-transform: uppercase; letter-spacing: 1px; }
+        .header p { margin: 5px 0 0 0; color: #94A3B8; font-size: 13px; font-weight: bold; }
+        .btn-sair { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            background: rgba(239, 68, 68, 0.1); 
+            color: #EF4444; 
+            border: 1px solid #EF4444; 
+            padding: 6px 12px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold;
+        }
+
+        .container { padding: 20px 15px; padding-bottom: 80px; }
         
-        .card { background: #1E293B; padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .card h3 { margin: 0 0 15px 0; color: #60A5FA; font-size: 18px; }
-
-        label { display: block; font-size: 13px; color: #94A3B8; margin-bottom: 5px; font-weight: bold; }
-        input, select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; outline: none; appearance: none; }
-        input:focus, select:focus { border-color: #3B82F6; }
+        .card-aviso { 
+            background-color: #1E293B; 
+            padding: 30px 20px; 
+            text-align: center; 
+            border-radius: 12px; 
+            margin-top: 30px; 
+            border: 1px solid rgba(255,255,255,0.05); 
+        }
         
-        /* Estilo para quando a caixa está bloqueada (Técnico não pode mudar o nome) */
-        select:disabled { background: #1E293B; color: #94A3B8; border-color: rgba(255,255,255,0.05); opacity: 1; }
-
-        .btn-camera { background: linear-gradient(135deg, #10B981, #059669); color: white; padding: 18px; border: none; border-radius: 10px; width: 100%; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); transition: 0.2s; text-align: center; }
-        .btn-camera:active { transform: scale(0.98); }
+        /* Cartão da Paragem Atual */
+        .cliente-card { 
+            background: linear-gradient(145deg, #1E293B, #172033); 
+            padding: 25px 20px; 
+            border-radius: 16px; 
+            border-left: 5px solid #3B82F6; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4); 
+        }
+        .cliente-card h3 { 
+            margin: 0 0 15px 0; 
+            font-size: 18px; 
+            color: #60A5FA; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
+        .badge-os { 
+            color: white; 
+            font-size: 14px; 
+            background: #3B82F6; 
+            padding: 4px 10px; 
+            border-radius: 6px; 
+            font-weight: bold;
+        }
         
-        .btn-enviar { background: #2563EB; color: white; padding: 16px; border: none; border-radius: 10px; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-enviar:active { background: #1D4ED8; }
+        .info-linha { margin-bottom: 12px; }
+        .info-titulo { color: #94A3B8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px; }
+        .info-valor { color: #F8FAFC; font-size: 16px; font-weight: 500; }
+        
+        /* Botões de Ação */
+        .botoes-acao { display: flex; flex-direction: column; gap: 12px; margin-top: 25px; }
+        
+        .btn-gigante { 
+            width: 100%;
+            padding: 18px; 
+            font-size: 16px; 
+            font-weight: bold; 
+            text-align: center; 
+            border-radius: 10px; 
+            border: none; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        
+        .btn-waze { background-color: #00C3FF; color: #0F172A; }
+        .btn-maps { background-color: #10B981; color: white; }
+        .btn-cheguei { background-color: #F59E0B; color: white; margin-top: 15px; }
+        .btn-finalizar { background-color: #EF4444; color: white; }
+        
+        .btn-gigante:active { transform: scale(0.98); }
+        .btn-gigante:disabled { opacity: 0.5; pointer-events: none; }
 
-        input[type="file"] { display: none; }
+        .estado-servico {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #10B981;
+            display: none;
+            padding: 10px;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 8px;
+        }
 
-        #loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; text-align: center; padding: 20px; }
-        .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .progresso-texto { text-align: center; margin-top: 25px; font-size: 13px; color: #64748B; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <img src="logo.svg" alt="NERI">
-    <div class="user" id="nomeUsuarioLogado">Técnico</div>
-</div>
-
-<div class="container">
-    
-    <label for="capturaCamera" class="btn-camera">
-        📷 LER PAINEL COM A CÂMERA
-    </label>
-    <input type="file" id="capturaCamera" accept="image/*" capture="environment" onchange="processarImagemOCR(event)">
-
-    <div class="card">
-        <h3>Lançamento de Atividade</h3>
-        
-        <label>Técnico Responsável</label>
-        <!-- A caixa Select agora será controlada pelo JS -->
-        <select id="campoTecnico"></select>
-
-        <label>Data da Ocorrência</label>
-        <input type="date" id="campoData">
-
-        <label>O que está a registar?</label>
-        <select id="campoTipo" onchange="mudarFormulario()" style="background-image: url('data:image/svg+xml;utf8,<svg fill=\"white\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 10l5 5 5-5z\"/></svg>'); background-repeat: no-repeat; background-position-x: 95%; background-position-y: 12px;">
-            <option value="kmIni">Início do Dia (KM Inicial)</option>
-            <option value="kmFim">Fim do Dia (KM Final)</option>
-            <option value="abastecimento">Abastecimento na Bomba</option>
-        </select>
-
-        <label id="lblKm">Quilometragem Lida (KM)</label>
-        <input type="number" id="campoKm" placeholder="Ex: 148988">
-
-        <div id="areaAbastecimento" style="display: none;">
-            <label>Quantidade de Litros</label>
-            <input type="number" id="campoLitros" placeholder="Ex: 10.5" step="0.01">
-            
-            <label>Valor Total (R$)</label>
-            <input type="number" id="campoValor" placeholder="Ex: 43.90" step="0.01">
-        </div>
-
-        <button class="btn-enviar" onclick="salvarDiario()">💾 Guardar Registo</button>
+    <div class="header">
+        <button class="btn-sair" onclick="sair()">🚪 Sair</button>
+        <h2 id="nomeTecnico">Carregando...</h2>
+        <p id="dataHoje">Buscando Rota...</p>
     </div>
-    
-    <button onclick="sair()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 12px; border-radius: 10px; width: 100%; font-weight: bold; margin-top: 10px;">Sair do Sistema</button>
-</div>
 
-<div id="loading">
-    <div class="spinner"></div>
-    <div style="font-weight: bold; color: white; font-size: 18px;">A tratar a imagem do painel...</div>
-    <div style="font-size: 13px; color: #94A3B8; margin-top: 10px; max-width: 300px;">A inteligência artificial está a remover o fundo preto para encontrar os números. Aguarde.</div>
-</div>
+    <div class="container" id="telaPrincipal">
+        <!-- O conteúdo dinâmico é injetado aqui -->
+    </div>
 
 <script>
-const token = localStorage.getItem("token");
-if (!token) window.location.replace("/login.html");
+    const token = localStorage.getItem("token");
+    const nomeUsuario = localStorage.getItem("nomeUsuario"); 
+    const tipoUsuario = localStorage.getItem("usuarioTipo");
+    
+    // Bloqueio de segurança
+    if (!token || tipoUsuario !== "tecnico") {
+        window.location.replace("/login.html");
+    }
 
-const nomeLogado = localStorage.getItem("usuarioNome") || "Técnico";
-const tipoLogado = localStorage.getItem("usuarioTipo") || "simples";
-document.getElementById("nomeUsuarioLogado").innerText = nomeLogado;
+    // Limpa o nome para mostrar apenas o primeiro e último nome
+    const nomePartes = nomeUsuario.split(' ');
+    const nomeCurto = nomePartes.length > 1 ? `${nomePartes[0]} ${nomePartes[nomePartes.length-1]}` : nomePartes[0];
+    document.getElementById("nomeTecnico").innerText = `🚗 ${nomeCurto}`;
 
-const hoje = new Date();
-const dataFormatada = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-document.getElementById("campoData").value = dataFormatada;
+    let rotaDoDia = [];
+    let clienteAtualIndex = parseInt(localStorage.getItem("paragemAtualIndex")) || 0;
 
-async function carregarTecnicos() {
-    try {
-        const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
-        const lista = await res.json();
-        const select = document.getElementById("campoTecnico");
-        const meuNome = nomeLogado.toLowerCase();
+    async function buscarRotaDoServidor() {
+        const dataAtual = new Date();
+        const dia = String(dataAtual.getDate()).padStart(2, '0');
+        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+        const ano = dataAtual.getFullYear();
+        const hojeBR = `${dia}/${mes}/${ano}`;
         
-        // REGRA DE SEGURANÇA: Se for Técnico (Simples), trava no nome dele.
-        if (tipoLogado === "simples") {
-            // Tenta encontrar o técnico na base que bate com o nome do utilizador
-            let tecnicoEncontrado = lista.find(t => t.nome.toLowerCase() === meuNome || t.nome.toLowerCase().includes(meuNome) || meuNome.includes(t.nome.toLowerCase()));
-            
-            let nomeParaExibir = tecnicoEncontrado ? tecnicoEncontrado.nome : nomeLogado;
-            
-            // Cria apenas 1 opção e bloqueia a caixa!
-            select.innerHTML = `<option value="${nomeParaExibir}">${nomeParaExibir}</option>`;
-            select.disabled = true; 
-        } 
-        // Se for um Master a usar o telemóvel, ele pode escolher qualquer um
-        else {
-            lista.filter(t => t.status === "Ativo" || !t.status).forEach(t => {
-                const option = document.createElement("option");
-                option.value = t.nome;
-                option.text = t.nome;
-                select.appendChild(option);
+        document.getElementById("dataHoje").innerText = `📅 Rota de ${hojeBR}`;
+
+        try {
+            const res = await fetch(`/api/rotas?data=${encodeURIComponent(hojeBR)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
+            const rotasDeHoje = await res.json();
+
+            // Encontra a rota específica deste técnico
+            const minhaRota = rotasDeHoje.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
+
+            if (minhaRota && minhaRota.itinerario && minhaRota.itinerario.length > 0) {
+                rotaDoDia = minhaRota.itinerario;
+                renderizarClienteAtual();
+            } else {
+                mostrarAviso("Nenhum roteiro enviado para si hoje.<br><br>☕ Bom descanso!");
+            }
+
+        } catch (e) {
+            mostrarAviso("Falha de ligação com a central. Tente recarregar a página.");
         }
-    } catch (e) { console.error(e); }
-}
-carregarTecnicos();
-
-function mudarFormulario() {
-    const tipo = document.getElementById("campoTipo").value;
-    const areaAbs = document.getElementById("areaAbastecimento");
-    const lblKm = document.getElementById("lblKm");
-
-    if (tipo === "abastecimento") {
-        areaAbs.style.display = "block";
-        lblKm.innerText = "KM no momento do Abastecimento";
-    } else {
-        areaAbs.style.display = "none";
-        lblKm.innerText = "Quilometragem Lida (KM)";
     }
-}
 
-async function processarImagemOCR(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+    function renderizarClienteAtual() {
+        // Guarda o progresso no telemóvel para se ele fechar o navegador sem querer, não perder a viagem
+        localStorage.setItem("paragemAtualIndex", clienteAtualIndex);
 
-    document.getElementById("loading").style.display = "flex";
-
-    try {
-        const imgUrl = URL.createObjectURL(file);
-        const img = new Image();
-        await new Promise(resolve => { img.onload = resolve; img.src = imgUrl; });
-
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-            let r = data[i], g = data[i+1], b = data[i+2];
-            let cinza = (r + g + b) / 3;
-            cinza = 255 - cinza;
-            data[i] = cinza;
-            data[i+1] = cinza;
-            data[i+2] = cinza;
-        }
-        ctx.putImageData(imageData, 0, 0);
-        
-        const imagemTratada = canvas.toDataURL("image/jpeg");
-
-        const resultado = await Tesseract.recognize(imagemTratada, 'eng');
-        let texto = resultado.data.text;
-        
-        texto = texto.replace(/O/g, '0').replace(/o/g, '0').replace(/l/g, '1').replace(/I/g, '1');
-
-        const numerosEncontrados = texto.match(/\d{4,7}/g);
-
-        if (numerosEncontrados) {
-            const kmIdentificado = Math.max(...numerosEncontrados.map(Number));
-            document.getElementById("campoKm").value = kmIdentificado;
-            alert(`✅ KM Encontrado: ${kmIdentificado}\n\nPor favor, confirme no campo se o número está correto, pois os reflexos do vidro podem atrapalhar.`);
-        } else {
-            alert("⚠️ Devido ao reflexo ou ao fundo do painel, a câmara não conseguiu focar com clareza nos números. Por favor, digite o valor manualmente.");
+        if (clienteAtualIndex >= rotaDoDia.length) {
+            return mostrarAviso("🎉 Parabéns!<br><br>Você finalizou todas as ordens de serviço planeadas para hoje.<br><br>Pode retornar à base.");
         }
 
-    } catch (erro) {
-        alert("Ocorreu um erro no leitor. Digite o KM manualmente.");
-    } finally {
-        document.getElementById("loading").style.display = "none";
-        event.target.value = ""; 
+        const cliente = rotaDoDia[clienteAtualIndex];
+        const tela = document.getElementById("telaPrincipal");
+
+        // Links Universais de Navegação (Funcionam em Android e iOS)
+        const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
+        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${cliente.lat},${cliente.lon}`;
+
+        tela.innerHTML = `
+            <div class="cliente-card">
+                <h3>Paragem #${clienteAtualIndex + 1} <span class="badge-os">OS: ${cliente.codigo}</span></h3>
+                
+                <div class="info-linha">
+                    <span class="info-titulo">Cliente</span>
+                    <span class="info-valor">${cliente.cliente}</span>
+                </div>
+                
+                <div class="info-linha">
+                    <span class="info-titulo">Serviço Solicitado</span>
+                    <span class="info-valor" style="color: #F59E0B;">${cliente.servico || 'Não especificado'}</span>
+                </div>
+
+                <div class="info-linha">
+                    <span class="info-titulo">Endereço de Destino</span>
+                    <span class="info-valor">${cliente.rua}, ${cliente.cidade}</span>
+                </div>
+                
+                <div id="statusCheckIn" class="estado-servico">✔️ Chegada Registada! Em atendimento.</div>
+
+                <div class="botoes-acao">
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn-gigante btn-waze" id="btnWaze" onclick="window.open('${wazeUrl}', '_blank')">
+                            🧭 Waze
+                        </button>
+                        <button class="btn-gigante btn-maps" id="btnMaps" onclick="window.open('${mapsUrl}', '_blank')">
+                            🗺️ Maps
+                        </button>
+                    </div>
+                    
+                    <button class="btn-gigante btn-cheguei" id="btnCheguei" onclick="marcarChegada()">
+                        📍 Registar Chegada
+                    </button>
+                    
+                    <button class="btn-gigante btn-finalizar" id="btnFinalizar" onclick="finalizarServico()" style="display:none;">
+                        🏁 Finalizar Serviço
+                    </button>
+                </div>
+            </div>
+            
+            <div class="progresso-texto">
+                Progresso: ${clienteAtualIndex} de ${rotaDoDia.length} serviços concluídos.
+            </div>
+        `;
     }
-}
 
-async function salvarDiario() {
-    const tecnico = document.getElementById("campoTecnico").value;
-    const data = document.getElementById("campoData").value;
-    const tipo = document.getElementById("campoTipo").value;
-    const kmLido = Number(document.getElementById("campoKm").value);
-    const litros = Number(document.getElementById("campoLitros").value);
-    const valor = parseFloat(document.getElementById("campoValor").value.replace(",", "."));
-
-    if (!tecnico || !data || !kmLido) return alert("Preencha a Data, Técnico e o KM!");
-    if (tipo === "abastecimento" && (!litros || !valor)) return alert("Preencha os Litros e o Valor do abastecimento!");
-
-    try {
-        const resBusca = await fetch("/api/registros", { headers: { "Authorization": `Bearer ${token}` } });
-        const todosRegistos = await resBusca.json();
-        let registoDoDia = todosRegistos.find(r => r.tecnico === tecnico && String(r.data).startsWith(data));
+    function marcarChegada() {
+        // Altera a interface visual para modo "Em Atendimento"
+        document.getElementById('btnWaze').style.display = 'none';
+        document.getElementById('btnMaps').style.display = 'none';
+        document.getElementById('btnCheguei').style.display = 'none';
         
-        if (!registoDoDia) {
-            registoDoDia = { tecnico, data, kmIni: 0, kmFim: 0, km: 0, consumo: 0, abastAnt: "", abastAtual: "", litros: 0, valor: 0 };
-        }
-
-        if (tipo === "kmIni") registoDoDia.kmIni = kmLido;
-        if (tipo === "kmFim") registoDoDia.kmFim = kmLido;
-        if (tipo === "abastecimento") {
-            registoDoDia.abastAtual = kmLido;
-            registoDoDia.litros = litros;
-            registoDoDia.valor = valor;
-        }
-
-        if (registoDoDia.kmFim > 0 && registoDoDia.kmIni > 0) {
-            registoDoDia.km = registoDoDia.kmFim - registoDoDia.kmIni;
-        }
-        if (registoDoDia.km > 0 && registoDoDia.litros > 0) {
-            registoDoDia.consumo = (registoDoDia.km / registoDoDia.litros).toFixed(2);
-        }
-
-        const resPost = await fetch("/registro", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            body: JSON.stringify({ dados: [registoDoDia] })
-        });
-
-        if (resPost.ok) {
-            alert("🚀 Lançamento efetuado com sucesso!");
-            document.getElementById("campoKm").value = "";
-            document.getElementById("campoLitros").value = "";
-            document.getElementById("campoValor").value = "";
-        } else {
-            alert("Erro ao gravar registo.");
-        }
-    } catch (err) {
-        alert("Erro de comunicação com a plataforma.");
+        document.getElementById('statusCheckIn').style.display = 'block';
+        document.getElementById('btnFinalizar').style.display = 'flex';
+        
+        // (No futuro, este botão enviará o horário exato para o server.js)
     }
-}
 
-function sair() {
-    localStorage.clear();
-    window.location.replace("/login.html");
-}
+    function finalizarServico() {
+        if(confirm("Confirma a conclusão do serviço nesta OS?")) {
+            // (No futuro, este botão enviará o horário de saída para o server.js)
+            clienteAtualIndex++; 
+            renderizarClienteAtual();
+        }
+    }
+
+    function mostrarAviso(msg) {
+        document.getElementById("telaPrincipal").innerHTML = `
+            <div class="card-aviso">
+                <h3 style="color:#94A3B8; font-size:18px; line-height: 1.5;">${msg}</h3>
+            </div>
+        `;
+    }
+
+    function sair() {
+        localStorage.clear();
+        window.location.replace("/login.html");
+    }
+
+    // Inicia a aplicação e carrega a rota
+    buscarRotaDoServidor();
 </script>
 </body>
 </html>
