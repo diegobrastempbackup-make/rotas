@@ -79,9 +79,10 @@
 
         <div id="painelRotas">
             <div class="lista-tecnicos">
-                <div class="lista-tecnicos-header">
-                    <h3>Equipa em Rota Hoje</h3>
-                </div>
+                <div class="lista-tecnicos-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <h3>Equipa em Rota Hoje</h3>
+    <button onclick="limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px;">🔄 Nova Planilha</button>
+</div>
                 <div class="lista-clientes" id="listaTecnicosUI">
                     </div>
             </div>
@@ -98,80 +99,112 @@
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
 
-    // Inicialização do Mapa (Focado em São Paulo por defeito)
     let mapa = null;
-    let dadosGlobaisRotas = {}; // Aqui vamos guardar os dados lidos do Excel
+    let dadosGlobaisRotas = {}; 
 
     document.addEventListener("DOMContentLoaded", () => {
-        // Inicializa o Leaflet (Mapa)
-        mapa = L.map('mapa').setView([-23.5505, -46.6333], 10);
+        mapa = L.map('mapa').setView([-23.5505, -46.6333], 10); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(mapa);
         
-        // Esconde o painel do mapa no início
-        document.getElementById("painelRotas").style.display = "none";
+        // RECUPERA A MEMÓRIA AO ABRIR A PÁGINA
+        const rotasGuardadas = localStorage.getItem("planilhaRotas");
+        if (rotasGuardadas) {
+            dadosGlobaisRotas = JSON.parse(rotasGuardadas);
+            document.getElementById("areaUpload").style.display = "none";
+            document.getElementById("painelRotas").style.display = "flex";
+            renderizarListaTecnicos();
+            
+            // O mapa precisa de um fôlego para se redimensionar
+            setTimeout(() => { mapa.invalidateSize(); }, 500);
+        } else {
+            document.getElementById("painelRotas").style.display = "none";
+        }
     });
 
-    // Função que lê o Excel magicamente no navegador
     function processarExcel(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Muda a interface para mostrar que está a processar
-        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A ler a folha de Excel...</h3><p>Organizando os clientes, aguarde...</p>`;
+        document.getElementById("areaUpload").innerHTML = `<h3>⚙️ A analisar a folha de Excel...</h3><p>Limpando dados e organizando equipas...</p>`;
 
         const reader = new FileReader();
         reader.onload = function(e) {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
-            
-            // Pega a primeira aba do Excel
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            
-            // Converte para um formato JSON (Array de objetos)
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
-            
-            agruparPorTecnico(jsonData);
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                
+                if (jsonData.length === 0) {
+                    alert("⚠️ A primeira folha do seu Excel parece estar vazia.");
+                    return;
+                }
+
+                const dadosNormalizados = jsonData.map(linha => {
+                    let novaLinha = {};
+                    for (let chave in linha) {
+                        let chaveLimpa = chave.trim().toUpperCase(); 
+                        novaLinha[chaveLimpa] = linha[chave];
+                    }
+                    return novaLinha;
+                });
+                
+                agruparPorTecnico(dadosNormalizados);
+            } catch (erro) {
+                alert("❌ Erro ao ler o ficheiro: " + erro.message);
+            }
         };
         reader.readAsArrayBuffer(file);
     }
 
-    // Organiza a bagunça do Excel por Técnico e Horário
     function agruparPorTecnico(linhas) {
         dadosGlobaisRotas = {};
+        let totalLidos = 0;
 
         linhas.forEach(linha => {
-            const tecnico = linha["Técnico"] || "SEM NOME";
-            const horario = (linha["Horário"] || "").trim().toUpperCase();
+            const tecnico = linha["TÉCNICO"] || linha["TECNICO"] || "SEM NOME";
+            if (!linha["CÓDIGO"] && !linha["CLIENTE"] && tecnico === "SEM NOME") return;
+
+            const horario = String(linha["HORÁRIO"] || linha["HORARIO"] || "").trim().toUpperCase();
             
             if (!dadosGlobaisRotas[tecnico]) {
                 dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             }
 
-            // Junta as informações de endereço
-            const enderecoCompleto = `${linha["Endereço"]}, ${linha["Distrito"]}, ${linha["Cidade"]} - CEP: ${linha["CEP"]}`;
+            const enderecoCompleto = `${linha["ENDEREÇO"] || linha["ENDERECO"] || ""}, ${linha["DISTRITO"] || ""} - CEP: ${linha["CEP"] || ""}`;
 
             const clienteOcorrencia = {
-                codigo: linha["Código"],
-                cliente: linha["Cliente"],
-                servico: linha["SERVIÇO"],
+                codigo: linha["CÓDIGO"] || linha["CODIGO"] || "",
+                cliente: linha["CLIENTE"] || "Sem Nome",
+                servico: linha["SERVIÇO"] || linha["SERVICO"] || "",
                 enderecoTexto: enderecoCompleto
             };
 
-            if (horario === "MANHÃ") dadosGlobaisRotas[tecnico].manha.push(clienteOcorrencia);
-            else dadosGlobaisRotas[tecnico].tarde.push(clienteOcorrencia);
+            if (horario.includes("MANH")) {
+                dadosGlobaisRotas[tecnico].manha.push(clienteOcorrencia);
+            } else {
+                dadosGlobaisRotas[tecnico].tarde.push(clienteOcorrencia);
+            }
+            totalLidos++;
         });
 
-        // Esconde o botão de upload e mostra o Mapa e a Lista
+        if (totalLidos === 0) {
+            alert("⚠️ Não consegui encontrar os dados. Verifique os nomes das colunas.");
+            return;
+        }
+
+        // GRAVA OS DADOS NA MEMÓRIA DO NAVEGADOR
+        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
         
-        // Renderiza o menu lateral de técnicos
         renderizarListaTecnicos();
-        
-        // Atualiza o tamanho do mapa para não bugar
         setTimeout(() => { mapa.invalidateSize(); }, 500);
     }
 
@@ -199,14 +232,21 @@
     }
 
     function selecionarTecnico(nome, elementoHTML) {
-        // Marca o técnico clicado visualmente
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         elementoHTML.classList.add('ativo');
 
         const dadosTecnico = dadosGlobaisRotas[nome];
-        console.log(`Você selecionou: ${nome}`, dadosTecnico);
+        console.log(`Dados do Técnico:`, dadosTecnico);
         
-        alert(`O Excel de ${nome} tem ${dadosTecnico.manha.length} clientes de manhã e ${dadosTecnico.tarde.length} à tarde.\n\nNa Fase 2, ao clicar aqui, o sistema converterá as moradas em coordenadas e traçará a rota no mapa!`);
+        alert(`Sucesso!\nO painel carregou as rotas de: ${nome}\nTotal Manhã: ${dadosTecnico.manha.length} | Total Tarde: ${dadosTecnico.tarde.length}`);
+    }
+
+    // FUNÇÃO PARA APAGAR A MEMÓRIA E SUBIR PLANILHA NOVA
+    function limparRotas() {
+        if(confirm("Tem a certeza que deseja limpar as rotas de hoje e carregar um novo Excel?")) {
+            localStorage.removeItem("planilhaRotas");
+            window.location.reload();
+        }
     }
 </script>
 </body>
