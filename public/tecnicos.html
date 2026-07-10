@@ -64,6 +64,7 @@
         <div class="tabs-container">
             <button id="btnTabTecnicos" class="tab-btn ativa" onclick="mudarAba('tecnicos')">🚗 Técnicos de Campo</button>
             <button id="btnTabUsuarios" class="tab-btn" onclick="mudarAba('usuarios')" style="display:none;">🔐 Usuários do Sistema</button>
+            <button id="btnTabTotem" class="tab-btn" onclick="mudarAba('totem')">🪪 Equipa Totem</button>
             <button id="btnTabEmpresas" class="tab-btn" onclick="mudarAba('empresas')" style="display:none; background:rgba(16, 185, 129, 0.1); color:#10B981; border:1px solid rgba(16, 185, 129, 0.3);">🏢 Clientes (SaaS)</button>
         </div>
 
@@ -103,6 +104,48 @@
                 </table>
             </div>
         </div>
+        <!-- NOVA ABA: EQUIPA TOTEM (CRACHÁS E FILA) -->
+<div id="abaTotem" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="color: white; margin: 0;">Equipa Totem (Fila de Entrada)</h2>
+        <button class="btn-bloco" style="width: auto; padding: 10px 20px;" onclick="abrirModalTotem()">+ Cadastrar Pessoa</button>
+    </div>
+    
+    <div class="tabela-container" style="background: #1E293B; border-radius: 12px; padding: 20px;">
+        <table width="100%" style="color: white; text-align: left; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94A3B8; font-size: 12px;">
+                    <th style="padding: 10px;">NOME NO CRACHÁ</th>
+                    <th style="padding: 10px;">FUNÇÃO</th>
+                    <th style="padding: 10px;">AÇÕES</th>
+                </tr>
+            </thead>
+            <tbody id="corpoTabelaTotem">
+                <!-- Preenchido via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL EQUIPA TOTEM -->
+<div class="modal" id="modalTotem">
+    <div class="modal-conteudo">
+        <div class="modal-header">
+            <h3 style="color:white;" id="modalTituloTotem">Cadastrar Pessoa</h3>
+            <button class="fechar-modal" onclick="fecharModal('modalTotem')">×</button>
+        </div>
+        <input type="hidden" id="totemId">
+        <div class="form-group">
+            <label>Nome Completo (Será lido pelo Totem)</label>
+            <input type="text" id="formTotemNome" placeholder="Ex: João Silva">
+        </div>
+        <div class="form-group">
+            <label>Função (Apenas para organização)</label>
+            <input type="text" id="formTotemFuncao" placeholder="Ex: Auxiliar de Base">
+        </div>
+        <button class="btn-bloco" onclick="salvarPessoaTotem()">Salvar</button>
+    </div>
+</div>
 
         <!-- ABA EMPRESAS (SÓ PARA O MODO DEUS) -->
         <div id="abaEmpresas" style="display: none;">

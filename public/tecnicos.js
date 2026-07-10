@@ -1,5 +1,6 @@
 const token = localStorage.getItem("token");
 let cacheTecnicos = [];
+let cacheTotem = [];
 
 if (!token) window.location.replace("/login.html");
 
@@ -7,9 +8,7 @@ function obterNivelRealDoToken() {
     try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
         return JSON.parse(jsonPayload).tipo;
     } catch (e) { return null; }
 }
@@ -22,112 +21,34 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("btnTabUsuarios").style.display = "flex";
     }
 
-    if (tipoReal === "superadmin") {
+    if (tipoReal === "superadmin" && document.getElementById("btnTabEmpresas")) {
         document.getElementById("btnTabEmpresas").style.display = "flex";
-        await carregarEmpresas();
+        if(typeof carregarEmpresas === 'function') await carregarEmpresas();
     }
 
     await carregarTecnicos();
     await carregarUsuarios();
+    await carregarEquipeTotem();
 
-    document.getElementById("buscaNome").addEventListener("input", filtrarTabela);
-    document.getElementById("filtroStatus").addEventListener("change", filtrarTabela);
+    const buscaNome = document.getElementById("buscaNome");
+    const filtroStatus = document.getElementById("filtroStatus");
+    if(buscaNome) buscaNome.addEventListener("input", filtrarTabela);
+    if(filtroStatus) filtroStatus.addEventListener("change", filtrarTabela);
 });
 
 function mudarAba(abaSelecionada) {
-    document.getElementById("abaTecnicos").style.display = abaSelecionada === 'tecnicos' ? 'block' : 'none';
-    document.getElementById("abaUsuarios").style.display = abaSelecionada === 'usuarios' ? 'block' : 'none';
-    document.getElementById("abaEmpresas").style.display = abaSelecionada === 'empresas' ? 'block' : 'none';
-    
-    document.getElementById("btnTabTecnicos").className = abaSelecionada === 'tecnicos' ? 'tab-btn ativa' : 'tab-btn';
-    document.getElementById("btnTabUsuarios").className = abaSelecionada === 'usuarios' ? 'tab-btn ativa' : 'tab-btn';
-    document.getElementById("btnTabEmpresas").className = abaSelecionada === 'empresas' ? 'tab-btn ativa' : 'tab-btn';
+    const abas = ['tecnicos', 'usuarios', 'empresas', 'totem'];
+    abas.forEach(aba => {
+        const el = document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`);
+        const btn = document.getElementById(`btnTab${aba.charAt(0).toUpperCase() + aba.slice(1)}`);
+        if(el) el.style.display = abaSelecionada === aba ? 'block' : 'none';
+        if(btn) btn.className = abaSelecionada === aba ? 'tab-btn ativa' : 'tab-btn';
+    });
 }
 
 function fecharModal(idModal) { document.getElementById(idModal).classList.remove("ativo"); }
 
-// --- GESTÃO DE CLIENTES (SAAS) ---
-async function carregarEmpresas() {
-    try {
-        const res = await fetch("/api/empresas", { headers: { "Authorization": `Bearer ${token}` } });
-        const empresas = await res.json();
-        const corpo = document.getElementById("corpoTabelaEmpresas");
-        corpo.innerHTML = "";
-        
-        empresas.forEach(emp => {
-            const dataReg = emp.criadoEm ? new Date(emp.criadoEm).toLocaleDateString("pt-BR") : "-";
-            const statusText = emp.ativo !== false ? "Ativo" : "Bloqueado";
-            const badgeClass = emp.ativo !== false ? "badge-ativo" : "badge-desligado";
-            const btnStatusTexto = emp.ativo !== false ? "Bloquear Acesso" : "Desbloquear";
-            const novoStatus = emp.ativo !== false ? false : true;
-
-            corpo.innerHTML += `
-                <tr>
-                    <td><strong>${emp.empresaNome || 'Desconhecida'}</strong></td>
-                    <td>${emp.nome}</td>
-                    <td><span style="color:#94A3B8;">${emp.usuario}</span></td>
-                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
-                    <td>${dataReg}</td>
-                    <td>
-                        <button class="btn-mini" style="background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3);" onclick="alternarStatusEmpresa('${emp._id}', ${novoStatus})">${btnStatusTexto}</button>
-                        <button class="btn-mini btn-excluir" onclick="excluirEmpresa('${emp._id}', '${emp.empresaNome}')">Excluir Cliente</button>
-                    </td>
-                </tr>
-            `;
-        });
-    } catch (err) { console.error("Erro ao carregar empresas"); }
-}
-
-async function alternarStatusEmpresa(id, novoStatus) {
-    const acao = novoStatus ? "desbloquear" : "suspender";
-    if(!confirm(`Deseja realmente ${acao} o acesso desta empresa e de todos os seus funcionários?`)) return;
-    try {
-        const res = await fetch(`/api/empresas/${id}/status`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            body: JSON.stringify({ ativo: novoStatus })
-        });
-        if(res.ok) await carregarEmpresas();
-    } catch(err) { alert("Erro de conexão."); }
-}
-
-async function excluirEmpresa(id, nome) {
-    if(!confirm(`⚠️ ATENÇÃO EXTREMA: Deseja EXCLUIR PERMANENTEMENTE a empresa '${nome}'? \nEsta ação não tem retorno!`)) return;
-    try {
-        const res = await fetch(`/api/empresas/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
-        if(res.ok) await carregarEmpresas();
-    } catch(err) { alert("Erro de conexão."); }
-}
-
-function abrirModalEmpresa() {
-    document.getElementById("regEmpresa").value = "";
-    document.getElementById("regNome").value = "";
-    document.getElementById("regUsuario").value = "";
-    document.getElementById("regSenha").value = "";
-    document.getElementById("modalEmpresa").classList.add("ativo");
-}
-
-async function salvarNovaEmpresa() {
-    const empresa = document.getElementById("regEmpresa").value.trim();
-    const nome = document.getElementById("regNome").value.trim();
-    const usuario = document.getElementById("regUsuario").value.trim();
-    const senha = document.getElementById("regSenha").value;
-    if (!empresa || !nome || !usuario || !senha) return alert("Preencha todos os campos.");
-
-    try {
-        const res = await fetch("/nova-empresa", {
-            method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            body: JSON.stringify({ empresa, nome, usuario, senha })
-        });
-        const dados = await res.json();
-        if (!res.ok) return alert(dados.erro || "Falha no registo.");
-        alert(`Cliente ${empresa} criado com sucesso!`);
-        fecharModal('modalEmpresa');
-        await carregarEmpresas();
-    } catch (err) { alert("Erro de conexão."); }
-}
-
-// --- TÉCNICOS E USUÁRIOS ---
+// --- TÉCNICOS DE CAMPO (FROTA) ---
 async function carregarTecnicos() {
     try {
         const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
@@ -143,14 +64,15 @@ function atualizarCardsIndicadores() {
     const ferias = cacheTecnicos.filter(t => t.status === "Em Férias").length;
     const afastados = cacheTecnicos.filter(t => t.status === "Afastado").length;
     const desligados = cacheTecnicos.filter(t => t.status === "Desligado").length;
-    document.getElementById("cardAtivos").innerText = ativos;
-    document.getElementById("cardFerias").innerText = ferias;
-    document.getElementById("cardAfastados").innerText = afastados;
-    document.getElementById("cardDesligados").innerText = desligados;
+    if(document.getElementById("cardAtivos")) document.getElementById("cardAtivos").innerText = ativos;
+    if(document.getElementById("cardFerias")) document.getElementById("cardFerias").innerText = ferias;
+    if(document.getElementById("cardAfastados")) document.getElementById("cardAfastados").innerText = afastados;
+    if(document.getElementById("cardDesligados")) document.getElementById("cardDesligados").innerText = desligados;
 }
 
 function renderizarTabela(lista) {
     const corpo = document.getElementById("corpoTabelaTecnicos");
+    if(!corpo) return;
     corpo.innerHTML = "";
     lista.forEach(t => {
         const statusReal = t.status || "Ativo";
@@ -161,14 +83,14 @@ function renderizarTabela(lista) {
 
         corpo.innerHTML += `
             <tr>
-                <td><strong>${t.nome}</strong></td>
-                <td><span class="badge ${classeBadge}">${statusReal}</span></td>
-                <td>${t.telefone || "-"}</td>
-                <td>${t.veiculo || "-"}</td>
-                <td>
+                <td style="padding: 10px;"><strong>${t.nome}</strong></td>
+                <td style="padding: 10px;"><span class="badge ${classeBadge}">${statusReal}</span></td>
+                <td style="padding: 10px;">${t.telefone || "-"}</td>
+                <td style="padding: 10px;">${t.email || "-"}</td>
+                <td style="padding: 10px;">${t.veiculo || "-"}</td>
+                <td style="padding: 10px;">
                     <button class="btn-mini btn-editar" onclick="prepararEdicaoTecnico('${t._id}')">Editar</button>
                     <button class="btn-mini btn-excluir" onclick="deletarTecnico('${t._id}')">Excluir</button>
-                    <button class="btn-mini" style="background:#8B5CF6; border:1px solid #7C3AED; color:white; font-size:11px; padding:6px; margin-top:5px; width:100%; display:block;" onclick="imprimirCracha('${t.nome}')">🖨️ Crachá</button>
                 </td>
             </tr>
         `;
@@ -237,13 +159,161 @@ async function deletarTecnico(id) {
     } catch (err) { console.error(err); }
 }
 
-// --- IMPRESSÃO DO CÓDIGO DE BARRAS (FÁBRICA DE CRACHÁS) ---
-function imprimirCracha(nomeTecnico) {
+// --- RESTAURAÇÃO: USUÁRIOS DO SISTEMA ---
+async function carregarUsuarios() {
+    const corpo = document.getElementById("corpoTabelaUsuarios");
+    if(!corpo) return;
+    corpo.innerHTML = `<tr><td colspan="4" style="text-align:center;">Carregando...</td></tr>`;
+    try {
+        const res = await fetch("/api/usuarios", { headers: { "Authorization": `Bearer ${token}` } });
+        const usuarios = await res.json();
+        corpo.innerHTML = "";
+        
+        usuarios.forEach(u => {
+            let badge = `<span class="badge" style="background:rgba(148,163,184,0.15); color:#94A3B8;">Simples</span>`;
+            if (u.tipo === "master") badge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#FBBF24;">Master</span>`;
+            else if (u.tipo === "admin") badge = `<span class="badge" style="background:rgba(96,165,250,0.15); color:#60A5FA;">Admin</span>`;
+            else if (u.tipo === "estoque") badge = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34D399;">Estoque</span>`;
+            else if (u.tipo === "tecnico") badge = `<span class="badge" style="background:rgba(6, 182, 212, 0.15); color:#22D3EE;">Técnico</span>`;
+            else if (u.tipo === "superadmin") badge = `<span class="badge" style="background:rgba(139, 92, 246, 0.15); color:#8B5CF6;">Super Admin</span>`;
+
+            corpo.innerHTML += `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 15px;"><strong>${u.nome}</strong></td>
+                    <td>${u.usuario}</td>
+                    <td>${badge}</td>
+                    <td>
+                        ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}', '${u.nome}', '${u.usuario}', '${u.tipo}')">Editar</button> <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (err) { corpo.innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">Erro ao carregar usuários.</td></tr>`; }
+}
+
+function abrirModalUsuario() {
+    document.getElementById("modalTituloUsuario").innerText = "Novo Usuário";
+    document.getElementById("usuarioEditId").value = "";
+    document.getElementById("cadNome").value = "";
+    document.getElementById("cadUsuario").value = "";
+    document.getElementById("cadUsuario").disabled = false; 
+    document.getElementById("cadSenha").value = "";
+    document.getElementById("cadTipo").value = "simples";
+    document.getElementById("modalUsuario").classList.add("ativo"); 
+}
+
+function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
+    document.getElementById("modalTituloUsuario").innerText = `Editar: ${usuario}`;
+    document.getElementById("usuarioEditId").value = id;
+    document.getElementById("cadNome").value = nome;
+    document.getElementById("cadUsuario").value = usuario;
+    document.getElementById("cadUsuario").disabled = true; 
+    document.getElementById("cadSenha").value = "";
+    document.getElementById("cadTipo").value = tipoReal;
+    document.getElementById("modalUsuario").classList.add("ativo");
+}
+
+async function salvarUsuario() {
+    const id = document.getElementById("usuarioEditId").value;
+    const nome = document.getElementById("cadNome").value.trim();
+    const usuario = document.getElementById("cadUsuario").value.trim();
+    const senha = document.getElementById("cadSenha").value;
+    const tipo = document.getElementById("cadTipo").value;
+    if (!nome || !usuario) return alert("Preencha todos os campos obrigatórios.");
+    try {
+        let res;
+        if (id) {
+            res = await fetch(`/api/usuarios/${id}`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, tipo, senha }) });
+        } else {
+            res = await fetch("/cadastro", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, usuario, senha, tipo }) });
+        }
+        if (!res.ok) return alert("Erro na operação.");
+        fecharModal('modalUsuario');
+        await carregarUsuarios();
+    } catch (err) { alert("Erro de conexão."); }
+}
+
+async function deletarUsuario(id) {
+    if (!confirm("Deseja remover este usuário permanentemente?")) return;
+    try {
+        const res = await fetch(`/api/usuarios/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if (res.ok) await carregarUsuarios();
+    } catch (err) { console.error(err); }
+}
+
+// --- NOVA ABA: EQUIPA TOTEM (FILA/CRACHÁS) ---
+async function carregarEquipeTotem() {
+    const corpo = document.getElementById("corpoTabelaTotem");
+    if(!corpo) return;
+    corpo.innerHTML = `<tr><td colspan="3" style="text-align:center;">Carregando...</td></tr>`;
+    try {
+        const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
+        const equipe = await res.json();
+        corpo.innerHTML = "";
+        
+        equipe.forEach(p => {
+            corpo.innerHTML += `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 15px; color: #F8FAFC;"><strong>${p.nome}</strong></td>
+                    <td style="padding: 15px; color: #94A3B8;">${p.funcao || "Base"}</td>
+                    <td style="padding: 15px; display:flex; gap: 8px;">
+                        <button class="btn-mini btn-editar" onclick="prepararEdicaoTotem('${p._id}', '${p.nome}', '${p.funcao}')">Editar</button>
+                        <button class="btn-mini btn-excluir" onclick="deletarPessoaTotem('${p._id}')">Excluir</button>
+                        <button class="btn-mini" style="background:#8B5CF6; border:1px solid #7C3AED; color:white;" onclick="imprimirCracha('${p.nome}', '${p.funcao || "Base"}')">🖨️ Crachá</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (err) { corpo.innerHTML = `<tr><td colspan="3" style="color:red; text-align:center;">Erro ao carregar equipa.</td></tr>`; }
+}
+
+function abrirModalTotem() {
+    document.getElementById("modalTituloTotem").innerText = "Cadastrar Pessoa";
+    document.getElementById("totemId").value = "";
+    document.getElementById("formTotemNome").value = "";
+    document.getElementById("formTotemFuncao").value = "";
+    document.getElementById("modalTotem").classList.add("ativo");
+}
+
+function prepararEdicaoTotem(id, nome, funcao) {
+    document.getElementById("modalTituloTotem").innerText = "Editar Pessoa";
+    document.getElementById("totemId").value = id;
+    document.getElementById("formTotemNome").value = nome;
+    document.getElementById("formTotemFuncao").value = funcao !== 'undefined' ? funcao : '';
+    document.getElementById("modalTotem").classList.add("ativo");
+}
+
+async function salvarPessoaTotem() {
+    const id = document.getElementById("totemId").value;
+    const nome = document.getElementById("formTotemNome").value.trim();
+    const funcao = document.getElementById("formTotemFuncao").value.trim();
+
+    if (!nome) return alert("O Nome é obrigatório.");
+    try {
+        const url = id ? `/api/equipe-totem/${id}` : "/api/equipe-totem";
+        const metodo = id ? "PUT" : "POST";
+        const res = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, funcao }) });
+        if (!res.ok) return alert("Erro no servidor.");
+        fecharModal('modalTotem');
+        await carregarEquipeTotem();
+    } catch (err) { alert("Erro de conexão."); }
+}
+
+async function deletarPessoaTotem(id) {
+    if (!confirm("Remover esta pessoa do registo do Totem?")) return;
+    try {
+        const res = await fetch(`/api/equipe-totem/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if (res.ok) await carregarEquipeTotem();
+    } catch (err) { console.error(err); }
+}
+
+// --- IMPRESSÃO DO CÓDIGO DE BARRAS ---
+function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
     const janelaCracha = window.open('', '', 'width=450,height=350');
     janelaCracha.document.write(`
         <html>
         <head>
-            <title>Crachá - ${nomeTecnico}</title>
+            <title>Crachá - ${nomePessoa}</title>
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
             <style>
                 body { text-align: center; font-family: 'Segoe UI', Arial, sans-serif; padding-top: 20px; background: white; }
@@ -256,20 +326,13 @@ function imprimirCracha(nomeTecnico) {
             <div class="cartao">
                 <div class="logo-texto">NERI LOGÍSTICA</div>
                 <svg id="barcode"></svg>
-                <div class="cargo">Técnico de Operações</div>
+                <div class="cargo">${funcao}</div>
             </div>
             <script>
                 window.onload = function() {
-                    JsBarcode("#barcode", "${nomeTecnico}", {
-                        format: "CODE128",
-                        width: 2.5,
-                        height: 70,
-                        displayValue: true,
-                        fontSize: 16,
-                        fontOptions: "bold",
-                        textMargin: 8
+                    JsBarcode("#barcode", "${nomePessoa}", {
+                        format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 16, fontOptions: "bold", textMargin: 8
                     });
-                    // Pequeno atraso para garantir que a imagem gerou antes da caixa de impressão aparecer
                     setTimeout(() => { window.print(); window.close(); }, 500);
                 }
             <\/script>
@@ -278,5 +341,3 @@ function imprimirCracha(nomeTecnico) {
     `);
     janelaCracha.document.close();
 }
-
-async function carregarUsuarios() { /* Mantivemos o código de utilizadores inalterado aqui para poupar espaço... */ }
