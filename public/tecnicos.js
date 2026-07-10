@@ -307,7 +307,7 @@ async function deletarPessoaTotem(id) {
     } catch (err) { console.error(err); }
 }
 
-// --- IMPRESSÃO DO CÓDIGO DE BARRAS ---
+// --- IMPRESSÃO DO CÓDIGO DE BARRAS (FÁBRICA DE CRACHÁS) ---
 function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
     const janelaCracha = window.open('', '', 'width=450,height=350');
     janelaCracha.document.write(`
@@ -317,9 +317,11 @@ function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
             <style>
                 body { text-align: center; font-family: 'Segoe UI', Arial, sans-serif; padding-top: 20px; background: white; }
-                .cartao { border: 2px solid #1E293B; padding: 25px; display: inline-block; border-radius: 12px; width: 300px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+                .cartao { border: 2px solid #1E293B; padding: 25px; display: inline-block; border-radius: 12px; width: 300px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); box-sizing: border-box; }
                 .logo-texto { font-size: 20px; font-weight: 900; color: #1E293B; margin: 0 0 15px 0; letter-spacing: 1px; }
                 .cargo { margin-top: 15px; font-weight: bold; color: #3B82F6; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; }
+                /* O Segredo Mágico: Impede que o código de barras vaze do cartão */
+                #barcode { max-width: 100%; height: auto; }
             </style>
         </head>
         <body>
@@ -331,7 +333,13 @@ function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
             <script>
                 window.onload = function() {
                     JsBarcode("#barcode", "${nomePessoa}", {
-                        format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 16, fontOptions: "bold", textMargin: 8
+                        format: "CODE128", 
+                        width: 1.5, /* Deixamos as barras mais finas */
+                        height: 55, /* Altura ligeiramente menor */
+                        displayValue: true, 
+                        fontSize: 14, 
+                        fontOptions: "bold", 
+                        textMargin: 8
                     });
                     setTimeout(() => { window.print(); window.close(); }, 500);
                 }

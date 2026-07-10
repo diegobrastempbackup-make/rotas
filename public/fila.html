@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel de Fila - NERI</title>
+    <link rel="stylesheet" href="style.css?v=2">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
+    <style>
+        .main { padding: 25px; display: flex; flex-direction: column; gap: 20px; height: 100vh; overflow-y: auto; }
+        .abas-nav { display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; transition: 0.2s; }
+        .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+        .aba-btn:hover:not(.ativa) { background: rgba(255,255,255,0.05); color: white; }
+
+        /* Estilo da Fila ao Vivo */
+        .fila-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; margin-top: 20px; }
+        .fila-card { background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .tec-nome { font-size: 18px; font-weight: bold; color: white; margin: 0; }
+        .tec-hora { font-size: 12px; color: #94A3B8; }
+        .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+        
+        .botoes-acao { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-chamar { flex: 1; background: #3B82F6; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 5px; }
+        .btn-chamar:hover { background: #2563EB; }
+        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn-finalizar:hover { background: #059669; }
+
+        /* Tela de Ativação do Áudio */
+        #avisoAudio { background: rgba(245, 158, 11, 0.2); border: 1px solid #F59E0B; color: #FCD34D; padding: 15px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; margin-bottom: 15px; }
+    </style>
+    <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
+</head>
+<body>
+
+<div class="container">
+    <div class="sidebar">
+        <div class="logo-area"><img src="logo.svg" alt="Logo NERI" style="max-width: 100%; margin-bottom: 10px;" /></div>
+        <div class="menu">
+            <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
+            <button onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
+            <button onclick="navegarSeguro('/roteirizador.html')">🗺️ Roteirizador</button>
+            <button style="background: #2563EB; color: white; border-color: #3B82F6;">🗣️ Triagem e Ponto</button>
+            <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+            <hr><button onclick="navegarSeguro('/tecnicos.html')" id="btnAdmin" style="display:none;">⚙️ Administração</button><hr>
+            <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">🚪 Sair</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <div id="avisoAudio" onclick="ativarAudio()">
+            🔊 O Navegador bloqueia voz automática. Clique aqui UMA VEZ para ligar o sistema de som para o dia inteiro!
+        </div>
+
+        <div>
+            <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
+            <p style="margin: 0; color: #94A3B8; font-size: 14px;">Gerencie a fila de chegada dos técnicos e o histórico de assiduidade.</p>
+        </div>
+
+        <div class="abas-nav">
+            <button class="aba-btn ativa" id="btnAbaFila" onclick="mudarAba('fila')">📍 Fila ao Vivo</button>
+            <button class="aba-btn" id="btnAbaRelatorio" onclick="mudarAba('relatorio')">📄 Relatório de Ponto (PDF)</button>
+            <button class="aba-btn" id="btnAbaConfig" onclick="mudarAba('config')">⚙️ Regra de Atraso</button>
+        </div>
+
+        <div id="abaFila">
+            <div class="fila-grid" id="containerFila">
+                </div>
+            <div id="msgFilaVazia" style="display:none; text-align:center; padding: 40px; color: #94A3B8; background: #1E293B; border-radius: 12px; margin-top:20px;">
+                🎉 A fila está vazia. Todos já foram para a rua!
+            </div>
+        </div>
+
+        <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+            <h3 style="margin-top:0; color:#60A5FA;">Extrato de Frequência</h3>
+            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Mês e Ano</label>
+                    <input type="month" id="filtroMesPonto" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Pessoa/Técnico</label>
+                    <select id="filtroTecnicoPonto" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                        <option value="TODOS">Todos os Funcionários</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button onclick="gerarPDFPonto()" style="padding:10px 20px; background:#10B981; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📄 Baixar PDF</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="abaConfig" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); max-width: 500px;">
+            <h3 style="margin-top:0; color:#60A5FA;">Regras Matinais</h3>
+            <p style="font-size: 13px; color: #94A3B8; margin-bottom: 20px;">Defina o horário limite de chegada. Quem bipar o crachá depois desta hora será marcado de vermelho na fila e no relatório de ponto.</p>
+            
+            <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Horário Limite (Tolerância)</label>
+            <input type="time" id="inputLimiteAtraso" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
+            
+            <button onclick="salvarConfigBase()" style="width: 100%; padding:12px; background:#2563EB; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Guardar Configuração</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.replace("/login.html");
+    const usuarioTipo = localStorage.getItem("usuarioTipo");
+    if (usuarioTipo === "master" || usuarioTipo === "superadmin" || usuarioTipo === "admin") document.getElementById("btnAdmin").style.display = "block";
+
+    let audioLiberado = false;
+    let filaAtual = [];
+    
+    // Configura o sintetizador de voz (A IA que vai falar)
+    const sinteseVoz = window.speechSynthesis;
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        const agora = new Date();
+        const mesAtualStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+        document.getElementById("filtroMesPonto").value = mesAtualStr;
+
+        await carregarConfigBase();
+        await carregarListaTecnicosParaFiltro();
+        atualizarFila();
+        
+        // Atualiza a tela a cada 10 segundos
+        setInterval(atualizarFila, 10000); 
+    });
+
+    function mudarAba(aba) {
+        ['Fila', 'Relatorio', 'Config'].forEach(id => {
+            document.getElementById(`aba${id}`).style.display = 'none';
+            document.getElementById(`btnAba${id}`).classList.remove('ativa');
+        });
+        document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).style.display = 'block';
+        document.getElementById(`btnAba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).classList.add('ativa');
+    }
+
+    function ativarAudio() {
+        audioLiberado = true;
+        document.getElementById("avisoAudio").style.display = "none";
+        
+        // Faz um som vazio só para o navegador liberar a trava
+        let somSilencioso = new SpeechSynthesisUtterance("");
+        sinteseVoz.speak(somSilencioso);
+    }
+
+    async function carregarConfigBase() {
+        try {
+            const res = await fetch("/api/config-base", { headers: { "Authorization": `Bearer ${token}` } });
+            const conf = await res.json();
+            if (conf && conf.limiteAtraso) document.getElementById("inputLimiteAtraso").value = conf.limiteAtraso;
+        } catch(e) {}
+    }
+
+    async function salvarConfigBase() {
+        const limiteAtraso = document.getElementById("inputLimiteAtraso").value;
+        try {
+            const res = await fetch("/api/config-base", {
+                method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ limiteAtraso })
+            });
+            if(res.ok) alert("✅ Tolerância de atraso atualizada!");
+        } catch(e) { alert("❌ Erro."); }
+    }
+
+    async function carregarListaTecnicosParaFiltro() {
+        try {
+            const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
+            const equipe = await res.json();
+            const combo = document.getElementById("filtroTecnicoPonto");
+            equipe.forEach(p => { combo.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; });
+        } catch(e) {}
+    }
+
+    async function atualizarFila() {
+        const dataHoje = new Date().toLocaleDateString('pt-BR');
+        try {
+            const res = await fetch(`/api/fila/hoje?data=${encodeURIComponent(dataHoje)}`, { headers: { "Authorization": `Bearer ${token}` } });
+            filaAtual = await res.json();
+            desenharFila();
+        } catch(e) {}
+    }
+
+    function desenharFila() {
+        const container = document.getElementById("containerFila");
+        container.innerHTML = "";
+        
+        if (filaAtual.length === 0) {
+            document.getElementById("msgFilaVazia").style.display = "block";
+            return;
+        }
+        document.getElementById("msgFilaVazia").style.display = "none";
+
+        filaAtual.forEach((item, index) => {
+            let corBorda = "#64748B"; // Padrão
+            let badgeHtml = "";
+            let statusCor = "#94A3B8";
+
+            // Se estiver atrasado, a borda do cartão fica vermelha
+            if (item.atrasado) {
+                corBorda = "#EF4444";
+                badgeHtml = `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171; margin-left:10px;">⏰ Atrasado</span>`;
+            } else {
+                badgeHtml = `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399; margin-left:10px;">✅ No Horário</span>`;
+            }
+
+            if (item.status === "Atendido") statusCor = "#3B82F6"; // Azul
+
+            container.innerHTML += `
+                <div class="fila-card" style="border-left-color: ${corBorda};">
+                    <div class="card-header">
+                        <div>
+                            <span style="color:#60A5FA; font-size:12px; font-weight:bold;">#${index + 1} na fila</span>
+                            <h3 class="tec-nome">${item.tecnico}</h3>
+                            <div class="tec-hora">Bipou às ${item.horaChegada} ${badgeHtml}</div>
+                        </div>
+                        <div style="color: ${statusCor}; font-size:12px; font-weight:bold;">${item.status}</div>
+                    </div>
+                    <div class="botoes-acao">
+                        <button class="btn-chamar" onclick="chamarAoBalcao('${item._id}', '${item.tecnico.split(' ')[0]}')">🗣️ Chamar</button>
+                        <button class="btn-finalizar" onclick="alterarStatusFila('${item._id}', 'Finalizado')">✅ Liberar</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    async function chamarAoBalcao(idRegistro, nomeCurto) {
+        if (!audioLiberado) {
+            alert("Você precisa clicar na barra amarela lá em cima primeiro para liberar o áudio do navegador!");
+            return;
+        }
+
+        // 1. Muda no banco de dados para "Atendido"
+        await alterarStatusFila(idRegistro, 'Atendido');
+
+        // 2. A Voz do Navegador!
+        let fala = new SpeechSynthesisUtterance(`Atenção, ${nomeCurto}. Comparecer ao balcão de atendimento.`);
+        fala.lang = 'pt-BR'; // Sotaque português
+        fala.rate = 0.9; // Um pouco mais lento para ficar claro
+        sinteseVoz.speak(fala);
+    }
+
+    async function alterarStatusFila(idRegistro, novoStatus) {
+        try {
+            await fetch(`/api/fila/${idRegistro}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status: novoStatus })
+            });
+            atualizarFila();
+        } catch(e) {}
+    }
+
+    // ==========================================
+    // GERAÇÃO DO RELATÓRIO EM PDF (PONTO)
+    // ==========================================
+    async function gerarPDFPonto() {
+        const mesAnoStr = document.getElementById("filtroMesPonto").value; // "2026-07"
+        if (!mesAnoStr) return alert("Selecione um mês.");
+        
+        const p = mesAnoStr.split('-');
+        const mesFormato = `${p[1]}/${p[0]}`; // "07/2026"
+        const tecnicoSel = document.getElementById("filtroTecnicoPonto").value;
+
+        try {
+            const res = await fetch(`/api/fila/relatorio?mesAno=${encodeURIComponent(mesFormato)}&tecnico=${encodeURIComponent(tecnicoSel)}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            const historico = await res.json();
+
+            if (historico.length === 0) return alert("Nenhum registro encontrado para este filtro.");
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(18);
+            doc.text("Relatório de Frequência e Ponto", 14, 20);
+            
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Período: ${p[1]}/${p[0]}`, 14, 28);
+            doc.text(`Colaborador: ${tecnicoSel}`, 14, 34);
+            
+            let pontualidadeCount = historico.filter(i => !i.atrasado).length;
+            let atrasoCount = historico.filter(i => i.atrasado).length;
+            doc.text(`Total de Apresentações: ${historico.length}`, 140, 28);
+            doc.text(`Atrasos Registrados: ${atrasoCount}`, 140, 34);
+
+            const colunas = ["Data", "Colaborador", "Hora da Chegada", "Status do Horário"];
+            const linhas = historico.map(item => [
+                item.data,
+                item.tecnico,
+                item.horaChegada,
+                item.atrasado ? "ATRASADO" : "NO HORÁRIO"
+            ]);
+
+            doc.autoTable({
+                head: [colunas],
+                body: linhas,
+                startY: 45,
+                theme: 'striped',
+                headStyles: { fillColor: [30, 41, 59] },
+                didParseCell: function(data) {
+                    // Pinta a célula de vermelho se for atrasado
+                    if (data.column.index === 3 && data.cell.raw === "ATRASADO") {
+                        data.cell.styles.textColor = [239, 68, 68]; // Vermelho Tailwind
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (data.column.index === 3 && data.cell.raw === "NO HORÁRIO") {
+                        data.cell.styles.textColor = [16, 185, 129]; // Verde Tailwind
+                    }
+                }
+            });
+
+            doc.save(`Frequencia_${tecnicoSel.replace(/\s+/g, '_')}_${p[1]}_${p[0]}.pdf`);
+
+        } catch (e) { alert("Erro ao gerar PDF."); }
+    }
+</script>
+</body>
+</html>
