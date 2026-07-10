@@ -466,4 +466,35 @@ app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
         res.json({ok: true});
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
+// ==========================================
+// FASE 6: MODO "ESPIÃO" (SaaS LOGIN AS)
+// ==========================================
+app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {
+    // Apenas o Super Admin verdadeiro pode fazer isto
+    if (req.usuario.tipo !== "superadmin") return res.status(403).json({erro: "Acesso Negado"});
+    
+    const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
+    if (!empresa) return res.status(404).json({erro: "Empresa não encontrada"});
+
+    // O Servidor cria um Token especial "disfarçado" de Master daquela empresa
+    const tokenNovo = jwt.sign(
+        { id: req.usuario.id, tipo: "master", cliente_id: empresa.cliente_id, superadmin_original: true },
+        process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
+    );
+    
+    res.json({ ok: true, token: tokenNovo, nome: empresa.empresaNome });
+});
+
+app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
+    // Verifica se é um Super Admin que estava a usar o disfarce
+    if (!req.usuario.superadmin_original) return res.status(403).json({erro: "Negado"});
+    
+    // Devolve o Token original absoluto de Super Admin
+    const tokenNovo = jwt.sign(
+        { id: req.usuario.id, tipo: "superadmin", cliente_id: "GLOBAL_SYSTEM" },
+        process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
+    );
+    
+    res.json({ ok: true, token: tokenNovo });
+});
 iniciarSistema();

@@ -4,26 +4,38 @@ let cacheTotem = [];
 
 if (!token) window.location.replace("/login.html");
 
-function obterNivelRealDoToken() {
+// Lê o token por completo para descobrirmos se é um Super Admin disfarçado
+function obterPayloadDoToken() {
     try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-        return JSON.parse(jsonPayload).tipo;
+        return JSON.parse(jsonPayload);
     } catch (e) { return null; }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    const payload = obterPayloadDoToken();
+    const tipoReal = payload ? payload.tipo : null;
+    const isSuperAdminDisfarcado = payload ? payload.superadmin_original : false;
     const usuarioTipo = localStorage.getItem("usuarioTipo");
-    const tipoReal = obterNivelRealDoToken(); 
     
-    if (usuarioTipo === "master" || tipoReal === "superadmin") {
+    if (usuarioTipo === "master" || tipoReal === "superadmin" || isSuperAdminDisfarcado) {
         document.getElementById("btnTabUsuarios").style.display = "flex";
     }
 
-    if (tipoReal === "superadmin" && document.getElementById("btnTabEmpresas")) {
+    if (tipoReal === "superadmin") {
         document.getElementById("btnTabEmpresas").style.display = "flex";
         if(typeof carregarEmpresas === 'function') await carregarEmpresas();
+    }
+
+    // Se ele for um Super Admin disfarçado, cria o botão vermelho para fugir da empresa!
+    if (isSuperAdminDisfarcado) {
+        // Tenta injetar o botão no cabeçalho do painel
+        const menus = document.querySelector('.menu');
+        if(menus) {
+            menus.innerHTML += `<hr><button onclick="voltarSuperAdmin()" style="background:#EF4444; color:white; border:1px solid #B91C1C; font-weight:bold;">🔙 Voltar ao Painel Global</button>`;
+        }
     }
 
     await carregarTecnicos();
@@ -48,7 +60,119 @@ function mudarAba(abaSelecionada) {
 
 function fecharModal(idModal) { document.getElementById(idModal).classList.remove("ativo"); }
 
-// --- TÉCNICOS DE CAMPO (FROTA) ---
+// =========================================================
+// MODO ESPIÃO: NAVEGAÇÃO DE EMPRESAS (SaaS)
+// =========================================================
+async function acessarEmpresa(id, nomeEmpresa) {
+    try {
+        const res = await fetch(`/api/acessar-empresa/${id}`, { 
+            method: 'POST', 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        const dados = await res.json();
+        
+        if (res.ok) {
+            localStorage.setItem("token", dados.token);
+            alert(`A transferir painel para a empresa: ${dados.nome}`);
+            window.location.replace(`/index.html?token=${dados.token}`);
+        } else {
+            alert(dados.erro || "Erro ao acessar a empresa.");
+        }
+    } catch(e) { alert("Erro de comunicação com a central."); }
+}
+
+async function voltarSuperAdmin() {
+    if(!confirm("Deseja sair do painel desta empresa e voltar à visão global?")) return;
+    try {
+        const res = await fetch(`/api/voltar-admin`, { 
+            method: 'POST', 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        const dados = await res.json();
+        
+        if (res.ok) {
+            localStorage.setItem("token", dados.token);
+            window.location.replace(`/tecnicos.html?token=${dados.token}`);
+        }
+    } catch(e) {}
+}
+
+async function carregarEmpresas() {
+    try {
+        const res = await fetch("/api/empresas", { headers: { "Authorization": `Bearer ${token}` } });
+        const empresas = await res.json();
+        const corpo = document.getElementById("corpoTabelaEmpresas");
+        corpo.innerHTML = "";
+        
+        empresas.forEach(emp => {
+            const dataReg = emp.criadoEm ? new Date(emp.criadoEm).toLocaleDateString("pt-BR") : "-";
+            const statusText = emp.ativo !== false ? "Ativo" : "Bloqueado";
+            const badgeClass = emp.ativo !== false ? "badge-ativo" : "badge-desligado";
+            const btnStatusTexto = emp.ativo !== false ? "Bloquear" : "Desbloquear";
+            const novoStatus = emp.ativo !== false ? false : true;
+
+            corpo.innerHTML += `
+                <tr>
+                    <td><strong>${emp.empresaNome || 'Desconhecida'}</strong></td>
+                    <td>${emp.nome}</td>
+                    <td><span style="color:#94A3B8;">${emp.usuario}</span></td>
+                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
+                    <td>${dataReg}</td>
+                    <td style="display:flex; gap: 5px;">
+                        <button class="btn-mini" style="background:#10B981; color:white; border:none;" onclick="acessarEmpresa('${emp._id}', '${emp.empresaNome}')">👁️ Acessar Dashboard</button>
+                        <button class="btn-mini" style="background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3);" onclick="alternarStatusEmpresa('${emp._id}', ${novoStatus})">${btnStatusTexto}</button>
+                        <button class="btn-mini btn-excluir" onclick="excluirEmpresa('${emp._id}', '${emp.empresaNome}')">Excluir</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (err) { console.error("Erro ao carregar empresas"); }
+}
+
+async function alternarStatusEmpresa(id, novoStatus) {
+    const acao = novoStatus ? "desbloquear" : "suspender";
+    if(!confirm(`Deseja realmente ${acao} o acesso desta empresa e de todos os seus funcionários?`)) return;
+    try {
+        const res = await fetch(`/api/empresas/${id}/status`, {
+            method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ ativo: novoStatus })
+        });
+        if(res.ok) await carregarEmpresas();
+    } catch(err) { alert("Erro de conexão."); }
+}
+
+async function excluirEmpresa(id, nome) {
+    if(!confirm(`⚠️ ATENÇÃO EXTREMA: Deseja EXCLUIR PERMANENTEMENTE a empresa '${nome}'? \nEsta ação não tem retorno!`)) return;
+    try {
+        const res = await fetch(`/api/empresas/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if(res.ok) await carregarEmpresas();
+    } catch(err) { alert("Erro de conexão."); }
+}
+
+function abrirModalEmpresa() {
+    document.getElementById("regEmpresa").value = ""; document.getElementById("regNome").value = "";
+    document.getElementById("regUsuario").value = ""; document.getElementById("regSenha").value = "";
+    document.getElementById("modalEmpresa").classList.add("ativo");
+}
+
+async function salvarNovaEmpresa() {
+    const empresa = document.getElementById("regEmpresa").value.trim(); const nome = document.getElementById("regNome").value.trim();
+    const usuario = document.getElementById("regUsuario").value.trim(); const senha = document.getElementById("regSenha").value;
+    if (!empresa || !nome || !usuario || !senha) return alert("Preencha todos os campos.");
+
+    try {
+        const res = await fetch("/nova-empresa", {
+            method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ empresa, nome, usuario, senha })
+        });
+        const dados = await res.json();
+        if (!res.ok) return alert(dados.erro || "Falha no registo.");
+        alert(`Cliente ${empresa} criado com sucesso!`);
+        fecharModal('modalEmpresa'); await carregarEmpresas();
+    } catch (err) { alert("Erro de conexão."); }
+}
+
+// =========================================================
+// GESTÃO DE TÉCNICOS E USUÁRIOS
+// =========================================================
 async function carregarTecnicos() {
     try {
         const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
@@ -56,7 +180,7 @@ async function carregarTecnicos() {
         cacheTecnicos = await res.json();
         atualizarCardsIndicadores();
         renderizarTabela(cacheTecnicos);
-    } catch (err) { console.error(err); }
+    } catch (err) {}
 }
 
 function atualizarCardsIndicadores() {
@@ -109,28 +233,20 @@ function filtrarTabela() {
 
 function abrirModalTecnico() {
     document.getElementById("modalTituloTecnico").innerText = "Adicionar Novo Técnico";
-    document.getElementById("tecnicoId").value = "";
-    document.getElementById("formNome").value = "";
-    document.getElementById("formStatus").value = "Ativo";
-    document.getElementById("formTelefone").value = "";
-    document.getElementById("formEmail").value = "";
-    document.getElementById("formVeiculo").value = "";
-    document.getElementById("formPlaca").value = "";
-    document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("tecnicoId").value = ""; document.getElementById("formNome").value = "";
+    document.getElementById("formStatus").value = "Ativo"; document.getElementById("formTelefone").value = "";
+    document.getElementById("formEmail").value = ""; document.getElementById("formVeiculo").value = "";
+    document.getElementById("formPlaca").value = ""; document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 function prepararEdicaoTecnico(id) {
     const t = cacheTecnicos.find(item => item._id === id);
     if (!t) return;
     document.getElementById("modalTituloTecnico").innerText = `Editar: ${t.nome}`;
-    document.getElementById("tecnicoId").value = t._id;
-    document.getElementById("formNome").value = t.nome;
-    document.getElementById("formStatus").value = t.status || "Ativo";
-    document.getElementById("formTelefone").value = t.telefone || "";
-    document.getElementById("formEmail").value = t.email || "";
-    document.getElementById("formVeiculo").value = t.veiculo || "";
-    document.getElementById("formPlaca").value = t.placa || "";
-    document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("tecnicoId").value = t._id; document.getElementById("formNome").value = t.nome;
+    document.getElementById("formStatus").value = t.status || "Ativo"; document.getElementById("formTelefone").value = t.telefone || "";
+    document.getElementById("formEmail").value = t.email || ""; document.getElementById("formVeiculo").value = t.veiculo || "";
+    document.getElementById("formPlaca").value = t.placa || ""; document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 async function salvarTecnico() {
@@ -146,8 +262,7 @@ async function salvarTecnico() {
         const metodo = id ? "PUT" : "POST";
         const res = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify(payload) });
         if (!res.ok) return alert("Erro no servidor.");
-        fecharModal('modalTecnico');
-        await carregarTecnicos();
+        fecharModal('modalTecnico'); await carregarTecnicos();
     } catch (err) { alert("Erro de conexão."); }
 }
 
@@ -159,7 +274,9 @@ async function deletarTecnico(id) {
     } catch (err) { console.error(err); }
 }
 
-// --- RESTAURAÇÃO: USUÁRIOS DO SISTEMA ---
+// =========================================================
+// USUÁRIOS DO SISTEMA E TOTEM
+// =========================================================
 async function carregarUsuarios() {
     const corpo = document.getElementById("corpoTabelaUsuarios");
     if(!corpo) return;
@@ -175,6 +292,7 @@ async function carregarUsuarios() {
             else if (u.tipo === "admin") badge = `<span class="badge" style="background:rgba(96,165,250,0.15); color:#60A5FA;">Admin</span>`;
             else if (u.tipo === "estoque") badge = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34D399;">Estoque</span>`;
             else if (u.tipo === "tecnico") badge = `<span class="badge" style="background:rgba(6, 182, 212, 0.15); color:#22D3EE;">Técnico</span>`;
+            else if (u.tipo === "totem") badge = `<span class="badge" style="background:rgba(236, 72, 153, 0.15); color:#F472B6;">Totem</span>`;
             else if (u.tipo === "superadmin") badge = `<span class="badge" style="background:rgba(139, 92, 246, 0.15); color:#8B5CF6;">Super Admin</span>`;
 
             corpo.innerHTML += `
@@ -193,23 +311,17 @@ async function carregarUsuarios() {
 
 function abrirModalUsuario() {
     document.getElementById("modalTituloUsuario").innerText = "Novo Usuário";
-    document.getElementById("usuarioEditId").value = "";
-    document.getElementById("cadNome").value = "";
-    document.getElementById("cadUsuario").value = "";
-    document.getElementById("cadUsuario").disabled = false; 
-    document.getElementById("cadSenha").value = "";
-    document.getElementById("cadTipo").value = "simples";
+    document.getElementById("usuarioEditId").value = ""; document.getElementById("cadNome").value = "";
+    document.getElementById("cadUsuario").value = ""; document.getElementById("cadUsuario").disabled = false; 
+    document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = "simples";
     document.getElementById("modalUsuario").classList.add("ativo"); 
 }
 
 function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
     document.getElementById("modalTituloUsuario").innerText = `Editar: ${usuario}`;
-    document.getElementById("usuarioEditId").value = id;
-    document.getElementById("cadNome").value = nome;
-    document.getElementById("cadUsuario").value = usuario;
-    document.getElementById("cadUsuario").disabled = true; 
-    document.getElementById("cadSenha").value = "";
-    document.getElementById("cadTipo").value = tipoReal;
+    document.getElementById("usuarioEditId").value = id; document.getElementById("cadNome").value = nome;
+    document.getElementById("cadUsuario").value = usuario; document.getElementById("cadUsuario").disabled = true; 
+    document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = tipoReal;
     document.getElementById("modalUsuario").classList.add("ativo");
 }
 
@@ -228,8 +340,7 @@ async function salvarUsuario() {
             res = await fetch("/cadastro", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, usuario, senha, tipo }) });
         }
         if (!res.ok) return alert("Erro na operação.");
-        fecharModal('modalUsuario');
-        await carregarUsuarios();
+        fecharModal('modalUsuario'); await carregarUsuarios();
     } catch (err) { alert("Erro de conexão."); }
 }
 
@@ -241,7 +352,6 @@ async function deletarUsuario(id) {
     } catch (err) { console.error(err); }
 }
 
-// --- NOVA ABA: EQUIPA TOTEM (FILA/CRACHÁS) ---
 async function carregarEquipeTotem() {
     const corpo = document.getElementById("corpoTabelaTotem");
     if(!corpo) return;
@@ -269,16 +379,13 @@ async function carregarEquipeTotem() {
 
 function abrirModalTotem() {
     document.getElementById("modalTituloTotem").innerText = "Cadastrar Pessoa";
-    document.getElementById("totemId").value = "";
-    document.getElementById("formTotemNome").value = "";
-    document.getElementById("formTotemFuncao").value = "";
-    document.getElementById("modalTotem").classList.add("ativo");
+    document.getElementById("totemId").value = ""; document.getElementById("formTotemNome").value = "";
+    document.getElementById("formTotemFuncao").value = ""; document.getElementById("modalTotem").classList.add("ativo");
 }
 
 function prepararEdicaoTotem(id, nome, funcao) {
     document.getElementById("modalTituloTotem").innerText = "Editar Pessoa";
-    document.getElementById("totemId").value = id;
-    document.getElementById("formTotemNome").value = nome;
+    document.getElementById("totemId").value = id; document.getElementById("formTotemNome").value = nome;
     document.getElementById("formTotemFuncao").value = funcao !== 'undefined' ? funcao : '';
     document.getElementById("modalTotem").classList.add("ativo");
 }
@@ -294,8 +401,7 @@ async function salvarPessoaTotem() {
         const metodo = id ? "PUT" : "POST";
         const res = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, funcao }) });
         if (!res.ok) return alert("Erro no servidor.");
-        fecharModal('modalTotem');
-        await carregarEquipeTotem();
+        fecharModal('modalTotem'); await carregarEquipeTotem();
     } catch (err) { alert("Erro de conexão."); }
 }
 
@@ -307,7 +413,6 @@ async function deletarPessoaTotem(id) {
     } catch (err) { console.error(err); }
 }
 
-// --- IMPRESSÃO DO CÓDIGO DE BARRAS (FÁBRICA DE CRACHÁS) ---
 function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
     const janelaCracha = window.open('', '', 'width=450,height=350');
     janelaCracha.document.write(`
@@ -320,7 +425,6 @@ function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
                 .cartao { border: 2px solid #1E293B; padding: 25px; display: inline-block; border-radius: 12px; width: 300px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); box-sizing: border-box; }
                 .logo-texto { font-size: 20px; font-weight: 900; color: #1E293B; margin: 0 0 15px 0; letter-spacing: 1px; }
                 .cargo { margin-top: 15px; font-weight: bold; color: #3B82F6; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; }
-                /* O Segredo Mágico: Impede que o código de barras vaze do cartão */
                 #barcode { max-width: 100%; height: auto; }
             </style>
         </head>
@@ -332,15 +436,7 @@ function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
             </div>
             <script>
                 window.onload = function() {
-                    JsBarcode("#barcode", "${nomePessoa}", {
-                        format: "CODE128", 
-                        width: 1.5, /* Deixamos as barras mais finas */
-                        height: 55, /* Altura ligeiramente menor */
-                        displayValue: true, 
-                        fontSize: 14, 
-                        fontOptions: "bold", 
-                        textMargin: 8
-                    });
+                    JsBarcode("#barcode", "${nomePessoa}", { format: "CODE128", width: 1.5, height: 55, displayValue: true, fontSize: 14, fontOptions: "bold", textMargin: 8 });
                     setTimeout(() => { window.print(); window.close(); }, 500);
                 }
             <\/script>

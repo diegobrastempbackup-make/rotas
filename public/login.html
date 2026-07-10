@@ -94,7 +94,6 @@
 
     <div class="login-box">
         <div class="logo-container">
-            <!-- Coloque o caminho correto da sua logo se necessário -->
             <img src="logo.svg" alt="NERI Logo" onerror="this.style.display='none'">
         </div>
         <h2>Acesso ao Sistema</h2>
@@ -115,7 +114,6 @@
     </div>
 
     <script>
-        // Permite usar a tecla "Enter" para fazer login
         document.getElementById("senha").addEventListener("keypress", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -148,23 +146,24 @@
                 const dados = await res.json();
 
                 if (res.ok) {
-                    // 1. Guarda os dados vitais no navegador
                     localStorage.setItem("token", dados.token);
                     localStorage.setItem("usuarioTipo", dados.tipo);
                     localStorage.setItem("nomeUsuario", dados.nome);
 
-                    // 2. A PORTA GIRATÓRIA (Agora com o token colado na URL)
                     const tipo = dados.tipo;
 
-                    if (tipo === "tecnico") {
+                    // O NOVO REDIRECIONAMENTO (MODO QUIOSQUE E SUPER ADMIN INCLUÍDOS)
+                    if (tipo === "totem") {
+                        window.location.replace(`totem.html?token=${dados.token}`);
+                    } else if (tipo === "tecnico") {
                         window.location.replace(`diario.html?token=${dados.token}`);
-                        
                     } else if (tipo === "estoque") {
                         window.location.replace(`estoque.html?token=${dados.token}`);
-                        
-                    } else if (tipo === "master" || tipo === "superadmin" || tipo === "admin" || tipo === "simples") {
+                    } else if (tipo === "superadmin") {
+                        // O Super Admin vai direto para a sala de comando!
+                        window.location.replace(`tecnicos.html?token=${dados.token}`);
+                    } else if (tipo === "master" || tipo === "admin" || tipo === "simples") {
                         window.location.replace(`index.html?token=${dados.token}`);
-                        
                     } else {
                         window.location.replace(`dados.html?token=${dados.token}`);
                     }

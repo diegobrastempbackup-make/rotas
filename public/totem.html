@@ -18,7 +18,7 @@
         .msg-atraso { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; opacity: 1; }
     </style>
 </head>
-<body onclick="focarLeitor()"> <img src="logo.svg" alt="NERI" style="height: 60px; margin-bottom: 30px;">
+<body onclick="focarLeitor()"> <img src="logo.svg" alt="NERI" style="height: 60px; margin-bottom: 30px; cursor: pointer;" onclick="sair()" title="Clique duplo para Sair">
     
     <div class="relogio" id="relogioDisplay">00:00:00</div>
     <div class="data-hoje" id="dataDisplay">Carregando...</div>
@@ -30,6 +30,12 @@
     <div class="mensagem-box" id="caixaMensagem">Bem-vindo!</div>
 
 <script>
+    function sair() {
+    if (confirm("Deseja encerrar o sistema do Totem?")) {
+        localStorage.clear();
+        window.location.replace("/login.html");
+    }
+}
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
 
