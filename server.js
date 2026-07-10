@@ -467,6 +467,42 @@ app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 // ==========================================
+// ROTA DE COMUNICAÇÃO: PAINEL -> TOTEM
+// ==========================================
+
+// 1. O Gestor clica em Chamar (Avisa o banco de dados)
+app.put('/api/fila/:id/chamar-totem', autenticarToken, async (req, res) => {
+    try {
+        await db.collection("fila_ponto").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
+            { $set: { chamando_totem: true, status: "Atendido" } } // Já muda o status e ativa o alarme
+        );
+        res.json({ok: true});
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+// 2. O Totem pergunta a cada 2 segundos: "Alguém me mandou chamar?"
+app.get('/api/totem/chamadas', autenticarToken, async (req, res) => {
+    try {
+        const chamadas = await db.collection("fila_ponto").find({
+            cliente_id: req.usuario.cliente_id,
+            chamando_totem: true
+        }).toArray();
+        res.json(chamadas);
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+// 3. O Totem avisa o servidor: "Já chamei, pode desligar o alarme!"
+app.put('/api/fila/:id/chamada-concluida', autenticarToken, async (req, res) => {
+    try {
+        await db.collection("fila_ponto").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
+            { $set: { chamando_totem: false } }
+        );
+        res.json({ok: true});
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+// ==========================================
 // FASE 6: MODO "ESPIÃO" (SaaS LOGIN AS)
 // ==========================================
 app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {

@@ -17,7 +17,6 @@
         .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
         .aba-btn:hover:not(.ativa) { background: rgba(255,255,255,0.05); color: white; }
 
-        /* Estilo da Fila ao Vivo */
         .fila-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; margin-top: 20px; }
         .fila-card { background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -30,9 +29,6 @@
         .btn-chamar:hover { background: #2563EB; }
         .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .btn-finalizar:hover { background: #059669; }
-
-        /* Tela de Ativação do Áudio */
-        #avisoAudio { background: rgba(245, 158, 11, 0.2); border: 1px solid #F59E0B; color: #FCD34D; padding: 15px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; margin-bottom: 15px; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -55,10 +51,6 @@
 </div>
 
 <div class="main">
-    <div id="avisoAudio" onclick="ativarAudio()">
-        🔊 O Navegador bloqueia voz automática. Clique aqui UMA VEZ para ligar o sistema de som para o dia inteiro!
-    </div>
-
     <div>
         <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
         <p style="margin: 0; color: #94A3B8; font-size: 14px;">Gerencie a fila de chegada dos técnicos e o histórico de assiduidade.</p>
@@ -72,8 +64,6 @@
 
     <!-- ABA 1: FILA AO VIVO -->
     <div id="abaFila">
-        
-        <!-- NOVO: CONTROLE MANUAL DE ENTRADA -->
         <div style="margin-top: 15px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; border: 1px dashed rgba(255,255,255,0.2);">
             <div style="flex: 1;">
                 <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual (Sem Crachá)</label>
@@ -84,15 +74,13 @@
             <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Registrar Entrada</button>
         </div>
 
-        <div class="fila-grid" id="containerFila">
-            <!-- Cards renderizados via JS -->
-        </div>
+        <div class="fila-grid" id="containerFila"></div>
         <div id="msgFilaVazia" style="display:none; text-align:center; padding: 40px; color: #94A3B8; background: #1E293B; border-radius: 12px; margin-top:20px;">
             🎉 A fila está vazia. Todos já foram para a rua!
         </div>
     </div>
 
-    <!-- ABA 2: RELATÓRIO PDF -->
+    <!-- ABA 2 e 3 MANTIDAS IGUAIS (Relatório e Config) -->
     <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
         <h3 style="margin-top:0; color:#60A5FA;">Extrato de Frequência</h3>
         <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -112,55 +100,37 @@
         </div>
     </div>
 
-    <!-- ABA 3: CONFIGURAÇÕES -->
     <div id="abaConfig" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); max-width: 500px;">
         <h3 style="margin-top:0; color:#60A5FA;">Regras Matinais</h3>
-        <p style="font-size: 13px; color: #94A3B8; margin-bottom: 20px;">Defina o horário limite de chegada. Quem bipar o crachá depois desta hora será marcado de vermelho na fila e no relatório de ponto.</p>
-        
+        <p style="font-size: 13px; color: #94A3B8; margin-bottom: 20px;">Defina o horário limite de chegada. Quem bipar o crachá depois desta hora será marcado de vermelho na fila.</p>
         <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Horário Limite (Tolerância)</label>
         <input type="time" id="inputLimiteAtraso" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
-        
         <button onclick="salvarConfigBase()" style="width: 100%; padding:12px; background:#2563EB; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Guardar Configuração</button>
     </div>
-
 </div>
 
 <script>
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
     
-    // Mostra o botão de Administração apenas para os níveis corretos
     function obterPayloadDoToken() {
-        try {
-            const base64Url = token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            return JSON.parse(decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
-        } catch (e) { return null; }
+        try { return JSON.parse(decodeURIComponent(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))); } catch (e) { return null; }
     }
     
     const payload = obterPayloadDoToken();
-    const tipoReal = payload ? payload.tipo : null;
-    const isSuperAdminDisfarcado = payload ? payload.superadmin_original : false;
-    const usuarioTipo = localStorage.getItem("usuarioTipo");
-    
-    if (usuarioTipo === "master" || usuarioTipo === "admin" || tipoReal === "superadmin" || isSuperAdminDisfarcado) {
+    if (localStorage.getItem("usuarioTipo") === "master" || localStorage.getItem("usuarioTipo") === "admin" || (payload && payload.tipo === "superadmin") || (payload && payload.superadmin_original)) {
         document.getElementById("btnAdmin").style.display = "block";
     }
 
-    let audioLiberado = false;
     let filaAtual = [];
-    const sinteseVoz = window.speechSynthesis;
 
     document.addEventListener("DOMContentLoaded", async () => {
         const agora = new Date();
-        const mesAtualStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
-        document.getElementById("filtroMesPonto").value = mesAtualStr;
-
+        document.getElementById("filtroMesPonto").value = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
         await carregarConfigBase();
         await carregarListaTecnicosParaFiltro();
         atualizarFila();
-        
-        setInterval(atualizarFila, 10000); 
+        setInterval(atualizarFila, 5000); // Atualiza mais rápido (5s)
     });
 
     function mudarAba(aba) {
@@ -170,13 +140,6 @@
         });
         document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).style.display = 'block';
         document.getElementById(`btnAba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).classList.add('ativa');
-    }
-
-    function ativarAudio() {
-        audioLiberado = true;
-        document.getElementById("avisoAudio").style.display = "none";
-        let somSilencioso = new SpeechSynthesisUtterance("");
-        sinteseVoz.speak(somSilencioso);
     }
 
     async function carregarConfigBase() {
@@ -190,10 +153,7 @@
     async function salvarConfigBase() {
         const limiteAtraso = document.getElementById("inputLimiteAtraso").value;
         try {
-            const res = await fetch("/api/config-base", {
-                method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                body: JSON.stringify({ limiteAtraso })
-            });
+            const res = await fetch("/api/config-base", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ limiteAtraso }) });
             if(res.ok) alert("✅ Tolerância de atraso atualizada!");
         } catch(e) { alert("❌ Erro."); }
     }
@@ -204,10 +164,8 @@
             const equipe = await res.json();
             const comboRelatorio = document.getElementById("filtroTecnicoPonto");
             const comboManual = document.getElementById("manualTecnico");
-            
             comboRelatorio.innerHTML = `<option value="TODOS">Todos os Funcionários</option>`;
             comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
-            
             equipe.forEach(p => { 
                 comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
                 comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
@@ -215,32 +173,21 @@
         } catch(e) {}
     }
 
-    // --- NOVA FUNÇÃO: ENTRADA MANUAL ---
     async function registrarEntradaManual() {
         const nome = document.getElementById("manualTecnico").value;
         if (!nome) return alert("Selecione um funcionário na lista primeiro!");
-
         const agora = new Date();
         const dataAtual = `${String(agora.getDate()).padStart(2, '0')}/${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
         const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false }).substring(0, 5);
 
         try {
             const res = await fetch('/api/fila/bipar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ codigoBarras: nome, dataBatida: dataAtual, horaBatida: horaAtual })
             });
-
             const dados = await res.json();
-            
-            if (res.ok) {
-                alert(`✅ Entrada registrada manualmente com sucesso para ${dados.tecnico}!`);
-                document.getElementById("manualTecnico").value = ""; // Limpa o campo
-                atualizarFila();
-            } else {
-                alert(`❌ Erro: ${dados.erro}`);
-            }
-        } catch (err) { alert("❌ Erro de conexão com o servidor."); }
+            if (res.ok) { document.getElementById("manualTecnico").value = ""; atualizarFila(); } else alert(`❌ Erro: ${dados.erro}`);
+        } catch (err) {}
     }
 
     async function atualizarFila() {
@@ -255,26 +202,13 @@
     function desenharFila() {
         const container = document.getElementById("containerFila");
         container.innerHTML = "";
-        
-        if (filaAtual.length === 0) {
-            document.getElementById("msgFilaVazia").style.display = "block";
-            return;
-        }
+        if (filaAtual.length === 0) { document.getElementById("msgFilaVazia").style.display = "block"; return; }
         document.getElementById("msgFilaVazia").style.display = "none";
 
         filaAtual.forEach((item, index) => {
-            let corBorda = "#64748B"; 
-            let badgeHtml = "";
-            let statusCor = "#94A3B8";
-
-            if (item.atrasado) {
-                corBorda = "#EF4444";
-                badgeHtml = `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171; margin-left:10px;">⏰ Atrasado</span>`;
-            } else {
-                badgeHtml = `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399; margin-left:10px;">✅ No Horário</span>`;
-            }
-
-            if (item.status === "Atendido") statusCor = "#3B82F6"; 
+            let corBorda = item.atrasado ? "#EF4444" : "#64748B"; 
+            let badgeHtml = item.atrasado ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171; margin-left:10px;">⏰ Atrasado</span>` : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399; margin-left:10px;">✅ No Horário</span>`;
+            let statusCor = item.status === "Atendido" ? "#3B82F6" : "#94A3B8"; 
 
             container.innerHTML += `
                 <div class="fila-card" style="border-left-color: ${corBorda};">
@@ -287,7 +221,7 @@
                         <div style="color: ${statusCor}; font-size:12px; font-weight:bold;">${item.status}</div>
                     </div>
                     <div class="botoes-acao">
-                        <button class="btn-chamar" onclick="chamarAoBalcao('${item._id}', '${item.tecnico.split(' ')[0]}')">🗣️ Chamar</button>
+                        <button class="btn-chamar" onclick="chamarAoBalcao('${item._id}', '${item.tecnico.split(' ')[0]}')">🗣️ Chamar Totem</button>
                         <button class="btn-finalizar" onclick="alterarStatusFila('${item._id}', 'Finalizado')">✅ Liberar</button>
                     </div>
                 </div>
@@ -295,23 +229,20 @@
         });
     }
 
+    // A MÁGICA: Agora o seu PC apenas manda o comando para o Totem falar!
     async function chamarAoBalcao(idRegistro, nomeCurto) {
-        if (!audioLiberado) {
-            alert("Você precisa clicar na barra amarela lá em cima primeiro para liberar o áudio do navegador!");
-            return;
-        }
-        await alterarStatusFila(idRegistro, 'Atendido');
-        let fala = new SpeechSynthesisUtterance(`Atenção, ${nomeCurto}. Comparecer ao balcão de atendimento.`);
-        fala.lang = 'pt-BR'; 
-        fala.rate = 0.9; 
-        sinteseVoz.speak(fala);
+        try {
+            await fetch(`/api/fila/${idRegistro}/chamar-totem`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+            });
+            atualizarFila();
+        } catch(e) {}
     }
 
     async function alterarStatusFila(idRegistro, novoStatus) {
         try {
             await fetch(`/api/fila/${idRegistro}/status`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ status: novoStatus })
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: novoStatus })
             });
             atualizarFila();
         } catch(e) {}
@@ -320,56 +251,29 @@
     async function gerarPDFPonto() {
         const mesAnoStr = document.getElementById("filtroMesPonto").value; 
         if (!mesAnoStr) return alert("Selecione um mês.");
-        
-        const p = mesAnoStr.split('-');
-        const mesFormato = `${p[1]}/${p[0]}`; 
+        const p = mesAnoStr.split('-'); const mesFormato = `${p[1]}/${p[0]}`; 
         const tecnicoSel = document.getElementById("filtroTecnicoPonto").value;
 
         try {
-            const res = await fetch(`/api/fila/relatorio?mesAno=${encodeURIComponent(mesFormato)}&tecnico=${encodeURIComponent(tecnicoSel)}`, {
-                headers: { "Authorization": `Bearer ${token}` }
-            });
+            const res = await fetch(`/api/fila/relatorio?mesAno=${encodeURIComponent(mesFormato)}&tecnico=${encodeURIComponent(tecnicoSel)}`, { headers: { "Authorization": `Bearer ${token}` } });
             const historico = await res.json();
+            if (historico.length === 0) return alert("Nenhum registro encontrado.");
 
-            if (historico.length === 0) return alert("Nenhum registro encontrado para este filtro.");
-
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(18);
-            doc.text("Relatório de Frequência e Ponto", 14, 20);
-            
-            doc.setFontSize(11);
-            doc.setFont("helvetica", "normal");
-            doc.text(`Período: ${p[1]}/${p[0]}`, 14, 28);
-            doc.text(`Colaborador: ${tecnicoSel}`, 14, 34);
-            
-            let atrasoCount = historico.filter(i => i.atrasado).length;
-            doc.text(`Total de Apresentações: ${historico.length}`, 140, 28);
-            doc.text(`Atrasos Registrados: ${atrasoCount}`, 140, 34);
-
-            const colunas = ["Data", "Colaborador", "Hora da Chegada", "Status do Horário"];
-            const linhas = historico.map(item => [ item.data, item.tecnico, item.horaChegada, item.atrasado ? "ATRASADO" : "NO HORÁRIO" ]);
+            const { jsPDF } = window.jspdf; const doc = new jsPDF();
+            doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.text("Relatório de Frequência e Ponto", 14, 20);
+            doc.setFontSize(11); doc.setFont("helvetica", "normal"); doc.text(`Período: ${p[1]}/${p[0]}`, 14, 28); doc.text(`Colaborador: ${tecnicoSel}`, 14, 34);
+            doc.text(`Total de Apresentações: ${historico.length}`, 140, 28); doc.text(`Atrasos Registrados: ${historico.filter(i => i.atrasado).length}`, 140, 34);
 
             doc.autoTable({
-                head: [colunas],
-                body: linhas,
-                startY: 45,
-                theme: 'striped',
-                headStyles: { fillColor: [30, 41, 59] },
+                head: [["Data", "Colaborador", "Hora da Chegada", "Status do Horário"]],
+                body: historico.map(item => [ item.data, item.tecnico, item.horaChegada, item.atrasado ? "ATRASADO" : "NO HORÁRIO" ]),
+                startY: 45, theme: 'striped', headStyles: { fillColor: [30, 41, 59] },
                 didParseCell: function(data) {
-                    if (data.column.index === 3 && data.cell.raw === "ATRASADO") {
-                        data.cell.styles.textColor = [239, 68, 68]; 
-                        data.cell.styles.fontStyle = 'bold';
-                    } else if (data.column.index === 3 && data.cell.raw === "NO HORÁRIO") {
-                        data.cell.styles.textColor = [16, 185, 129]; 
-                    }
+                    if (data.column.index === 3 && data.cell.raw === "ATRASADO") { data.cell.styles.textColor = [239, 68, 68]; data.cell.styles.fontStyle = 'bold'; } 
+                    else if (data.column.index === 3 && data.cell.raw === "NO HORÁRIO") { data.cell.styles.textColor = [16, 185, 129]; }
                 }
             });
-
             doc.save(`Frequencia_${tecnicoSel.replace(/\s+/g, '_')}_${p[1]}_${p[0]}.pdf`);
-
         } catch (e) { alert("Erro ao gerar PDF."); }
     }
 </script>
