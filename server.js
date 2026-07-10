@@ -345,6 +345,107 @@ async function iniciarSistema() {
       });
     }, 14 * 60 * 1000); 
 
+    // ==========================================
+// FASE 5: SISTEMA DE FILA E PONTO (TOTEM)
+// ==========================================
+
+// 1. Configurações de Horário da Base
+app.get('/api/config-base', autenticarToken, async (req, res) => {
+    try {
+        let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
+        if (!config) config = { limiteAtraso: "08:00" };
+        res.json(config);
+    } catch(e) { res.status(500).json({erro: "Erro ao buscar config"}); }
+});
+
+app.post('/api/config-base', autenticarToken, async (req, res) => {
+    try {
+        const { limiteAtraso } = req.body;
+        await db.collection("configuracoes").updateOne(
+            { cliente_id: req.usuario.cliente_id },
+            { $set: { limiteAtraso } },
+            { upsert: true }
+        );
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao salvar config"}); }
+});
+
+// 2. Registrar Entrada via Código de Barras (Totem)
+app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
+    try {
+        const { codigoBarras, horaBatida, dataBatida } = req.body;
+        
+        // O código de barras será o Nome do Técnico Exato
+        const tecnico = await db.collection("tecnicos").findOne({ 
+            nome: new RegExp(`^${codigoBarras}$`, 'i'), 
+            cliente_id: req.usuario.cliente_id 
+        });
+
+        if (!tecnico) return res.status(404).json({ erro: "Crachá não reconhecido!" });
+
+        // Verifica o limite de atraso da empresa logada
+        let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
+        const limite = config && config.limiteAtraso ? config.limiteAtraso : "08:00";
+        
+        // Se a hora que bateu for maior que o limite, está atrasado
+        let atrasado = horaBatida > limite;
+        
+        const registro = {
+            cliente_id: req.usuario.cliente_id,
+            tecnico: tecnico.nome,
+            data: dataBatida, 
+            horaChegada: horaBatida,
+            status: "Aguardando", // Aguardando, Atendido, Finalizado
+            atrasado: atrasado,
+            timestamp: new Date()
+        };
+
+        await db.collection("fila_ponto").insertOne(registro);
+        res.json({ ok: true, tecnico: tecnico.nome, atrasado });
+    } catch(e) { res.status(500).json({erro: "Erro no servidor."}); }
+});
+
+// 3. Listar Fila do Dia ao Vivo (Gestor)
+app.get('/api/fila/hoje', autenticarToken, async (req, res) => {
+    try {
+        const dataHoje = req.query.data;
+        const fila = await db.collection("fila_ponto").find({ 
+            cliente_id: req.usuario.cliente_id,
+            data: dataHoje,
+            status: { $ne: "Finalizado" } // Oculta quem já foi despachado para a rua
+        }).sort({ timestamp: 1 }).toArray();
+        res.json(fila);
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+// 4. Relatório Mensal de Ponto (Para o PDF)
+app.get('/api/fila/relatorio', autenticarToken, async (req, res) => {
+    try {
+        const { mesAno, tecnico } = req.query; // ex: 07/2026
+        let filtro = { 
+            cliente_id: req.usuario.cliente_id,
+            data: new RegExp(`/${mesAno}$`) // Filtra por tudo que termina com o mes/ano escolhido
+        };
+        if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico;
+
+        const historico = await db.collection("fila_ponto").find(filtro).sort({ timestamp: 1 }).toArray();
+        res.json(historico);
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+// 5. Mudar Status na Fila (Aguardando -> Atendido -> Finalizado)
+const { ObjectId } = require('mongodb');
+app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
+    try {
+        const { status } = req.body;
+        await db.collection("fila_ponto").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
+            { $set: { status } }
+        );
+        res.json({ok: true});
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
     app.listen(PORT, () => console.log(`🚀 Motor SaaS NERI 2.0 a correr na porta ${PORT}`));
   } catch (err) { console.error("❌ Erro:", err); process.exit(1); }
 }
