@@ -199,19 +199,29 @@
     }
 
     async function buscarPlanejamento() {
-        const dataBusca = document.getElementById('dataFiltro').value;
-        if (!dataBusca) return alert("Selecione uma data.");
+        const dataRaw = document.getElementById('dataFiltro').value;
+        if (!dataRaw) return alert("Selecione uma data.");
 
         const btn = document.querySelector('.btn-buscar');
         btn.innerText = "Buscando...";
         
         try {
-            const res = await fetch(`/api/rotas?data=${dataBusca}`, {
-                headers: { "Authorization": `Bearer ${token}` }
-            });
-            rotasAtuais = await res.json();
+            // Converte YYYY-MM-DD para DD/MM/YYYY
+            const dataInvertida = dataRaw.split('-').reverse().join('/');
             
-            document.getElementById('badgeMonitorando').innerText = `Monitorando: ${dataBusca.split('-').reverse().join('/')}`;
+            // Tenta primeiro buscar o formato YYYY-MM-DD
+            let res = await fetch(`/api/rotas?data=${dataRaw}`, { headers: { "Authorization": `Bearer ${token}` } });
+            let rotas = await res.json();
+            
+            // SE O BANCO ANTIGO SALVOU COMO DD/MM/YYYY, o sistema tenta novamente para recuperar os dados!
+            if (rotas.length === 0) {
+                res = await fetch(`/api/rotas?data=${encodeURIComponent(dataInvertida)}`, { headers: { "Authorization": `Bearer ${token}` } });
+                rotas = await res.json();
+            }
+
+            rotasAtuais = rotas;
+            
+            document.getElementById('badgeMonitorando').innerText = `Monitorando: ${dataInvertida}`;
             renderizarListaEquipe();
             
             // Limpa o mapa ao fazer uma nova busca
@@ -325,7 +335,7 @@
             listaHtml += `
                 <div class="paragem-item ${classeCor}">
                     <div class="paragem-header">
-                        <span class="paragem-num">${num}º Paragem</span>
+                        <span class="paragem-num">${num}º Parada</span>
                         <span class="paragem-cod">OS: ${item.codigo}</span>
                     </div>
                     <div class="paragem-end">${item.endereco}</div>
@@ -341,7 +351,7 @@
                 if(!isNaN(lat) && !isNaN(lng)) {
                     pontosValidosParaLinha.push([lat, lng]); // Guarda a coordenada para traçar a linha depois
                     
-                    // Cria Marcador Individual (com número)
+                    // Cria Marcador Individual (com número e cor)
                     L.marker([lat, lng], { icon: obterIconeMarcador(item.status, num) })
                      .bindPopup(`<b>OS: ${item.codigo}</b><br>${item.endereco}<br>Status: ${item.status || 'Pendente'}`)
                      .addTo(markersLayer);
@@ -365,7 +375,6 @@
         if (pontosValidosParaLinha.length > 0) {
             map.fitBounds(markersLayer.getBounds(), { padding: [50, 50] });
         } else {
-            // Se não desenhou nada, avisa
             alert(`Atenção: A rota de ${nomeTecnico} existe, mas não possui pontos de GPS válidos salvos no sistema para desenhar no mapa.`);
         }
     }

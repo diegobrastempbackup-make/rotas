@@ -111,8 +111,8 @@
         document.getElementById("alertaChamada").style.display = "flex";
 
         // 3. A Voz Sintética chama o nome
-        const nomeCurto = pessoa.tecnico.split(' ')[0];
-        let fala = new SpeechSynthesisUtterance(`Atenção, ${nomeCurto}. ${nomeCurto}, comparecer ao balcão de atendimento.`);
+       // 3. A Voz Sintética chama o nome completo
+        let fala = new SpeechSynthesisUtterance(`Atenção. O colaborador, ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`);
         fala.lang = 'pt-BR';
         fala.rate = 0.85; // Fala de forma pausada e clara
         sinteseVoz.speak(fala);
