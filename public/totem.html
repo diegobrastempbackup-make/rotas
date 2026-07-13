@@ -6,12 +6,10 @@
     <style>
         body { margin: 0; height: 100vh; background: #0F172A; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
         
-        /* TELA DE INICIALIZAÇÃO (Desbloqueio de Áudio) */
         #telaInicio { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1E293B; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.5s; }
         .btn-pulsa { background: #3B82F6; color: white; padding: 20px 40px; font-size: 24px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; animation: pulsar 2s infinite; }
         @keyframes pulsar { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(59, 130, 246, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
 
-        /* TELA DE ALERTA PISCANDO (CHAMADA) */
         #alertaChamada { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 999; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         @keyframes piscarTexto { 0%, 100% { opacity: 1; color: #F59E0B; } 50% { opacity: 0; color: #EF4444; } }
         .texto-atencao { font-size: 60px; font-weight: 900; letter-spacing: 5px; animation: piscarTexto 1s infinite; margin-bottom: 20px; }
@@ -84,15 +82,15 @@
     }
 
     // ==========================================
-    // MÁQUINA DE FILA INTELIGENTE E ANTI-LOOP (BLINDADA)
+    // MÁQUINA DE ÁUDIO CORRIGIDA
     // ==========================================
-    
-    let chamadasProcessadas = new Set(); 
-    let filaDeEsperaAudio = []; 
-    let primeiraBusca = true; 
+    let primeiraBusca = true;
     let alertaTocando = false; 
 
     async function escutarServidor() {
+        // Se a TV já estiver a falar, ignora o servidor para não atropelar o áudio
+        if (alertaTocando) return;
+
         try {
             const res = await fetch('/api/totem/chamadas', { 
                 headers: { 'Authorization': `Bearer ${token}` },
@@ -100,49 +98,24 @@
             });
             const chamadasPendentes = await res.json();
 
-            // Ignora tudo na hora que liga a TV para não dar susto com nomes antigos
+            // O Caça-Fantasmas: Quando liga a TV, limpa o servidor silenciosamente
             if (primeiraBusca) {
-                chamadasPendentes.forEach(p => chamadasProcessadas.add(p._id || p.tecnico));
+                chamadasPendentes.forEach(c => {
+                    const idParaApagar = c._id || c.id;
+                    if(idParaApagar) {
+                        fetch(`/api/totem/chamadas/${idParaApagar}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                    }
+                });
                 primeiraBusca = false;
                 return;
             }
 
-            // Procura novidades na fila
-            chamadasPendentes.forEach(pessoa => {
-                
-                // 1. O BLOQUEIO DO BOTÃO LIBERAR
-                // Se a palavra "atendido" ou "liberado" estiver no status dele, a TV fica muda!
-                const dadosTexto = JSON.stringify(pessoa).toLowerCase();
-                if (dadosTexto.includes("atendido") || dadosTexto.includes("liberado")) {
-                    return; 
-                }
-
-                const idUnico = pessoa._id || pessoa.tecnico;
-                
-                if (!chamadasProcessadas.has(idUnico)) {
-                    chamadasProcessadas.add(idUnico);
-                    filaDeEsperaAudio.push(pessoa);
-
-                    // 2. A CORREÇÃO DO "CHAMAR NOVAMENTE" E AUTO-LEMBRETE
-                    // Após 30 segundos, a TV "esquece" que chamou o técnico.
-                    // Isso permite que você clique em "Chamar Totem" de novo.
-                    // Se ele não for liberado, a TV o chamará automaticamente a cada 30 segundos!
-                    setTimeout(() => {
-                        chamadasProcessadas.delete(idUnico);
-                    }, 30000); // 30 segundos
-                }
-            });
-
-            processarFila();
+            // Se há alguém na fila de áudio, chama a primeira pessoa
+            if (chamadasPendentes.length > 0) {
+                tocarAlerta(chamadasPendentes[0]);
+            }
 
         } catch (e) {}
-    }
-
-    // Processa a fila um por um sem atropelar os áudios
-    function processarFila() {
-        if (alertaTocando || filaDeEsperaAudio.length === 0) return;
-        const pessoaDaVez = filaDeEsperaAudio.shift();
-        tocarAlerta(pessoaDaVez);
     }
 
     function tocarAlerta(pessoa) {
@@ -163,7 +136,7 @@
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // Prepara o Som (Ding-Dong)
+        // Prepara o Som (Mantenha o seu toque.mp3 na pasta public)
         let toque = new Audio('toque.mp3');
         toque.volume = 0.8;
 
@@ -174,13 +147,22 @@
         toque.onended = () => { speechSynthesis.speak(fala2); };
         toque.onerror = () => { speechSynthesis.speak(fala2); }; 
 
-        // O GRANDE FINAL
-        fala2.onend = () => {
+        // O GRANDE FINAL (Avisa que terminou e destranca a porta)
+        fala2.onend = async () => {
             telaAlerta.style.display = 'none'; // Some o aviso visual
-            alertaTocando = false; // Abre a porta de áudio
             
-            // Procura se tem mais alguém na fila de espera (1 segundo depois)
-            setTimeout(processarFila, 1000); 
+            try {
+                const idParaApagar = pessoa._id || pessoa.id;
+                if(idParaApagar) {
+                    // Manda o AVISO de conclusão ao servidor. Isso limpa a fila de áudio!
+                    await fetch(`/api/totem/chamadas/${idParaApagar}`, { 
+                        method: 'DELETE', 
+                        headers: { 'Authorization': `Bearer ${token}` } 
+                    });
+                }
+            } catch(e) {}
+
+            alertaTocando = false; // Destranca a porta para a próxima chamada
         };
 
         speechSynthesis.speak(fala1);
