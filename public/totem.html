@@ -86,42 +86,59 @@
     }
 
     // ==========================================
-    // O NOVO SISTEMA DE FILA INTELIGENTE E ANTI-FANTASMAS
+    // O NOVO SISTEMA DE FILA INTELIGENTE (COM "ESQUECIMENTO")
     // ==========================================
     
-    let chamadasProcessadas = new Set(); // Guarda quem já foi chamado
-    let filaDeEsperaAudio = []; // Fila para não atropelar os áudios
-    let primeiraBusca = true; // Flag para ignorar dados antigos ao ligar o Totem
-    let alertaTocando = false; // Cadeado do áudio
+    let chamadasProcessadas = new Set(); // O Caderninho de quem foi chamado
+    let filaDeEsperaAudio = []; 
+    let primeiraBusca = true; 
+    let alertaTocando = false; 
 
     async function escutarServidor() {
         try {
-            // O cache: 'no-store' força o navegador a não puxar dados velhos da memória
             const res = await fetch('/api/totem/chamadas', { 
                 headers: { 'Authorization': `Bearer ${token}` },
                 cache: 'no-store' 
             });
             const chamadasPendentes = await res.json();
 
-            // 1. FILTRO ANTI-FANTASMA: Na hora que liga a TV, ignora quem já estava na lista
+            // Mapeia quem está AGORA na fila do servidor
+            const idsAtuaisNaFila = new Set();
+            chamadasPendentes.forEach(c => idsAtuaisNaFila.add(c._id || c.tecnico));
+
+            // LIMPEZA DE MEMÓRIA: Se a pessoa não está mais na fila do servidor, apaga do caderninho!
+            // Isso permite chamar a mesma pessoa 100 vezes no dia se quiser.
+            for (let idSalvo of chamadasProcessadas) {
+                if (!idsAtuaisNaFila.has(idSalvo)) {
+                    chamadasProcessadas.delete(idSalvo);
+                }
+            }
+
+            // O Caça-Fantasmas: Na primeira vez que liga a TV, limpa os chamados presos no servidor
             if (primeiraBusca) {
-                chamadasPendentes.forEach(c => chamadasProcessadas.add(c._id || c.tecnico));
+                idsAtuaisNaFila.forEach(id => chamadasProcessadas.add(id));
                 primeiraBusca = false;
+                
+                chamadasPendentes.forEach(c => {
+                    const idParaApagar = c._id || c.id;
+                    if(idParaApagar) {
+                        fetch(`/api/totem/chamadas/${idParaApagar}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                    }
+                });
                 return;
             }
 
-            // 2. Procura novas chamadas que ainda não foram tocadas
+            // Procura novas chamadas que acabaram de chegar
             chamadasPendentes.forEach(pessoa => {
                 const idUnico = pessoa._id || pessoa.tecnico;
                 
                 if (!chamadasProcessadas.has(idUnico)) {
-                    // Coloca na lista de já vistos e joga na fila de áudio
                     chamadasProcessadas.add(idUnico);
                     filaDeEsperaAudio.push(pessoa);
                 }
             });
 
-            // 3. Tenta processar a fila de áudio
+            // Tenta processar a fila de áudio
             processarFila();
 
         } catch (e) {}
@@ -148,31 +165,30 @@
         telaAlerta.style.display = 'flex'; 
 
         // Prepara as Vozes
-        const texto = `Atenção., ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
+        const texto = `Atenção. , ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
         
         let fala1 = new SpeechSynthesisUtterance(texto);
         let fala2 = new SpeechSynthesisUtterance(texto);
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // Prepara o Som
+        // Prepara o Som (Mantenha o seu toque.mp3 na pasta public)
         let toque = new Audio('toque.mp3');
         toque.volume = 0.8;
 
-        // Limpa a garganta do navegador
         window.speechSynthesis.cancel();
 
         // ORDEM: Fala 1 -> Toca o Sino -> Fala 2
         fala1.onend = () => { toque.play(); };
         toque.onended = () => { speechSynthesis.speak(fala2); };
-        toque.onerror = () => { speechSynthesis.speak(fala2); }; // Prevenção de erro
+        toque.onerror = () => { speechSynthesis.speak(fala2); }; // Prevenção de erro do navegador
 
         // O GRANDE FINAL
         fala2.onend = () => {
             telaAlerta.style.display = 'none'; // Some o aviso visual
             alertaTocando = false; // Abre a porta!
             
-            // Tenta apagar do banco de dados (Apenas limpeza de rotina)
+            // Apaga imediatamente do servidor para a memória do Totem saber que ele já foi atendido
             try {
                 const idParaApagar = pessoa._id || pessoa.id;
                 if(idParaApagar) {
@@ -180,7 +196,7 @@
                 }
             } catch(e) {}
 
-            // Procura se tem mais alguém na fila de espera esperando a sua vez (1 segundo depois)
+            // Procura se tem mais alguém na fila de espera (1 segundo depois)
             setTimeout(processarFila, 1000); 
         };
 
