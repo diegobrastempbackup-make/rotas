@@ -45,60 +45,52 @@
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
     const sinteseVoz = window.speechSynthesis;
-    let audioLiberado = false;
+    let alertaTocando = false; 
 
     function iniciarTotem() {
         document.getElementById("telaInicio").style.display = "none";
-        audioLiberado = true;
         sinteseVoz.speak(new SpeechSynthesisUtterance("")); 
         try { document.documentElement.requestFullscreen(); } catch(e){} 
         focarLeitor();
-        setInterval(escutarServidor, 2000);
+        // TV checa a base a cada 2.5 segundos
+        setInterval(escutarServidor, 2500);
     }
 
     // ==========================================
-    // MEMÓRIA FOTOGRÁFICA (BLINDADA CONTRA O BOTÃO LIBERAR/LIMPAR)
+    // NOVA INTELIGÊNCIA: SISTEMA DE GATILHO DIRETO (SEM LOOPS)
     // ==========================================
-    let assinaturasTocadas = new Set();
-    let primeiraBusca = true;
-    let alertaTocando = false; 
-
     async function escutarServidor() {
-        if (alertaTocando) return;
+        if (alertaTocando) return; // Se está falando, espera.
 
         try {
-            const res = await fetch('/api/totem/chamadas', { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
+            const dataHoje = new Date().toLocaleDateString('pt-BR');
+            const res = await fetch(`/api/fila/hoje?data=${encodeURIComponent(dataHoje)}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
             const chamadas = await res.json();
 
-            if (primeiraBusca) {
-                chamadas.forEach(p => assinaturasTocadas.add(JSON.stringify(p)));
-                primeiraBusca = false;
-                return;
-            }
+            // A TV procura ativamente por qualquer pessoa que tenha o status 'Chamando'
+            const pendentes = chamadas.filter(c => c.status === 'Chamando');
 
-            for (let pessoa of chamadas) {
-                // A BARREIRA DE PROTEÇÃO:
-                // Se a pessoa acabou de ser Liberada ou a tela foi Limpa, a TV fica muda!
-                const statusTexto = (pessoa.status || "").toUpperCase();
-                if (statusTexto === "LIBERADO" || statusTexto === "FINALIZADO") {
-                    assinaturasTocadas.add(JSON.stringify(pessoa)); // Salva a foto para não ficar conferindo de novo
-                    continue; // Pula para o próximo
+            if (pendentes.length > 0) {
+                const pessoaDaVez = pendentes[0];
+                const idRegistro = pessoaDaVez._id || pessoaDaVez.id;
+
+                alertaTocando = true; // Tranca o áudio
+
+                // IMEDIATAMENTE devolve o status para 'Aguardando' lá no servidor.
+                // Isso garante 100% que ela não vai entrar em loop e repetir a chamada depois!
+                if(idRegistro) {
+                    await fetch(`/api/fila/${idRegistro}/status`, { 
+                        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                        body: JSON.stringify({ status: 'Aguardando' }) 
+                    });
                 }
 
-                const assinaturaUnica = JSON.stringify(pessoa);
-
-                if (!assinaturasTocadas.has(assinaturaUnica)) {
-                    assinaturasTocadas.add(assinaturaUnica);
-                    tocarAlerta(pessoa);
-                    return; // Toca e pausa o resto até terminar de falar
-                }
+                tocarAlerta(pessoaDaVez);
             }
         } catch (e) {}
     }
 
     function tocarAlerta(pessoa) {
-        alertaTocando = true;
-
         const telaAlerta = document.getElementById('alertaChamada');
         document.getElementById('nomeChamado').innerText = pessoa.tecnico;
         telaAlerta.style.display = 'flex'; 
@@ -118,6 +110,7 @@
 
         fala2.onend = () => {
             telaAlerta.style.display = 'none'; 
+            // Destranca o áudio após terminar
             setTimeout(() => { alertaTocando = false; }, 1000); 
         };
 

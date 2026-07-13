@@ -24,12 +24,11 @@
         
         .botoes-acao { display: flex; gap: 10px; margin-top: 10px; }
         .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center;}
-        
+        .btn-finalizar:hover { background: #059669; }
+
         .painel-controles { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
         .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
 </head>
 <body>
@@ -52,7 +51,8 @@
             <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
             <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem e chame no microfone.</p>
         </div>
-        <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">🧹 Limpar Tela (Finalizar Todos)</button>
+        <!-- BOTÃO DE LIMPAR TELA -->
+        <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">🧹 Limpar Tela (Finalizar Todos)</button>
     </div>
 
     <div class="abas-nav" style="margin-top: 15px;">
@@ -100,7 +100,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
         await carregarListaTecnicosParaFiltro();
         atualizarFila();
-        setInterval(atualizarFila, 4000); 
+        setInterval(atualizarFila, 3000); 
     });
 
     async function carregarListaTecnicosParaFiltro() {
@@ -146,7 +146,7 @@
         
         container.innerHTML = "";
         
-        // Remove os Finalizados para limpar a tela
+        // Remove os "Finalizados" para limpar a tela
         const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
         
         if (filaVisivel.length === 0) { 
@@ -158,9 +158,9 @@
         document.getElementById("msgFilaVazia").style.display = "none";
         selectChamada.innerHTML = '';
 
-        // Preenche Cascata
+        // Preenche a Cascata do Microfone (Apenas quem não foi liberado)
         const tecnicosNaBase = filaVisivel.filter(item => item.status !== "Liberado");
-        tecnicosNaBase.sort((a, b) => a.tecnico.localeCompare(b.tecnico));
+        tecnicosNaBase.sort((a, b) => a.tecnico.localeCompare(b.tecnico)); // Ordem Alfabética
         
         if(tecnicosNaBase.length === 0) {
             selectChamada.innerHTML = '<option value="">Todos já foram liberados!</option>';
@@ -171,7 +171,7 @@
             });
         }
 
-        // Desenha Cards
+        // Desenha os Cards de Controle
         filaVisivel.forEach((item, index) => {
             let isAtendido = item.status === "Liberado";
             let corBorda = item.atrasado ? "#EF4444" : (isAtendido ? "#10B981" : "#3B82F6"); 
@@ -179,6 +179,11 @@
             
             let statusCor = isAtendido ? "#10B981" : "#94A3B8"; 
             let statusTexto = isAtendido ? "✅ Liberado p/ Rua" : "Aguardando Despacho";
+            if (item.status === "Chamando") {
+                statusTexto = "🗣️ Sendo Chamado...";
+                statusCor = "#F59E0B";
+                corBorda = "#F59E0B";
+            }
             
             let opacity = isAtendido ? "0.5" : "1";
             let pointerEvents = isAtendido ? "display: none;" : "";
@@ -201,12 +206,18 @@
         });
     }
 
+    // A MÁGICA DO BOTÃO CHAMAR: Ele apenas muda o status para "Chamando"
     async function chamarPelaLista() {
         const idRegistro = document.getElementById("listaCascataChamada").value;
         if (!idRegistro) return alert("Selecione um técnico!");
         
         try {
-            await fetch(`/api/fila/${idRegistro}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: 'Aguardando' }) });
+            // Manda a ordem de status 'Chamando' para a TV captar
+            await fetch(`/api/fila/${idRegistro}/status`, { 
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                body: JSON.stringify({ status: 'Chamando' }) 
+            });
+            // Mantém a chamada original só por garantia pro seu banco de dados
             await fetch(`/api/fila/${idRegistro}/chamar-totem`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } });
             
             const btn = document.querySelector("button[onclick='chamarPelaLista()']");
@@ -223,9 +234,9 @@
         } catch(e) {}
     }
 
-    // NOVA FUNÇÃO: Limpar toda a tela de uma vez!
+    // O BOTÃO DE LIMPEZA GERAL
     async function limparTodaFila() {
-        if (!confirm("Tem certeza que deseja limpar todos os cards da tela? Eles serão marcados como finalizados e ocultados.")) return;
+        if (!confirm("Tem certeza? Isso vai limpar todos os cards da tela e marcá--los como Finalizados no sistema.")) return;
         
         const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
         for(let item of filaVisivel) {
@@ -234,7 +245,6 @@
                 body: JSON.stringify({ status: 'Finalizado' })
             });
         }
-        alert("Tela limpa com sucesso!");
         atualizarFila();
     }
 </script>
