@@ -84,7 +84,7 @@
     }
 
     // ==========================================
-    // A MÁQUINA DE FILA INTELIGENTE E ANTI-LOOP
+    // MÁQUINA DE FILA CORRIGIDA (SEM ERRO DE "LIBERAR")
     // ==========================================
     
     let chamadasProcessadas = new Set(); 
@@ -102,30 +102,30 @@
 
             const assinaturasAtuais = new Set();
 
-            chamadasPendentes.forEach((pessoa, index) => {
-                // A mágica: juntamos a posição na fila com os dados da pessoa!
-                // Se você clicar "Chamar" no painel e o servidor atualizar ou adicionar, a assinatura muda!
-                const assinatura = `${index}-${JSON.stringify(pessoa)}`;
+            chamadasPendentes.forEach(pessoa => {
+                // A CORREÇÃO: Removemos a posição da fila daqui!
+                // Agora o Totem só se importa com a alteração dos dados da pessoa
+                const assinatura = JSON.stringify(pessoa);
                 assinaturasAtuais.add(assinatura);
             });
 
-            // LIMPEZA: Se você clicar em "Liberar" no painel, apagamos da memória do Totem
+            // LIMPEZA: Remove da memória assinaturas que já não existem no servidor
             for (let assinaturaSalva of chamadasProcessadas) {
                 if (!assinaturasAtuais.has(assinaturaSalva)) {
                     chamadasProcessadas.delete(assinaturaSalva);
                 }
             }
 
-            // O Caça-Fantasmas: Ao abrir o Totem, ignora quem já estava na tela para não dar susto
+            // Ignora a fila na hora que liga a TV (Caça-Fantasmas)
             if (primeiraBusca) {
                 assinaturasAtuais.forEach(a => chamadasProcessadas.add(a));
                 primeiraBusca = false;
                 return;
             }
 
-            // Procura novidades: Alguém que foi chamado agora ou atualizado no painel
-            chamadasPendentes.forEach((pessoa, index) => {
-                const assinatura = `${index}-${JSON.stringify(pessoa)}`;
+            // Procura novidades (Novos técnicos ou botão "Chamar Totem" que alterou o banco)
+            chamadasPendentes.forEach(pessoa => {
+                const assinatura = JSON.stringify(pessoa);
                 if (!chamadasProcessadas.has(assinatura)) {
                     chamadasProcessadas.add(assinatura);
                     filaDeEsperaAudio.push(pessoa);
@@ -137,7 +137,7 @@
         } catch (e) {}
     }
 
-    // Processa a fila um por um sem atropelar os áudios
+    // Processa a fila um por um sem atropelar
     function processarFila() {
         if (alertaTocando || filaDeEsperaAudio.length === 0) return;
         const pessoaDaVez = filaDeEsperaAudio.shift();
@@ -171,18 +171,17 @@
         // ORDEM: Fala 1 -> Toca o Sino -> Fala 2
         fala1.onend = () => { toque.play(); };
         toque.onended = () => { speechSynthesis.speak(fala2); };
-        toque.onerror = () => { speechSynthesis.speak(fala2); }; // Prevenção de erro
+        toque.onerror = () => { speechSynthesis.speak(fala2); }; 
 
         // O GRANDE FINAL
         fala2.onend = () => {
             telaAlerta.style.display = 'none'; // Some o aviso visual
-            alertaTocando = false; // Abre a porta!
+            alertaTocando = false; // Abre a porta de áudio
             
             // Procura se tem mais alguém na fila de espera (1 segundo depois)
             setTimeout(processarFila, 1000); 
         };
 
-        // Dá o play inicial!
         speechSynthesis.speak(fala1);
     }
 
