@@ -55,7 +55,7 @@
     if (!token) window.location.replace("/login.html");
     const sinteseVoz = window.speechSynthesis;
     let audioLiberado = false;
-    let verificacaoAtiva = false;
+    let alertaTocando = false; 
 
     function sair() {
         if (confirm("Deseja encerrar o sistema do Totem?")) {
@@ -74,20 +74,15 @@
         
         focarLeitor();
         
-        if(!verificacaoAtiva) {
-            setInterval(escutarServidor, 2500);
-            verificacaoAtiva = true;
-        }
+        // A cada 2 segundos, a TV olha para o servidor
+        setInterval(escutarServidor, 2000);
     }
 
     // ==========================================
-    // INTELIGÊNCIA BLINDADA DA FILA
+    // TV SIMPLIFICADA (SEM MEMÓRIA, SEM LOOPS)
     // ==========================================
-    let chamadasJaFeitas = new Set(); 
-    let primeiraVezLigando = true; 
-    let alertaTocando = false; 
-
     async function escutarServidor() {
+        // Se já está a falar, não faz nada para não atropelar o áudio
         if (alertaTocando) return;
 
         try {
@@ -97,41 +92,16 @@
             });
             const chamadasPendentes = await res.json();
 
-            // 1. CAÇA-FANTASMAS (Liga e anota todos os antigos em silêncio)
-            if (primeiraVezLigando) {
-                chamadasPendentes.forEach(p => chamadasJaFeitas.add(p._id || p.id));
-                primeiraVezLigando = false;
-                return; 
-            }
-
-            // 2. LIMPEZA DA MEMÓRIA
-            // Se alguém sumiu da fila (porque você clicou em "Liberar" no painel),
-            // a TV o apaga da memória. Isso permite chamá-lo novamente no futuro.
-            const idsAtuaisNaFila = new Set(chamadasPendentes.map(p => p._id || p.id));
-            for (let idSalvo of chamadasJaFeitas) {
-                if (!idsAtuaisNaFila.has(idSalvo)) {
-                    chamadasJaFeitas.delete(idSalvo);
-                }
-            }
-
-            // 3. PROCURA QUEM AINDA NÃO FOI CHAMADO
-            const pessoaDaVez = chamadasPendentes.find(p => {
-                const idUnico = p._id || p.id;
-                return !chamadasJaFeitas.has(idUnico);
-            });
-
-            if (pessoaDaVez) {
-                tocarAlerta(pessoaDaVez);
+            // Se o servidor tem chamadas para fazer, chama apenas o primeiro da fila
+            if (chamadasPendentes.length > 0) {
+                tocarAlerta(chamadasPendentes[0]);
             }
 
         } catch (e) {}
     }
 
     function tocarAlerta(pessoa) {
-        alertaTocando = true; // Tranca a porta do áudio
-
-        // Já anota no caderninho antes mesmo de falar para garantir que não haja loop
-        chamadasJaFeitas.add(pessoa._id || pessoa.id);
+        alertaTocando = true; // Fecha a porta do áudio
 
         const telaAlerta = document.getElementById('alertaChamada');
         const nomeAlerta = document.getElementById('nomeChamado');
@@ -145,7 +115,6 @@
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // Lembre-se do seu arquivo toque.mp3 na pasta public
         let toque = new Audio('toque.mp3');
         toque.volume = 0.8;
 
@@ -155,13 +124,23 @@
         toque.onended = () => { speechSynthesis.speak(fala2); };
         toque.onerror = () => { speechSynthesis.speak(fala2); }; 
 
-        fala2.onend = () => {
-            telaAlerta.style.display = 'none'; 
+        // Quando termina de falar a segunda vez...
+        fala2.onend = async () => {
+            telaAlerta.style.display = 'none'; // Some o aviso gigante
             
-            // Dá um respiro de 1 segundo e destranca a porta do áudio
-            setTimeout(() => {
-                alertaTocando = false; 
-            }, 1000);
+            // ...apaga o nome do servidor, para não ficar repetindo
+            try {
+                const idParaApagar = pessoa._id || pessoa.id;
+                if(idParaApagar) {
+                    await fetch(`/api/totem/chamadas/${idParaApagar}`, { 
+                        method: 'DELETE', 
+                        headers: { 'Authorization': `Bearer ${token}` } 
+                    });
+                }
+            } catch(e) {}
+
+            // Abre a porta do áudio novamente
+            alertaTocando = false; 
         };
 
         speechSynthesis.speak(fala1);

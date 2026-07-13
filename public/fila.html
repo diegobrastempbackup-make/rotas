@@ -24,11 +24,12 @@
         .tec-hora { font-size: 12px; color: #94A3B8; }
         .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
         
-        .botoes-acao { display: flex; gap: 10px; margin-top: 10px; transition: 0.3s; }
-        .btn-chamar { flex: 1; background: #3B82F6; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 5px; transition: 0.2s; }
-        .btn-chamar:hover { background: #2563EB; }
-        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .botoes-acao { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 5px;}
         .btn-finalizar:hover { background: #059669; }
+
+        .painel-controles { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
+        .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -53,7 +54,7 @@
 <div class="main">
     <div>
         <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
-        <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem de chegada e gerencie os despachos do dia.</p>
+        <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem de chegada e faça chamadas independentes pelo microfone.</p>
     </div>
 
     <div class="abas-nav">
@@ -63,23 +64,39 @@
     </div>
 
     <div id="abaFila">
-        <div style="margin-top: 15px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; border: 1px dashed rgba(255,255,255,0.2);">
-            <div style="flex: 1;">
-                <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual (Sem Crachá)</label>
-                <select id="manualTecnico" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
-                    <option value="">Selecione o funcionário...</option>
-                </select>
+        
+        <div class="painel-controles">
+            <!-- BOX 1: Entrada Manual -->
+            <div class="box-controle" style="border: 1px dashed rgba(255,255,255,0.2);">
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual (Sem Crachá)</label>
+                    <select id="manualTecnico" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                        <option value="">Selecione o funcionário...</option>
+                    </select>
+                </div>
+                <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Entrada</button>
             </div>
-            <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Registrar Entrada</button>
+
+            <!-- BOX 2: MICROFONE (LISTA CASCATA) -->
+            <div class="box-controle" style="border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.05);">
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#60A5FA; display:block; margin-bottom:5px; font-weight:bold;">📢 Chamar no Totem (Microfone)</label>
+                    <select id="listaCascataChamada" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px;">
+                        <option value="">Aguardando técnicos chegarem...</option>
+                    </select>
+                </div>
+                <button onclick="chamarPelaLista()" style="padding:10px 20px; background:#3B82F6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">🗣️ Emitir Chamada</button>
+            </div>
         </div>
 
+        <!-- CARDS DE VISUALIZAÇÃO -->
         <div class="fila-grid" id="containerFila"></div>
         <div id="msgFilaVazia" style="display:none; text-align:center; padding: 40px; color: #94A3B8; background: #1E293B; border-radius: 12px; margin-top:20px;">
             Ninguém bipou o crachá ainda hoje.
         </div>
     </div>
 
-    <!-- ABAS RELATÓRIO E CONFIGURAÇÃO (Mantidas iguais) -->
+    <!-- ABAS RELATÓRIO E CONFIGURAÇÃO -->
     <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
         <h3 style="margin-top:0; color:#60A5FA;">Extrato de Frequência</h3>
         <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -200,15 +217,44 @@
 
     function desenharFila() {
         const container = document.getElementById("containerFila");
-        container.innerHTML = "";
+        const selectChamada = document.getElementById("listaCascataChamada");
         
-        if (filaAtual.length === 0) { document.getElementById("msgFilaVazia").style.display = "block"; return; }
+        // Guarda quem estava selecionado na cascata para não perder o foco
+        const valorSelecionado = selectChamada.value;
+        
+        container.innerHTML = "";
+        selectChamada.innerHTML = '<option value="">Selecione o técnico para chamar...</option>';
+        
+        if (filaAtual.length === 0) { 
+            document.getElementById("msgFilaVazia").style.display = "block"; 
+            selectChamada.innerHTML = '<option value="">Aguardando técnicos chegarem...</option>';
+            return; 
+        }
         document.getElementById("msgFilaVazia").style.display = "none";
 
+        // ==========================================
+        // PREENCHE A LISTA CASCATA (ORDEM ALFABÉTICA)
+        // ==========================================
+        // Filtra apenas quem está na base aguardando (não inclui os liberados)
+        const tecnicosNaBase = filaAtual.filter(item => item.status !== "Liberado" && item.status !== "Finalizado");
+        
+        // Ordena por nome
+        tecnicosNaBase.sort((a, b) => a.tecnico.localeCompare(b.tecnico));
+        
+        if(tecnicosNaBase.length === 0) {
+            selectChamada.innerHTML = '<option value="">Todos já foram liberados hoje!</option>';
+        } else {
+            tecnicosNaBase.forEach(item => {
+                const isSelected = item._id === valorSelecionado ? "selected" : "";
+                selectChamada.innerHTML += `<option value="${item._id}" ${isSelected}>${item.tecnico}</option>`;
+            });
+        }
+
+        // ==========================================
+        // DESENHA OS CARDS (SOMENTE PARA CONTROLE VISUAL)
+        // ==========================================
         filaAtual.forEach((item, index) => {
-            // Verifica se o técnico já foi liberado para a rua
             let isAtendido = item.status === "Liberado" || item.status === "Finalizado";
-            
             let corBorda = item.atrasado ? "#EF4444" : (isAtendido ? "#10B981" : "#3B82F6"); 
             let badgeHtml = item.atrasado ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171; margin-left:10px;">⏰ Atrasado</span>` : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399; margin-left:10px;">✅ No Horário</span>`;
             
@@ -216,7 +262,6 @@
             let statusTexto = isAtendido ? "✅ Liberado p/ Rua" : "Aguardando Despacho";
             
             let opacity = isAtendido ? "0.5" : "1";
-            // Se estiver liberado, bloqueia os cliques nos botões e esconde-os visualmente
             let pointerEvents = isAtendido ? "pointer-events: none; display: none;" : "";
 
             container.innerHTML += `
@@ -230,26 +275,37 @@
                         <div style="color: ${statusCor}; font-size:12px; font-weight:bold;">${statusTexto}</div>
                     </div>
                     <div class="botoes-acao" style="${pointerEvents}">
-                        <button class="btn-chamar" onclick="chamarAoBalcao('${item._id}')">🗣️ Chamar Totem</button>
-                        <button class="btn-finalizar" onclick="alterarStatusFila('${item._id}', 'Liberado')">✅ Liberar</button>
+                        <button class="btn-finalizar" onclick="alterarStatusFila('${item._id}', 'Liberado')">✅ Confirmar Liberação</button>
                     </div>
                 </div>
             `;
         });
     }
 
-    async function chamarAoBalcao(idRegistro) {
+    // NOVA FUNÇÃO: Chamar pela Lista Cascata
+    async function chamarPelaLista() {
+        const idRegistro = document.getElementById("listaCascataChamada").value;
+        if (!idRegistro) return alert("Selecione um técnico na lista primeiro!");
+        
         try {
-            // 1. Manda o comando para a TV falar
+            // Garante que o status volte/permaneça 'Aguardando'
+            await fetch(`/api/fila/${idRegistro}/status`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: 'Aguardando' })
+            });
+            // Envia o comando para o Totem
             await fetch(`/api/fila/${idRegistro}/chamar-totem`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
             });
             
-            // 2. FORÇA o status a continuar como "Aguardando" 
-            // (Isso impede que o banco de dados mude para 'Atendido' sozinho e faça o card bloquear prematuramente)
-            await fetch(`/api/fila/${idRegistro}/status`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: 'Aguardando' })
-            });
+            // Dá um feedback visual rápido de que a chamada foi enviada
+            const btn = document.querySelector("button[onclick='chamarPelaLista()']");
+            const textoOriginal = btn.innerHTML;
+            btn.innerHTML = "✅ Chamado!";
+            btn.style.background = "#10B981";
+            setTimeout(() => {
+                btn.innerHTML = textoOriginal;
+                btn.style.background = "#3B82F6";
+            }, 2000);
             
             atualizarFila();
         } catch(e) {}
@@ -257,7 +313,6 @@
 
     async function alterarStatusFila(idRegistro, novoStatus) {
         try {
-            // Ao clicar em Liberar, ele envia o status "Liberado", o que vai desativar o card.
             await fetch(`/api/fila/${idRegistro}/status`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: novoStatus })
             });
