@@ -70,7 +70,6 @@
         
         audioLiberado = true;
         sinteseVoz.speak(new SpeechSynthesisUtterance("")); 
-        
         try { document.documentElement.requestFullscreen(); } catch(e){} 
         
         focarLeitor();
@@ -82,13 +81,13 @@
     }
 
     // ==========================================
-    // MÁQUINA DE ÁUDIO CORRIGIDA
+    // INTELIGÊNCIA BLINDADA DA FILA
     // ==========================================
-    let primeiraBusca = true;
+    let chamadasJaFeitas = new Set(); 
+    let primeiraVezLigando = true; 
     let alertaTocando = false; 
 
     async function escutarServidor() {
-        // Se a TV já estiver a falar, ignora o servidor para não atropelar o áudio
         if (alertaTocando) return;
 
         try {
@@ -98,21 +97,31 @@
             });
             const chamadasPendentes = await res.json();
 
-            // O Caça-Fantasmas: Quando liga a TV, limpa o servidor silenciosamente
-            if (primeiraBusca) {
-                chamadasPendentes.forEach(c => {
-                    const idParaApagar = c._id || c.id;
-                    if(idParaApagar) {
-                        fetch(`/api/totem/chamadas/${idParaApagar}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                    }
-                });
-                primeiraBusca = false;
-                return;
+            // 1. CAÇA-FANTASMAS (Liga e anota todos os antigos em silêncio)
+            if (primeiraVezLigando) {
+                chamadasPendentes.forEach(p => chamadasJaFeitas.add(p._id || p.id));
+                primeiraVezLigando = false;
+                return; 
             }
 
-            // Se há alguém na fila de áudio, chama a primeira pessoa
-            if (chamadasPendentes.length > 0) {
-                tocarAlerta(chamadasPendentes[0]);
+            // 2. LIMPEZA DA MEMÓRIA
+            // Se alguém sumiu da fila (porque você clicou em "Liberar" no painel),
+            // a TV o apaga da memória. Isso permite chamá-lo novamente no futuro.
+            const idsAtuaisNaFila = new Set(chamadasPendentes.map(p => p._id || p.id));
+            for (let idSalvo of chamadasJaFeitas) {
+                if (!idsAtuaisNaFila.has(idSalvo)) {
+                    chamadasJaFeitas.delete(idSalvo);
+                }
+            }
+
+            // 3. PROCURA QUEM AINDA NÃO FOI CHAMADO
+            const pessoaDaVez = chamadasPendentes.find(p => {
+                const idUnico = p._id || p.id;
+                return !chamadasJaFeitas.has(idUnico);
+            });
+
+            if (pessoaDaVez) {
+                tocarAlerta(pessoaDaVez);
             }
 
         } catch (e) {}
@@ -121,48 +130,38 @@
     function tocarAlerta(pessoa) {
         alertaTocando = true; // Tranca a porta do áudio
 
-        // Mostra a tela gigante de Alerta
+        // Já anota no caderninho antes mesmo de falar para garantir que não haja loop
+        chamadasJaFeitas.add(pessoa._id || pessoa.id);
+
         const telaAlerta = document.getElementById('alertaChamada');
         const nomeAlerta = document.getElementById('nomeChamado');
-        
         nomeAlerta.innerText = pessoa.tecnico;
         telaAlerta.style.display = 'flex'; 
 
-        // Prepara as Vozes
-        const texto = `Atenção. O colaborador, ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
+        const texto = `Atenção. , ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
         
         let fala1 = new SpeechSynthesisUtterance(texto);
         let fala2 = new SpeechSynthesisUtterance(texto);
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // Prepara o Som (Mantenha o seu toque.mp3 na pasta public)
+        // Lembre-se do seu arquivo toque.mp3 na pasta public
         let toque = new Audio('toque.mp3');
         toque.volume = 0.8;
 
         window.speechSynthesis.cancel();
 
-        // ORDEM: Fala 1 -> Toca o Sino -> Fala 2
         fala1.onend = () => { toque.play(); };
         toque.onended = () => { speechSynthesis.speak(fala2); };
         toque.onerror = () => { speechSynthesis.speak(fala2); }; 
 
-        // O GRANDE FINAL (Avisa que terminou e destranca a porta)
-        fala2.onend = async () => {
-            telaAlerta.style.display = 'none'; // Some o aviso visual
+        fala2.onend = () => {
+            telaAlerta.style.display = 'none'; 
             
-            try {
-                const idParaApagar = pessoa._id || pessoa.id;
-                if(idParaApagar) {
-                    // Manda o AVISO de conclusão ao servidor. Isso limpa a fila de áudio!
-                    await fetch(`/api/totem/chamadas/${idParaApagar}`, { 
-                        method: 'DELETE', 
-                        headers: { 'Authorization': `Bearer ${token}` } 
-                    });
-                }
-            } catch(e) {}
-
-            alertaTocando = false; // Destranca a porta para a próxima chamada
+            // Dá um respiro de 1 segundo e destranca a porta do áudio
+            setTimeout(() => {
+                alertaTocando = false; 
+            }, 1000);
         };
 
         speechSynthesis.speak(fala1);
