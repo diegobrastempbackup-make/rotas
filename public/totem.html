@@ -57,7 +57,7 @@
     }
 
     // ==========================================
-    // MEMÓRIA FOTOGRÁFICA (Zero Loops e Aceita Repetições)
+    // MEMÓRIA FOTOGRÁFICA (BLINDADA CONTRA O BOTÃO LIBERAR/LIMPAR)
     // ==========================================
     let assinaturasTocadas = new Set();
     let primeiraBusca = true;
@@ -71,22 +71,26 @@
             const chamadas = await res.json();
 
             if (primeiraBusca) {
-                // Guarda a foto exata de todos que já estão na fila, para não dar susto ao iniciar
                 chamadas.forEach(p => assinaturasTocadas.add(JSON.stringify(p)));
                 primeiraBusca = false;
                 return;
             }
 
             for (let pessoa of chamadas) {
-                // A mágica está aqui: Transforma todos os dados do técnico em um texto gigante.
-                // Quando você aperta "Emitir Chamada" no painel, o painel envia um comando de Atualização (PUT).
-                // Isso muda a data invisível (updatedAt) no banco de dados. A assinatura vai mudar! E a TV chama de novo.
+                // A BARREIRA DE PROTEÇÃO:
+                // Se a pessoa acabou de ser Liberada ou a tela foi Limpa, a TV fica muda!
+                const statusTexto = (pessoa.status || "").toUpperCase();
+                if (statusTexto === "LIBERADO" || statusTexto === "FINALIZADO") {
+                    assinaturasTocadas.add(JSON.stringify(pessoa)); // Salva a foto para não ficar conferindo de novo
+                    continue; // Pula para o próximo
+                }
+
                 const assinaturaUnica = JSON.stringify(pessoa);
 
                 if (!assinaturasTocadas.has(assinaturaUnica)) {
                     assinaturasTocadas.add(assinaturaUnica);
                     tocarAlerta(pessoa);
-                    return; // Toca apenas UM por vez e sai da função. O próximo será no próximo ciclo.
+                    return; // Toca e pausa o resto até terminar de falar
                 }
             }
         } catch (e) {}
@@ -114,7 +118,7 @@
 
         fala2.onend = () => {
             telaAlerta.style.display = 'none'; 
-            setTimeout(() => { alertaTocando = false; }, 1000); // Destranca após 1s
+            setTimeout(() => { alertaTocando = false; }, 1000); 
         };
 
         speechSynthesis.speak(fala1);
