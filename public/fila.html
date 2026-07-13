@@ -18,16 +18,16 @@
         .aba-btn:hover:not(.ativa) { background: rgba(255,255,255,0.05); color: white; }
 
         .fila-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; margin-top: 20px; }
-        .fila-card { background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .fila-card { background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s; }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
         .tec-nome { font-size: 18px; font-weight: bold; color: white; margin: 0; }
         .tec-hora { font-size: 12px; color: #94A3B8; }
         .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
         
         .botoes-acao { display: flex; gap: 10px; margin-top: 10px; }
-        .btn-chamar { flex: 1; background: #3B82F6; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 5px; }
+        .btn-chamar { flex: 1; background: #3B82F6; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 5px; transition: 0.2s; }
         .btn-chamar:hover { background: #2563EB; }
-        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;}
         .btn-finalizar:hover { background: #059669; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -53,7 +53,7 @@
 <div class="main">
     <div>
         <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
-        <p style="margin: 0; color: #94A3B8; font-size: 14px;">Gerencie a fila de chegada dos técnicos e o histórico de assiduidade.</p>
+        <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem de chegada e gerencie os despachos do dia.</p>
     </div>
 
     <div class="abas-nav">
@@ -76,11 +76,10 @@
 
         <div class="fila-grid" id="containerFila"></div>
         <div id="msgFilaVazia" style="display:none; text-align:center; padding: 40px; color: #94A3B8; background: #1E293B; border-radius: 12px; margin-top:20px;">
-            🎉 A fila está vazia. Todos já foram para a rua!
+            Ninguém bipou o crachá ainda hoje.
         </div>
     </div>
 
-    <!-- ABA 2 e 3 MANTIDAS IGUAIS (Relatório e Config) -->
     <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
         <h3 style="margin-top:0; color:#60A5FA;">Extrato de Frequência</h3>
         <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -130,7 +129,7 @@
         await carregarConfigBase();
         await carregarListaTecnicosParaFiltro();
         atualizarFila();
-        setInterval(atualizarFila, 5000); // Atualiza mais rápido (5s)
+        setInterval(atualizarFila, 5000); 
     });
 
     function mudarAba(aba) {
@@ -202,36 +201,51 @@
     function desenharFila() {
         const container = document.getElementById("containerFila");
         container.innerHTML = "";
+        
+        // Removemos o filtro de "Finalizado". Queremos ver todos de hoje!
         if (filaAtual.length === 0) { document.getElementById("msgFilaVazia").style.display = "block"; return; }
         document.getElementById("msgFilaVazia").style.display = "none";
 
         filaAtual.forEach((item, index) => {
-            let corBorda = item.atrasado ? "#EF4444" : "#64748B"; 
+            let isAtendido = item.status === "Atendido" || item.status === "Liberado";
+            
+            let corBorda = item.atrasado ? "#EF4444" : (isAtendido ? "#10B981" : "#3B82F6"); 
             let badgeHtml = item.atrasado ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171; margin-left:10px;">⏰ Atrasado</span>` : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399; margin-left:10px;">✅ No Horário</span>`;
-            let statusCor = item.status === "Atendido" ? "#3B82F6" : "#94A3B8"; 
+            
+            let statusCor = isAtendido ? "#10B981" : "#94A3B8"; 
+            let statusTexto = isAtendido ? "✅ Liberado p/ Rua" : "Aguardando Despacho";
+            
+            // Se estiver atendido, o card fica meio transparente
+            let opacity = isAtendido ? "0.6" : "1";
+            let btnChamarCor = isAtendido ? "background:#475569;" : "";
 
             container.innerHTML += `
-                <div class="fila-card" style="border-left-color: ${corBorda};">
+                <div class="fila-card" style="border-left-color: ${corBorda}; opacity: ${opacity};">
                     <div class="card-header">
                         <div>
-                            <span style="color:#60A5FA; font-size:12px; font-weight:bold;">#${index + 1} na fila</span>
+                            <span style="color:#60A5FA; font-size:12px; font-weight:bold;">Chegada #${index + 1}</span>
                             <h3 class="tec-nome">${item.tecnico}</h3>
                             <div class="tec-hora">Entrou às ${item.horaChegada} ${badgeHtml}</div>
                         </div>
-                        <div style="color: ${statusCor}; font-size:12px; font-weight:bold;">${item.status}</div>
+                        <div style="color: ${statusCor}; font-size:12px; font-weight:bold;">${statusTexto}</div>
                     </div>
                     <div class="botoes-acao">
-                        <button class="btn-chamar" onclick="chamarAoBalcao('${item._id}', '${item.tecnico.split(' ')[0]}')">🗣️ Chamar Totem</button>
-                        <button class="btn-finalizar" onclick="alterarStatusFila('${item._id}', 'Finalizado')">✅ Liberar</button>
+                        <button class="btn-chamar" style="${btnChamarCor}" onclick="chamarAoBalcao('${item._id}', '${item.tecnico.split(' ')[0]}')">🗣️ Chamar Totem</button>
+                        ${!isAtendido ? `<button class="btn-finalizar" onclick="alterarStatusFila('${item._id}', 'Atendido')">✅ Liberar</button>` : ''}
                     </div>
                 </div>
             `;
         });
     }
 
-    // A MÁGICA: Agora o seu PC apenas manda o comando para o Totem falar!
     async function chamarAoBalcao(idRegistro, nomeCurto) {
         try {
+            // Se o card estava verdinho (Atendido), nós voltamos ele para a cor normal para a TV poder falar!
+            await fetch(`/api/fila/${idRegistro}/status`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: 'Aguardando' })
+            });
+
+            // Dispara o alerta da TV
             await fetch(`/api/fila/${idRegistro}/chamar-totem`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
             });

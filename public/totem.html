@@ -84,7 +84,7 @@
     }
 
     // ==========================================
-    // MÁQUINA DE FILA CORRIGIDA (SEM ERRO DE "LIBERAR")
+    // MÁQUINA DE FILA INTELIGENTE E ANTI-LOOP (BLINDADA)
     // ==========================================
     
     let chamadasProcessadas = new Set(); 
@@ -100,35 +100,36 @@
             });
             const chamadasPendentes = await res.json();
 
-            const assinaturasAtuais = new Set();
-
-            chamadasPendentes.forEach(pessoa => {
-                // A CORREÇÃO: Removemos a posição da fila daqui!
-                // Agora o Totem só se importa com a alteração dos dados da pessoa
-                const assinatura = JSON.stringify(pessoa);
-                assinaturasAtuais.add(assinatura);
-            });
-
-            // LIMPEZA: Remove da memória assinaturas que já não existem no servidor
-            for (let assinaturaSalva of chamadasProcessadas) {
-                if (!assinaturasAtuais.has(assinaturaSalva)) {
-                    chamadasProcessadas.delete(assinaturaSalva);
-                }
-            }
-
-            // Ignora a fila na hora que liga a TV (Caça-Fantasmas)
+            // Ignora tudo na hora que liga a TV para não dar susto com nomes antigos
             if (primeiraBusca) {
-                assinaturasAtuais.forEach(a => chamadasProcessadas.add(a));
+                chamadasPendentes.forEach(p => chamadasProcessadas.add(p._id || p.tecnico));
                 primeiraBusca = false;
                 return;
             }
 
-            // Procura novidades (Novos técnicos ou botão "Chamar Totem" que alterou o banco)
+            // Procura novidades na fila
             chamadasPendentes.forEach(pessoa => {
-                const assinatura = JSON.stringify(pessoa);
-                if (!chamadasProcessadas.has(assinatura)) {
-                    chamadasProcessadas.add(assinatura);
+                
+                // 1. O BLOQUEIO DO BOTÃO LIBERAR
+                // Se a palavra "atendido" ou "liberado" estiver no status dele, a TV fica muda!
+                const dadosTexto = JSON.stringify(pessoa).toLowerCase();
+                if (dadosTexto.includes("atendido") || dadosTexto.includes("liberado")) {
+                    return; 
+                }
+
+                const idUnico = pessoa._id || pessoa.tecnico;
+                
+                if (!chamadasProcessadas.has(idUnico)) {
+                    chamadasProcessadas.add(idUnico);
                     filaDeEsperaAudio.push(pessoa);
+
+                    // 2. A CORREÇÃO DO "CHAMAR NOVAMENTE" E AUTO-LEMBRETE
+                    // Após 30 segundos, a TV "esquece" que chamou o técnico.
+                    // Isso permite que você clique em "Chamar Totem" de novo.
+                    // Se ele não for liberado, a TV o chamará automaticamente a cada 30 segundos!
+                    setTimeout(() => {
+                        chamadasProcessadas.delete(idUnico);
+                    }, 30000); // 30 segundos
                 }
             });
 
@@ -137,7 +138,7 @@
         } catch (e) {}
     }
 
-    // Processa a fila um por um sem atropelar
+    // Processa a fila um por um sem atropelar os áudios
     function processarFila() {
         if (alertaTocando || filaDeEsperaAudio.length === 0) return;
         const pessoaDaVez = filaDeEsperaAudio.shift();
@@ -155,14 +156,14 @@
         telaAlerta.style.display = 'flex'; 
 
         // Prepara as Vozes
-        const texto = `Atenção. , ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
+        const texto = `Atenção. O colaborador, ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
         
         let fala1 = new SpeechSynthesisUtterance(texto);
         let fala2 = new SpeechSynthesisUtterance(texto);
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // Prepara o Som (Mantenha o seu toque.mp3 na pasta public)
+        // Prepara o Som (Ding-Dong)
         let toque = new Audio('toque.mp3');
         toque.volume = 0.8;
 
