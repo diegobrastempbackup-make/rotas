@@ -87,6 +87,9 @@
         }
     }
 
+    // MEMÓRIA ANTI-LOOP: Lembra quem foi a última pessoa chamada
+    let ultimaChamadaMemoria = "";
+
     // O RADAR: Vai perguntar ao servidor se há chamadas
     async function escutarServidor() {
         try {
@@ -94,73 +97,83 @@
             const chamadasPendentes = await res.json();
 
             if (chamadasPendentes.length > 0) {
-                tocarAlerta(chamadasPendentes[0]); // Pega o primeiro da fila que foi chamado
+                const pessoaAtual = chamadasPendentes[0];
+                
+                // Cria uma "assinatura" da chamada (para saber se é nova)
+                const assinaturaChamada = JSON.stringify(pessoaAtual);
+
+                // Só toca se for uma chamada nova (quebra o Loop Infinito!)
+                if (assinaturaChamada !== ultimaChamadaMemoria) {
+                    ultimaChamadaMemoria = assinaturaChamada;
+                    tocarAlerta(pessoaAtual);
+                }
+            } else {
+                // Se a fila esvaziou, limpa a memória
+                ultimaChamadaMemoria = "";
             }
         } catch (e) {}
     }
 
-    // A MÁGICA VISUAL E SONORA ACONTECE AQUI
     // 1. Criamos o Cadeado do lado de fora da função
     let alertaTocando = false;
 
     function tocarAlerta(pessoa) {
-        // Se já está a tocar uma chamada, ignora e não atropela o áudio!
+        // Se já está a tocar uma chamada, ignora
         if (alertaTocando) return;
-        
-        // Tranca o cadeado
         alertaTocando = true;
 
-        // 2. Destaca o card na tela
-        const cards = document.querySelectorAll('.card-tecnico');
-        cards.forEach(card => {
-            if(card.innerText.includes(pessoa.tecnico)) {
-                card.style.transform = 'scale(1.1)';
-                card.style.backgroundColor = '#3B82F6';
-                card.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.8)';
-                
-                setTimeout(() => {
-                    card.style.transform = 'scale(1)';
-                    card.style.backgroundColor = 'rgba(30, 41, 59, 0.8)';
-                    card.style.boxShadow = 'none';
-                }, 8000);
-            }
-        });
+        // 2. MODO TV: Mostra a tela gigante de Alerta
+        const telaAlerta = document.getElementById('alertaChamada');
+        const nomeAlerta = document.getElementById('nomeChamado');
+        
+        nomeAlerta.innerText = pessoa.tecnico;
+        telaAlerta.style.display = 'flex'; // Faz a tela piscar aparecer
 
         // 3. Prepara as Vozes
-        const texto = `Atenção. , ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
+        const texto = `Atenção. O colaborador, ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
         
         let fala1 = new SpeechSynthesisUtterance(texto);
         let fala2 = new SpeechSynthesisUtterance(texto);
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // 4. Prepara o Som (Ding-Dong)
+        // 4. Prepara o Som (Ding-Dong) - Lembre-se de colocar o arquivo "toque.mp3" na pasta public!
         let toque = new Audio('toque.mp3');
         toque.volume = 0.8;
 
         // Limpa qualquer áudio que tenha ficado travado no navegador
         window.speechSynthesis.cancel();
 
-        // 5. A ORDEM DE EXECUÇÃO
-        
-        // Quando a fala 1 terminar, toca o som
+        // 5. A ORDEM DE EXECUÇÃO (O Encadeamento)
         fala1.onend = () => {
             toque.play();
         };
 
-        // Quando o som terminar, toca a fala 2
         toque.onended = () => {
             speechSynthesis.speak(fala2);
         };
 
-        // Se der algum erro de internet e o som não carregar, salta para a fala 2 na mesma
         toque.onerror = () => {
             speechSynthesis.speak(fala2);
         };
 
-        // Quando a fala 2 terminar, abre o cadeado para a próxima pessoa da fila!
+        // Quando a fala 2 terminar (O Fim de tudo)
         fala2.onend = () => {
+            // Esconde a tela gigante
+            telaAlerta.style.display = 'none';
+            // Abre o cadeado de áudio
             alertaTocando = false;
+            
+            // Tenta avisar o servidor para apagar a chamada da fila (Limpeza)
+            try {
+                const idParaApagar = pessoa._id || pessoa.id;
+                if(idParaApagar) {
+                    fetch(`/api/totem/chamadas/${idParaApagar}`, { 
+                        method: 'DELETE', 
+                        headers: { 'Authorization': `Bearer ${token}` } 
+                    });
+                }
+            } catch(e) {}
         };
 
         // Dá o play inicial!
