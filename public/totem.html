@@ -68,68 +68,86 @@
         }
     }
 
-    // Inicializa o Modo Quiosque (Áudio + Ecrã Inteiro)
     function iniciarTotem() {
         document.getElementById("telaInicio").style.opacity = "0";
         setTimeout(() => { document.getElementById("telaInicio").style.display = "none"; }, 500);
         
         audioLiberado = true;
-        sinteseVoz.speak(new SpeechSynthesisUtterance("")); // Truque para o Chrome não bloquear as próximas falas
+        sinteseVoz.speak(new SpeechSynthesisUtterance("")); 
         
-        try { document.documentElement.requestFullscreen(); } catch(e){} // Tenta forçar ecrã inteiro
+        try { document.documentElement.requestFullscreen(); } catch(e){} 
         
         focarLeitor();
         
-        // Liga o radar do Totem para procurar chamadas do servidor a cada 2.5 segundos
         if(!verificacaoAtiva) {
             setInterval(escutarServidor, 2500);
             verificacaoAtiva = true;
         }
     }
 
-    // MEMÓRIA ANTI-LOOP: Lembra quem foi a última pessoa chamada
-    let ultimaChamadaMemoria = "";
+    // ==========================================
+    // O NOVO SISTEMA DE FILA INTELIGENTE E ANTI-FANTASMAS
+    // ==========================================
+    
+    let chamadasProcessadas = new Set(); // Guarda quem já foi chamado
+    let filaDeEsperaAudio = []; // Fila para não atropelar os áudios
+    let primeiraBusca = true; // Flag para ignorar dados antigos ao ligar o Totem
+    let alertaTocando = false; // Cadeado do áudio
 
-    // O RADAR: Vai perguntar ao servidor se há chamadas
     async function escutarServidor() {
         try {
-            const res = await fetch('/api/totem/chamadas', { headers: { 'Authorization': `Bearer ${token}` } });
+            // O cache: 'no-store' força o navegador a não puxar dados velhos da memória
+            const res = await fetch('/api/totem/chamadas', { 
+                headers: { 'Authorization': `Bearer ${token}` },
+                cache: 'no-store' 
+            });
             const chamadasPendentes = await res.json();
 
-            if (chamadasPendentes.length > 0) {
-                const pessoaAtual = chamadasPendentes[0];
-                
-                // Cria uma "assinatura" da chamada (para saber se é nova)
-                const assinaturaChamada = JSON.stringify(pessoaAtual);
-
-                // Só toca se for uma chamada nova (quebra o Loop Infinito!)
-                if (assinaturaChamada !== ultimaChamadaMemoria) {
-                    ultimaChamadaMemoria = assinaturaChamada;
-                    tocarAlerta(pessoaAtual);
-                }
-            } else {
-                // Se a fila esvaziou, limpa a memória
-                ultimaChamadaMemoria = "";
+            // 1. FILTRO ANTI-FANTASMA: Na hora que liga a TV, ignora quem já estava na lista
+            if (primeiraBusca) {
+                chamadasPendentes.forEach(c => chamadasProcessadas.add(c._id || c.tecnico));
+                primeiraBusca = false;
+                return;
             }
+
+            // 2. Procura novas chamadas que ainda não foram tocadas
+            chamadasPendentes.forEach(pessoa => {
+                const idUnico = pessoa._id || pessoa.tecnico;
+                
+                if (!chamadasProcessadas.has(idUnico)) {
+                    // Coloca na lista de já vistos e joga na fila de áudio
+                    chamadasProcessadas.add(idUnico);
+                    filaDeEsperaAudio.push(pessoa);
+                }
+            });
+
+            // 3. Tenta processar a fila de áudio
+            processarFila();
+
         } catch (e) {}
     }
 
-    // 1. Criamos o Cadeado do lado de fora da função
-    let alertaTocando = false;
+    // A MÁQUINA DE FILA: Toca um de cada vez
+    function processarFila() {
+        // Se já tem um áudio a tocar ou a fila está vazia, espera.
+        if (alertaTocando || filaDeEsperaAudio.length === 0) return;
+
+        // Puxa o próximo da fila
+        const pessoaDaVez = filaDeEsperaAudio.shift();
+        tocarAlerta(pessoaDaVez);
+    }
 
     function tocarAlerta(pessoa) {
-        // Se já está a tocar uma chamada, ignora
-        if (alertaTocando) return;
-        alertaTocando = true;
+        alertaTocando = true; // Tranca a porta!
 
-        // 2. MODO TV: Mostra a tela gigante de Alerta
+        // MODO TV: Mostra a tela gigante de Alerta
         const telaAlerta = document.getElementById('alertaChamada');
         const nomeAlerta = document.getElementById('nomeChamado');
         
         nomeAlerta.innerText = pessoa.tecnico;
-        telaAlerta.style.display = 'flex'; // Faz a tela piscar aparecer
+        telaAlerta.style.display = 'flex'; 
 
-        // 3. Prepara as Vozes
+        // Prepara as Vozes
         const texto = `Atenção. O colaborador, ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
         
         let fala1 = new SpeechSynthesisUtterance(texto);
@@ -137,50 +155,42 @@
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // 4. Prepara o Som (Ding-Dong) - Lembre-se de colocar o arquivo "toque.mp3" na pasta public!
+        // Prepara o Som
         let toque = new Audio('toque.mp3');
         toque.volume = 0.8;
 
-        // Limpa qualquer áudio que tenha ficado travado no navegador
+        // Limpa a garganta do navegador
         window.speechSynthesis.cancel();
 
-        // 5. A ORDEM DE EXECUÇÃO (O Encadeamento)
-        fala1.onend = () => {
-            toque.play();
-        };
+        // ORDEM: Fala 1 -> Toca o Sino -> Fala 2
+        fala1.onend = () => { toque.play(); };
+        toque.onended = () => { speechSynthesis.speak(fala2); };
+        toque.onerror = () => { speechSynthesis.speak(fala2); }; // Prevenção de erro
 
-        toque.onended = () => {
-            speechSynthesis.speak(fala2);
-        };
-
-        toque.onerror = () => {
-            speechSynthesis.speak(fala2);
-        };
-
-        // Quando a fala 2 terminar (O Fim de tudo)
+        // O GRANDE FINAL
         fala2.onend = () => {
-            // Esconde a tela gigante
-            telaAlerta.style.display = 'none';
-            // Abre o cadeado de áudio
-            alertaTocando = false;
+            telaAlerta.style.display = 'none'; // Some o aviso visual
+            alertaTocando = false; // Abre a porta!
             
-            // Tenta avisar o servidor para apagar a chamada da fila (Limpeza)
+            // Tenta apagar do banco de dados (Apenas limpeza de rotina)
             try {
                 const idParaApagar = pessoa._id || pessoa.id;
                 if(idParaApagar) {
-                    fetch(`/api/totem/chamadas/${idParaApagar}`, { 
-                        method: 'DELETE', 
-                        headers: { 'Authorization': `Bearer ${token}` } 
-                    });
+                    fetch(`/api/totem/chamadas/${idParaApagar}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
                 }
             } catch(e) {}
+
+            // Procura se tem mais alguém na fila de espera esperando a sua vez (1 segundo depois)
+            setTimeout(processarFila, 1000); 
         };
 
         // Dá o play inicial!
         speechSynthesis.speak(fala1);
     }
 
-    // --- CÓDIGO NORMAL DO RELÓGIO E LEITOR MANTIDO ---
+    // ==========================================
+    // CÓDIGO DO RELÓGIO E LEITOR DE CRACHÁ
+    // ==========================================
     setInterval(() => {
         const agora = new Date();
         document.getElementById("relogioDisplay").innerText = agora.toLocaleTimeString('pt-BR');
