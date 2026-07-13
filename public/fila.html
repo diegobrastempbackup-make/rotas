@@ -29,8 +29,6 @@
         .painel-controles { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
         .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
 </head>
 <body>
@@ -53,7 +51,6 @@
             <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
             <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem e chame no microfone.</p>
         </div>
-        <!-- BOTÃO DE LIMPAR TELA -->
         <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">🧹 Limpar Tela (Finalizar Todos)</button>
     </div>
 
@@ -66,7 +63,7 @@
             <!-- BOX 1: Entrada Manual -->
             <div class="box-controle" style="border: 1px dashed rgba(255,255,255,0.2);">
                 <div style="flex: 1;">
-                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual (Sem Crachá)</label>
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual</label>
                     <select id="manualTecnico" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
                         <option value="">Selecione o funcionário...</option>
                     </select>
@@ -82,7 +79,7 @@
                         <option value="">Aguardando técnicos chegarem...</option>
                     </select>
                 </div>
-                <button onclick="chamarPelaLista()" style="padding:10px 20px; background:#3B82F6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">🗣️ Emitir Chamada</button>
+                <button onclick="chamarPelaLista()" id="btnEmitirChamada" style="padding:10px 20px; background:#3B82F6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; min-width: 160px; transition: 0.3s;">🗣️ Emitir Chamada</button>
             </div>
         </div>
 
@@ -101,7 +98,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
         await carregarListaTecnicosParaFiltro();
         atualizarFila();
-        setInterval(atualizarFila, 3000); 
+        setInterval(atualizarFila, 2500); 
     });
 
     async function carregarListaTecnicosParaFiltro() {
@@ -147,7 +144,6 @@
         
         container.innerHTML = "";
         
-        // Remove os 'Finalizados' da tela limpa
         const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
         
         if (filaVisivel.length === 0) { 
@@ -159,7 +155,6 @@
         document.getElementById("msgFilaVazia").style.display = "none";
         selectChamada.innerHTML = '';
 
-        // Preenche a Cascata do Microfone (Apenas quem não foi liberado) em Ordem Alfabética
         const tecnicosNaBase = filaVisivel.filter(item => item.status !== "Liberado");
         tecnicosNaBase.sort((a, b) => a.tecnico.localeCompare(b.tecnico));
         
@@ -172,7 +167,6 @@
             });
         }
 
-        // Desenha os Cards de Controle
         filaVisivel.forEach((item, index) => {
             let isAtendido = item.status === "Liberado";
             let corBorda = item.atrasado ? "#EF4444" : (isAtendido ? "#10B981" : "#3B82F6"); 
@@ -180,6 +174,13 @@
             
             let statusCor = isAtendido ? "#10B981" : "#94A3B8"; 
             let statusTexto = isAtendido ? "✅ Liberado p/ Rua" : "Aguardando Despacho";
+            
+            // Destaque visual temporário no card quando chamando
+            if (item.status === "Chamando") {
+                statusTexto = "🗣️ Chamada Emitida...";
+                statusCor = "#F59E0B";
+                corBorda = "#F59E0B";
+            }
             
             let opacity = isAtendido ? "0.5" : "1";
             let pointerEvents = isAtendido ? "display: none;" : "";
@@ -202,18 +203,47 @@
         });
     }
 
-    // A MÁGICA: Manda chamar. (Não mexe no status do painel, apenas aciona o backend do Totem).
+    // A MÁGICA: O botão não depende mais da fila defeituosa do servidor.
     async function chamarPelaLista() {
-        const idRegistro = document.getElementById("listaCascataChamada").value;
+        const select = document.getElementById("listaCascataChamada");
+        const idRegistro = select.value;
+        const nomeTecnico = select.options[select.selectedIndex]?.text;
+        
         if (!idRegistro) return alert("Selecione um técnico na lista primeiro!");
         
+        const btn = document.getElementById("btnEmitirChamada");
+        btn.disabled = true;
+        btn.innerHTML = "✅ Chamada Enviada!"; 
+        btn.style.background = "#10B981";
+
         try {
-            await fetch(`/api/fila/${idRegistro}/chamar-totem`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } });
+            // 1. Envia sinal instantâneo caso a TV esteja no mesmo computador
+            localStorage.setItem('comandoChamadaTotem', JSON.stringify({ id: idRegistro, tecnico: nomeTecnico, ts: Date.now() }));
+
+            // 2. Muda o status para "Chamando" para a TV captar via internet
+            await fetch(`/api/fila/${idRegistro}/status`, { 
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                body: JSON.stringify({ status: 'Chamando' }) 
+            });
+            atualizarFila();
+
+            // 3. Após 4 segundos, devolve o status para Aguardando (Libera a pessoa para ser chamada de novo no futuro)
+            setTimeout(async () => {
+                await fetch(`/api/fila/${idRegistro}/status`, { 
+                    method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                    body: JSON.stringify({ status: 'Aguardando' }) 
+                });
+                btn.innerHTML = "🗣️ Emitir Chamada"; 
+                btn.style.background = "#3B82F6";
+                btn.disabled = false;
+                atualizarFila();
+            }, 4000);
             
-            const btn = document.querySelector("button[onclick='chamarPelaLista()']");
-            btn.innerHTML = "✅ Chamada Enviada!"; btn.style.background = "#10B981";
-            setTimeout(() => { btn.innerHTML = "🗣️ Emitir Chamada"; btn.style.background = "#3B82F6"; }, 1500);
-        } catch(e) {}
+        } catch(e) {
+            btn.innerHTML = "🗣️ Emitir Chamada"; 
+            btn.style.background = "#3B82F6";
+            btn.disabled = false;
+        }
     }
 
     async function alterarStatusFila(idRegistro, novoStatus) {
@@ -223,7 +253,6 @@
         } catch(e) {}
     }
 
-    // BOTÃO DE LIMPEZA GERAL
     async function limparTodaFila() {
         if (!confirm("Tem certeza? Isso vai limpar todos os cards da tela e marcá-los como Finalizados no sistema.")) return;
         
