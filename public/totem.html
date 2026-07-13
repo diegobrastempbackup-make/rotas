@@ -100,8 +100,17 @@
     }
 
     // A MÁGICA VISUAL E SONORA ACONTECE AQUI
+    // 1. Criamos o Cadeado do lado de fora da função
+    let alertaTocando = false;
+
     function tocarAlerta(pessoa) {
-        // 1. Destaca o card na tela (Piscar e mudar de cor)
+        // Se já está a tocar uma chamada, ignora e não atropela o áudio!
+        if (alertaTocando) return;
+        
+        // Tranca o cadeado
+        alertaTocando = true;
+
+        // 2. Destaca o card na tela
         const cards = document.querySelectorAll('.card-tecnico');
         cards.forEach(card => {
             if(card.innerText.includes(pessoa.tecnico)) {
@@ -113,36 +122,48 @@
                     card.style.transform = 'scale(1)';
                     card.style.backgroundColor = 'rgba(30, 41, 59, 0.8)';
                     card.style.boxShadow = 'none';
-                }, 8000); // Fica destacado por 8 segundos
+                }, 8000);
             }
         });
 
-        // 2. A MÁGICA DA SEQUÊNCIA SONORA (Voz -> Som -> Voz)
+        // 3. Prepara as Vozes
         const texto = `Atenção. , ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
         
         let fala1 = new SpeechSynthesisUtterance(texto);
         let fala2 = new SpeechSynthesisUtterance(texto);
-        
-        // Define o idioma para garantir o sotaque correto (Português do Brasil)
         fala1.lang = 'pt-BR';
         fala2.lang = 'pt-BR';
 
-        // 3. O Sinal Sonoro (Ding-Dong)
-        // Coloquei um link público de um "ding-dong" suave para você testar imediatamente.
-        let toque = new Audio('https://upload.wikimedia.org/wikipedia/commons/3/34/Sound_Effect_-_Door_Bell.ogg');
-        toque.volume = 0.8; // Ajuste o volume do toque (0.0 a 1.0)
+        // 4. Prepara o Som (Ding-Dong)
+        let toque = new Audio('toque.mp3');
+        toque.volume = 0.8;
 
-        // 4. Encadeamento: O que acontece após a Fala 1 terminar?
+        // Limpa qualquer áudio que tenha ficado travado no navegador
+        window.speechSynthesis.cancel();
+
+        // 5. A ORDEM DE EXECUÇÃO
+        
+        // Quando a fala 1 terminar, toca o som
         fala1.onend = () => {
             toque.play();
         };
 
-        // 5. Encadeamento: O que acontece após o Toque terminar?
+        // Quando o som terminar, toca a fala 2
         toque.onended = () => {
             speechSynthesis.speak(fala2);
         };
 
-        // Dá o play na primeira fala para iniciar o "efeito dominó"!
+        // Se der algum erro de internet e o som não carregar, salta para a fala 2 na mesma
+        toque.onerror = () => {
+            speechSynthesis.speak(fala2);
+        };
+
+        // Quando a fala 2 terminar, abre o cadeado para a próxima pessoa da fila!
+        fala2.onend = () => {
+            alertaTocando = false;
+        };
+
+        // Dá o play inicial!
         speechSynthesis.speak(fala1);
     }
 
