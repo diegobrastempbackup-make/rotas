@@ -100,27 +100,50 @@
     }
 
     // A MÁGICA VISUAL E SONORA ACONTECE AQUI
-    async function tocarAlerta(pessoa) {
-        // 1. Avisa logo o servidor "OK, já recebi a mensagem", para ele não repetir a chamada
-        await fetch(`/api/fila/${pessoa._id}/chamada-concluida`, {
-            method: 'PUT', headers: { 'Authorization': `Bearer ${token}` }
+    function tocarAlerta(pessoa) {
+        // 1. Destaca o card na tela (Piscar e mudar de cor)
+        const cards = document.querySelectorAll('.card-tecnico');
+        cards.forEach(card => {
+            if(card.innerText.includes(pessoa.tecnico)) {
+                card.style.transform = 'scale(1.1)';
+                card.style.backgroundColor = '#3B82F6';
+                card.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.8)';
+                
+                setTimeout(() => {
+                    card.style.transform = 'scale(1)';
+                    card.style.backgroundColor = 'rgba(30, 41, 59, 0.8)';
+                    card.style.boxShadow = 'none';
+                }, 8000); // Fica destacado por 8 segundos
+            }
         });
 
-        // 2. Apresenta o Ecrã Laranja a piscar com o nome gigante
-        document.getElementById("nomeChamado").innerText = pessoa.tecnico;
-        document.getElementById("alertaChamada").style.display = "flex";
+        // 2. A MÁGICA DA SEQUÊNCIA SONORA (Voz -> Som -> Voz)
+        const texto = `Atenção. , ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`;
+        
+        let fala1 = new SpeechSynthesisUtterance(texto);
+        let fala2 = new SpeechSynthesisUtterance(texto);
+        
+        // Define o idioma para garantir o sotaque correto (Português do Brasil)
+        fala1.lang = 'pt-BR';
+        fala2.lang = 'pt-BR';
 
-        // 3. A Voz Sintética chama o nome
-       // 3. A Voz Sintética chama o nome completo
-        let fala = new SpeechSynthesisUtterance(`Atenção. , ${pessoa.tecnico}, favor comparecer ao balcão de atendimento.`);
-        fala.lang = 'pt-BR';
-        fala.rate = 0.85; // Fala de forma pausada e clara
-        sinteseVoz.speak(fala);
+        // 3. O Sinal Sonoro (Ding-Dong)
+        // Coloquei um link público de um "ding-dong" suave para você testar imediatamente.
+        let toque = new Audio('https://upload.wikimedia.org/wikipedia/commons/3/34/Sound_Effect_-_Door_Bell.ogg');
+        toque.volume = 0.8; // Ajuste o volume do toque (0.0 a 1.0)
 
-        // 4. Desaparece automaticamente após 8 segundos e volta ao Relógio
-        setTimeout(() => {
-            document.getElementById("alertaChamada").style.display = "none";
-        }, 8000);
+        // 4. Encadeamento: O que acontece após a Fala 1 terminar?
+        fala1.onend = () => {
+            toque.play();
+        };
+
+        // 5. Encadeamento: O que acontece após o Toque terminar?
+        toque.onended = () => {
+            speechSynthesis.speak(fala2);
+        };
+
+        // Dá o play na primeira fala para iniciar o "efeito dominó"!
+        speechSynthesis.speak(fala1);
     }
 
     // --- CÓDIGO NORMAL DO RELÓGIO E LEITOR MANTIDO ---
