@@ -15,20 +15,35 @@
         .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; transition: 0.2s; }
         .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
         
-        .fila-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; margin-top: 20px; }
-        .fila-card { background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s; }
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
-        .tec-nome { font-size: 18px; font-weight: bold; color: white; margin: 0; }
-        .tec-hora { font-size: 12px; color: #94A3B8; }
-        .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+        /* NOVO LAYOUT VERTICAL DOS CARDS */
+        .fila-lista { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
         
-        .botoes-acao { display: flex; gap: 10px; margin-top: 10px; }
-        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center;}
-        .btn-finalizar:hover { background: #059669; }
+        .fila-card { 
+            background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; 
+            border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        .card-info { display: flex; flex-direction: column; gap: 5px; }
+        .tec-nome { font-size: 20px; font-weight: bold; color: white; margin: 0; }
+        .tec-hora { font-size: 13px; color: #94A3B8; display: flex; align-items: center; gap: 10px; }
+        .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+        .status-texto { font-size: 14px; font-weight: bold; margin-top: 5px; }
+        
+        .botoes-acao { display: flex; gap: 10px; }
+        .btn-chamar { background: #3B82F6; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.2s; }
+        .btn-chamar:hover { background: #2563EB; }
+        .btn-liberar { background: #10B981; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.2s; }
+        .btn-liberar:hover { background: #059669; }
 
         .painel-controles { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
         .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
     </style>
+    
+    <!-- Bibliotecas para Gerar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
     <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
 </head>
 <body>
@@ -49,44 +64,73 @@
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
             <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
-            <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem e chame no microfone.</p>
+            <p style="margin: 0; color: #94A3B8; font-size: 14px;">Acompanhe as chegadas e despachos.</p>
         </div>
-        <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">🧹 Limpar Tela (Finalizar Todos)</button>
+        <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">🧹 Limpar Tela (Fim do Dia)</button>
     </div>
 
     <div class="abas-nav" style="margin-top: 15px;">
-        <button class="aba-btn ativa" onclick="mudarAba('fila')">📍 Fila ao Vivo</button>
+        <button class="aba-btn ativa" id="btnAbaFila" onclick="mudarAba('fila')">📍 Fila ao Vivo</button>
+        <button class="aba-btn" id="btnAbaRelatorio" onclick="mudarAba('relatorio')">📄 Relatório de Ponto (PDF)</button>
+        <button class="aba-btn" id="btnAbaConfig" onclick="mudarAba('config')">⚙️ Regra de Atraso</button>
     </div>
 
+    <!-- ============================================== -->
+    <!-- ABA 1: FILA AO VIVO (CARDS VERTICAIS) -->
+    <!-- ============================================== -->
     <div id="abaFila">
         <div class="painel-controles">
-            <!-- BOX 1: Entrada Manual -->
             <div class="box-controle" style="border: 1px dashed rgba(255,255,255,0.2);">
                 <div style="flex: 1;">
-                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual</label>
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Lançamento Manual (Sem Crachá)</label>
                     <select id="manualTecnico" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
                         <option value="">Selecione o funcionário...</option>
                     </select>
                 </div>
-                <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Entrada</button>
-            </div>
-
-            <!-- BOX 2: MICROFONE (CASCATA) -->
-            <div class="box-controle" style="border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.05);">
-                <div style="flex: 1;">
-                    <label style="font-size:12px; color:#60A5FA; display:block; margin-bottom:5px; font-weight:bold;">📢 Chamar no Totem (Microfone)</label>
-                    <select id="listaCascataChamada" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px;">
-                        <option value="">Aguardando técnicos chegarem...</option>
-                    </select>
-                </div>
-                <button onclick="chamarPelaLista()" id="btnEmitirChamada" style="padding:10px 20px; background:#3B82F6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; min-width: 160px; transition: 0.3s;">🗣️ Emitir Chamada</button>
+                <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Adicionar à Fila</button>
             </div>
         </div>
 
-        <div class="fila-grid" id="containerFila"></div>
+        <div class="fila-lista" id="containerFila"></div>
+        
         <div id="msgFilaVazia" style="display:none; text-align:center; padding: 40px; color: #94A3B8; background: #1E293B; border-radius: 12px; margin-top:20px;">
-            Nenhum técnico aguardando no momento.
+            Nenhum técnico na base no momento.
         </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- ABA 2: RELATÓRIO PDF (O que você pediu para voltar!) -->
+    <!-- ============================================== -->
+    <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); margin-top: 20px;">
+        <h3 style="margin-top:0; color:#60A5FA;">📅 Emitir Extrato de Horários e Atrasos</h3>
+        <p style="color: #94A3B8; font-size: 14px; margin-bottom: 20px;">Selecione o mês e o técnico (ou todos) para exportar um PDF com os dias, horários de chegada e a quantidade de atrasos no período.</p>
+        
+        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+            <div style="flex: 1;">
+                <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Mês e Ano (Período)</label>
+                <input type="month" id="filtroMesPonto" style="width:100%; padding:12px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+            </div>
+            <div style="flex: 1;">
+                <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Técnico</label>
+                <select id="filtroTecnicoPonto" style="width:100%; padding:12px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                    <option value="TODOS">Geral (Todos os Funcionários)</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: flex-end;">
+                <button onclick="gerarPDFPonto()" style="padding:12px 25px; background:#10B981; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📄 Baixar Relatório PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- ABA 3: CONFIGURAÇÃO DE ATRASO -->
+    <!-- ============================================== -->
+    <div id="abaConfig" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); max-width: 500px; margin-top: 20px;">
+        <h3 style="margin-top:0; color:#60A5FA;">Regras Matinais</h3>
+        <p style="font-size: 13px; color: #94A3B8; margin-bottom: 20px;">Defina o horário limite de chegada. Quem bipar o crachá depois desta hora será marcado de vermelho.</p>
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Horário Limite (Tolerância)</label>
+        <input type="time" id="inputLimiteAtraso" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
+        <button onclick="salvarConfigBase()" style="width: 100%; padding:12px; background:#2563EB; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Guardar Configuração</button>
     </div>
 </div>
 
@@ -96,18 +140,59 @@
     let filaAtual = [];
 
     document.addEventListener("DOMContentLoaded", async () => {
+        // Preenche o mês atual no filtro do PDF por padrão
+        const agora = new Date();
+        document.getElementById("filtroMesPonto").value = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+        
+        await carregarConfigBase();
         await carregarListaTecnicosParaFiltro();
         atualizarFila();
         setInterval(atualizarFila, 2500); 
     });
+
+    // SISTEMA DE ABAS (Para navegar entre Fila e PDF)
+    function mudarAba(aba) {
+        ['Fila', 'Relatorio', 'Config'].forEach(id => {
+            document.getElementById(`aba${id}`).style.display = 'none';
+            document.getElementById(`btnAba${id}`).classList.remove('ativa');
+        });
+        document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).style.display = 'block';
+        document.getElementById(`btnAba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).classList.add('ativa');
+    }
+
+    async function carregarConfigBase() {
+        try {
+            const res = await fetch("/api/config-base", { headers: { "Authorization": `Bearer ${token}` } });
+            const conf = await res.json();
+            if (conf && conf.limiteAtraso) document.getElementById("inputLimiteAtraso").value = conf.limiteAtraso;
+        } catch(e) {}
+    }
+
+    async function salvarConfigBase() {
+        const limiteAtraso = document.getElementById("inputLimiteAtraso").value;
+        try {
+            await fetch("/api/config-base", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ limiteAtraso }) });
+            alert("✅ Tolerância de atraso atualizada!");
+        } catch(e) {}
+    }
 
     async function carregarListaTecnicosParaFiltro() {
         try {
             const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
             const equipe = await res.json();
             const comboManual = document.getElementById("manualTecnico");
+            const comboRelatorio = document.getElementById("filtroTecnicoPonto");
+            
             comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
-            equipe.forEach(p => { comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; });
+            comboRelatorio.innerHTML = `<option value="TODOS">Geral (Todos os Funcionários)</option>`;
+            
+            // Ordem Alfabética
+            equipe.sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            equipe.forEach(p => { 
+                comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
+                comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
+            });
         } catch(e) {}
     }
 
@@ -139,122 +224,96 @@
 
     function desenharFila() {
         const container = document.getElementById("containerFila");
-        const selectChamada = document.getElementById("listaCascataChamada");
-        const valorSelecionado = selectChamada.value; 
-        
         container.innerHTML = "";
         
         const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
         
         if (filaVisivel.length === 0) { 
             document.getElementById("msgFilaVazia").style.display = "block"; 
-            selectChamada.innerHTML = '<option value="">Fila vazia...</option>';
             return; 
         }
-        
         document.getElementById("msgFilaVazia").style.display = "none";
-        selectChamada.innerHTML = '';
-
-        const tecnicosNaBase = filaVisivel.filter(item => item.status !== "Liberado");
-        tecnicosNaBase.sort((a, b) => a.tecnico.localeCompare(b.tecnico));
-        
-        if(tecnicosNaBase.length === 0) {
-            selectChamada.innerHTML = '<option value="">Todos já foram liberados!</option>';
-        } else {
-            tecnicosNaBase.forEach(item => {
-                const isSelected = item._id === valorSelecionado ? "selected" : "";
-                selectChamada.innerHTML += `<option value="${item._id}" ${isSelected}>${item.tecnico}</option>`;
-            });
-        }
 
         filaVisivel.forEach((item, index) => {
-            let isAtendido = item.status === "Liberado";
-            let corBorda = item.atrasado ? "#EF4444" : (isAtendido ? "#10B981" : "#3B82F6"); 
-            let badgeHtml = item.atrasado ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171; margin-left:10px;">⏰ Atrasado</span>` : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399; margin-left:10px;">✅ No Horário</span>`;
-            
-            let statusCor = isAtendido ? "#10B981" : "#94A3B8"; 
-            let statusTexto = isAtendido ? "✅ Liberado p/ Rua" : "Aguardando Despacho";
-            
-            // Destaque visual temporário no card quando chamando
+            // LÓGICA DE TEXTOS E CORES QUE VOCÊ PEDIU
+            let statusTexto = "⏳ Aguardando ser chamado";
+            let statusCor = "#94A3B8";
+            let corBorda = item.atrasado ? "#EF4444" : "#3B82F6"; 
+            let opacity = "1";
+
             if (item.status === "Chamando") {
-                statusTexto = "🗣️ Chamada Emitida...";
+                statusTexto = "📢 Chamando no Totem...";
                 statusCor = "#F59E0B";
                 corBorda = "#F59E0B";
+            } else if (item.status === "Em atendimento") {
+                statusTexto = "🛠️ Em atendimento";
+                statusCor = "#8B5CF6"; // Roxo
+                corBorda = "#8B5CF6";
+            } else if (item.status === "Atendido") {
+                statusTexto = "✅ Atendido";
+                statusCor = "#10B981"; // Verde
+                corBorda = "#10B981";
+                opacity = "0.5"; // Fica transparente, mas OS BOTÕES CONTINUAM ATIVOS!
             }
             
-            let opacity = isAtendido ? "0.5" : "1";
-            let pointerEvents = isAtendido ? "display: none;" : "";
+            let badgeHtml = item.atrasado 
+                ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171;">⏰ Atrasado</span>` 
+                : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399;">✅ No Horário</span>`;
 
+            // O NOVO CARD VERTICAL SUPER CLEAN E ELEGANTE
             container.innerHTML += `
                 <div class="fila-card" style="border-left-color: ${corBorda}; opacity: ${opacity};">
-                    <div class="card-header">
-                        <div>
-                            <span style="color:#60A5FA; font-size:12px; font-weight:bold;">Chegada #${index + 1}</span>
-                            <h3 class="tec-nome">${item.tecnico}</h3>
-                            <div class="tec-hora">Entrou às ${item.horaChegada} ${badgeHtml}</div>
-                        </div>
-                        <div style="color: ${statusCor}; font-size:12px; font-weight:bold;">${statusTexto}</div>
+                    <div class="card-info">
+                        <span style="color:#60A5FA; font-size:12px; font-weight:bold;">Chegada #${index + 1}</span>
+                        <h3 class="tec-nome">${item.tecnico}</h3>
+                        <div class="tec-hora">Entrou às ${item.horaChegada} ${badgeHtml}</div>
+                        <div class="status-texto" style="color: ${statusCor};">${statusTexto}</div>
                     </div>
-                    <div class="botoes-acao" style="${pointerEvents}">
-                        <button class="btn-finalizar" onclick="alterarStatusFila('${item._id}', 'Liberado')">✅ Confirmar Liberação</button>
+                    
+                    <div class="botoes-acao">
+                        <button class="btn-chamar" onclick="chamarCard('${item._id}')">🗣️ Chamar</button>
+                        <button class="btn-liberar" onclick="liberarCard('${item._id}')">✅ Liberar</button>
                     </div>
                 </div>
             `;
         });
     }
 
-    // A MÁGICA: O botão não depende mais da fila defeituosa do servidor.
-    async function chamarPelaLista() {
-        const select = document.getElementById("listaCascataChamada");
-        const idRegistro = select.value;
-        const nomeTecnico = select.options[select.selectedIndex]?.text;
-        
-        if (!idRegistro) return alert("Selecione um técnico na lista primeiro!");
-        
-        const btn = document.getElementById("btnEmitirChamada");
-        btn.disabled = true;
-        btn.innerHTML = "✅ Chamada Enviada!"; 
-        btn.style.background = "#10B981";
-
+    // A MÁGICA DOS BOTÕES (Sem loops!)
+    async function chamarCard(idRegistro) {
         try {
-            // 1. Envia sinal instantâneo caso a TV esteja no mesmo computador
-            localStorage.setItem('comandoChamadaTotem', JSON.stringify({ id: idRegistro, tecnico: nomeTecnico, ts: Date.now() }));
-
-            // 2. Muda o status para "Chamando" para a TV captar via internet
+            // 1. Muda para 'Chamando' (A TV pega este sinal instantaneamente e grita o nome)
             await fetch(`/api/fila/${idRegistro}/status`, { 
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
                 body: JSON.stringify({ status: 'Chamando' }) 
             });
             atualizarFila();
 
-            // 3. Após 4 segundos, devolve o status para Aguardando (Libera a pessoa para ser chamada de novo no futuro)
+            // 2. Após 4 segundos (tempo da TV falar), muda automaticamente para "Em atendimento"
             setTimeout(async () => {
                 await fetch(`/api/fila/${idRegistro}/status`, { 
                     method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ status: 'Aguardando' }) 
+                    body: JSON.stringify({ status: 'Em atendimento' }) 
                 });
-                btn.innerHTML = "🗣️ Emitir Chamada"; 
-                btn.style.background = "#3B82F6";
-                btn.disabled = false;
                 atualizarFila();
             }, 4000);
             
-        } catch(e) {
-            btn.innerHTML = "🗣️ Emitir Chamada"; 
-            btn.style.background = "#3B82F6";
-            btn.disabled = false;
-        }
+        } catch(e) {}
     }
 
-    async function alterarStatusFila(idRegistro, novoStatus) {
+    async function liberarCard(idRegistro) {
         try {
-            await fetch(`/api/fila/${idRegistro}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: novoStatus }) });
+            // Muda o status para "Atendido". O Card fica transparente, mas OS BOTÕES CONTINUAM LÁ para chamar de novo se precisar!
+            await fetch(`/api/fila/${idRegistro}/status`, { 
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                body: JSON.stringify({ status: 'Atendido' }) 
+            });
             atualizarFila();
         } catch(e) {}
     }
 
     async function limparTodaFila() {
-        if (!confirm("Tem certeza? Isso vai limpar todos os cards da tela e marcá-los como Finalizados no sistema.")) return;
+        if (!confirm("Fim do dia? Isso vai limpar todos os cards da tela.")) return;
         
         const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
         for(let item of filaVisivel) {
@@ -264,6 +323,65 @@
             });
         }
         atualizarFila();
+    }
+
+    // ==============================================
+    // A GERAÇÃO DE PDF QUE VOCÊ PEDIU
+    // ==============================================
+    async function gerarPDFPonto() {
+        const mesAnoStr = document.getElementById("filtroMesPonto").value; 
+        if (!mesAnoStr) return alert("Por favor, selecione um mês.");
+        
+        // Converte "2024-06" para "06/2024" para buscar na sua API
+        const p = mesAnoStr.split('-'); 
+        const mesFormato = `${p[1]}/${p[0]}`; 
+        const tecnicoSel = document.getElementById("filtroTecnicoPonto").value;
+
+        try {
+            const res = await fetch(`/api/fila/relatorio?mesAno=${encodeURIComponent(mesFormato)}&tecnico=${encodeURIComponent(tecnicoSel)}`, { headers: { "Authorization": `Bearer ${token}` } });
+            const historico = await res.json();
+            
+            if (historico.length === 0) return alert("Nenhum registro encontrado para este mês/técnico.");
+
+            const { jsPDF } = window.jspdf; 
+            const doc = new jsPDF();
+            
+            // Cabeçalho do PDF
+            doc.setFont("helvetica", "bold"); 
+            doc.setFontSize(18); 
+            doc.text("Relatório de Frequência e Horários", 14, 20);
+            
+            doc.setFontSize(11); 
+            doc.setFont("helvetica", "normal"); 
+            doc.text(`Período analisado: ${p[1]}/${p[0]}`, 14, 28); 
+            doc.text(`Colaborador: ${tecnicoSel === "TODOS" ? "Geral (Toda a Base)" : tecnicoSel}`, 14, 34);
+            
+            // O Resumo (Quantas vezes chegou e quantos atrasos)
+            const totalAtrasos = historico.filter(i => i.atrasado).length;
+            doc.text(`Total de dias trabalhados: ${historico.length}`, 130, 28); 
+            doc.text(`Total de Atrasos: ${totalAtrasos}`, 130, 34);
+
+            // Tabela detalhada (Dias, Horários e Status)
+            doc.autoTable({
+                head: [["Data", "Colaborador", "Hora da Chegada", "Status do Horário"]],
+                body: historico.map(item => [ item.data, item.tecnico, item.horaChegada, item.atrasado ? "ATRASADO" : "NO HORÁRIO" ]),
+                startY: 45, 
+                theme: 'striped', 
+                headStyles: { fillColor: [30, 41, 59] },
+                didParseCell: function(data) {
+                    if (data.column.index === 3 && data.cell.raw === "ATRASADO") { 
+                        data.cell.styles.textColor = [239, 68, 68]; 
+                        data.cell.styles.fontStyle = 'bold'; 
+                    } else if (data.column.index === 3 && data.cell.raw === "NO HORÁRIO") { 
+                        data.cell.styles.textColor = [16, 185, 129]; 
+                    }
+                }
+            });
+            
+            doc.save(`Frequencia_${tecnicoSel.replace(/\s+/g, '_')}_${p[1]}_${p[0]}.pdf`);
+        } catch (e) { 
+            alert("Erro ao conectar com o banco de dados para gerar PDF."); 
+        }
     }
 </script>
 </body>
