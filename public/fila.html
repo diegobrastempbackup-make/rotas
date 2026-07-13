@@ -9,14 +9,12 @@
         .menu button { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94A3B8; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; transition: 0.2s; width: 100%; }
         .menu button:hover { background: rgba(255,255,255,0.05); color: white; }
         .btn-sair { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; margin-top: auto; }
-        .btn-sair:hover { background: rgba(239,68,68,0.1) !important; }
         
         .main { padding: 25px; display: flex; flex-direction: column; gap: 20px; height: 100vh; overflow-y: auto; flex: 1; box-sizing: border-box;}
         .abas-nav { display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
         .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; transition: 0.2s; }
         .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
-        .aba-btn:hover:not(.ativa) { background: rgba(255,255,255,0.05); color: white; }
-
+        
         .fila-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; margin-top: 20px; }
         .fila-card { background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s; }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -25,9 +23,8 @@
         .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
         
         .botoes-acao { display: flex; gap: 10px; margin-top: 10px; }
-        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 5px;}
-        .btn-finalizar:hover { background: #059669; }
-
+        .btn-finalizar { flex: 1; background: #10B981; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center;}
+        
         .painel-controles { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
         .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
     </style>
@@ -45,31 +42,29 @@
         <button onclick="navegarSeguro('/roteirizador.html')">🗺️ Roteirizador</button>
         <button style="background: #2563EB; color: white; border-color: #3B82F6;">🗣️ Triagem e Ponto</button>
         <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
-        <hr style="border-color: rgba(255,255,255,0.05); margin: 15px 0;">
-        <button onclick="navegarSeguro('/tecnicos.html')" id="btnAdmin" style="display:none;">⚙️ Administração</button>
-        <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">🚪 Sair</button>
+        <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair" style="margin-top: 20px;">🚪 Sair</button>
     </div>
 </div>
 
 <div class="main">
-    <div>
-        <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
-        <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem de chegada e faça chamadas independentes pelo microfone.</p>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
+            <p style="margin: 0; color: #94A3B8; font-size: 14px;">Painel de Chegadas: Acompanhe a ordem e chame no microfone.</p>
+        </div>
+        <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">🧹 Limpar Tela (Finalizar Todos)</button>
     </div>
 
-    <div class="abas-nav">
-        <button class="aba-btn ativa" id="btnAbaFila" onclick="mudarAba('fila')">📍 Fila ao Vivo</button>
-        <button class="aba-btn" id="btnAbaRelatorio" onclick="mudarAba('relatorio')">📄 Relatório de Ponto (PDF)</button>
-        <button class="aba-btn" id="btnAbaConfig" onclick="mudarAba('config')">⚙️ Regra de Atraso</button>
+    <div class="abas-nav" style="margin-top: 15px;">
+        <button class="aba-btn ativa" onclick="mudarAba('fila')">📍 Fila ao Vivo</button>
     </div>
 
     <div id="abaFila">
-        
         <div class="painel-controles">
             <!-- BOX 1: Entrada Manual -->
             <div class="box-controle" style="border: 1px dashed rgba(255,255,255,0.2);">
                 <div style="flex: 1;">
-                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual (Sem Crachá)</label>
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Entrada Manual</label>
                     <select id="manualTecnico" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
                         <option value="">Selecione o funcionário...</option>
                     </select>
@@ -77,7 +72,7 @@
                 <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Entrada</button>
             </div>
 
-            <!-- BOX 2: MICROFONE (LISTA CASCATA) -->
+            <!-- BOX 2: MICROFONE -->
             <div class="box-controle" style="border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.05);">
                 <div style="flex: 1;">
                     <label style="font-size:12px; color:#60A5FA; display:block; margin-bottom:5px; font-weight:bold;">📢 Chamar no Totem (Microfone)</label>
@@ -89,39 +84,10 @@
             </div>
         </div>
 
-        <!-- CARDS DE VISUALIZAÇÃO -->
         <div class="fila-grid" id="containerFila"></div>
         <div id="msgFilaVazia" style="display:none; text-align:center; padding: 40px; color: #94A3B8; background: #1E293B; border-radius: 12px; margin-top:20px;">
-            Ninguém bipou o crachá ainda hoje.
+            Nenhum técnico na fila no momento.
         </div>
-    </div>
-
-    <!-- ABAS RELATÓRIO E CONFIGURAÇÃO -->
-    <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-        <h3 style="margin-top:0; color:#60A5FA;">Extrato de Frequência</h3>
-        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-            <div style="flex: 1;">
-                <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Mês e Ano</label>
-                <input type="month" id="filtroMesPonto" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
-            </div>
-            <div style="flex: 1;">
-                <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Pessoa/Técnico</label>
-                <select id="filtroTecnicoPonto" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
-                    <option value="TODOS">Todos os Funcionários</option>
-                </select>
-            </div>
-            <div style="display: flex; align-items: flex-end;">
-                <button onclick="gerarPDFPonto()" style="padding:10px 20px; background:#10B981; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📄 Baixar PDF</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="abaConfig" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); max-width: 500px;">
-        <h3 style="margin-top:0; color:#60A5FA;">Regras Matinais</h3>
-        <p style="font-size: 13px; color: #94A3B8; margin-bottom: 20px;">Defina o horário limite de chegada. Quem bipar o crachá depois desta hora será marcado de vermelho na fila.</p>
-        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Horário Limite (Tolerância)</label>
-        <input type="time" id="inputLimiteAtraso" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
-        <button onclick="salvarConfigBase()" style="width: 100%; padding:12px; background:#2563EB; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Guardar Configuração</button>
     </div>
 </div>
 
@@ -129,63 +95,21 @@
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
     
-    function obterPayloadDoToken() {
-        try { return JSON.parse(decodeURIComponent(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))); } catch (e) { return null; }
-    }
-    
-    const payload = obterPayloadDoToken();
-    if (localStorage.getItem("usuarioTipo") === "master" || localStorage.getItem("usuarioTipo") === "admin" || (payload && payload.tipo === "superadmin") || (payload && payload.superadmin_original)) {
-        document.getElementById("btnAdmin").style.display = "block";
-    }
-
     let filaAtual = [];
 
     document.addEventListener("DOMContentLoaded", async () => {
-        const agora = new Date();
-        document.getElementById("filtroMesPonto").value = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
-        await carregarConfigBase();
         await carregarListaTecnicosParaFiltro();
         atualizarFila();
-        setInterval(atualizarFila, 5000); 
+        setInterval(atualizarFila, 4000); 
     });
-
-    function mudarAba(aba) {
-        ['Fila', 'Relatorio', 'Config'].forEach(id => {
-            document.getElementById(`aba${id}`).style.display = 'none';
-            document.getElementById(`btnAba${id}`).classList.remove('ativa');
-        });
-        document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).style.display = 'block';
-        document.getElementById(`btnAba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).classList.add('ativa');
-    }
-
-    async function carregarConfigBase() {
-        try {
-            const res = await fetch("/api/config-base", { headers: { "Authorization": `Bearer ${token}` } });
-            const conf = await res.json();
-            if (conf && conf.limiteAtraso) document.getElementById("inputLimiteAtraso").value = conf.limiteAtraso;
-        } catch(e) {}
-    }
-
-    async function salvarConfigBase() {
-        const limiteAtraso = document.getElementById("inputLimiteAtraso").value;
-        try {
-            const res = await fetch("/api/config-base", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ limiteAtraso }) });
-            if(res.ok) alert("✅ Tolerância de atraso atualizada!");
-        } catch(e) { alert("❌ Erro."); }
-    }
 
     async function carregarListaTecnicosParaFiltro() {
         try {
             const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
             const equipe = await res.json();
-            const comboRelatorio = document.getElementById("filtroTecnicoPonto");
             const comboManual = document.getElementById("manualTecnico");
-            comboRelatorio.innerHTML = `<option value="TODOS">Todos os Funcionários</option>`;
             comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
-            equipe.forEach(p => { 
-                comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
-                comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
-            });
+            equipe.forEach(p => { comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; });
         } catch(e) {}
     }
 
@@ -197,12 +121,12 @@
         const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false }).substring(0, 5);
 
         try {
-            const res = await fetch('/api/fila/bipar', {
+            await fetch('/api/fila/bipar', {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ codigoBarras: nome, dataBatida: dataAtual, horaBatida: horaAtual })
             });
-            const dados = await res.json();
-            if (res.ok) { document.getElementById("manualTecnico").value = ""; atualizarFila(); } else alert(`❌ Erro: ${dados.erro}`);
+            document.getElementById("manualTecnico").value = ""; 
+            atualizarFila();
         } catch (err) {}
     }
 
@@ -218,31 +142,28 @@
     function desenharFila() {
         const container = document.getElementById("containerFila");
         const selectChamada = document.getElementById("listaCascataChamada");
-        
-        // Guarda quem estava selecionado na cascata para não perder o foco
         const valorSelecionado = selectChamada.value;
         
         container.innerHTML = "";
-        selectChamada.innerHTML = '<option value="">Selecione o técnico para chamar...</option>';
         
-        if (filaAtual.length === 0) { 
+        // Remove os Finalizados para limpar a tela
+        const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
+        
+        if (filaVisivel.length === 0) { 
             document.getElementById("msgFilaVazia").style.display = "block"; 
-            selectChamada.innerHTML = '<option value="">Aguardando técnicos chegarem...</option>';
+            selectChamada.innerHTML = '<option value="">Fila vazia...</option>';
             return; 
         }
-        document.getElementById("msgFilaVazia").style.display = "none";
-
-        // ==========================================
-        // PREENCHE A LISTA CASCATA (ORDEM ALFABÉTICA)
-        // ==========================================
-        // Filtra apenas quem está na base aguardando (não inclui os liberados)
-        const tecnicosNaBase = filaAtual.filter(item => item.status !== "Liberado" && item.status !== "Finalizado");
         
-        // Ordena por nome
+        document.getElementById("msgFilaVazia").style.display = "none";
+        selectChamada.innerHTML = '';
+
+        // Preenche Cascata
+        const tecnicosNaBase = filaVisivel.filter(item => item.status !== "Liberado");
         tecnicosNaBase.sort((a, b) => a.tecnico.localeCompare(b.tecnico));
         
         if(tecnicosNaBase.length === 0) {
-            selectChamada.innerHTML = '<option value="">Todos já foram liberados hoje!</option>';
+            selectChamada.innerHTML = '<option value="">Todos já foram liberados!</option>';
         } else {
             tecnicosNaBase.forEach(item => {
                 const isSelected = item._id === valorSelecionado ? "selected" : "";
@@ -250,11 +171,9 @@
             });
         }
 
-        // ==========================================
-        // DESENHA OS CARDS (SOMENTE PARA CONTROLE VISUAL)
-        // ==========================================
-        filaAtual.forEach((item, index) => {
-            let isAtendido = item.status === "Liberado" || item.status === "Finalizado";
+        // Desenha Cards
+        filaVisivel.forEach((item, index) => {
+            let isAtendido = item.status === "Liberado";
             let corBorda = item.atrasado ? "#EF4444" : (isAtendido ? "#10B981" : "#3B82F6"); 
             let badgeHtml = item.atrasado ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171; margin-left:10px;">⏰ Atrasado</span>` : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399; margin-left:10px;">✅ No Horário</span>`;
             
@@ -262,7 +181,7 @@
             let statusTexto = isAtendido ? "✅ Liberado p/ Rua" : "Aguardando Despacho";
             
             let opacity = isAtendido ? "0.5" : "1";
-            let pointerEvents = isAtendido ? "pointer-events: none; display: none;" : "";
+            let pointerEvents = isAtendido ? "display: none;" : "";
 
             container.innerHTML += `
                 <div class="fila-card" style="border-left-color: ${corBorda}; opacity: ${opacity};">
@@ -282,71 +201,41 @@
         });
     }
 
-    // NOVA FUNÇÃO: Chamar pela Lista Cascata
     async function chamarPelaLista() {
         const idRegistro = document.getElementById("listaCascataChamada").value;
-        if (!idRegistro) return alert("Selecione um técnico na lista primeiro!");
+        if (!idRegistro) return alert("Selecione um técnico!");
         
         try {
-            // Garante que o status volte/permaneça 'Aguardando'
-            await fetch(`/api/fila/${idRegistro}/status`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: 'Aguardando' })
-            });
-            // Envia o comando para o Totem
-            await fetch(`/api/fila/${idRegistro}/chamar-totem`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-            });
+            await fetch(`/api/fila/${idRegistro}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: 'Aguardando' }) });
+            await fetch(`/api/fila/${idRegistro}/chamar-totem`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } });
             
-            // Dá um feedback visual rápido de que a chamada foi enviada
             const btn = document.querySelector("button[onclick='chamarPelaLista()']");
-            const textoOriginal = btn.innerHTML;
-            btn.innerHTML = "✅ Chamado!";
-            btn.style.background = "#10B981";
-            setTimeout(() => {
-                btn.innerHTML = textoOriginal;
-                btn.style.background = "#3B82F6";
-            }, 2000);
-            
+            btn.innerHTML = "✅ Chamado!"; btn.style.background = "#10B981";
+            setTimeout(() => { btn.innerHTML = "🗣️ Emitir Chamada"; btn.style.background = "#3B82F6"; }, 1500);
             atualizarFila();
         } catch(e) {}
     }
 
     async function alterarStatusFila(idRegistro, novoStatus) {
         try {
-            await fetch(`/api/fila/${idRegistro}/status`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: novoStatus })
-            });
+            await fetch(`/api/fila/${idRegistro}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: novoStatus }) });
             atualizarFila();
         } catch(e) {}
     }
 
-    async function gerarPDFPonto() {
-        const mesAnoStr = document.getElementById("filtroMesPonto").value; 
-        if (!mesAnoStr) return alert("Selecione um mês.");
-        const p = mesAnoStr.split('-'); const mesFormato = `${p[1]}/${p[0]}`; 
-        const tecnicoSel = document.getElementById("filtroTecnicoPonto").value;
-
-        try {
-            const res = await fetch(`/api/fila/relatorio?mesAno=${encodeURIComponent(mesFormato)}&tecnico=${encodeURIComponent(tecnicoSel)}`, { headers: { "Authorization": `Bearer ${token}` } });
-            const historico = await res.json();
-            if (historico.length === 0) return alert("Nenhum registro encontrado.");
-
-            const { jsPDF } = window.jspdf; const doc = new jsPDF();
-            doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.text("Relatório de Frequência e Ponto", 14, 20);
-            doc.setFontSize(11); doc.setFont("helvetica", "normal"); doc.text(`Período: ${p[1]}/${p[0]}`, 14, 28); doc.text(`Colaborador: ${tecnicoSel}`, 14, 34);
-            doc.text(`Total de Apresentações: ${historico.length}`, 140, 28); doc.text(`Atrasos Registrados: ${historico.filter(i => i.atrasado).length}`, 140, 34);
-
-            doc.autoTable({
-                head: [["Data", "Colaborador", "Hora da Chegada", "Status do Horário"]],
-                body: historico.map(item => [ item.data, item.tecnico, item.horaChegada, item.atrasado ? "ATRASADO" : "NO HORÁRIO" ]),
-                startY: 45, theme: 'striped', headStyles: { fillColor: [30, 41, 59] },
-                didParseCell: function(data) {
-                    if (data.column.index === 3 && data.cell.raw === "ATRASADO") { data.cell.styles.textColor = [239, 68, 68]; data.cell.styles.fontStyle = 'bold'; } 
-                    else if (data.column.index === 3 && data.cell.raw === "NO HORÁRIO") { data.cell.styles.textColor = [16, 185, 129]; }
-                }
+    // NOVA FUNÇÃO: Limpar toda a tela de uma vez!
+    async function limparTodaFila() {
+        if (!confirm("Tem certeza que deseja limpar todos os cards da tela? Eles serão marcados como finalizados e ocultados.")) return;
+        
+        const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
+        for(let item of filaVisivel) {
+            await fetch(`/api/fila/${item._id}/status`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status: 'Finalizado' })
             });
-            doc.save(`Frequencia_${tecnicoSel.replace(/\s+/g, '_')}_${p[1]}_${p[0]}.pdf`);
-        } catch (e) { alert("Erro ao gerar PDF."); }
+        }
+        alert("Tela limpa com sucesso!");
+        atualizarFila();
     }
 </script>
 </body>
