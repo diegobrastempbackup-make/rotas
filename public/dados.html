@@ -156,6 +156,16 @@ h2 {
 </div>
 
 <script>
+  const token = localStorage.getItem("token");
+const usuarioTipo = localStorage.getItem("usuarioTipo");
+
+// 1. Bloqueio de quem não está logado
+if (!token) window.location.replace("/login.html");
+
+// 2. A TRAVA DE SEGURANÇA DO TÉCNICO
+if (usuarioTipo === "tecnico") {
+    window.location.replace("/tecnico.html"); 
+}
 let tecnicos = [];
 let cacheHistoricoCompleto = [];
 

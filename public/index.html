@@ -14,6 +14,7 @@
     #btnIrParaDados, #btnMenuAdministracao, #btnIrParaEstoque { display: none; }
     .main { flex-grow: 1; padding: 15px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; justify-content: flex-start !important; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; width: 100%; margin-top: 0 !important; }
+    
   </style>
 
   <script>
@@ -21,9 +22,18 @@
     let usuarioTipo = localStorage.getItem("usuarioTipo");
     const usuarioNome = localStorage.getItem("usuarioNome");
 
+    // 1. Bloqueio de quem não está logado
     if (!token) window.location.replace("/login.html");
+
+    // 2. A TRAVA DE SEGURANÇA DO TÉCNICO (Impede o uso do botão Voltar)
+    if (usuarioTipo === "tecnico") {
+      window.location.replace("/tecnico.html"); // Substitua pelo nome da tela do app do técnico, se for diferente
+    }
+
+    // 3. Trava do Estoque
     if (usuarioNome && usuarioNome.includes("[ESTOQUE]")) {
-      usuarioTipo = "estoque"; localStorage.setItem("usuarioTipo", "estoque");
+      usuarioTipo = "estoque"; 
+      localStorage.setItem("usuarioTipo", "estoque");
     }
     if (usuarioTipo === "estoque") window.location.replace("/estoque.html");
 

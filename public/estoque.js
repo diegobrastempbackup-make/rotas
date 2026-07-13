@@ -1,7 +1,18 @@
 const token = localStorage.getItem("token");
+const usuarioTipo = localStorage.getItem("usuarioTipo");
+
+// 1. Bloqueio de quem não está logado
+if (!token) window.location.replace("/login.html");
+
+// 2. A TRAVA DE SEGURANÇA DO TÉCNICO
+if (usuarioTipo === "tecnico") {
+    window.location.replace("/tecnico.html"); 
+}
+
 window.cacheFerramentas = [];
 window.tecnicoSelecionado = "";
 window.listaTecnicos = [];
+  
 
 // Funções de controle de Modal nativas do layout
 window.abrirModal = (id) => { document.getElementById(id).style.display = 'flex'; };
