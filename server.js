@@ -179,7 +179,6 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
           return res.status(400).json({ erro: "Dados incompletos" });
       }
 
-      // Adiciona o status inicial "pendente" a todos os itens se não existir
       const itinerarioFormatado = itinerario.map(item => ({
           ...item,
           status: item.status || 'pendente'
@@ -197,7 +196,7 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
   }
 });
 
-// 2. PESQUISAR ROTA
+// 2. PESQUISAR ROTA (Suporta OS Agrupadas)
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
@@ -206,12 +205,8 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       if (data) filtro.data = data;
       
       if (codigo) {
-          const codigoNum = Number(codigo);
-          if (!isNaN(codigoNum)) {
-              filtro["itinerario.codigo"] = { $in: [codigo, String(codigo), codigoNum] };
-          } else {
-              filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
-          }
+          // Permite encontrar uma OS mesmo que esteja agrupada (ex: "101" dentro de "101 / 102")
+          filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
       }
 
       const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
@@ -261,7 +256,7 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     }
 });
 
-// 5. NOVA ROTA: EDITAR ENDEREÇO DA PARAGEM (MÉTODO ATUALIZAR PARALELO)
+// 5. NOVA ROTA: EDITAR ENDEREÇO DA PARAGEM
 app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;

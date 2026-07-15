@@ -48,7 +48,6 @@
         #painelPlayback { display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(30, 41, 59, 0.95); padding: 15px 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 1000; width: 80%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); flex-direction: column; gap: 10px; }
         .slider-control { width: 100%; cursor: pointer; accent-color: #3B82F6; height: 6px; border-radius: 5px; outline: none; }
 
-        /* ESTILIZAÇÃO DOS CARDS NO ITINERÁRIO */
         .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #64748B; margin-bottom: 8px; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
         .itinerario-item:active { cursor: grabbing; border-color: #3B82F6; box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3); transform: scale(1.02); }
         .itinerario-item.drag-over { border-top: 3px solid #10B981; }
@@ -57,11 +56,9 @@
         .drag-handle { color: #64748B; padding-right: 10px; font-size: 18px; display: flex; align-items: center; }
         .itinerario-info { flex-grow: 1; margin: 0 5px; cursor: default; min-width: 0; }
         
-        /* LINHA DE TELEMETRIA DISCRETA */
         .card-telemetria { display: flex; gap: 10px; font-size: 10px; color: #94A3B8; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.03); margin-top: 4px; }
         .time-stamp { display: flex; align-items: center; gap: 2px; }
 
-        /* BOTÃO DO LÁPIS */
         .btn-lapis { background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 5px; font-size: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .btn-lapis:hover { color: #FACC15; background: rgba(255,255,255,0.05); }
 
@@ -103,14 +100,12 @@
             <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada viatura.</p>
         </div>
 
-        <!-- CAIXA DE UPLOAD PADRÃO -->
         <label class="upload-area" id="areaUpload">
             <input type="file" id="arquivoExcel" accept=".xlsx, .xls, .csv" onchange="processarExcel(event)">
             <h3>📥 Clique ou arraste a sua folha de Excel aqui para Planejar</h3>
             <p>Formatos suportados: .XLSX, .XLS, .CSV</p>
         </label>
 
-        <!-- NOVA BARRA DE PROGRESSO DO MOTOR DE GPS -->
         <div id="loadingUpload" style="display: none; border: 2px solid rgba(16, 185, 129, 0.5); background: rgba(30, 41, 59, 0.8); padding: 40px; text-align: center; border-radius: 12px; margin-bottom: 20px;">
             <h3 style="color: #10B981; margin-top: 0;">🌍 Traduzindo endereços para GPS (Geocodificação)...</h3>
             <p id="lblProgresso" style="color: #94A3B8; font-size: 14px; font-weight: bold;">0 de X concluídos</p>
@@ -264,14 +259,35 @@
             let cepFormatado = cepLimpo.padStart(8, '0'); 
             if (cepFormatado.length === 8) cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
 
+            let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
+            let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
+            let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
+
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
-            ordensPorTecnico[tecnico].push({
-                codigo: codigo, cliente: String(cliente).trim(), servico: buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]),
-                rua: String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim(),
-                cidade: String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo",
-                cep: cepFormatado, periodo: periodoOriginal, status: 'pendente' 
-            });
-            totalOS++;
+
+            // REFINAMENTO DO AGRUPAMENTO: Agora junta Cliente + Rua + CEP
+            let chaveAgrupamento = `${String(cliente).trim().toUpperCase()}_${rua.toUpperCase()}_${cepFormatado}`;
+            let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
+
+            if (ordemExistente) {
+                ordemExistente.codigo += ` / ${codigo}`;
+                if (servico) {
+                    ordemExistente.servico += ` / ${servico}`;
+                }
+            } else {
+                ordensPorTecnico[tecnico].push({
+                    chaveAgrupamento: chaveAgrupamento,
+                    codigo: String(codigo), 
+                    cliente: String(cliente).trim(), 
+                    servico: servico,
+                    rua: rua,
+                    cidade: cidade,
+                    cep: cepFormatado, 
+                    periodo: periodoOriginal, 
+                    status: 'pendente' 
+                });
+                totalOS++; 
+            }
         });
 
         dadosGlobaisRotas = {}; 
@@ -286,7 +302,7 @@
                 concluidos++;
                 let perc = Math.round((concluidos / totalOS) * 100);
                 barra.style.width = perc + "%";
-                lbl.innerText = `${concluidos} de ${totalOS} ordens convertidas em GPS...`;
+                lbl.innerText = `${concluidos} de ${totalOS} locais únicos convertidos em GPS...`;
 
                 let crds = await obterCoordenadasSilenciosa(ordem);
                 ordem.lat = crds ? crds.lat : configGalpao.lat;
@@ -457,7 +473,6 @@
             let opacidade = index < limite ? "1" : "0.4";
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             
-            // CONSTRUÇÃO DISCRETA DOS TIMESTAMPS
             let hSaida = cliente.horaSaida || "-";
             let hChegada = cliente.horaChegada || "-";
             let hFinal = cliente.horaFinal || "-";
@@ -476,7 +491,7 @@
                         <div class="drag-handle" style="${visualizandoHistorico ? 'display:none;' : ''}">☰</div>
                         <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
                         <div class="itinerario-info">
-                            <div style="color: white; font-size: 12px; font-weight:bold;">OS: ${cliente.codigo} ${badgeHTML}</div>
+                            <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${cliente.codigo} ${badgeHTML}</div>
                             <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
                         </div>
                         <button class="btn-lapis" onclick="editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço">✏️</button>
@@ -513,20 +528,17 @@
         if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
     }
 
-    // NOVA FUNÇÃO: EDITA ENDEREÇO EM TEMPO REAL E FAZ RE-GEOCODIFICAÇÃO
     async function editarEnderecoManual(codigo, ruaAtual, event) {
-        event.stopPropagation(); // Impede de selecionar o card por engano
+        event.stopPropagation(); 
         
         let novoEndereco = prompt("✏️ Edite o endereço desta OS:", ruaAtual);
         if (!novoEndereco || novoEndereco.trim() === "" || novoEndereco === ruaAtual) return;
 
-        // Feedback de carregamento rápido
         const originalBtn = event.target;
         originalBtn.innerText = "⏳";
         originalBtn.disabled = true;
 
         try {
-            // Busca novas coordenadas do GPS
             let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" };
             let crds = await obterCoordenadasSilenciosa(geoData);
 
@@ -537,7 +549,6 @@
                 return;
             }
 
-            // Acha o objeto local na memória para atualizar a interface imediatamente
             let itemLocal = rotaAtiva.find(p => p.codigo === codigo || String(p.codigo) === String(codigo));
             if (itemLocal) {
                 itemLocal.rua = novoEndereco;
@@ -546,7 +557,6 @@
                 itemLocal.precisaCorrecao = false;
             }
 
-            // Se for histórico que já está no banco de dados, manda o PUT
             if (visualizandoHistorico && dataAtiva && tecnicoAtivo) {
                 let res = await fetch('/api/rotas/endereco', {
                     method: 'PUT',
@@ -565,7 +575,6 @@
                     alert("⚠️ Atualizado localmente, mas não foi possível persistir no banco de dados.");
                 }
             } else {
-                // Se for modo rascunho (Excel carregado), salva no armazenamento local
                 localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
             }
 
@@ -654,7 +663,7 @@
                 let statusCount = { pendente:0, deslocamento:0, llegada:0, sucesso:0, insucesso:0 };
                 roteiro.itinerario.forEach(c => { 
                     let st = c.status || 'pendente';
-                    if (st === 'chegada') st = 'llegada'; // Compatibilidade interna com o banco de dados
+                    if (st === 'chegada') st = 'llegada'; 
                     if(statusCount[st] !== undefined) statusCount[st]++; else statusCount.pendente++; 
                 });
 
