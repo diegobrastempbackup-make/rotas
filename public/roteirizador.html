@@ -48,13 +48,23 @@
         #painelPlayback { display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(30, 41, 59, 0.95); padding: 15px 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 1000; width: 80%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); flex-direction: column; gap: 10px; }
         .slider-control { width: 100%; cursor: pointer; accent-color: #3B82F6; height: 6px; border-radius: 5px; outline: none; }
 
-        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #64748B; margin-bottom: 8px; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
+        /* ESTILIZAÇÃO DOS CARDS NO ITINERÁRIO */
+        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #64748B; margin-bottom: 8px; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
         .itinerario-item:active { cursor: grabbing; border-color: #3B82F6; box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3); transform: scale(1.02); }
         .itinerario-item.drag-over { border-top: 3px solid #10B981; }
 
+        .card-topo { display: flex; align-items: center; width: 100%; }
         .drag-handle { color: #64748B; padding-right: 10px; font-size: 18px; display: flex; align-items: center; }
-        .itinerario-info { flex-grow: 1; margin: 0 5px; cursor: default; }
+        .itinerario-info { flex-grow: 1; margin: 0 5px; cursor: default; min-width: 0; }
         
+        /* LINHA DE TELEMETRIA DISCRETA */
+        .card-telemetria { display: flex; gap: 10px; font-size: 10px; color: #94A3B8; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.03); margin-top: 4px; }
+        .time-stamp { display: flex; align-items: center; gap: 2px; }
+
+        /* BOTÃO DO LÁPIS */
+        .btn-lapis { background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 5px; font-size: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .btn-lapis:hover { color: #FACC15; background: rgba(255,255,255,0.05); }
+
         .btn-mini { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12px; font-weight: bold; }
         .btn-mini:hover { background: #2563EB; }
         
@@ -228,14 +238,12 @@
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
                 const dadosNormalizados = jsonData.map(linha => { let novaLinha = {}; for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; } return novaLinha; });
                 
-                // Em vez de agrupar e pular, agora agrupamos E geocodificamos!
                 agruparEGeocodificar(dadosNormalizados);
             } catch (erro) { alert("❌ Erro: " + erro.message); }
         };
         reader.readAsArrayBuffer(file);
     }
 
-    // A MÁGICA ACONTECE AQUI (MOTOR DE GPS LENTO, MAS DEFINITIVO)
     async function agruparEGeocodificar(linhas) {
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("loadingUpload").style.display = "block";
@@ -243,7 +251,6 @@
         let ordensPorTecnico = {};
         let totalOS = 0;
 
-        // 1. Fase de Extração do Excel (Rápida)
         linhas.forEach(linha => {
             const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
             const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
@@ -272,18 +279,15 @@
         let barra = document.getElementById("barraProgresso");
         let lbl = document.getElementById("lblProgresso");
 
-        // 2. Fase de Geocodificação com Barra de Progresso
         for (let tecnico of Object.keys(ordensPorTecnico)) {
             dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             
             for (let ordem of ordensPorTecnico[tecnico]) {
-                // Atualiza a Barra Verde
                 concluidos++;
                 let perc = Math.round((concluidos / totalOS) * 100);
                 barra.style.width = perc + "%";
                 lbl.innerText = `${concluidos} de ${totalOS} ordens convertidas em GPS...`;
 
-                // Busca o GPS Definitivo
                 let crds = await obterCoordenadasSilenciosa(ordem);
                 ordem.lat = crds ? crds.lat : configGalpao.lat;
                 ordem.lon = crds ? crds.lon : configGalpao.lon;
@@ -292,12 +296,10 @@
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
                 else dadosGlobaisRotas[tecnico].tarde.push(ordem);
 
-                // Escudo de API Gratuita (Espera 1 segundo cravado por cada endereço)
                 await new Promise(r => setTimeout(r, 1000));
             }
         }
 
-        // 3. Tudo salvo com GPS para a eternidade!
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("loadingUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
@@ -348,7 +350,6 @@
         
         const dadosTecnico = dadosGlobaisRotas[nome];
         
-        // Como o GPS já foi salvo na hora do Excel, não precisamos buscar aqui! 🚀
         let coordsManha = [...dadosTecnico.manha];
         let coordsTarde = [...dadosTecnico.tarde]; 
 
@@ -384,7 +385,7 @@
                 let posicaoCarro = { lat: configGalpao.lat, lon: configGalpao.lon };
                 let statusCarro = "Aguardando Início";
                 let corBordaCarro = "#64748B"; 
-                let jaIniciou = false; // Controle de Partida
+                let jaIniciou = false; 
                 
                 roteiro.itinerario.forEach((cliente, idx) => {
                     let corPino = "#64748B"; 
@@ -456,14 +457,31 @@
             let opacidade = index < limite ? "1" : "0.4";
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             
+            // CONSTRUÇÃO DISCRETA DOS TIMESTAMPS
+            let hSaida = cliente.horaSaida || "-";
+            let hChegada = cliente.horaChegada || "-";
+            let hFinal = cliente.horaFinal || "-";
+
+            let telemetriaHTML = `
+                <div class="card-telemetria">
+                    <span class="time-stamp" title="Deslocamento">🚗 ${hSaida}</span>
+                    <span class="time-stamp" title="Chegada">📍 ${hChegada}</span>
+                    <span class="time-stamp" title="Finalização">🏁 ${hFinal}</span>
+                </div>
+            `;
+
             htmlLista += `
                 <div class="itinerario-item" style="border-left-color: ${corPino}; opacity: ${opacidade};" draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})">
-                    <div class="drag-handle" style="${visualizandoHistorico ? 'display:none;' : ''}">☰</div>
-                    <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
-                    <div class="itinerario-info">
-                        <div style="color: white; font-size: 12px; font-weight:bold;">OS: ${cliente.codigo} ${badgeHTML}</div>
-                        <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
+                    <div class="card-topo">
+                        <div class="drag-handle" style="${visualizandoHistorico ? 'display:none;' : ''}">☰</div>
+                        <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
+                        <div class="itinerario-info">
+                            <div style="color: white; font-size: 12px; font-weight:bold;">OS: ${cliente.codigo} ${badgeHTML}</div>
+                            <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
+                        </div>
+                        <button class="btn-lapis" onclick="editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço">✏️</button>
                     </div>
+                    ${telemetriaHTML}
                 </div>
             `;
         });
@@ -493,6 +511,72 @@
         }
         
         if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+    }
+
+    // NOVA FUNÇÃO: EDITA ENDEREÇO EM TEMPO REAL E FAZ RE-GEOCODIFICAÇÃO
+    async function editarEnderecoManual(codigo, ruaAtual, event) {
+        event.stopPropagation(); // Impede de selecionar o card por engano
+        
+        let novoEndereco = prompt("✏️ Edite o endereço desta OS:", ruaAtual);
+        if (!novoEndereco || novoEndereco.trim() === "" || novoEndereco === ruaAtual) return;
+
+        // Feedback de carregamento rápido
+        const originalBtn = event.target;
+        originalBtn.innerText = "⏳";
+        originalBtn.disabled = true;
+
+        try {
+            // Busca novas coordenadas do GPS
+            let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" };
+            let crds = await obterCoordenadasSilenciosa(geoData);
+
+            if (!crds) {
+                alert("❌ Não conseguimos converter esse endereço em GPS. Verifique a grafia.");
+                originalBtn.innerText = "✏️";
+                originalBtn.disabled = false;
+                return;
+            }
+
+            // Acha o objeto local na memória para atualizar a interface imediatamente
+            let itemLocal = rotaAtiva.find(p => p.codigo === codigo || String(p.codigo) === String(codigo));
+            if (itemLocal) {
+                itemLocal.rua = novoEndereco;
+                itemLocal.lat = crds.lat;
+                itemLocal.lon = crds.lon;
+                itemLocal.precisaCorrecao = false;
+            }
+
+            // Se for histórico que já está no banco de dados, manda o PUT
+            if (visualizandoHistorico && dataAtiva && tecnicoAtivo) {
+                let res = await fetch('/api/rotas/endereco', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({
+                        data: dataAtiva,
+                        tecnico: tecnicoAtivo,
+                        codigoOs: codigo,
+                        novoEndereco: novoEndereco,
+                        lat: crds.lat,
+                        lon: crds.lon
+                    })
+                });
+
+                if (!res.ok) {
+                    alert("⚠️ Atualizado localmente, mas não foi possível persistir no banco de dados.");
+                }
+            } else {
+                // Se for modo rascunho (Excel carregado), salva no armazenamento local
+                localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+            }
+
+            atualizarTela(true);
+
+        } catch (e) {
+            alert("❌ Ocorreu um erro ao atualizar o endereço.");
+        } finally {
+            originalBtn.innerText = "✏️";
+            originalBtn.disabled = false;
+        }
     }
 
     function configurarSliderInicio() {
@@ -567,11 +651,17 @@
             divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando: ${rotasEncontradas[0].data}</h4>`;
             
             rotasEncontradas.forEach((roteiro, idx) => {
-                let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
-                roteiro.itinerario.forEach(c => { if(statusCount[c.status] !== undefined) statusCount[c.status]++; else statusCount.pendente++; });
+                let statusCount = { pendente:0, deslocamento:0, llegada:0, sucesso:0, insucesso:0 };
+                roteiro.itinerario.forEach(c => { 
+                    let st = c.status || 'pendente';
+                    if (st === 'chegada') st = 'llegada'; // Compatibilidade interna com o banco de dados
+                    if(statusCount[st] !== undefined) statusCount[st]++; else statusCount.pendente++; 
+                });
 
                 let concluídos = statusCount.sucesso + statusCount.insucesso;
-                let perc = Math.round((concluídos / roteiro.itinerario.length) * 100);
+                let perc = Math.round((concluídos / item_total_length(roteiro.itinerario)) * 100);
+
+                function item_total_length(arr) { return arr ? arr.length : 1; }
 
                 divLista.innerHTML += `
                     <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">

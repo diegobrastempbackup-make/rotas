@@ -240,27 +240,52 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo } = req.body;
         
+        let filterDoc = { 
+            data: data, 
+            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
+            cliente_id: req.usuario.cliente_id, 
+            "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } 
+        };
+
         let atualizacao = { "itinerario.$.status": novoStatus };
         if (campoTempo && valorTempo) {
             atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         }
 
-        // A MÁGICA: Agora o servidor ignora maiúsculas/minúsculas e aceita Códigos OS como Texto ou Número
-        const resultado = await db.collection("planejamento_rotas").updateOne(
-            { 
-                data: data, 
-                tecnico: new RegExp(`^${tecnico}$`, 'i'), // 'i' significa Case Insensitive
-                cliente_id: req.usuario.cliente_id, 
-                "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } 
-            },
-            { $set: atualizacao }
-        );
+        const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
 
-        // Usamos matchedCount em vez de modifiedCount para garantir estabilidade na internet móvel
         if (resultado.matchedCount > 0) res.json({ ok: true });
         else res.status(400).json({ erro: "Paragem não encontrada" });
     } catch (err) {
         res.status(500).json({ erro: "Erro ao atualizar status." });
+    }
+});
+
+// 5. NOVA ROTA: EDITAR ENDEREÇO DA PARAGEM (MÉTODO ATUALIZAR PARALELO)
+app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
+        
+        let filterDoc = { 
+            data: data, 
+            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
+            cliente_id: req.usuario.cliente_id, 
+            "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } 
+        };
+
+        let atualizacao = { 
+            "itinerario.$.rua": novoEndereco,
+            "itinerario.$.lat": lat,
+            "itinerario.$.lon": lon,
+            "itinerario.$.precisaCorrecao": false
+        };
+
+        const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
+
+        if (resultado.matchedCount > 0) res.json({ ok: true });
+        else res.status(400).json({ erro: "Paragem não encontrada." });
+    } catch (err) {
+        res.status(500).json({ erro: "Erro ao salvar novo endereço." });
     }
 });
 
@@ -373,7 +398,6 @@ app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
 app.put('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
     try {
         const { nome, funcao } = req.body;
-        // ADICIONADO: cliente_id: req.usuario.cliente_id para blindar o SaaS
         await db.collection("equipe_totem").updateOne(
             { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, 
             { $set: { nome, funcao } }
@@ -384,7 +408,6 @@ app.put('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
 
 app.delete('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
     try {
-        // ADICIONADO: cliente_id: req.usuario.cliente_id para blindar o SaaS
         await db.collection("equipe_totem").deleteOne({ 
             _id: new ObjectId(req.params.id), 
             cliente_id: req.usuario.cliente_id 
@@ -414,7 +437,6 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
         const { codigoBarras, horaBatida, dataBatida } = req.body;
         
-        // AGORA O TOTEM LÊ A LISTA ISOLADA DA EQUIPA BASE
         const pessoa = await db.collection("equipe_totem").findOne({ 
             nome: new RegExp(`^${codigoBarras}$`, 'i'), 
             cliente_id: req.usuario.cliente_id 
@@ -428,7 +450,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
         
         const registro = {
             cliente_id: req.usuario.cliente_id,
-            tecnico: pessoa.nome, // Mantém o nome para compatibilidade
+            tecnico: pessoa.nome, 
             data: dataBatida, 
             horaChegada: horaBatida,
             status: "Aguardando", 
@@ -466,22 +488,20 @@ app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
         res.json({ok: true});
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
+
 // ==========================================
 // ROTA DE COMUNICAÇÃO: PAINEL -> TOTEM
 // ==========================================
-
-// 1. O Gestor clica em Chamar (Avisa o banco de dados)
 app.put('/api/fila/:id/chamar-totem', autenticarToken, async (req, res) => {
     try {
         await db.collection("fila_ponto").updateOne(
             { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
-            { $set: { chamando_totem: true, status: "Atendido" } } // Já muda o status e ativa o alarme
+            { $set: { chamando_totem: true, status: "Atendido" } } 
         );
         res.json({ok: true});
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// 2. O Totem pergunta a cada 2 segundos: "Alguém me mandou chamar?"
 app.get('/api/totem/chamadas', autenticarToken, async (req, res) => {
     try {
         const chamadas = await db.collection("fila_ponto").find({
@@ -492,7 +512,6 @@ app.get('/api/totem/chamadas', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// 3. O Totem avisa o servidor: "Já chamei, pode desligar o alarme!"
 app.put('/api/fila/:id/chamada-concluida', autenticarToken, async (req, res) => {
     try {
         await db.collection("fila_ponto").updateOne(
@@ -502,17 +521,16 @@ app.put('/api/fila/:id/chamada-concluida', autenticarToken, async (req, res) => 
         res.json({ok: true});
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
+
 // ==========================================
 // FASE 6: MODO "ESPIÃO" (SaaS LOGIN AS)
 // ==========================================
 app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {
-    // Apenas o Super Admin verdadeiro pode fazer isto
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({erro: "Acesso Negado"});
     
     const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
     if (!empresa) return res.status(404).json({erro: "Empresa não encontrada"});
 
-    // O Servidor cria um Token especial "disfarçado" de Master daquela empresa
     const tokenNovo = jwt.sign(
         { id: req.usuario.id, tipo: "master", cliente_id: empresa.cliente_id, superadmin_original: true },
         process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
@@ -522,10 +540,8 @@ app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {
 });
 
 app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
-    // Verifica se é um Super Admin que estava a usar o disfarce
     if (!req.usuario.superadmin_original) return res.status(403).json({erro: "Negado"});
     
-    // Devolve o Token original absoluto de Super Admin
     const tokenNovo = jwt.sign(
         { id: req.usuario.id, tipo: "superadmin", cliente_id: "GLOBAL_SYSTEM" },
         process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
@@ -533,4 +549,5 @@ app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
     
     res.json({ ok: true, token: tokenNovo });
 });
+
 iniciarSistema();
