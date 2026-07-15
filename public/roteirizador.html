@@ -97,7 +97,7 @@
     <div class="main">
         <div class="header-painel">
             <h1>Torre de Controle Logístico</h1>
-            <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada viatura.</p>
+            <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
         </div>
 
         <label class="upload-area" id="areaUpload">
@@ -112,7 +112,7 @@
             <div style="width: 100%; background: #0F172A; height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
                 <div id="barraProgresso" style="width: 0%; background: #10B981; height: 100%; transition: width 0.3s;"></div>
             </div>
-            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ O sistema respeita o limite de 1 busca por segundo para usar o mapa gratuitamente.<br><b>Por favor, não feche nem atualize esta página até chegar a 100%.</b></p>
+            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ <b>Por favor, não feche nem atualize esta página até chegar a 100%.</b></p>
         </div>
 
         <div id="painelRotas">
@@ -156,7 +156,7 @@
                 <div id="painelPlayback">
                     <div style="display: flex; justify-content: space-between; align-items: center; color: white; font-weight: bold; font-size: 13px;">
                         <span>⏮ Início</span>
-                        <span id="lblPlaybackStatus" style="color: #3B82F6;">Linha do Tempo da Viatura</span>
+                        <span id="lblPlaybackStatus" style="color: #3B82F6;">Linha do Tempo </span>
                         <span>Fim ⏭</span>
                     </div>
                     <input type="range" id="sliderPlayback" class="slider-control" min="0" max="10" value="10" oninput="atualizarTela(false)">
