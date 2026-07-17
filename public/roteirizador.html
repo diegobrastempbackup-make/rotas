@@ -381,18 +381,18 @@
     }
 
     // =========================================================================
-    // O CÉREBRO: AUTO-ROUTING (VARREDURA POR TÉCNICO E DENSIDADE)
+    // O CÉREBRO V4: GRAVIDADE ANCORADA NA CASA DO TÉCNICO (REGIONALIZAÇÃO PERFEITA)
     // =========================================================================
     async function distribuirRotasInteligente(lotes) {
         let tipoVeiculo = document.getElementById("tipoPlanilha").value;
         let equipeValida = window.equipeCompleta.filter(t => t.status === 'Ativo' && t.tipoVeiculo === tipoVeiculo);
 
         if (equipeValida.length === 0) {
-            alert(`⚠️ ATENÇÃO: Você subiu uma planilha vazia para a frota de ${tipoVeiculo}, mas o sistema não encontrou NENHUM técnico de ${tipoVeiculo} marcado como 'Ativo' no cadastro. A distribuição falhou.`);
+            alert(`⚠️ ATENÇÃO: Você subiu uma planilha vazia para a frota de ${tipoVeiculo}, mas não encontrou NENHUM técnico de ${tipoVeiculo} marcado como 'Ativo'. A distribuição falhou.`);
             return;
         }
 
-        // 1. Prepara a equipa (Lê a casa de cada um)
+        // 1. Prepara a equipa: Geolocaliza e "Chumba" a âncora na casa de cada um
         for (let tec of equipeValida) {
             if (!tec.lat && tec.cep) {
                 let coords = await obterCoordenadasSilenciosa({ rua: "", cidade: "São Paulo", cep: tec.cep });
@@ -403,77 +403,61 @@
             }
             tec.cargaAtualOS = 0;
             tec.rotasSugeridas = { manha: [], tarde: [] };
-            tec.posAtual = { lat: tec.lat, lon: tec.lon }; 
-            tec.lotado = false;
         }
 
-        let lotesPendentes = [...lotes];
+        // 2. Ordena os Lotes dos mais distantes da base para os mais próximos
+        // Isso ajuda o sistema a "despachar" os clientes dos extremos primeiro para quem mora nas bordas da cidade.
+        lotes.sort((a, b) => {
+            let distA = calcularDistancia(configGalpao.lat, configGalpao.lon, a.lat, a.lon);
+            let distB = calcularDistancia(configGalpao.lat, configGalpao.lon, b.lat, b.lon);
+            return distB - distA; 
+        });
 
-        // 2. O Algoritmo "Aspirador": Preenche um técnico de cada vez!
-        for (let tec of equipeValida) {
-            if (lotesPendentes.length === 0) break; // Todas as OS foram distribuídas!
-            
-            // O técnico vai "varrer" a região até encher ou a região acabar
-            while (lotesPendentes.length > 0) {
-                let melhorLoteIdx = -1;
-                let menorDist = Infinity;
+        // 3. Distribuição Baseada Estritamente na Casa do Técnico
+        for (let lote of lotes) {
+            let melhorTec = null;
+            let menorDistancia = Infinity;
 
-                // Encontra qual é a OS mais próxima da posição atual deste técnico
-                for (let i = 0; i < lotesPendentes.length; i++) {
-                    let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, lotesPendentes[i].lat, lotesPendentes[i].lon);
-                    if (dist < menorDist) {
-                        menorDist = dist;
-                        melhorLoteIdx = i;
-                    }
-                }
-
-                // A MÁGICA DA DENSIDADE:
-                // Se ele atingiu a meta de OS, ele só pode pegar mais se for na vizinhança (< 3.0 KM)
-                if (tec.lotado && menorDist > 3.0) {
-                    break; // Sai do "while". A rota dele acabou. Vamos acordar o próximo técnico!
-                }
-
-                // Entrega o Lote ao Técnico
-                let loteEscolhido = lotesPendentes.splice(melhorLoteIdx, 1)[0];
-                tec.cargaAtualOS += loteEscolhido.qtdOS;
+            for (let tec of equipeValida) {
+                // A distância é calculada do Lote até à CASA DO TÉCNICO. Ele não se move!
+                let distParaCasa = calcularDistancia(tec.lat, tec.lon, lote.lat, lote.lon);
                 
-                if (loteEscolhido.periodo === 'MANHA') tec.rotasSugeridas.manha.push(loteEscolhido);
-                else tec.rotasSugeridas.tarde.push(loteEscolhido);
+                let cap = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
+                let temEspaco = (tec.cargaAtualOS + lote.qtdOS) <= cap;
 
-                // O CARRO ANDA (A gravidade puxa ele para o cliente)
-                tec.posAtual = { lat: loteEscolhido.lat, lon: loteEscolhido.lon };
+                // A MÁGICA DA TOLERÂNCIA:
+                // Se ele já bateu a meta, mas o cliente está no quintal dele (< 4.5 KM da sua casa)
+                // Ele quebra o limite e pega a OS na mesma. Isso mantém a região densa e bloqueia passeios.
+                if (!temEspaco && distParaCasa <= 4.5) {
+                    temEspaco = true; 
+                }
 
-                // Atualiza se ele bateu a meta
-                let capacidadeMaxOS = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
-                if (tec.cargaAtualOS >= capacidadeMaxOS) {
-                    tec.lotado = true;
+                if (temEspaco && distParaCasa < menorDistancia) {
+                    menorDistancia = distParaCasa;
+                    melhorTec = tec;
                 }
             }
-        }
 
-        // 3. Sistema de Prevenção: Se a equipa acabou e ainda sobrou OS
-        if (lotesPendentes.length > 0) {
-            for (let lote of lotesPendentes) {
-                let melhorTec = null;
-                let menorDist = Infinity;
-                // Entrega para quem estiver mais perto, mesmo que já esteja lotado, para não perder a OS
+            // Fallback: Se o cliente mora no meio do nada e todos os técnicos próximos estão 100% cheios,
+            // atira para quem morar menos longe, ignorando o limite para não perder a OS.
+            if (!melhorTec) {
+                menorDistancia = Infinity;
                 for (let tec of equipeValida) {
-                    let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, lote.lat, lote.lon);
-                    if (dist < menorDist) {
-                        menorDist = dist;
+                    let distParaCasa = calcularDistancia(tec.lat, tec.lon, lote.lat, lote.lon);
+                    if (distParaCasa < menorDistancia) {
+                        menorDistancia = distParaCasa;
                         melhorTec = tec;
                     }
                 }
-                if (melhorTec) {
-                    melhorTec.cargaAtualOS += lote.qtdOS;
-                    if (lote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(lote);
-                    else melhorTec.rotasSugeridas.tarde.push(lote);
-                    melhorTec.posAtual = { lat: lote.lat, lon: lote.lon };
-                }
             }
+
+            // Entrega o lote
+            melhorTec.cargaAtualOS += lote.qtdOS;
+            if (lote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(lote);
+            else melhorTec.rotasSugeridas.tarde.push(lote);
         }
 
-        // Transfere o resultado da IA para o mapa
+        // 4. Transfere o resultado da IA para a interface gráfica
         for (let tec of equipeValida) {
             if (tec.cargaAtualOS > 0) {
                 dadosGlobaisRotas[tec.nome] = {
