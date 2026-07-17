@@ -210,10 +210,14 @@
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
         
-        // Puxa a base de dados de técnicos (com CEP, Veículo, Capacidade)
+        // CÉREBRO AGORA LÊ DA BASE DE USUÁRIOS (APP ROTA)
         try {
-            const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
-            if (res.ok) window.equipeCompleta = await res.json();
+            const res = await fetch("/api/usuarios", { headers: { "Authorization": `Bearer ${token}` } });
+            if (res.ok) {
+                const todosUsuarios = await res.json();
+                // Filtra para o Motor de IA apenas quem tem o nível "tecnico" (App Rota)
+                window.equipeCompleta = todosUsuarios.filter(u => u.tipo === 'tecnico');
+            }
         } catch(e) {}
 
         const rotasGuardadas = localStorage.getItem("planilhaRotas");

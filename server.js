@@ -57,24 +57,17 @@ app.get("/tecnicos.html", (req, res) => { if (!req.query.token) return res.redir
 app.get("/ping", (req, res) => { res.status(200).send("Servidor acordado!"); });
 
 // =====================================================================
-// LOGIN E GESTÃO DE UTILIZADORES / EMPRESAS
+// LOGIN E GESTÃO DE EMPRESAS
 // =====================================================================
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
-    
     if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
     if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso. Contacte a administração." });
-
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta" });
-
-    const token = jwt.sign(
-      { id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id },
-      JWT_SECRET, { expiresIn: "12h" }
-    );
-
+    const token = jwt.sign({ id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id }, JWT_SECRET, { expiresIn: "12h" });
     const tipoFront = usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo;
     res.json({ ok: true, token, nome: usuarioBanco.nome, tipo: tipoFront });
   } catch (err) { res.status(500).json({ erro: "Erro ao realizar login" }); }
@@ -87,14 +80,9 @@ app.post("/nova-empresa", autenticarToken, async (req, res) => {
     if (!empresa || !nome || !usuario || !senha) return res.status(400).json({ erro: "Preencha todos os campos." });
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (existe) return res.status(400).json({ erro: "Login já em uso." });
-
     const novoClienteId = new ObjectId().toString(); 
     const senhaHash = await bcrypt.hash(senha, 10);
-
-    await db.collection("usuarios").insertOne({
-      cliente_id: novoClienteId, empresaNome: empresa.trim(), nome, usuario: usuario.toLowerCase().trim(),
-      senha: senhaHash, tipo: "master", ativo: true, criadoEm: new Date()
-    });
+    await db.collection("usuarios").insertOne({ cliente_id: novoClienteId, empresaNome: empresa.trim(), nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo: "master", ativo: true, criadoEm: new Date() });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro ao criar empresa" }); }
 });
@@ -123,21 +111,31 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
     const empresaMaster = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
     if(empresaMaster && empresaMaster.cliente_id) {
         const cid = empresaMaster.cliente_id;
-        const colecoes = ["usuarios", "tecnicos_dashboard", "tecnicos", "estoque", "historico_estoque", "registros", "planejamento_rotas"];
-        for(let col of colecoes) await db.collection(col).deleteMany({ cliente_id: cid });
+        for(let col of ["usuarios", "tecnicos_dashboard", "tecnicos", "estoque", "historico_estoque", "registros", "planejamento_rotas"]) await db.collection(col).deleteMany({ cliente_id: cid });
     }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
+// =====================================================================
+// USUÁRIOS (AGORA CONTÉM O SUPER CADASTRO DO TÉCNICO DE ROTA)
+// =====================================================================
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
-    const { nome, usuario, senha, tipo } = req.body;
+    
+    const { nome, usuario, senha, tipo, status, tipoVeiculo, capacidade, cep, bairro } = req.body;
+    
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (existe) return res.status(400).json({ erro: "Login já em uso" });
     const senhaHash = await bcrypt.hash(senha, 10);
-    await db.collection("usuarios").insertOne({ cliente_id: req.usuario.cliente_id, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date() });
+    
+    await db.collection("usuarios").insertOne({ 
+        cliente_id: req.usuario.cliente_id, 
+        nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, 
+        status: status || "Ativo", tipoVeiculo, capacidade: Number(capacidade) || 0, cep, bairro,
+        ativo: true, criadoEm: new Date() 
+    });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -157,9 +155,12 @@ app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
 app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
-    const { nome, tipo, senha } = req.body;
-    const atualizacao = { nome, tipo };
+    
+    const { nome, tipo, senha, status, tipoVeiculo, capacidade, cep, bairro } = req.body;
+    
+    const atualizacao = { nome, tipo, status: status || "Ativo", tipoVeiculo, capacidade: Number(capacidade) || 0, cep, bairro };
     if (senha && senha.trim() !== "") atualizacao.senha = await bcrypt.hash(senha, 10);
+    
     await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: atualizacao });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
@@ -173,11 +174,7 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
       const { data, tecnico, itinerario } = req.body;
       if (!data || !tecnico || !itinerario) { return res.status(400).json({ erro: "Dados incompletos" }); }
       const itinerarioFormatado = itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
-      await db.collection("planejamento_rotas").updateOne(
-          { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
-          { $set: { itinerario: itinerarioFormatado, atualizadoEm: new Date() } },
-          { upsert: true }
-      );
+      await db.collection("planejamento_rotas").updateOne({ data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id }, { $set: { itinerario: itinerarioFormatado, atualizadoEm: new Date() } }, { upsert: true });
       res.json({ mensagem: "Roteiro salvo com sucesso!" });
   } catch (err) { res.status(500).json({ erro: "Erro ao salvar roteiro." }); }
 });
@@ -221,38 +218,11 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// NOVO ESTRUTURA DO SUPER CADASTRO DE TÉCNICOS (Com Veículo e Capacidade)
+// TÉCNICOS DASHBOARD (REVERTIDO PARA O BÁSICO DE CONTROLE DE FROTA)
 // =====================================================================
 app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
-
-app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { 
-    try { 
-        const { nome, status, telefone, email, veiculo, placa, tipoVeiculo, capacidade, cep, bairro } = req.body; 
-        const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); 
-        if (existe) return res.status(400).json({ erro: "Técnico já registado" }); 
-        await db.collection("tecnicos_dashboard").insertOne({ 
-            cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", 
-            telefone, email, veiculo, placa, tipoVeiculo, capacidade: Number(capacidade) || 0, cep, bairro, criadoEm: new Date() 
-        }); 
-        res.json({ ok: true }); 
-    } catch (erro) { res.status(500).json({ erro: "Erro" }); } 
-});
-
-app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { 
-    try { 
-        await db.collection("tecnicos_dashboard").updateOne(
-            { _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, 
-            { $set: { 
-                nome: req.body.nome.trim(), status: req.body.status, telefone: req.body.telefone, 
-                email: req.body.email, veiculo: req.body.veiculo, placa: req.body.placa, 
-                tipoVeiculo: req.body.tipoVeiculo, capacidade: Number(req.body.capacidade) || 0, 
-                cep: req.body.cep, bairro: req.body.bairro 
-            }}
-        ); 
-        res.json({ ok: true }); 
-    } catch (erro) { res.status(500).json({ erro: "Erro" }); } 
-});
-
+app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { const { nome, status, telefone, email, veiculo, placa } = req.body; const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Técnico já registado" }); await db.collection("tecnicos_dashboard").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", telefone, email, veiculo, placa, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { nome: req.body.nome.trim(), status: req.body.status, telefone: req.body.telefone, email: req.body.email, veiculo: req.body.veiculo, placa: req.body.placa } }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.delete("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 
 // =====================================================================
