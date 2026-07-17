@@ -227,12 +227,22 @@
                         <option value="Moto">Moto</option>
                     </select>
                 </div>
-                <div class="form-group"><label>Capacidade (Máx OS / Caixas)</label><input type="number" id="cadCapacidade" placeholder="Ex: 10"></div>
+                <div class="form-group">
+                    <label>Limite de Agenda (Máx. OS)</label>
+                    <input type="number" id="cadCapacidadeOS" placeholder="Ex: 9">
+                </div>
             </div>
             <div class="form-grid">
-                <div class="form-group"><label>CEP da Residência (Base)</label><input type="text" id="cadCep" placeholder="00000-000" onblur="buscarCep(this.value)"></div>
-                <div class="form-group"><label>Bairro / Cidade</label><input type="text" id="cadBairro" placeholder="Busca Automática"></div>
+                <div class="form-group">
+                    <label>Espaço Físico (Máx. Caixas)</label>
+                    <input type="number" id="cadCapacidadeCaixas" placeholder="Ex: 7">
+                </div>
+                <div class="form-group">
+                    <label>CEP da Residência (Base)</label>
+                    <input type="text" id="cadCep" placeholder="00000-000" onblur="buscarCep(this.value)">
+                </div>
             </div>
+            <div class="form-group"><label>Bairro / Cidade</label><input type="text" id="cadBairro" placeholder="Busca Automática"></div>
         </div>
 
         <button class="btn-bloco" style="background:#10B981;" onclick="salvarUsuario()">Salvar Usuário</button>

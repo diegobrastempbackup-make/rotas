@@ -357,7 +357,8 @@ function abrirModalUsuario() {
     // Limpa campos de Roteirizador
     document.getElementById("cadStatus").value = "Ativo";
     document.getElementById("cadTipoVeiculo").value = "Carro";
-    document.getElementById("cadCapacidade").value = "";
+    document.getElementById("cadCapacidadeOS").value = "";
+    document.getElementById("cadCapacidadeCaixas").value = "";
     document.getElementById("cadCep").value = "";
     document.getElementById("cadBairro").value = "";
     
@@ -380,7 +381,8 @@ function prepararEdicaoUsuario(id) {
     // Popula campos avançados se ele for técnico
     document.getElementById("cadStatus").value = u.status || "Ativo";
     document.getElementById("cadTipoVeiculo").value = u.tipoVeiculo || "Carro";
-    document.getElementById("cadCapacidade").value = u.capacidade || "";
+    document.getElementById("cadCapacidadeOS").value = u.capacidadeOS || "";
+    document.getElementById("cadCapacidadeCaixas").value = u.capacidadeCaixas || "";
     document.getElementById("cadCep").value = u.cep || "";
     document.getElementById("cadBairro").value = u.bairro || "";
 
@@ -397,13 +399,14 @@ async function salvarUsuario() {
 
     const status = document.getElementById("cadStatus").value;
     const tipoVeiculo = document.getElementById("cadTipoVeiculo").value;
-    const capacidade = document.getElementById("cadCapacidade").value;
+    const capacidadeOS = document.getElementById("cadCapacidadeOS").value;
+    const capacidadeCaixas = document.getElementById("cadCapacidadeCaixas").value;
     const cep = document.getElementById("cadCep").value.trim();
     const bairro = document.getElementById("cadBairro").value.trim();
 
     if (!nome || !usuario) return alert("Preencha todos os campos obrigatórios.");
     try {
-        const payload = { nome, usuario, senha, tipo, status, tipoVeiculo, capacidade, cep, bairro };
+        const payload = { nome, usuario, senha, tipo, status, tipoVeiculo, capacidadeOS, capacidadeCaixas, cep, bairro };
         let res;
 
         if (id) {

@@ -124,7 +124,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
     
-    const { nome, usuario, senha, tipo, status, tipoVeiculo, capacidade, cep, bairro } = req.body;
+    const { nome, usuario, senha, tipo, status, tipoVeiculo, capacidadeOS, capacidadeCaixas, cep, bairro } = req.body;
     
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (existe) return res.status(400).json({ erro: "Login já em uso" });
@@ -133,21 +133,12 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
     await db.collection("usuarios").insertOne({ 
         cliente_id: req.usuario.cliente_id, 
         nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, 
-        status: status || "Ativo", tipoVeiculo, capacidade: Number(capacidade) || 0, cep, bairro,
+        status: status || "Ativo", tipoVeiculo, 
+        capacidadeOS: Number(capacidadeOS) || 0, 
+        capacidadeCaixas: Number(capacidadeCaixas) || 0, 
+        cep, bairro,
         ativo: true, criadoEm: new Date() 
     });
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: "Erro" }); }
-});
-
-app.get("/api/usuarios", autenticarToken, async (req, res) => {
-  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); }
-});
-
-app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
-  try {
-    if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
-    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -156,9 +147,14 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
     
-    const { nome, tipo, senha, status, tipoVeiculo, capacidade, cep, bairro } = req.body;
+    const { nome, tipo, senha, status, tipoVeiculo, capacidadeOS, capacidadeCaixas, cep, bairro } = req.body;
     
-    const atualizacao = { nome, tipo, status: status || "Ativo", tipoVeiculo, capacidade: Number(capacidade) || 0, cep, bairro };
+    const atualizacao = { 
+        nome, tipo, status: status || "Ativo", tipoVeiculo, 
+        capacidadeOS: Number(capacidadeOS) || 0, 
+        capacidadeCaixas: Number(capacidadeCaixas) || 0, 
+        cep, bairro 
+    };
     if (senha && senha.trim() !== "") atualizacao.senha = await bcrypt.hash(senha, 10);
     
     await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: atualizacao });
