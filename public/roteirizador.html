@@ -187,8 +187,14 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
-    let configGalpao = JSON.parse(localStorage.getItem("configGalpao"));
-    if (!configGalpao) configGalpao = { lat: -23.5184, lon: -46.7461, nome: "Base Operacional", endereco: "Rua Antonio Ayrosa 191" };
+    // Força a Base Operacional sempre para Antonio Ayrosa 191, ignorando caches antigos do navegador
+    let configGalpao = { 
+        lat: -23.5184, 
+        lon: -46.7461, 
+        nome: "Base Operacional", 
+        endereco: "Rua Antonio Ayrosa 191" 
+    };
+    localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
 
     let mapa = null;
     let layerGrupo = null; 
@@ -370,7 +376,7 @@
     }
 
     // =========================================================================
-    // O CÉREBRO: AUTO-ROUTING GEOGRÁFICO COM LIMITE DE CAPACIDADE
+    // O CÉREBRO: AUTO-ROUTING COM "GRAVIDADE" E TOLERÂNCIA DE DENSIDADE
     // =========================================================================
     async function distribuirRotasInteligente(lotes) {
         let tipoVeiculo = document.getElementById("tipoPlanilha").value;
@@ -381,6 +387,7 @@
             return;
         }
 
+        // 1. Prepara a equipa
         for (let tec of equipeValida) {
             if (!tec.lat && tec.cep) {
                 let coords = await obterCoordenadasSilenciosa({ rua: "", cidade: "São Paulo", cep: tec.cep });
@@ -391,43 +398,77 @@
             }
             tec.cargaAtualOS = 0;
             tec.rotasSugeridas = { manha: [], tarde: [] };
+            
+            // O Segredo: Acompanha a posição do carro conforme a rota é montada
+            tec.posAtual = { lat: tec.lat, lon: tec.lon }; 
+            tec.lotado = false;
         }
 
-        // Distribui Lote a Lote
-        for (let lote of lotes) {
-            let tecEscolhido = null;
-            let menorDistancia = Infinity;
+        let lotesPendentes = [...lotes];
 
-            for (let tec of equipeValida) {
-                let dist = calcularDistancia(lote.lat, lote.lon, tec.lat, tec.lon);
-                
-                // Capacidade de Agenda (OS)
-                let capacidadeMaxOS = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
-                let temEspaco = (tec.cargaAtualOS + lote.qtdOS) <= capacidadeMaxOS;
+        // 2. O Algoritmo de "Gravidade"
+        while (lotesPendentes.length > 0) {
+            let melhorTec = null;
+            let melhorLoteIdx = -1;
+            let menorDistGlobal = Infinity;
 
-                // Transbordo
-                if (!temEspaco && tec.cargaAtualOS === 0) temEspaco = true;
+            // Encontra o casamento perfeito: Qual técnico está mais perto de qual lote AGORA?
+            for (let i = 0; i < lotesPendentes.length; i++) {
+                let lote = lotesPendentes[i];
 
-                if (temEspaco && dist < menorDistancia) {
-                    menorDistancia = dist;
-                    tecEscolhido = tec;
-                }
-            }
-
-            if (!tecEscolhido) {
                 for (let tec of equipeValida) {
-                    let dist = calcularDistancia(lote.lat, lote.lon, tec.lat, tec.lon);
-                    if (dist < menorDistancia) { menorDistancia = dist; tecEscolhido = tec; }
+                    let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, lote.lat, lote.lon);
+                    
+                    // A MÁGICA DA DENSIDADE: 
+                    // Se o técnico bateu a meta dele (ex: 13 OS), ele SÓ PODE receber mais 
+                    // se o cliente estiver a menos de 3.0 KM de distância (Quebra da regra para salvar a logística).
+                    if (tec.lotado && dist > 3.0) {
+                        continue; 
+                    }
+
+                    if (dist < menorDistGlobal) {
+                        menorDistGlobal = dist;
+                        melhorTec = tec;
+                        melhorLoteIdx = i;
+                    }
                 }
             }
 
-            if (tecEscolhido) {
-                tecEscolhido.cargaAtualOS += lote.qtdOS;
-                if (lote.periodo === 'MANHA') tecEscolhido.rotasSugeridas.manha.push(lote);
-                else tecEscolhido.rotasSugeridas.tarde.push(lote);
+            // Se o sistema for muito duro (todos lotaram e as ordens estão longe), força no mais próximo
+            if (!melhorTec) {
+                menorDistGlobal = Infinity;
+                for (let i = 0; i < lotesPendentes.length; i++) {
+                    let lote = lotesPendentes[i];
+                    for (let tec of equipeValida) {
+                        let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, lote.lat, lote.lon);
+                        if (dist < menorDistGlobal) {
+                            menorDistGlobal = dist;
+                            melhorTec = tec;
+                            melhorLoteIdx = i;
+                        }
+                    }
+                }
+            }
+
+            // 3. Atribui o lote ao Técnico Vencedor
+            let loteEscolhido = lotesPendentes.splice(melhorLoteIdx, 1)[0];
+            melhorTec.cargaAtualOS += loteEscolhido.qtdOS;
+            
+            if (loteEscolhido.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(loteEscolhido);
+            else melhorTec.rotasSugeridas.tarde.push(loteEscolhido);
+
+            // 4. O CARRO ANDA: Atualiza a posição atual do técnico para o cliente que acabou de receber.
+            // Isso cria a gravidade. A próxima OS em Cajamar ficará colada nele.
+            melhorTec.posAtual = { lat: loteEscolhido.lat, lon: loteEscolhido.lon };
+
+            // 5. Verifica se estourou o limite de OS
+            let capacidadeMaxOS = melhorTec.capacidadeOS ? parseInt(melhorTec.capacidadeOS) : 999;
+            if (melhorTec.cargaAtualOS >= capacidadeMaxOS) {
+                melhorTec.lotado = true;
             }
         }
 
+        // Transfere o resultado da IA para o mapa
         for (let tec of equipeValida) {
             if (tec.cargaAtualOS > 0) {
                 dadosGlobaisRotas[tec.nome] = {
