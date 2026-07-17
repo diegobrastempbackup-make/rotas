@@ -307,7 +307,6 @@
             let defeito = buscarValorNaLinha(linha, ["DEFEITO", "RECLAMAÇÃO", "RECLAMACAO"]);
             let detalhes = buscarValorNaLinha(linha, ["DETALHES", "COMPLEMENTO"]);
             let distrito = buscarValorNaLinha(linha, ["DISTRITO", "BAIRRO"]);
-
             let chaveAgrupamento = `${String(cliente).trim().toUpperCase()}_${rua.toUpperCase()}_${cepFormatado}`;
             let loteExistente = ordensLotes.find(o => o.chaveAgrupamento === chaveAgrupamento && o.tecnico === tecnico);
 
@@ -317,6 +316,10 @@
                 if (modelo) loteExistente.modelo += ` / ${modelo}`;
                 if (defeito) loteExistente.defeito += ` / ${defeito}`;
                 loteExistente.qtdOS = (loteExistente.qtdOS || 1) + 1;
+                
+                // NOVO: Guarda a linha de Excel original "intacta" para exportarmos depois
+                if (!loteExistente.ordens_originais) loteExistente.ordens_originais = [];
+                loteExistente.ordens_originais.push(linha);
             } else {
                 ordensLotes.push({
                     tecnico: tecnico,
@@ -329,7 +332,9 @@
                     detalhes: detalhes,
                     distrito: distrito,
                     rua: rua, cidade: cidade, cep: cepFormatado, 
-                    periodo: periodoOriginal, status: 'pendente', qtdOS: 1
+                    periodo: periodoOriginal, status: 'pendente', qtdOS: 1,
+                    // NOVO: Inicia o "pacote" com a primeira linha de Excel original
+                    ordens_originais: [linha]
                 });
                 totalOS++; 
             }
@@ -574,7 +579,7 @@
         if(layerGrupo) mapa.removeLayer(layerGrupo);
     }
 
-    // NOVO: Função que gera o Excel do Roteiro atual (com a mesma ordem de colunas da imagem do usuário)
+    // Função que Desagrupa o Lote e gera o Excel limpo
     function exportarPlanejamentoExcel() {
         if (Object.keys(dadosGlobaisRotas).length === 0) return alert("Nenhum planejamento ativo para exportar.");
         
@@ -582,24 +587,45 @@
         
         Object.keys(dadosGlobaisRotas).forEach(tecnico => {
             const rotas = dadosGlobaisRotas[tecnico];
-            // Respeita a ordem exata de Manhã e depois Tarde
+            // Respeita a ordem exata da Rota Otimizada (Manhã -> Tarde)
             const itinerarioCompleto = [...rotas.manha, ...rotas.tarde];
             
             itinerarioCompleto.forEach(item => {
-                dadosExcel.push({
-                    "Código": item.codigo || "",
-                    "SERVIÇO": item.servico || "",
-                    "Modelo do Equipamento": item.modelo || "",
-                    "DEFEITO INFORMADO": item.defeito || "",
-                    "Horário": item.periodo === "MANHA" ? "Manhã" : "Tarde",
-                    "Cliente": item.cliente || "",
-                    "Endereço": item.rua || "",
-                    "Detalhes do Endereço": item.detalhes || "",
-                    "CEP": item.cep || "",
-                    "Distrito": item.distrito || "",
-                    "Cidade": item.cidade || "",
-                    "Técnico": tecnico
-                });
+                // Se tiver as linhas originais guardadas (Desagrupa tudo e cria linhas limpas)
+                if (item.ordens_originais && item.ordens_originais.length > 0) {
+                    item.ordens_originais.forEach(linhaOriginal => {
+                        dadosExcel.push({
+                            "Código": buscarValorNaLinha(linhaOriginal, ["CÓDIGO", "CODIGO", "OS"]) || "",
+                            "SERVIÇO": buscarValorNaLinha(linhaOriginal, ["SERVIÇO", "SERVICO"]) || "",
+                            "Modelo do Equipamento": buscarValorNaLinha(linhaOriginal, ["MODELO", "EQUIPAMENTO"]) || "",
+                            "DEFEITO INFORMADO": buscarValorNaLinha(linhaOriginal, ["DEFEITO", "RECLAMAÇÃO", "RECLAMACAO"]) || "",
+                            "Horário": item.periodo === "MANHA" ? "Manhã" : "Tarde",
+                            "Cliente": buscarValorNaLinha(linhaOriginal, ["CLIENTE", "NOME"]) || item.cliente,
+                            "Endereço": buscarValorNaLinha(linhaOriginal, ["ENDEREÇO", "ENDERECO", "RUA"]) || item.rua,
+                            "Detalhes do Endereço": buscarValorNaLinha(linhaOriginal, ["DETALHES", "COMPLEMENTO"]) || item.detalhes,
+                            "CEP": buscarValorNaLinha(linhaOriginal, ["CEP"]) || item.cep,
+                            "Distrito": buscarValorNaLinha(linhaOriginal, ["DISTRITO", "BAIRRO"]) || item.distrito,
+                            "Cidade": buscarValorNaLinha(linhaOriginal, ["CIDADE", "MUNICÍPIO"]) || item.cidade,
+                            "Técnico": tecnico
+                        });
+                    });
+                } else {
+                    // Prevenção de erro caso seja um lote velho sem as linhas salvas
+                    dadosExcel.push({
+                        "Código": item.codigo || "",
+                        "SERVIÇO": item.servico || "",
+                        "Modelo do Equipamento": item.modelo || "",
+                        "DEFEITO INFORMADO": item.defeito || "",
+                        "Horário": item.periodo === "MANHA" ? "Manhã" : "Tarde",
+                        "Cliente": item.cliente || "",
+                        "Endereço": item.rua || "",
+                        "Detalhes do Endereço": item.detalhes || "",
+                        "CEP": item.cep || "",
+                        "Distrito": item.distrito || "",
+                        "Cidade": item.cidade || "",
+                        "Técnico": tecnico
+                    });
+                }
             });
         });
 
