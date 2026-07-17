@@ -381,7 +381,7 @@
     }
 
     // =========================================================================
-    // O CÉREBRO V4: GRAVIDADE ANCORADA NA CASA DO TÉCNICO (REGIONALIZAÇÃO PERFEITA)
+    // O CÉREBRO V6: CUSTO PONDERADO (BOM SENSO HUMANO VS DISTÂNCIA)
     // =========================================================================
     async function distribuirRotasInteligente(lotes) {
         let tipoVeiculo = document.getElementById("tipoPlanilha").value;
@@ -406,55 +406,61 @@
         }
 
         // 2. Ordena os Lotes dos mais distantes da base para os mais próximos
-        // Isso ajuda o sistema a "despachar" os clientes dos extremos primeiro para quem mora nas bordas da cidade.
         lotes.sort((a, b) => {
             let distA = calcularDistancia(configGalpao.lat, configGalpao.lon, a.lat, a.lon);
             let distB = calcularDistancia(configGalpao.lat, configGalpao.lon, b.lat, b.lon);
             return distB - distA; 
         });
 
-        // 3. Distribuição Baseada Estritamente na Casa do Técnico
+        // 3. Distribuição com Matemática de "Custo Ponderado" (Bom Senso)
         for (let lote of lotes) {
             let melhorTec = null;
-            let menorDistancia = Infinity;
+            let menorCusto = Infinity;
 
             for (let tec of equipeValida) {
-                // A distância é calculada do Lote até à CASA DO TÉCNICO. Ele não se move!
                 let distParaCasa = calcularDistancia(tec.lat, tec.lon, lote.lat, lote.lon);
-                
                 let cap = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
-                let temEspaco = (tec.cargaAtualOS + lote.qtdOS) <= cap;
+                
+                let custoFinal = distParaCasa;
+                let projecaoCarga = tec.cargaAtualOS + lote.qtdOS;
 
-                // A MÁGICA DA TOLERÂNCIA:
-                // Se ele já bateu a meta, mas o cliente está no quintal dele (< 4.5 KM da sua casa)
-                // Ele quebra o limite e pega a OS na mesma. Isso mantém a região densa e bloqueia passeios.
-                if (!temEspaco && distParaCasa <= 4.5) {
-                    temEspaco = true; 
+                // SE ULTRAPASSAR O LIMITE, APLICAMOS UMA MULTA MATEMÁTICA
+                if (projecaoCarga > cap) {
+                    let excedente = projecaoCarga - cap;
+                    
+                    // TRAVA DE SEGURANÇA MÁXIMA: Ninguém pode exceder mais de 3 OS além do seu limite
+                    // Isso evita que a pessoa vire o "aspirador de pó" da cidade
+                    if (excedente > 3) continue;
+
+                    // Cada OS excedente "pesa" como se o técnico estivesse 15km mais longe.
+                    // Isso faz a IA pensar: "Vale a pena sobrecarregá-lo por 1 OS ou mandar outro que está a 30km?"
+                    custoFinal += (excedente * 15);
                 }
 
-                if (temEspaco && distParaCasa < menorDistancia) {
-                    menorDistancia = distParaCasa;
+                if (custoFinal < menorCusto) {
+                    menorCusto = custoFinal;
                     melhorTec = tec;
                 }
             }
 
-            // Fallback: Se o cliente mora no meio do nada e todos os técnicos próximos estão 100% cheios,
-            // atira para quem morar menos longe, ignorando o limite para não perder a OS.
+            // Fallback: Se o cliente mora no meio do nada e todos já bateram até na trava de segurança máxima
             if (!melhorTec) {
-                menorDistancia = Infinity;
+                menorCusto = Infinity;
                 for (let tec of equipeValida) {
                     let distParaCasa = calcularDistancia(tec.lat, tec.lon, lote.lat, lote.lon);
-                    if (distParaCasa < menorDistancia) {
-                        menorDistancia = distParaCasa;
+                    if (distParaCasa < menorCusto) {
+                        menorCusto = distParaCasa;
                         melhorTec = tec;
                     }
                 }
             }
 
-            // Entrega o lote
-            melhorTec.cargaAtualOS += lote.qtdOS;
-            if (lote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(lote);
-            else melhorTec.rotasSugeridas.tarde.push(lote);
+            if (melhorTec) {
+                // Entrega o lote ao vencedor
+                melhorTec.cargaAtualOS += lote.qtdOS;
+                if (lote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(lote);
+                else melhorTec.rotasSugeridas.tarde.push(lote);
+            }
         }
 
         // 4. Transfere o resultado da IA para a interface gráfica
