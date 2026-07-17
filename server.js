@@ -52,11 +52,9 @@ app.get("/roteirizador.html", (req, res) => { if (!req.query.token) return res.r
 app.get("/diario.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/diario.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/fila.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/fila.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/totem.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/totem.html"); } catch (err) { res.redirect("/login.html"); }});
+app.get("/tecnicos.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/tecnicos.html"); } catch (err) { res.redirect("/login.html"); }});
 
-// ROTA ANTI-HIBERNAÇÃO
-app.get("/ping", (req, res) => {
-  res.status(200).send("Servidor acordado!");
-});
+app.get("/ping", (req, res) => { res.status(200).send("Servidor acordado!"); });
 
 // =====================================================================
 // LOGIN E GESTÃO DE UTILIZADORES / EMPRESAS
@@ -168,130 +166,98 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE
+// ROTEIRIZADOR INTELIGENTE (SEM ALTERAÇÕES)
 // =====================================================================
-
-// 1. GUARDAR ROTA
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, tecnico, itinerario } = req.body;
-      if (!data || !tecnico || !itinerario) {
-          return res.status(400).json({ erro: "Dados incompletos" });
-      }
-
-      const itinerarioFormatado = itinerario.map(item => ({
-          ...item,
-          status: item.status || 'pendente'
-      }));
-
+      if (!data || !tecnico || !itinerario) { return res.status(400).json({ erro: "Dados incompletos" }); }
+      const itinerarioFormatado = itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
       await db.collection("planejamento_rotas").updateOne(
           { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
           { $set: { itinerario: itinerarioFormatado, atualizadoEm: new Date() } },
           { upsert: true }
       );
-
       res.json({ mensagem: "Roteiro salvo com sucesso!" });
-  } catch (err) {
-      res.status(500).json({ erro: "Erro ao salvar roteiro." });
-  }
+  } catch (err) { res.status(500).json({ erro: "Erro ao salvar roteiro." }); }
 });
 
-// 2. PESQUISAR ROTA (Suporta OS Agrupadas)
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
-      const { data, codigo } = req.query;
-      let filtro = { cliente_id: req.usuario.cliente_id };
-
+      const { data, codigo } = req.query; let filtro = { cliente_id: req.usuario.cliente_id };
       if (data) filtro.data = data;
-      
-      if (codigo) {
-          // Permite encontrar uma OS mesmo que esteja agrupada (ex: "101" dentro de "101 / 102")
-          filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
-      }
-
+      if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
       const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
       res.json(rotas);
-  } catch (err) {
-      res.status(500).json({ erro: "Erro ao buscar roteiros." });
-  }
+  } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
 });
 
-// 3. EXCLUIR ROTA
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   try {
-      const resultado = await db.collection("planejamento_rotas").deleteOne({
-          _id: new ObjectId(req.params.id),
-          cliente_id: req.usuario.cliente_id
-      });
-      if (resultado.deletedCount === 1) res.json({ ok: true });
-      else res.status(404).json({ erro: "Não encontrada" });
-  } catch (err) {
-      res.status(500).json({ erro: "Erro ao excluir." });
-  }
+      const resultado = await db.collection("planejamento_rotas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
+      if (resultado.deletedCount === 1) res.json({ ok: true }); else res.status(404).json({ erro: "Não encontrada" });
+  } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
-// 4. ATUALIZAR STATUS DA PARAGEM (TELEMETRIA EM TEMPO REAL)
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo } = req.body;
-        
-        let filterDoc = { 
-            data: data, 
-            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
-            cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } 
-        };
-
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
         let atualizacao = { "itinerario.$.status": novoStatus };
-        if (campoTempo && valorTempo) {
-            atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
-        }
-
+        if (campoTempo && valorTempo) atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
-
-        if (resultado.matchedCount > 0) res.json({ ok: true });
-        else res.status(400).json({ erro: "Paragem não encontrada" });
-    } catch (err) {
-        res.status(500).json({ erro: "Erro ao atualizar status." });
-    }
+        if (resultado.matchedCount > 0) res.json({ ok: true }); else res.status(400).json({ erro: "Paragem não encontrada" });
+    } catch (err) { res.status(500).json({ erro: "Erro ao atualizar status." }); }
 });
 
-// 5. NOVA ROTA: EDITAR ENDEREÇO DA PARAGEM
 app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
-        
-        let filterDoc = { 
-            data: data, 
-            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
-            cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } 
-        };
-
-        let atualizacao = { 
-            "itinerario.$.rua": novoEndereco,
-            "itinerario.$.lat": lat,
-            "itinerario.$.lon": lon,
-            "itinerario.$.precisaCorrecao": false
-        };
-
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        let atualizacao = { "itinerario.$.rua": novoEndereco, "itinerario.$.lat": lat, "itinerario.$.lon": lon, "itinerario.$.precisaCorrecao": false };
         const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
-
-        if (resultado.matchedCount > 0) res.json({ ok: true });
-        else res.status(400).json({ erro: "Paragem não encontrada." });
-    } catch (err) {
-        res.status(500).json({ erro: "Erro ao salvar novo endereço." });
-    }
+        if (resultado.matchedCount > 0) res.json({ ok: true }); else res.status(400).json({ erro: "Paragem não encontrada." });
+    } catch (err) { res.status(500).json({ erro: "Erro ao salvar novo endereço." }); }
 });
 
 // =====================================================================
-// RESTANTES MÓDULOS (Dashboard, Almoxarifado, Registros)
+// NOVO ESTRUTURA DO SUPER CADASTRO DE TÉCNICOS (Com Veículo e Capacidade)
 // =====================================================================
 app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
-app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { const { nome, status, telefone, email, veiculo, placa } = req.body; const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Técnico já registado" }); await db.collection("tecnicos_dashboard").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", telefone, email, veiculo, placa, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
-app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { nome: req.body.nome.trim(), status: req.body.status, telefone: req.body.telefone, email: req.body.email, veiculo: req.body.veiculo, placa: req.body.placa } }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+
+app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { 
+    try { 
+        const { nome, status, telefone, email, veiculo, placa, tipoVeiculo, capacidade, cep, bairro } = req.body; 
+        const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); 
+        if (existe) return res.status(400).json({ erro: "Técnico já registado" }); 
+        await db.collection("tecnicos_dashboard").insertOne({ 
+            cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", 
+            telefone, email, veiculo, placa, tipoVeiculo, capacidade: Number(capacidade) || 0, cep, bairro, criadoEm: new Date() 
+        }); 
+        res.json({ ok: true }); 
+    } catch (erro) { res.status(500).json({ erro: "Erro" }); } 
+});
+
+app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { 
+    try { 
+        await db.collection("tecnicos_dashboard").updateOne(
+            { _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, 
+            { $set: { 
+                nome: req.body.nome.trim(), status: req.body.status, telefone: req.body.telefone, 
+                email: req.body.email, veiculo: req.body.veiculo, placa: req.body.placa, 
+                tipoVeiculo: req.body.tipoVeiculo, capacidade: Number(req.body.capacidade) || 0, 
+                cep: req.body.cep, bairro: req.body.bairro 
+            }}
+        ); 
+        res.json({ ok: true }); 
+    } catch (erro) { res.status(500).json({ erro: "Erro" }); } 
+});
+
 app.delete("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 
+// =====================================================================
+// ESTOQUE E REGISTROS
+// =====================================================================
 app.get("/api/tecnicos", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 app.post("/api/tecnicos", autenticarToken, async (req, res) => { try { const nome = (req.body.nome || "").trim(); const existe = await db.collection("tecnicos").findOne({ nome, cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Já registado" }); await db.collection("tecnicos").insertOne({ cliente_id: req.usuario.cliente_id, nome, criadoEm: new Date() }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
@@ -337,7 +303,7 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => { try { await d
 
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO E LIGAÇÃO À BASE DE DADOS
+// INICIALIZAÇÃO
 async function iniciarSistema() {
   try {
     console.log("🔄 A ligar à base de dados...");
@@ -358,7 +324,6 @@ async function iniciarSistema() {
       console.log("👑 Conta Super Admin Criada: neri.admin / neri2026");
     }
 
-    // LOOP ANTI-HIBERNAÇÃO
     setInterval(() => {
       https.get(`${URL_DO_SEU_SISTEMA}/ping`, (resp) => {
         console.log(`⏱️ [${new Date().toLocaleTimeString()}] Ping automático enviado. Render mantido acordado!`);
@@ -370,178 +335,84 @@ async function iniciarSistema() {
     app.listen(PORT, () => console.log(`🚀 Motor SaaS NERI 2.0 a correr na porta ${PORT}`));
   } catch (err) { console.error("❌ Erro:", err); process.exit(1); }
 }
-// ==========================================
-// FASE 5: SISTEMA DE FILA, TOTEM E CRACHÁS
-// ==========================================
 
-// --- CRUD DA EQUIPA ISOLADA DO TOTEM ---
+// ==========================================
+// FILA E TOTEM
+// ==========================================
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
-    try {
-        const equipe = await db.collection("equipe_totem").find({ cliente_id: req.usuario.cliente_id }).toArray();
-        res.json(equipe);
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const equipe = await db.collection("equipe_totem").find({ cliente_id: req.usuario.cliente_id }).toArray(); res.json(equipe); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
-    try {
-        const { nome, funcao } = req.body;
-        await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao });
-        res.json({ok: true});
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const { nome, funcao } = req.body; await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao }); res.json({ok: true}); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.put('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
-    try {
-        const { nome, funcao } = req.body;
-        await db.collection("equipe_totem").updateOne(
-            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, 
-            { $set: { nome, funcao } }
-        );
-        res.json({ok: true});
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const { nome, funcao } = req.body; await db.collection("equipe_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { nome, funcao } }); res.json({ok: true}); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.delete('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
-    try {
-        await db.collection("equipe_totem").deleteOne({ 
-            _id: new ObjectId(req.params.id), 
-            cliente_id: req.usuario.cliente_id 
-        });
-        res.json({ok: true});
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { await db.collection("equipe_totem").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ok: true}); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// --- REGRAS E FILA DO TOTEM ---
 app.get('/api/config-base', autenticarToken, async (req, res) => {
-    try {
-        let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
-        if (!config) config = { limiteAtraso: "08:00" };
-        res.json(config);
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id }); if (!config) config = { limiteAtraso: "08:00" }; res.json(config); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.post('/api/config-base', autenticarToken, async (req, res) => {
-    try {
-        const { limiteAtraso } = req.body;
-        await db.collection("configuracoes").updateOne({ cliente_id: req.usuario.cliente_id }, { $set: { limiteAtraso } }, { upsert: true });
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const { limiteAtraso } = req.body; await db.collection("configuracoes").updateOne({ cliente_id: req.usuario.cliente_id }, { $set: { limiteAtraso } }, { upsert: true }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
         const { codigoBarras, horaBatida, dataBatida } = req.body;
-        
-        const pessoa = await db.collection("equipe_totem").findOne({ 
-            nome: new RegExp(`^${codigoBarras}$`, 'i'), 
-            cliente_id: req.usuario.cliente_id 
-        });
-
+        const pessoa = await db.collection("equipe_totem").findOne({ nome: new RegExp(`^${codigoBarras}$`, 'i'), cliente_id: req.usuario.cliente_id });
         if (!pessoa) return res.status(404).json({ erro: "Crachá não reconhecido na Base!" });
 
         let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
         const limite = config && config.limiteAtraso ? config.limiteAtraso : "08:00";
         let atrasado = horaBatida > limite;
         
-        const registro = {
-            cliente_id: req.usuario.cliente_id,
-            tecnico: pessoa.nome, 
-            data: dataBatida, 
-            horaChegada: horaBatida,
-            status: "Aguardando", 
-            atrasado: atrasado,
-            timestamp: new Date()
-        };
-
-        await db.collection("fila_ponto").insertOne(registro);
+        await db.collection("fila_ponto").insertOne({ cliente_id: req.usuario.cliente_id, tecnico: pessoa.nome, data: dataBatida, horaChegada: horaBatida, status: "Aguardando", atrasado: atrasado, timestamp: new Date() });
         res.json({ ok: true, tecnico: pessoa.nome, atrasado });
     } catch(e) { res.status(500).json({erro: "Erro no servidor."}); }
 });
 
 app.get('/api/fila/hoje', autenticarToken, async (req, res) => {
-    try {
-        const dataHoje = req.query.data;
-        const fila = await db.collection("fila_ponto").find({ cliente_id: req.usuario.cliente_id, data: dataHoje, status: { $ne: "Finalizado" } }).sort({ timestamp: 1 }).toArray();
-        res.json(fila);
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const dataHoje = req.query.data; const fila = await db.collection("fila_ponto").find({ cliente_id: req.usuario.cliente_id, data: dataHoje, status: { $ne: "Finalizado" } }).sort({ timestamp: 1 }).toArray(); res.json(fila); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.get('/api/fila/relatorio', autenticarToken, async (req, res) => {
-    try {
-        const { mesAno, tecnico } = req.query;
-        let filtro = { cliente_id: req.usuario.cliente_id, data: new RegExp(`/${mesAno}$`) };
-        if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico;
-        const historico = await db.collection("fila_ponto").find(filtro).sort({ timestamp: 1 }).toArray();
-        res.json(historico);
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const { mesAno, tecnico } = req.query; let filtro = { cliente_id: req.usuario.cliente_id, data: new RegExp(`/${mesAno}$`) }; if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico; const historico = await db.collection("fila_ponto").find(filtro).sort({ timestamp: 1 }).toArray(); res.json(historico); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
-    try {
-        const { status } = req.body;
-        await db.collection("fila_ponto").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status } });
-        res.json({ok: true});
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const { status } = req.body; await db.collection("fila_ponto").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status } }); res.json({ok: true}); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// ==========================================
-// ROTA DE COMUNICAÇÃO: PAINEL -> TOTEM
-// ==========================================
 app.put('/api/fila/:id/chamar-totem', autenticarToken, async (req, res) => {
-    try {
-        await db.collection("fila_ponto").updateOne(
-            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
-            { $set: { chamando_totem: true, status: "Atendido" } } 
-        );
-        res.json({ok: true});
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { await db.collection("fila_ponto").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { chamando_totem: true, status: "Atendido" } }); res.json({ok: true}); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.get('/api/totem/chamadas', autenticarToken, async (req, res) => {
-    try {
-        const chamadas = await db.collection("fila_ponto").find({
-            cliente_id: req.usuario.cliente_id,
-            chamando_totem: true
-        }).toArray();
-        res.json(chamadas);
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { const chamadas = await db.collection("fila_ponto").find({ cliente_id: req.usuario.cliente_id, chamando_totem: true }).toArray(); res.json(chamadas); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.put('/api/fila/:id/chamada-concluida', autenticarToken, async (req, res) => {
-    try {
-        await db.collection("fila_ponto").updateOne(
-            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
-            { $set: { chamando_totem: false } }
-        );
-        res.json({ok: true});
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    try { await db.collection("fila_ponto").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { chamando_totem: false } }); res.json({ok: true}); } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// ==========================================
-// FASE 6: MODO "ESPIÃO" (SaaS LOGIN AS)
-// ==========================================
 app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({erro: "Acesso Negado"});
-    
     const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
     if (!empresa) return res.status(404).json({erro: "Empresa não encontrada"});
-
-    const tokenNovo = jwt.sign(
-        { id: req.usuario.id, tipo: "master", cliente_id: empresa.cliente_id, superadmin_original: true },
-        process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
-    );
-    
+    const tokenNovo = jwt.sign({ id: req.usuario.id, tipo: "master", cliente_id: empresa.cliente_id, superadmin_original: true }, process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" });
     res.json({ ok: true, token: tokenNovo, nome: empresa.empresaNome });
 });
 
 app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
     if (!req.usuario.superadmin_original) return res.status(403).json({erro: "Negado"});
-    
-    const tokenNovo = jwt.sign(
-        { id: req.usuario.id, tipo: "superadmin", cliente_id: "GLOBAL_SYSTEM" },
-        process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
-    );
-    
+    const tokenNovo = jwt.sign({ id: req.usuario.id, tipo: "superadmin", cliente_id: "GLOBAL_SYSTEM" }, process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" });
     res.json({ ok: true, token: tokenNovo });
 });
 

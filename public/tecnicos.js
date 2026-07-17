@@ -4,7 +4,6 @@ let cacheTotem = [];
 
 if (!token) window.location.replace("/login.html");
 
-// Lê o token por completo para descobrirmos se é um Super Admin disfarçado
 function obterPayloadDoToken() {
     try {
         const base64Url = token.split('.')[1];
@@ -29,9 +28,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if(typeof carregarEmpresas === 'function') await carregarEmpresas();
     }
 
-    // Se ele for um Super Admin disfarçado, cria o botão vermelho para fugir da empresa!
     if (isSuperAdminDisfarcado) {
-        // Tenta injetar o botão no cabeçalho do painel
         const menus = document.querySelector('.menu');
         if(menus) {
             menus.innerHTML += `<hr><button onclick="voltarSuperAdmin()" style="background:#EF4444; color:white; border:1px solid #B91C1C; font-weight:bold;">🔙 Voltar ao Painel Global</button>`;
@@ -59,6 +56,19 @@ function mudarAba(abaSelecionada) {
 }
 
 function fecharModal(idModal) { document.getElementById(idModal).classList.remove("ativo"); }
+
+// FUNÇÃO MÁGICA DE CEP
+async function buscarCep(cep) {
+    const cepLimpo = cep.replace(/\D/g, '');
+    if(cepLimpo.length !== 8) return;
+    try {
+        const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+        const dados = await res.json();
+        if(!dados.erro) {
+            document.getElementById("formBairro").value = dados.bairro + " - " + dados.localidade;
+        }
+    } catch(e) {}
+}
 
 // =========================================================
 // MODO ESPIÃO: NAVEGAÇÃO DE EMPRESAS (SaaS)
@@ -171,7 +181,7 @@ async function salvarNovaEmpresa() {
 }
 
 // =========================================================
-// GESTÃO DE TÉCNICOS E USUÁRIOS
+// GESTÃO DO SUPER CADASTRO DE TÉCNICOS
 // =========================================================
 async function carregarTecnicos() {
     try {
@@ -186,7 +196,7 @@ async function carregarTecnicos() {
 function atualizarCardsIndicadores() {
     const ativos = cacheTecnicos.filter(t => t.status === "Ativo" || !t.status).length;
     const ferias = cacheTecnicos.filter(t => t.status === "Em Férias").length;
-    const afastados = cacheTecnicos.filter(t => t.status === "Afastado").length;
+    const afastados = cacheTecnicos.filter(t => t.status === "Afastado" || t.status === "Ausente").length;
     const desligados = cacheTecnicos.filter(t => t.status === "Desligado").length;
     if(document.getElementById("cardAtivos")) document.getElementById("cardAtivos").innerText = ativos;
     if(document.getElementById("cardFerias")) document.getElementById("cardFerias").innerText = ferias;
@@ -202,16 +212,18 @@ function renderizarTabela(lista) {
         const statusReal = t.status || "Ativo";
         let classeBadge = "badge-ativo";
         if (statusReal === "Em Férias") classeBadge = "badge-ferias";
-        if (statusReal === "Afastado") classeBadge = "badge-afastado";
+        if (statusReal === "Afastado" || statusReal === "Ausente") classeBadge = "badge-afastado";
         if (statusReal === "Desligado") classeBadge = "badge-desligado";
+
+        let iconeVeiculo = t.tipoVeiculo === "Moto" ? "🏍️ Moto" : "🚗 Carro";
 
         corpo.innerHTML += `
             <tr>
                 <td style="padding: 10px;"><strong>${t.nome}</strong></td>
                 <td style="padding: 10px;"><span class="badge ${classeBadge}">${statusReal}</span></td>
-                <td style="padding: 10px;">${t.telefone || "-"}</td>
-                <td style="padding: 10px;">${t.email || "-"}</td>
-                <td style="padding: 10px;">${t.veiculo || "-"}</td>
+                <td style="padding: 10px; font-weight:bold; color:#60A5FA;">${iconeVeiculo}</td>
+                <td style="padding: 10px; font-weight:bold; color:#10B981;">${t.capacidade ? t.capacidade : "Sem Limite"}</td>
+                <td style="padding: 10px;">${t.bairro || "-"}</td>
                 <td style="padding: 10px;">
                     <button class="btn-mini btn-editar" onclick="prepararEdicaoTecnico('${t._id}')">Editar</button>
                     <button class="btn-mini btn-excluir" onclick="deletarTecnico('${t._id}')">Excluir</button>
@@ -233,28 +245,51 @@ function filtrarTabela() {
 
 function abrirModalTecnico() {
     document.getElementById("modalTituloTecnico").innerText = "Adicionar Novo Técnico";
-    document.getElementById("tecnicoId").value = ""; document.getElementById("formNome").value = "";
-    document.getElementById("formStatus").value = "Ativo"; document.getElementById("formTelefone").value = "";
-    document.getElementById("formEmail").value = ""; document.getElementById("formVeiculo").value = "";
-    document.getElementById("formPlaca").value = ""; document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("tecnicoId").value = ""; 
+    document.getElementById("formNome").value = "";
+    document.getElementById("formStatus").value = "Ativo"; 
+    document.getElementById("formTelefone").value = "";
+    document.getElementById("formTipoVeiculo").value = "Carro";
+    document.getElementById("formCapacidade").value = "";
+    document.getElementById("formCep").value = "";
+    document.getElementById("formBairro").value = "";
+    document.getElementById("formEmail").value = ""; 
+    document.getElementById("formVeiculo").value = "";
+    document.getElementById("formPlaca").value = ""; 
+    document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 function prepararEdicaoTecnico(id) {
     const t = cacheTecnicos.find(item => item._id === id);
     if (!t) return;
     document.getElementById("modalTituloTecnico").innerText = `Editar: ${t.nome}`;
-    document.getElementById("tecnicoId").value = t._id; document.getElementById("formNome").value = t.nome;
-    document.getElementById("formStatus").value = t.status || "Ativo"; document.getElementById("formTelefone").value = t.telefone || "";
-    document.getElementById("formEmail").value = t.email || ""; document.getElementById("formVeiculo").value = t.veiculo || "";
-    document.getElementById("formPlaca").value = t.placa || ""; document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("tecnicoId").value = t._id; 
+    document.getElementById("formNome").value = t.nome;
+    document.getElementById("formStatus").value = t.status || "Ativo"; 
+    document.getElementById("formTelefone").value = t.telefone || "";
+    document.getElementById("formTipoVeiculo").value = t.tipoVeiculo || "Carro";
+    document.getElementById("formCapacidade").value = t.capacidade || "";
+    document.getElementById("formCep").value = t.cep || "";
+    document.getElementById("formBairro").value = t.bairro || "";
+    document.getElementById("formEmail").value = t.email || ""; 
+    document.getElementById("formVeiculo").value = t.veiculo || "";
+    document.getElementById("formPlaca").value = t.placa || ""; 
+    document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 async function salvarTecnico() {
     const id = document.getElementById("tecnicoId").value;
     const payload = {
-        nome: document.getElementById("formNome").value.trim(), status: document.getElementById("formStatus").value,
-        telefone: document.getElementById("formTelefone").value.trim(), email: document.getElementById("formEmail").value.trim(),
-        veiculo: document.getElementById("formVeiculo").value.trim(), placa: document.getElementById("formPlaca").value.trim()
+        nome: document.getElementById("formNome").value.trim(), 
+        status: document.getElementById("formStatus").value,
+        telefone: document.getElementById("formTelefone").value.trim(), 
+        tipoVeiculo: document.getElementById("formTipoVeiculo").value,
+        capacidade: document.getElementById("formCapacidade").value,
+        cep: document.getElementById("formCep").value.trim(),
+        bairro: document.getElementById("formBairro").value.trim(),
+        email: document.getElementById("formEmail").value.trim(),
+        veiculo: document.getElementById("formVeiculo").value.trim(), 
+        placa: document.getElementById("formPlaca").value.trim()
     };
     if (!payload.nome) return alert("O Nome é obrigatório.");
     try {
