@@ -143,6 +143,19 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
+// AS DUAS ROTAS QUE FALTAVAM
+app.get("/api/usuarios", autenticarToken, async (req, res) => {
+  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); }
+});
+
+app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
+    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: "Erro" }); }
+});
+
 app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
