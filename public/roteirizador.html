@@ -381,7 +381,7 @@
     }
 
     // =========================================================================
-    // O CÉREBRO V6: CUSTO PONDERADO (BOM SENSO HUMANO VS DISTÂNCIA)
+    // O CÉREBRO V7: ANTI-FRAGMENTAÇÃO (MULTA POR ACORDAR NOVO TÉCNICO)
     // =========================================================================
     async function distribuirRotasInteligente(lotes) {
         let tipoVeiculo = document.getElementById("tipoPlanilha").value;
@@ -392,7 +392,7 @@
             return;
         }
 
-        // 1. Prepara a equipa: Geolocaliza e "Chumba" a âncora na casa de cada um
+        // 1. Prepara a equipa: Geolocaliza a casa de cada um
         for (let tec of equipeValida) {
             if (!tec.lat && tec.cep) {
                 let coords = await obterCoordenadasSilenciosa({ rua: "", cidade: "São Paulo", cep: tec.cep });
@@ -412,7 +412,7 @@
             return distB - distA; 
         });
 
-        // 3. Distribuição com Matemática de "Custo Ponderado" (Bom Senso)
+        // 3. Distribuição com Custo Ponderado e "Anti-Standby"
         for (let lote of lotes) {
             let melhorTec = null;
             let menorCusto = Infinity;
@@ -424,16 +424,22 @@
                 let custoFinal = distParaCasa;
                 let projecaoCarga = tec.cargaAtualOS + lote.qtdOS;
 
-                // SE ULTRAPASSAR O LIMITE, APLICAMOS UMA MULTA MATEMÁTICA
+                // ========================================================
+                // MULTA 1: ACORDAR UM TÉCNICO NOVO (ANTI-FRAGMENTAÇÃO)
+                // Se o técnico não tem NENHUMA OS ainda, adicionamos 40km de penalidade.
+                // Isso força a IA a encher quem JÁ ESTÁ na rua antes de despachar viaturas novas.
+                if (tec.cargaAtualOS === 0) {
+                    custoFinal += 40; 
+                }
+                // ========================================================
+
+                // MULTA 2: EXCEDER O LIMITE DE AGENDA
                 if (projecaoCarga > cap) {
                     let excedente = projecaoCarga - cap;
-                    
-                    // TRAVA DE SEGURANÇA MÁXIMA: Ninguém pode exceder mais de 3 OS além do seu limite
-                    // Isso evita que a pessoa vire o "aspirador de pó" da cidade
+                    // Trava Absoluta: Ninguém ultrapassa mais de 3 OS além do limite
                     if (excedente > 3) continue;
-
-                    // Cada OS excedente "pesa" como se o técnico estivesse 15km mais longe.
-                    // Isso faz a IA pensar: "Vale a pena sobrecarregá-lo por 1 OS ou mandar outro que está a 30km?"
+                    
+                    // Pesa 15km a mais por cada OS excedente
                     custoFinal += (excedente * 15);
                 }
 
@@ -443,7 +449,7 @@
                 }
             }
 
-            // Fallback: Se o cliente mora no meio do nada e todos já bateram até na trava de segurança máxima
+            // Fallback (Proteção de segurança)
             if (!melhorTec) {
                 menorCusto = Infinity;
                 for (let tec of equipeValida) {
@@ -456,14 +462,13 @@
             }
 
             if (melhorTec) {
-                // Entrega o lote ao vencedor
                 melhorTec.cargaAtualOS += lote.qtdOS;
                 if (lote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(lote);
                 else melhorTec.rotasSugeridas.tarde.push(lote);
             }
         }
 
-        // 4. Transfere o resultado da IA para a interface gráfica
+        // 4. Transfere o resultado da IA
         for (let tec of equipeValida) {
             if (tec.cargaAtualOS > 0) {
                 dadosGlobaisRotas[tec.nome] = {
