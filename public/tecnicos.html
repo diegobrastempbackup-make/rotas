@@ -68,7 +68,7 @@
             <button id="btnTabEmpresas" class="tab-btn" onclick="mudarAba('empresas')" style="display:none; background:rgba(16, 185, 129, 0.1); color:#10B981; border:1px solid rgba(16, 185, 129, 0.3);">🏢 Clientes (SaaS)</button>
         </div>
 
-        <!-- ABA TÉCNICOS DASHBOARD (Básico) -->
+        <!-- ABA TÉCNICOS -->
         <div id="abaTecnicos">
             <div class="cards-tecnicos">
                 <div class="card-tec ativos"><span class="card-tec-titulo">Ativos</span><span class="card-tec-valor" id="cardAtivos">0</span></div>
@@ -79,25 +79,19 @@
             <div class="area-filtros">
                 <input type="text" id="buscaNome" placeholder="🔍 Buscar técnico...">
                 <select id="filtroStatus">
-                    <option value="TODOS">Todos os status</option>
-                    <option value="Ativo">Ativos</option>
-                    <option value="Em Férias">Em Férias</option>
-                    <option value="Afastado">Afastados</option>
-                    <option value="Desligado">Desligados</option>
+                    <option value="TODOS">Todos os status</option><option value="Ativo">Ativos</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastados</option><option value="Desligado">Desligados</option>
                 </select>
                 <button class="btn-novo" onclick="abrirModalTecnico()">+ Adicionar Técnico</button>
             </div>
             <div class="painel-tabela">
                 <table>
-                    <thead>
-                        <tr><th>Nome</th><th>Status</th><th>Telefone</th><th>E-mail</th><th>Veículo</th><th>Placa</th><th>Ações</th></tr>
-                    </thead>
+                    <thead><tr><th>Nome</th><th>Status</th><th>Telefone</th><th>E-mail</th><th>Veículo</th><th>Placa</th><th>Ações</th></tr></thead>
                     <tbody id="corpoTabelaTecnicos"></tbody>
                 </table>
             </div>
         </div>
 
-        <!-- ABA USUÁRIOS (AGORA COM SUPER CADASTRO) -->
+        <!-- ABA USUÁRIOS -->
         <div id="abaUsuarios" style="display: none;">
             <div class="area-filtros">
                 <div style="flex: 1;"><h3 style="margin:0; color:white;">Controle de Acessos</h3><p style="margin:5px 0 0 0; color:#94A3B8; font-size:13px;">Defina quem pode aceder ao sistema da sua empresa.</p></div>
@@ -110,35 +104,58 @@
                 </table>
             </div>
         </div>
-        
-        <!-- ABA EQUIPA TOTEM -->
-        <div id="abaTotem" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="color: white; margin: 0;">Equipa Totem (Fila de Entrada)</h2>
-                <button class="btn-novo" style="width: auto; padding: 10px 20px;" onclick="abrirModalTotem()">+ Cadastrar Pessoa</button>
-            </div>
-            <div class="painel-tabela">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>NOME NO CRACHÁ</th>
-                            <th>FUNÇÃO</th>
-                            <th>AÇÕES</th>
-                        </tr>
-                    </thead>
-                    <tbody id="corpoTabelaTotem"></tbody>
-                </table>
-            </div>
-        </div>
+        <!-- NOVA ABA: EQUIPA TOTEM (CRACHÁS E FILA) -->
+<div id="abaTotem" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="color: white; margin: 0;">Equipa Totem (Fila de Entrada)</h2>
+        <button class="btn-bloco" style="width: auto; padding: 10px 20px;" onclick="abrirModalTotem()">+ Cadastrar Pessoa</button>
+    </div>
+    
+    <div class="tabela-container" style="background: #1E293B; border-radius: 12px; padding: 20px;">
+        <table width="100%" style="color: white; text-align: left; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94A3B8; font-size: 12px;">
+                    <th style="padding: 10px;">NOME NO CRACHÁ</th>
+                    <th style="padding: 10px;">FUNÇÃO</th>
+                    <th style="padding: 10px;">AÇÕES</th>
+                </tr>
+            </thead>
+            <tbody id="corpoTabelaTotem">
+                <!-- Preenchido via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
 
-        <!-- ABA EMPRESAS -->
+<!-- MODAL EQUIPA TOTEM -->
+<div class="modal" id="modalTotem">
+    <div class="modal-conteudo">
+        <div class="modal-header">
+            <h3 style="color:white;" id="modalTituloTotem">Cadastrar Pessoa</h3>
+            <button class="fechar-modal" onclick="fecharModal('modalTotem')">×</button>
+        </div>
+        <input type="hidden" id="totemId">
+        <div class="form-group">
+            <label>Nome Completo (Será lido pelo Totem)</label>
+            <input type="text" id="formTotemNome" placeholder="Ex: João Silva">
+        </div>
+        <div class="form-group">
+            <label>Função (Apenas para organização)</label>
+            <input type="text" id="formTotemFuncao" placeholder="Ex: Auxiliar de Base">
+        </div>
+        <button class="btn-bloco" onclick="salvarPessoaTotem()">Salvar</button>
+    </div>
+</div>
+
+        <!-- ABA EMPRESAS (SÓ PARA O MODO DEUS) -->
         <div id="abaEmpresas" style="display: none;">
             <div class="area-filtros" style="border-color: rgba(16, 185, 129, 0.3);">
-                <div style="flex: 1;"><h3 style="margin:0; color:#10B981;">Plataforma SaaS</h3><p style="margin:5px 0 0 0; color:#94A3B8; font-size:13px;">Crie ambientes isolados para os seus novos clientes.</p></div>
+                <div style="flex: 1;"><h3 style="margin:0; color:#10B981;">Plataforma SaaS</h3><p style="margin:5px 0 0 0; color:#94A3B8; font-size:13px;">Crie ambientes isolados (Painéis em branco) para os seus novos clientes.</p></div>
                 <button class="btn-novo" style="background:#10B981;" onclick="abrirModalEmpresa()">+ Registar Nova Empresa</button>
             </div>
             <div class="painel-tabela">
                 <table>
+                    <!-- NOVA COLUNA PARA O STATUS E BOTÕES -->
                     <thead><tr><th>Empresa (Cliente)</th><th>Pessoa Responsável</th><th>Login do Cliente</th><th>Status</th><th>Data de Registo</th><th>Ações</th></tr></thead>
                     <tbody id="corpoTabelaEmpresas"></tbody>
                 </table>
@@ -147,7 +164,7 @@
     </div>
 </div>
 
-<!-- MODALS -->
+<!-- MODAL: NOVA EMPRESA (SAAS) -->
 <div id="modalEmpresa" class="modal">
     <div class="modal-conteudo">
         <div class="modal-header"><h3 style="color:#10B981;">Registar Nova Empresa</h3><button class="fechar-modal" onclick="fecharModal('modalEmpresa')">×</button></div>
@@ -159,36 +176,20 @@
     </div>
 </div>
 
-<div class="modal" id="modalTotem">
-    <div class="modal-conteudo">
-        <div class="modal-header"><h3 style="color:white;" id="modalTituloTotem">Cadastrar Pessoa</h3><button class="fechar-modal" onclick="fecharModal('modalTotem')">×</button></div>
-        <input type="hidden" id="totemId">
-        <div class="form-group"><label>Nome Completo (Será lido pelo Totem)</label><input type="text" id="formTotemNome" placeholder="Ex: João Silva"></div>
-        <div class="form-group"><label>Função (Apenas para organização)</label><input type="text" id="formTotemFuncao" placeholder="Ex: Auxiliar de Base"></div>
-        <button class="btn-bloco" style="background:#2563EB;" onclick="salvarPessoaTotem()">Salvar</button>
-    </div>
-</div>
-
-<!-- MODAL: TÉCNICO DASHBOARD (Simples) -->
+<!-- MODAL: TÉCNICO -->
 <div id="modalTecnico" class="modal">
     <div class="modal-conteudo">
-        <div class="modal-header"><h3 id="modalTituloTecnico">Adicionar Técnico Dashboard</h3><button class="fechar-modal" onclick="fecharModal('modalTecnico')">×</button></div>
+        <div class="modal-header"><h3 id="modalTituloTecnico">Adicionar Técnico</h3><button class="fechar-modal" onclick="fecharModal('modalTecnico')">×</button></div>
         <input type="hidden" id="tecnicoId">
         <div class="form-group"><label>Nome Completo</label><input type="text" id="formNome" placeholder="Ex: João Santos"></div>
-        <div class="form-grid">
-            <div class="form-group"><label>Status</label><select id="formStatus"><option value="Ativo">Ativo</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastado</option><option value="Desligado">Desligado</option></select></div>
-            <div class="form-group"><label>Telefone</label><input type="text" id="formTelefone" placeholder="(11) 99999-1111"></div>
-        </div>
+        <div class="form-grid"><div class="form-group"><label>Status</label><select id="formStatus"><option value="Ativo">Ativo</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastado</option><option value="Desligado">Desligado</option></select></div><div class="form-group"><label>Telefone</label><input type="text" id="formTelefone" placeholder="(19) 99999-1111"></div></div>
         <div class="form-group"><label>E-mail</label><input type="email" id="formEmail" placeholder="joao@neri.com"></div>
-        <div class="form-grid">
-            <div class="form-group"><label>Veículo</label><input type="text" id="formVeiculo" placeholder="Ex: Fiat Strada"></div>
-            <div class="form-group"><label>Placa</label><input type="text" id="formPlaca" placeholder="Ex: ABC1D23"></div>
-        </div>
-        <button class="btn-bloco" style="background:#2563EB;" onclick="salvarTecnico()">Gravar Alterações</button>
+        <div class="form-grid"><div class="form-group"><label>Veículo</label><input type="text" id="formVeiculo" placeholder="Ex: Fiat Strada"></div><div class="form-group"><label>Placa</label><input type="text" id="formPlaca" placeholder="Ex: ABC1D23"></div></div>
+        <button class="btn-bloco" onclick="salvarTecnico()">Gravar Alterações</button>
     </div>
 </div>
 
-<!-- MODAL: USUÁRIO COM IA DE ROTEIRIZAÇÃO EMBUTIDA -->
+<!-- MODAL: USUÁRIO -->
 <div id="modalUsuario" class="modal">
     <div class="modal-conteudo">
         <div class="modal-header"><h3 id="modalTituloUsuario">Adicionar Usuário</h3><button class="fechar-modal" onclick="fecharModal('modalUsuario')">×</button></div>
@@ -197,54 +198,16 @@
         <div class="form-group"><label>Login (Usuário)</label><input type="text" id="cadUsuario"></div>
         <div class="form-group"><label id="lblSenha">Senha de Acesso</label><input type="password" id="cadSenha"></div>
         <div class="form-group">
-            <label>Nível de Permissão</label>
-            <select id="cadTipo" onchange="toggleCamposTecnicoUsuario()">
-                <option value="simples">Acesso Simples (Lançamentos)</option>
-                <option value="estoque">Estoque (Almoxarifado)</option>
-                <option value="tecnico">Técnico (App Rota)</option>
-                <option value="admin">Administrador (Relatórios)</option>
-                <option value="master">Master (Controle Total)</option>
-                <option value="totem">Totem (Entrada)</option>
-            </select>
-        </div>
-
-        <!-- CAMPOS EXCLUSIVOS PARA TÉCNICOS DO APP -->
-        <div id="camposRoteirizadorUsuario" style="display: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 15px 0; padding-top: 15px;">
-            <h4 style="color:#60A5FA; margin-top:0; margin-bottom:10px;">🚗 Configuração de Rota (Apenas Técnicos)</h4>
-            <div class="form-group">
-                <label>Status na Rota (Disponibilidade)</label>
-                <select id="cadStatus">
-                    <option value="Ativo">Ativo (Na Escala)</option>
-                    <option value="Ausente">Ausente (Atestado/Falta)</option>
-                    <option value="Em Férias">Em Férias</option>
-                </select>
-            </div>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Tipo de Veículo</label>
-                    <select id="cadTipoVeiculo">
-                        <option value="Carro">Carro (Leva Caixas)</option>
-                        <option value="Moto">Moto</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Limite de Agenda (Máx. OS)</label>
-                    <input type="number" id="cadCapacidadeOS" placeholder="Ex: 9">
-                </div>
-            </div>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Espaço Físico (Máx. Caixas)</label>
-                    <input type="number" id="cadCapacidadeCaixas" placeholder="Ex: 7">
-                </div>
-                <div class="form-group">
-                    <label>CEP da Residência (Base)</label>
-                    <input type="text" id="cadCep" placeholder="00000-000" onblur="buscarCep(this.value)">
-                </div>
-            </div>
-            <div class="form-group"><label>Bairro / Cidade</label><input type="text" id="cadBairro" placeholder="Busca Automática"></div>
-        </div>
-
+    <label>Nível de Permissão</label>
+    <select id="cadTipo">
+        <option value="simples">Acesso Simples (Lançamentos)</option>
+        <option value="estoque">Estoque (Almoxarifado)</option>
+        <option value="tecnico">Técnico (App Rota)</option>
+        <option value="admin">Administrador (Relatórios)</option>
+        <option value="master">Master (Controle Total)</option>
+        <option value="totem">Totem (Entrada)</option>
+    </select>
+</div>
         <button class="btn-bloco" style="background:#10B981;" onclick="salvarUsuario()">Salvar Usuário</button>
     </div>
 </div>

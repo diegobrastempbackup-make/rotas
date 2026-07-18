@@ -1,10 +1,10 @@
 const token = localStorage.getItem("token");
 let cacheTecnicos = [];
 let cacheTotem = [];
-window.cacheUsuarios = []; // Cache global de Usuários para não perder os dados na edição
 
 if (!token) window.location.replace("/login.html");
 
+// Lê o token por completo para descobrirmos se é um Super Admin disfarçado
 function obterPayloadDoToken() {
     try {
         const base64Url = token.split('.')[1];
@@ -29,7 +29,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if(typeof carregarEmpresas === 'function') await carregarEmpresas();
     }
 
+    // Se ele for um Super Admin disfarçado, cria o botão vermelho para fugir da empresa!
     if (isSuperAdminDisfarcado) {
+        // Tenta injetar o botão no cabeçalho do painel
         const menus = document.querySelector('.menu');
         if(menus) {
             menus.innerHTML += `<hr><button onclick="voltarSuperAdmin()" style="background:#EF4444; color:white; border:1px solid #B91C1C; font-weight:bold;">🔙 Voltar ao Painel Global</button>`;
@@ -57,21 +59,6 @@ function mudarAba(abaSelecionada) {
 }
 
 function fecharModal(idModal) { document.getElementById(idModal).classList.remove("ativo"); }
-
-// =========================================================
-// FUNÇÃO MÁGICA DE CEP PARA USUÁRIOS TÉCNICOS
-// =========================================================
-async function buscarCep(cep) {
-    const cepLimpo = cep.replace(/\D/g, '');
-    if(cepLimpo.length !== 8) return;
-    try {
-        const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-        const dados = await res.json();
-        if(!dados.erro) {
-            document.getElementById("cadBairro").value = dados.bairro + " - " + dados.localidade;
-        }
-    } catch(e) {}
-}
 
 // =========================================================
 // MODO ESPIÃO: NAVEGAÇÃO DE EMPRESAS (SaaS)
@@ -184,7 +171,7 @@ async function salvarNovaEmpresa() {
 }
 
 // =========================================================
-// TÉCNICOS DASHBOARD (REVERTIDO PARA O BÁSICO DE FROTA)
+// GESTÃO DE TÉCNICOS E USUÁRIOS
 // =========================================================
 async function carregarTecnicos() {
     try {
@@ -225,7 +212,6 @@ function renderizarTabela(lista) {
                 <td style="padding: 10px;">${t.telefone || "-"}</td>
                 <td style="padding: 10px;">${t.email || "-"}</td>
                 <td style="padding: 10px;">${t.veiculo || "-"}</td>
-                <td style="padding: 10px;">${t.placa || "-"}</td>
                 <td style="padding: 10px;">
                     <button class="btn-mini btn-editar" onclick="prepararEdicaoTecnico('${t._id}')">Editar</button>
                     <button class="btn-mini btn-excluir" onclick="deletarTecnico('${t._id}')">Excluir</button>
@@ -246,40 +232,29 @@ function filtrarTabela() {
 }
 
 function abrirModalTecnico() {
-    document.getElementById("modalTituloTecnico").innerText = "Adicionar Técnico Dashboard";
-    document.getElementById("tecnicoId").value = ""; 
-    document.getElementById("formNome").value = "";
-    document.getElementById("formStatus").value = "Ativo"; 
-    document.getElementById("formTelefone").value = "";
-    document.getElementById("formEmail").value = ""; 
-    document.getElementById("formVeiculo").value = "";
-    document.getElementById("formPlaca").value = ""; 
-    document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("modalTituloTecnico").innerText = "Adicionar Novo Técnico";
+    document.getElementById("tecnicoId").value = ""; document.getElementById("formNome").value = "";
+    document.getElementById("formStatus").value = "Ativo"; document.getElementById("formTelefone").value = "";
+    document.getElementById("formEmail").value = ""; document.getElementById("formVeiculo").value = "";
+    document.getElementById("formPlaca").value = ""; document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 function prepararEdicaoTecnico(id) {
     const t = cacheTecnicos.find(item => item._id === id);
     if (!t) return;
     document.getElementById("modalTituloTecnico").innerText = `Editar: ${t.nome}`;
-    document.getElementById("tecnicoId").value = t._id; 
-    document.getElementById("formNome").value = t.nome;
-    document.getElementById("formStatus").value = t.status || "Ativo"; 
-    document.getElementById("formTelefone").value = t.telefone || "";
-    document.getElementById("formEmail").value = t.email || ""; 
-    document.getElementById("formVeiculo").value = t.veiculo || "";
-    document.getElementById("formPlaca").value = t.placa || ""; 
-    document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("tecnicoId").value = t._id; document.getElementById("formNome").value = t.nome;
+    document.getElementById("formStatus").value = t.status || "Ativo"; document.getElementById("formTelefone").value = t.telefone || "";
+    document.getElementById("formEmail").value = t.email || ""; document.getElementById("formVeiculo").value = t.veiculo || "";
+    document.getElementById("formPlaca").value = t.placa || ""; document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 async function salvarTecnico() {
     const id = document.getElementById("tecnicoId").value;
     const payload = {
-        nome: document.getElementById("formNome").value.trim(), 
-        status: document.getElementById("formStatus").value,
-        telefone: document.getElementById("formTelefone").value.trim(), 
-        email: document.getElementById("formEmail").value.trim(),
-        veiculo: document.getElementById("formVeiculo").value.trim(), 
-        placa: document.getElementById("formPlaca").value.trim()
+        nome: document.getElementById("formNome").value.trim(), status: document.getElementById("formStatus").value,
+        telefone: document.getElementById("formTelefone").value.trim(), email: document.getElementById("formEmail").value.trim(),
+        veiculo: document.getElementById("formVeiculo").value.trim(), placa: document.getElementById("formPlaca").value.trim()
     };
     if (!payload.nome) return alert("O Nome é obrigatório.");
     try {
@@ -292,7 +267,7 @@ async function salvarTecnico() {
 }
 
 async function deletarTecnico(id) {
-    if (!confirm("Remover este técnico permanentemente do Dashboard?")) return;
+    if (!confirm("Remover este técnico permanentemente da Frota?")) return;
     try {
         const res = await fetch(`/api/tecnicos-dashboard/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
         if (res.ok) await carregarTecnicos();
@@ -300,18 +275,8 @@ async function deletarTecnico(id) {
 }
 
 // =========================================================
-// USUÁRIOS DO SISTEMA (AGORA COM O SUPER CADASTRO DE ROTAS)
+// USUÁRIOS DO SISTEMA E TOTEM
 // =========================================================
-function toggleCamposTecnicoUsuario() {
-    const tipo = document.getElementById("cadTipo").value;
-    const painel = document.getElementById("camposRoteirizadorUsuario");
-    if (tipo === "tecnico") {
-        painel.style.display = "block";
-    } else {
-        painel.style.display = "none";
-    }
-}
-
 async function carregarUsuarios() {
     const corpo = document.getElementById("corpoTabelaUsuarios");
     if(!corpo) return;
@@ -319,7 +284,6 @@ async function carregarUsuarios() {
     try {
         const res = await fetch("/api/usuarios", { headers: { "Authorization": `Bearer ${token}` } });
         const usuarios = await res.json();
-        window.cacheUsuarios = usuarios; // Salva para o modal não perder os dados
         corpo.innerHTML = "";
         
         usuarios.forEach(u => {
@@ -337,7 +301,7 @@ async function carregarUsuarios() {
                     <td>${u.usuario}</td>
                     <td>${badge}</td>
                     <td>
-                        ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}')">Editar</button> <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
+                        ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}', '${u.nome}', '${u.usuario}', '${u.tipo}')">Editar</button> <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
                     </td>
                 </tr>
             `;
@@ -347,46 +311,17 @@ async function carregarUsuarios() {
 
 function abrirModalUsuario() {
     document.getElementById("modalTituloUsuario").innerText = "Novo Usuário";
-    document.getElementById("usuarioEditId").value = ""; 
-    document.getElementById("cadNome").value = "";
-    document.getElementById("cadUsuario").value = ""; 
-    document.getElementById("cadUsuario").disabled = false; 
-    document.getElementById("cadSenha").value = ""; 
-    document.getElementById("cadTipo").value = "simples";
-    
-    // Limpa campos de Roteirizador
-    document.getElementById("cadStatus").value = "Ativo";
-    document.getElementById("cadTipoVeiculo").value = "Carro";
-    document.getElementById("cadCapacidadeOS").value = "";
-    document.getElementById("cadCapacidadeCaixas").value = "";
-    document.getElementById("cadCep").value = "";
-    document.getElementById("cadBairro").value = "";
-    
-    toggleCamposTecnicoUsuario();
+    document.getElementById("usuarioEditId").value = ""; document.getElementById("cadNome").value = "";
+    document.getElementById("cadUsuario").value = ""; document.getElementById("cadUsuario").disabled = false; 
+    document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = "simples";
     document.getElementById("modalUsuario").classList.add("ativo"); 
 }
 
-function prepararEdicaoUsuario(id) {
-    const u = window.cacheUsuarios.find(x => x._id === id);
-    if (!u) return;
-
-    document.getElementById("modalTituloUsuario").innerText = `Editar: ${u.usuario}`;
-    document.getElementById("usuarioEditId").value = id; 
-    document.getElementById("cadNome").value = u.nome;
-    document.getElementById("cadUsuario").value = u.usuario; 
-    document.getElementById("cadUsuario").disabled = true; 
-    document.getElementById("cadSenha").value = ""; 
-    document.getElementById("cadTipo").value = u.tipo;
-
-    // Popula campos avançados se ele for técnico
-    document.getElementById("cadStatus").value = u.status || "Ativo";
-    document.getElementById("cadTipoVeiculo").value = u.tipoVeiculo || "Carro";
-    document.getElementById("cadCapacidadeOS").value = u.capacidadeOS || "";
-    document.getElementById("cadCapacidadeCaixas").value = u.capacidadeCaixas || "";
-    document.getElementById("cadCep").value = u.cep || "";
-    document.getElementById("cadBairro").value = u.bairro || "";
-
-    toggleCamposTecnicoUsuario();
+function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
+    document.getElementById("modalTituloUsuario").innerText = `Editar: ${usuario}`;
+    document.getElementById("usuarioEditId").value = id; document.getElementById("cadNome").value = nome;
+    document.getElementById("cadUsuario").value = usuario; document.getElementById("cadUsuario").disabled = true; 
+    document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = tipoReal;
     document.getElementById("modalUsuario").classList.add("ativo");
 }
 
@@ -396,23 +331,13 @@ async function salvarUsuario() {
     const usuario = document.getElementById("cadUsuario").value.trim();
     const senha = document.getElementById("cadSenha").value;
     const tipo = document.getElementById("cadTipo").value;
-
-    const status = document.getElementById("cadStatus").value;
-    const tipoVeiculo = document.getElementById("cadTipoVeiculo").value;
-    const capacidadeOS = document.getElementById("cadCapacidadeOS").value;
-    const capacidadeCaixas = document.getElementById("cadCapacidadeCaixas").value;
-    const cep = document.getElementById("cadCep").value.trim();
-    const bairro = document.getElementById("cadBairro").value.trim();
-
     if (!nome || !usuario) return alert("Preencha todos os campos obrigatórios.");
     try {
-        const payload = { nome, usuario, senha, tipo, status, tipoVeiculo, capacidadeOS, capacidadeCaixas, cep, bairro };
         let res;
-
         if (id) {
-            res = await fetch(`/api/usuarios/${id}`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify(payload) });
+            res = await fetch(`/api/usuarios/${id}`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, tipo, senha }) });
         } else {
-            res = await fetch("/cadastro", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify(payload) });
+            res = await fetch("/cadastro", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, usuario, senha, tipo }) });
         }
         if (!res.ok) return alert("Erro na operação.");
         fecharModal('modalUsuario'); await carregarUsuarios();
@@ -427,9 +352,6 @@ async function deletarUsuario(id) {
     } catch (err) { console.error(err); }
 }
 
-// =========================================================
-// EQUIPA TOTEM
-// =========================================================
 async function carregarEquipeTotem() {
     const corpo = document.getElementById("corpoTabelaTotem");
     if(!corpo) return;

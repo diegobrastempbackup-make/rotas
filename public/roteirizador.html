@@ -15,9 +15,7 @@
         .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
         .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
         
-        .seletor-frota { background: rgba(30, 41, 59, 0.8); padding: 15px 25px; border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; gap: 15px; }
-        
-        .upload-area { border: 2px dashed rgba(59, 130, 246, 0.5); background: rgba(30, 41, 59, 0.5); padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; display: block; }
+        .upload-area { border: 2px dashed rgba(59, 130, 246, 0.5); background: rgba(30, 41, 59, 0.5); padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
         .upload-area:hover { background: rgba(30, 41, 59, 0.8); border-color: #3B82F6; }
         .upload-area input { display: none; }
         
@@ -63,6 +61,9 @@
 
         .btn-lapis { background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 5px; font-size: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .btn-lapis:hover { color: #FACC15; background: rgba(255,255,255,0.05); }
+
+        .btn-mini { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn-mini:hover { background: #2563EB; }
         
         .badge-turno { font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; }
@@ -95,36 +96,23 @@
 
     <div class="main">
         <div class="header-painel">
-            <h1>Torre de Controle Logístico (IA)</h1>
-            <p>Acompanhe a frota ou suba uma planilha sem técnicos para Distribuição Automática.</p>
+            <h1>Torre de Controle Logístico</h1>
+            <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
         </div>
 
-        <div id="areaInjecao" style="display: block;">
-            <!-- 1. O SELETOR DE FROTA -->
-            <div class="seletor-frota">
-                <span style="color: white; font-weight: bold; font-size: 16px;">1. Destino do Planejamento:</span>
-                <select id="tipoPlanilha" style="padding: 12px; font-size: 16px; border-radius: 8px; background: #0F172A; color: white; border: 1px solid #3B82F6; font-weight: bold; cursor: pointer; outline:none;">
-                    <option value="Carro">🚗 Frota de Carros</option>
-                    <option value="Moto">🏍️ Frota de Motos</option>
-                </select>
-            </div>
+        <label class="upload-area" id="areaUpload">
+            <input type="file" id="arquivoExcel" accept=".xlsx, .xls, .csv" onchange="processarExcel(event)">
+            <h3>📥 Clique ou arraste a sua folha de Excel aqui para Planejar</h3>
+            <p>Formatos suportados: .XLSX, .XLS, .CSV</p>
+        </label>
 
-            <!-- 2. A CAIXA DE UPLOAD -->
-            <label class="upload-area" id="areaUpload">
-                <input type="file" id="arquivoExcel" accept=".xlsx, .xls, .csv" onchange="processarExcel(event)">
-                <h3 style="color:#60A5FA;">📥 2. Clique ou arraste a sua planilha de Excel aqui</h3>
-                <p>Se a coluna "Técnico" estiver vazia, o Motor de IA dividirá as rotas automaticamente.</p>
-            </label>
-        </div>
-
-        <!-- BARRA DE PROGRESSO DO GPS -->
         <div id="loadingUpload" style="display: none; border: 2px solid rgba(16, 185, 129, 0.5); background: rgba(30, 41, 59, 0.8); padding: 40px; text-align: center; border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: #10B981; margin-top: 0;">🌍 Motor de IA: Processando Geografia e Capacidade...</h3>
+            <h3 style="color: #10B981; margin-top: 0;">🌍 Traduzindo endereços para GPS (Geocodificação)...</h3>
             <p id="lblProgresso" style="color: #94A3B8; font-size: 14px; font-weight: bold;">0 de X concluídos</p>
             <div style="width: 100%; background: #0F172A; height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
                 <div id="barraProgresso" style="width: 0%; background: #10B981; height: 100%; transition: width 0.3s;"></div>
             </div>
-            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ O Motor está a medir as distâncias para a casa de cada técnico ativo.<br><b>Por favor, não feche nem atualize esta página.</b></p>
+            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ <b>Por favor, não feche nem atualize esta página até chegar a 100%.</b></p>
         </div>
 
         <div id="painelRotas">
@@ -135,7 +123,7 @@
                     <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS">
                     <button onclick="buscarHistorico()">1. Buscar Planejamento</button>
                     <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
-                    <button onclick="exportarRelatorioHistorico()" class="btn-relatorio">📊 3. Histórico Executado (Telemetria)</button>
+                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
                 </div>
 
                 <div class="lista-tecnicos">
@@ -168,7 +156,7 @@
                 <div id="painelPlayback">
                     <div style="display: flex; justify-content: space-between; align-items: center; color: white; font-weight: bold; font-size: 13px;">
                         <span>⏮ Início</span>
-                        <span id="lblPlaybackStatus" style="color: #3B82F6;">Linha do Tempo</span>
+                        <span id="lblPlaybackStatus" style="color: #3B82F6;">Linha do Tempo </span>
                         <span>Fim ⏭</span>
                     </div>
                     <input type="range" id="sliderPlayback" class="slider-control" min="0" max="10" value="10" oninput="atualizarTela(false)">
@@ -187,14 +175,8 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
-    // Força a Base Operacional sempre para Antonio Ayrosa 191, ignorando caches antigos do navegador
-    let configGalpao = { 
-        lat: -23.5184, 
-        lon: -46.7461, 
-        nome: "Base Operacional", 
-        endereco: "Rua Antonio Ayrosa 191" 
-    };
-    localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
+    let configGalpao = JSON.parse(localStorage.getItem("configGalpao"));
+    if (!configGalpao) configGalpao = { lat: -23.5184, lon: -46.7461, nome: "Base Operacional", endereco: "Rua Antonio Ayrosa 191" };
 
     let mapa = null;
     let layerGrupo = null; 
@@ -206,26 +188,14 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
 
-    // O CÉREBRO: Conhece toda a equipa
-    window.equipeCompleta = [];
-
-    document.addEventListener("DOMContentLoaded", async () => {
+    document.addEventListener("DOMContentLoaded", () => {
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
         
-        // Puxa a base de dados de USUÁRIOS (com CEP, Veículo, Capacidades)
-        try {
-            const res = await fetch("/api/usuarios", { headers: { "Authorization": `Bearer ${token}` } });
-            if (res.ok) {
-                const todosUsuarios = await res.json();
-                window.equipeCompleta = todosUsuarios.filter(u => u.tipo === 'tecnico');
-            }
-        } catch(e) {}
-
         const rotasGuardadas = localStorage.getItem("planilhaRotas");
         if (rotasGuardadas) {
             dadosGlobaisRotas = JSON.parse(rotasGuardadas);
-            document.getElementById("areaInjecao").style.display = "none";
+            document.getElementById("areaUpload").style.display = "none";
             document.getElementById("painelRotas").style.display = "flex";
             renderizarListaTecnicosModoNovo();
             setTimeout(() => { mapa.invalidateSize(); }, 500);
@@ -270,26 +240,17 @@
     }
 
     async function agruparEGeocodificar(linhas) {
-        document.getElementById("areaInjecao").style.display = "none";
+        document.getElementById("areaUpload").style.display = "none";
         document.getElementById("loadingUpload").style.display = "block";
 
-        let ordensLotes = [];
-        let modoManual = false;
+        let ordensPorTecnico = {};
         let totalOS = 0;
 
         linhas.forEach(linha => {
-            let tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
+            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
             const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
             const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
-            if (!codigo && !cliente) return;
-            
-            // SE ESTIVER VAZIO, ACIONA O MOTOR DE IA
-            if (!tecnico || tecnico.trim() === "") {
-                tecnico = "AUTO";
-            } else {
-                modoManual = true;
-            }
-
+            if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
             const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
             const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
             
@@ -301,77 +262,59 @@
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
-            
-            // NOVOS CAMPOS PARA EXPORTAÇÃO
-            let modelo = buscarValorNaLinha(linha, ["MODELO", "EQUIPAMENTO"]);
-            let defeito = buscarValorNaLinha(linha, ["DEFEITO", "RECLAMAÇÃO", "RECLAMACAO"]);
-            let detalhes = buscarValorNaLinha(linha, ["DETALHES", "COMPLEMENTO"]);
-            let distrito = buscarValorNaLinha(linha, ["DISTRITO", "BAIRRO"]);
-            let chaveAgrupamento = `${String(cliente).trim().toUpperCase()}_${rua.toUpperCase()}_${cepFormatado}`;
-            let loteExistente = ordensLotes.find(o => o.chaveAgrupamento === chaveAgrupamento && o.tecnico === tecnico);
 
-            if (loteExistente) {
-                loteExistente.codigo += ` / ${codigo}`;
-                if (servico) loteExistente.servico += ` / ${servico}`;
-                if (modelo) loteExistente.modelo += ` / ${modelo}`;
-                if (defeito) loteExistente.defeito += ` / ${defeito}`;
-                loteExistente.qtdOS = (loteExistente.qtdOS || 1) + 1;
-                
-                // NOVO: Guarda a linha de Excel original "intacta" para exportarmos depois
-                if (!loteExistente.ordens_originais) loteExistente.ordens_originais = [];
-                loteExistente.ordens_originais.push(linha);
+            if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
+
+            // REFINAMENTO DO AGRUPAMENTO: Agora junta Cliente + Rua + CEP
+            let chaveAgrupamento = `${String(cliente).trim().toUpperCase()}_${rua.toUpperCase()}_${cepFormatado}`;
+            let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
+
+            if (ordemExistente) {
+                ordemExistente.codigo += ` / ${codigo}`;
+                if (servico) {
+                    ordemExistente.servico += ` / ${servico}`;
+                }
             } else {
-                ordensLotes.push({
-                    tecnico: tecnico,
+                ordensPorTecnico[tecnico].push({
                     chaveAgrupamento: chaveAgrupamento,
                     codigo: String(codigo), 
                     cliente: String(cliente).trim(), 
                     servico: servico,
-                    modelo: modelo,
-                    defeito: defeito,
-                    detalhes: detalhes,
-                    distrito: distrito,
-                    rua: rua, cidade: cidade, cep: cepFormatado, 
-                    periodo: periodoOriginal, status: 'pendente', qtdOS: 1,
-                    // NOVO: Inicia o "pacote" com a primeira linha de Excel original
-                    ordens_originais: [linha]
+                    rua: rua,
+                    cidade: cidade,
+                    cep: cepFormatado, 
+                    periodo: periodoOriginal, 
+                    status: 'pendente' 
                 });
                 totalOS++; 
             }
         });
 
+        dadosGlobaisRotas = {}; 
         let concluidos = 0;
         let barra = document.getElementById("barraProgresso");
         let lbl = document.getElementById("lblProgresso");
 
-        for (let lote of ordensLotes) {
-            concluidos++;
-            let perc = Math.round((concluidos / ordensLotes.length) * 100);
-            barra.style.width = perc + "%";
-            lbl.innerText = `${concluidos} de ${ordensLotes.length} locais processados...`;
+        for (let tecnico of Object.keys(ordensPorTecnico)) {
+            dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
+            
+            for (let ordem of ordensPorTecnico[tecnico]) {
+                concluidos++;
+                let perc = Math.round((concluidos / totalOS) * 100);
+                barra.style.width = perc + "%";
+                lbl.innerText = `${concluidos} de ${totalOS} locais únicos convertidos em GPS...`;
 
-            let crds = await obterCoordenadasSilenciosa(lote);
-            lote.lat = crds ? crds.lat : configGalpao.lat;
-            lote.lon = crds ? crds.lon : configGalpao.lon;
-            lote.precisaCorrecao = !crds;
+                let crds = await obterCoordenadasSilenciosa(ordem);
+                ordem.lat = crds ? crds.lat : configGalpao.lat;
+                ordem.lon = crds ? crds.lon : configGalpao.lon;
+                ordem.precisaCorrecao = !crds;
 
-            await new Promise(r => setTimeout(r, 1000));
+                if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
+                else dadosGlobaisRotas[tecnico].tarde.push(ordem);
+
+                await new Promise(r => setTimeout(r, 1000));
+            }
         }
-
-        dadosGlobaisRotas = {};
-
-        // INJEÇÃO DA DISTRIBUIÇÃO AUTOMÁTICA (IA)
-        let lotesAuto = ordensLotes.filter(o => o.tecnico === "AUTO");
-        if (lotesAuto.length > 0) {
-            await distribuirRotasInteligente(lotesAuto);
-        }
-
-        // Processa os que foram marcados manualmente na planilha
-        ordensLotes.filter(o => o.tecnico !== "AUTO").forEach(lote => {
-            if (!dadosGlobaisRotas[lote.tecnico]) dadosGlobaisRotas[lote.tecnico] = { manha: [], tarde: [], destinoFim: 'casa' };
-            if (lote.periodo === 'MANHA') dadosGlobaisRotas[lote.tecnico].manha.push(lote);
-            else dadosGlobaisRotas[lote.tecnico].tarde.push(lote);
-        });
 
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("loadingUpload").style.display = "none";
@@ -380,377 +323,33 @@
         setTimeout(() => { mapa.invalidateSize(); }, 500);
     }
 
-    // =========================================================================
-    // O CÉREBRO FINAL: K-MEANS CLUSTERING (ALGORITMO DE MACHINE LEARNING)
-    // =========================================================================
-    async function distribuirRotasInteligente(lotes) {
-        let tipoVeiculo = document.getElementById("tipoPlanilha").value;
-        let equipeValida = window.equipeCompleta.filter(t => t.status === 'Ativo' && t.tipoVeiculo === tipoVeiculo);
-
-        if (equipeValida.length === 0) {
-            alert(`⚠️ ATENÇÃO: NENHUM técnico de ${tipoVeiculo} marcado como 'Ativo'.`);
-            return;
-        }
-
-        // 1. Puxa as coordenadas dos Técnicos
-        for (let tec of equipeValida) {
-            if (!tec.lat && tec.cep) {
-                let coords = await obterCoordenadasSilenciosa({ rua: "", cidade: "São Paulo", cep: tec.cep });
-                tec.lat = coords ? coords.lat : configGalpao.lat;
-                tec.lon = coords ? coords.lon : configGalpao.lon;
-            } else if (!tec.lat) {
-                tec.lat = configGalpao.lat; tec.lon = configGalpao.lon;
-            }
-            tec.cargaAtualOS = 0;
-            tec.rotasSugeridas = { manha: [], tarde: [] };
-            tec.capacidade = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
-        }
-
-        // ==========================================================
-        // PASSO A: MACHINE LEARNING - CRIAR "BOLHAS" (CLUSTERS)
-        // ==========================================================
-        let k = equipeValida.length; // Número de bolhas = número de técnicos
-        let centroids = [];
-        
-        // Pega OS aleatórias (espalhadas) para iniciar os centros das bolhas
-        for (let i = 0; i < k; i++) {
-            let rndLote = lotes[Math.floor(Math.random() * lotes.length)];
-            centroids.push({ lat: rndLote.lat, lon: rndLote.lon, lotes: [] });
-        }
-
-        // Treina a IA (K-Means) por 10 rodadas para criar as bolhas perfeitas no mapa
-        for (let loop = 0; loop < 10; loop++) {
-            // Limpa as bolhas
-            centroids.forEach(c => c.lotes = []);
-            
-            // Coloca cada OS na bolha mais próxima
-            lotes.forEach(lote => {
-                let minDist = Infinity;
-                let centroidEscolhido = null;
-                centroids.forEach(c => {
-                    let d = calcularDistancia(c.lat, c.lon, lote.lat, lote.lon);
-                    if (d < minDist) { minDist = d; centroidEscolhido = c; }
-                });
-                centroidEscolhido.lotes.push(lote);
-            });
-
-            // Recalcula o centro exato da bolha
-            centroids.forEach(c => {
-                if (c.lotes.length > 0) {
-                    let sumLat = 0, sumLon = 0;
-                    c.lotes.forEach(l => { sumLat += l.lat; sumLon += l.lon; });
-                    c.lat = sumLat / c.lotes.length;
-                    c.lon = sumLon / c.lotes.length;
-                }
-            });
-        }
-
-        // Remove bolhas vazias
-        centroids = centroids.filter(c => c.lotes.length > 0);
-
-        // ==========================================================
-        // PASSO B: ENTREGAR A BOLHA AO TÉCNICO CERTO
-        // ==========================================================
-        let tecnicosDisponiveis = [...equipeValida];
-
-        centroids.forEach(cluster => {
-            let melhorTec = null;
-            let minDistParaTec = Infinity;
-            let indexTec = -1;
-
-            // Quem mora mais perto do centro desta Bolha?
-            for (let i = 0; i < tecnicosDisponiveis.length; i++) {
-                let tec = tecnicosDisponiveis[i];
-                let dist = calcularDistancia(tec.lat, tec.lon, cluster.lat, cluster.lon);
-                if (dist < minDistParaTec) {
-                    minDistParaTec = dist;
-                    melhorTec = tec;
-                    indexTec = i;
-                }
-            }
-
-            if (melhorTec) {
-                // Remove o técnico da lista para ele não pegar duas bolhas
-                tecnicosDisponiveis.splice(indexTec, 1);
-                
-                // Entrega todas as OS da bolha para ele (respeitando o limite)
-                cluster.lotes.forEach(lote => {
-                    let projecao = melhorTec.cargaAtualOS + lote.qtdOS;
-                    
-                    // Se a bolha for maior que a capacidade dele (Tolerância máx +3 OS)
-                    if (projecao <= melhorTec.capacidade + 3) {
-                        melhorTec.cargaAtualOS += lote.qtdOS;
-                        if (lote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(lote);
-                        else melhorTec.rotasSugeridas.tarde.push(lote);
-                    } else {
-                        // Se excedeu demais, atira para um banco de "Órfãos" para realocar no fim
-                        lote.precisaRealocar = true;
-                    }
-                });
-            }
-        });
-
-        // ==========================================================
-        // PASSO C: SALVAMENTO DE ÓRFÃOS (OS que não couberam)
-        // ==========================================================
-        let lotesOrfaos = lotes.filter(l => l.precisaRealocar);
-        lotesOrfaos.forEach(lote => {
-            let melhorTecFallback = null;
-            let menorDistFallback = Infinity;
-
-            for (let tec of equipeValida) {
-                if (tec.cargaAtualOS < tec.capacidade) {
-                    let dist = calcularDistancia(tec.lat, tec.lon, lote.lat, lote.lon);
-                    if (dist < menorDistFallback) { menorDistFallback = dist; melhorTecFallback = tec; }
-                }
-            }
-
-            if (melhorTecFallback) {
-                melhorTecFallback.cargaAtualOS += lote.qtdOS;
-                if (lote.periodo === 'MANHA') melhorTecFallback.rotasSugeridas.manha.push(lote);
-                else melhorTecFallback.rotasSugeridas.tarde.push(lote);
-            }
-        });
-
-        // ==========================================================
-        // PASSO D: ENVIAR PARA A TELA
-        // ==========================================================
-        for (let tec of equipeValida) {
-            if (tec.cargaAtualOS > 0) {
-                dadosGlobaisRotas[tec.nome] = {
-                    manha: tec.rotasSugeridas.manha,
-                    tarde: tec.rotasSugeridas.tarde,
-                    destinoFim: 'casa',
-                    perfil: tec
-                };
-            }
-        }
-    }
-
-    // =========================================================================
-    // VISUALIZAÇÃO E DRAG & DROP ENTRE TÉCNICOS
-    // =========================================================================
     function renderizarListaTecnicosModoNovo() {
         visualizandoHistorico = false; pararAutoRefresh();
         const divLista = document.getElementById("listaTecnicosUI");
-        divLista.innerHTML = `<h4 style="color:#60A5FA; margin: 0 0 10px 15px; font-size:12px;">Planilha Não Salva (Rascunho)</h4>`;
+        divLista.innerHTML = `<h4 style="color:#60A5FA; margin: 0 0 10px 15px; font-size:12px;">Planilha Não Salva</h4>`;
         
         Object.keys(dadosGlobaisRotas).forEach(nome => {
             const t = dadosGlobaisRotas[nome]; const total = t.manha.length + t.tarde.length;
-            let destText = t.destinoFim === 'casa' ? "🏠 Acaba em Casa" : "🏢 Volta à Base";
-
             divLista.innerHTML += `
-                <div class="tecnico-item" id="tecnico-${nome.replace(/\s+/g, '')}" 
-                     onclick="iniciarCalculoTecnico('${nome}')"
-                     ondragover="dragEnterTecnico(event)"
-                     ondragleave="dragLeaveTecnico(event)"
-                     ondrop="soltarNaListaTecnico(event, '${nome}')">
-                    <div style="flex-grow: 1;">
-                        <div class="tecnico-nome">${nome}</div>
-                        <div class="tecnico-stats">Total: ${total} paradas</div>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:5px;">
-                        <button onclick="toggleDestino('${nome}', event)" style="font-size:10px; padding:6px; border-radius:4px; background:rgba(255,255,255,0.1); color:white; border:none; cursor:pointer;" title="Mudar Destino Final">${destText}</button>
-                        <button onclick="repassarRota('${nome}', event)" style="font-size:10px; padding:6px; border-radius:4px; background:rgba(239,68,68,0.2); color:#F87171; border:none; cursor:pointer;" title="Passar tudo para outro técnico">🔄 Repassar</button>
-                    </div>
+                <div class="tecnico-item" id="tecnico-${nome.replace(/\s+/g, '')}" onclick="iniciarCalculoTecnico('${nome}')">
+                    <div><div class="tecnico-nome">${nome}</div><div class="tecnico-stats">Total: ${total} paradas</div></div>
                 </div>
             `;
         });
-
-        // O PAINEL DE STANDBY (Ociosos)
-        let tipoVeiculo = document.getElementById("tipoPlanilha") ? document.getElementById("tipoPlanilha").value : "Carro";
-        let ativos = window.equipeCompleta.filter(t => t.status === 'Ativo' && t.tipoVeiculo === tipoVeiculo);
-        let standby = ativos.filter(t => !dadosGlobaisRotas[t.nome]);
-
-        if (standby.length > 0 && Object.keys(dadosGlobaisRotas).length > 0) {
-            divLista.innerHTML += `<div style="padding: 10px 15px; background: rgba(245, 158, 11, 0.1); border-top: 1px solid rgba(245, 158, 11, 0.3); margin-top: 15px;">
-                <h4 style="color:#F59E0B; margin: 0 0 10px 0; font-size:11px;">⏸ TÉCNICOS EM STANDBY (${tipoVeiculo.toUpperCase()})</h4>`;
-            standby.forEach(t => {
-                divLista.innerHTML += `
-                <div class="tecnico-item" style="opacity:0.6; padding: 10px; border-bottom: none;"
-                     ondragover="dragEnterTecnico(event)"
-                     ondragleave="dragLeaveTecnico(event)"
-                     ondrop="soltarNaListaTecnico(event, '${t.nome}')">
-                    <div>
-                        <div class="tecnico-nome">👤 ${t.nome}</div>
-                        <div class="tecnico-stats">Disponível / Aguardando</div>
-                    </div>
-                </div>`;
-            });
-            divLista.innerHTML += `</div>`;
-        }
-
-        // BOTOES DE AÇÃO FINAIS (Salvar e Exportar)
-        divLista.innerHTML += `
-            <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 10px;">
-                <button onclick="salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">💾 Salvar Planejamento no Banco</button>
-                <button onclick="exportarPlanejamentoExcel()" style="width: 100%; padding: 12px; background: #3B82F6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📥 Exportar Planejamento (Excel)</button>
-            </div>
-        `;
+        divLista.innerHTML += `<div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.05);"><button onclick="salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">💾 Salvar Planejamento no Banco</button></div>`;
     }
 
-    // BOTÕES DE AÇÃO DOS TÉCNICOS E EXPORTAÇÃO
-    function toggleDestino(nome, event) {
-        event.stopPropagation();
-        let config = dadosGlobaisRotas[nome];
-        config.destinoFim = config.destinoFim === 'casa' ? 'base' : 'casa';
-        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-        if (tecnicoAtivo === nome) iniciarCalculoTecnico(nome);
-        renderizarListaTecnicosModoNovo();
-    }
-
-    function repassarRota(nomeOrigem, event) {
-        event.stopPropagation();
-        let dest = prompt(`Transferir a rota completa do(a) ${nomeOrigem} para quem? (Digite o nome exato)`);
-        if (!dest || dest.trim() === "") return;
-
-        let tDest = window.equipeCompleta.find(t => t.nome.toLowerCase() === dest.toLowerCase());
-        let nomeFinalDestino = tDest ? tDest.nome : dest; 
-
-        let origData = dadosGlobaisRotas[nomeOrigem];
-        if (!dadosGlobaisRotas[nomeFinalDestino]) dadosGlobaisRotas[nomeFinalDestino] = { manha: [], tarde: [], destinoFim: 'casa', perfil: tDest };
-
-        dadosGlobaisRotas[nomeFinalDestino].manha.push(...origData.manha);
-        dadosGlobaisRotas[nomeFinalDestino].tarde.push(...origData.tarde);
-
-        delete dadosGlobaisRotas[nomeOrigem];
-        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-        renderizarListaTecnicosModoNovo();
-        document.getElementById("painelItinerario").style.display = "none";
-        if(layerGrupo) mapa.removeLayer(layerGrupo);
-    }
-
-    // Função que Desagrupa o Lote e gera o Excel limpo
-    function exportarPlanejamentoExcel() {
-        if (Object.keys(dadosGlobaisRotas).length === 0) return alert("Nenhum planejamento ativo para exportar.");
-        
-        let dadosExcel = [];
-        
-        Object.keys(dadosGlobaisRotas).forEach(tecnico => {
-            const rotas = dadosGlobaisRotas[tecnico];
-            // Respeita a ordem exata da Rota Otimizada (Manhã -> Tarde)
-            const itinerarioCompleto = [...rotas.manha, ...rotas.tarde];
-            
-            itinerarioCompleto.forEach(item => {
-                // Se tiver as linhas originais guardadas (Desagrupa tudo e cria linhas limpas)
-                if (item.ordens_originais && item.ordens_originais.length > 0) {
-                    item.ordens_originais.forEach(linhaOriginal => {
-                        dadosExcel.push({
-                            "Código": buscarValorNaLinha(linhaOriginal, ["CÓDIGO", "CODIGO", "OS"]) || "",
-                            "SERVIÇO": buscarValorNaLinha(linhaOriginal, ["SERVIÇO", "SERVICO"]) || "",
-                            "Modelo do Equipamento": buscarValorNaLinha(linhaOriginal, ["MODELO", "EQUIPAMENTO"]) || "",
-                            "DEFEITO INFORMADO": buscarValorNaLinha(linhaOriginal, ["DEFEITO", "RECLAMAÇÃO", "RECLAMACAO"]) || "",
-                            "Horário": item.periodo === "MANHA" ? "Manhã" : "Tarde",
-                            "Cliente": buscarValorNaLinha(linhaOriginal, ["CLIENTE", "NOME"]) || item.cliente,
-                            "Endereço": buscarValorNaLinha(linhaOriginal, ["ENDEREÇO", "ENDERECO", "RUA"]) || item.rua,
-                            "Detalhes do Endereço": buscarValorNaLinha(linhaOriginal, ["DETALHES", "COMPLEMENTO"]) || item.detalhes,
-                            "CEP": buscarValorNaLinha(linhaOriginal, ["CEP"]) || item.cep,
-                            "Distrito": buscarValorNaLinha(linhaOriginal, ["DISTRITO", "BAIRRO"]) || item.distrito,
-                            "Cidade": buscarValorNaLinha(linhaOriginal, ["CIDADE", "MUNICÍPIO"]) || item.cidade,
-                            "Técnico": tecnico
-                        });
-                    });
-                } else {
-                    // Prevenção de erro caso seja um lote velho sem as linhas salvas
-                    dadosExcel.push({
-                        "Código": item.codigo || "",
-                        "SERVIÇO": item.servico || "",
-                        "Modelo do Equipamento": item.modelo || "",
-                        "DEFEITO INFORMADO": item.defeito || "",
-                        "Horário": item.periodo === "MANHA" ? "Manhã" : "Tarde",
-                        "Cliente": item.cliente || "",
-                        "Endereço": item.rua || "",
-                        "Detalhes do Endereço": item.detalhes || "",
-                        "CEP": item.cep || "",
-                        "Distrito": item.distrito || "",
-                        "Cidade": item.cidade || "",
-                        "Técnico": tecnico
-                    });
-                }
-            });
-        });
-
-        const worksheet = XLSX.utils.json_to_sheet(dadosExcel);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Roteiro Planejado");
-        XLSX.writeFile(workbook, "Planejamento_Rotas_NERI.xlsx");
-    }
-
-    // FUNÇÕES DE DRAG & DROP ENTRE TÉCNICOS
-    function dragEnterTecnico(e) { e.preventDefault(); e.currentTarget.style.border = "2px dashed #10B981"; e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)"; }
-    function dragLeaveTecnico(e) { e.currentTarget.style.border = ""; e.currentTarget.style.background = ""; }
-    
-    function soltarNaListaTecnico(e, tecnicoDestino) {
-        e.preventDefault();
-        e.currentTarget.style.border = ""; e.currentTarget.style.background = "";
-        
-        if (visualizandoHistorico) return alert("No histórico não é possível mover OS entre técnicos via Rascunho.");
-        if (itemArrastadoIndice === null || !tecnicoAtivo || tecnicoAtivo === tecnicoDestino) return;
-
-        let itemMovido = rotaAtiva[itemArrastadoIndice];
-
-        let dOrigem = dadosGlobaisRotas[tecnicoAtivo];
-        dOrigem.manha = dOrigem.manha.filter(i => i.codigo !== itemMovido.codigo);
-        dOrigem.tarde = dOrigem.tarde.filter(i => i.codigo !== itemMovido.codigo);
-
-        if (dOrigem.manha.length === 0 && dOrigem.tarde.length === 0) delete dadosGlobaisRotas[tecnicoAtivo];
-
-        if (!dadosGlobaisRotas[tecnicoDestino]) {
-            let tDest = window.equipeCompleta.find(t => t.nome === tecnicoDestino);
-            dadosGlobaisRotas[tecnicoDestino] = { manha: [], tarde: [], destinoFim: 'casa', perfil: tDest };
-        }
-        
-        if (itemMovido.periodo === 'MANHA') dadosGlobaisRotas[tecnicoDestino].manha.push(itemMovido);
-        else dadosGlobaisRotas[tecnicoDestino].tarde.push(itemMovido);
-
-        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-        renderizarListaTecnicosModoNovo();
-
-        if (dadosGlobaisRotas[tecnicoAtivo]) iniciarCalculoTecnico(tecnicoAtivo); 
-        else { document.getElementById("painelItinerario").style.display = "none"; if(layerGrupo) mapa.removeLayer(layerGrupo); }
-    }
-
-    // =========================================================================
-    // LÓGICA MATEMÁTICA E RENDERIZAÇÃO NO MAPA
-    // =========================================================================
-
-    function otimizarSequencia(pontos, inicioLat, inicioLon, destinoFimLat, destinoFimLon) {
+    function otimizarSequencia(pontos, inicioLat, inicioLon) {
         let naoVisitados = [...pontos]; let rotaOrdenada = []; let atualLat = inicioLat; let atualLon = inicioLon;
         while (naoVisitados.length > 0) {
-            let idx = 0; let menorCusto = Infinity;
+            let idx = 0; let menorDist = Infinity;
             for (let i = 0; i < naoVisitados.length; i++) {
-                let distToNext = calcularDistancia(atualLat, atualLon, naoVisitados[i].lat, naoVisitados[i].lon);
-                let custo = distToNext;
-                if (destinoFimLat) {
-                    let distToEnd = calcularDistancia(naoVisitados[i].lat, naoVisitados[i].lon, destinoFimLat, destinoFimLon);
-                    custo = distToNext - (0.35 * distToEnd); 
-                }
-                if (custo < menorCusto) { menorCusto = custo; idx = i; }
+                let dist = calcularDistancia(atualLat, atualLon, naoVisitados[i].lat, naoVisitados[i].lon);
+                if (dist < menorDist) { menorDist = dist; idx = i; }
             }
             let px = naoVisitados.splice(idx, 1)[0]; rotaOrdenada.push(px); atualLat = px.lat; atualLon = px.lon;
         }
         return rotaOrdenada;
-    }
-
-    // O Jogo de Tetris do Carro (Usa Limite de Caixas)
-    function aplicarRegraCaixas(rota, perfil) {
-        if (!perfil || perfil.tipoVeiculo !== 'Carro') return rota;
-        let capCaixas = perfil.capacidadeCaixas ? parseInt(perfil.capacidadeCaixas) : 999;
-        
-        let caixasSaindo = rota.reduce((acc, curr) => {
-            let s = (curr.servico || "").toUpperCase();
-            if (s.includes("INSTALA") || s.includes("TROCA")) return acc + curr.qtdOS;
-            return acc;
-        }, 0);
-
-        if (caixasSaindo >= capCaixas && rota.length > 0) {
-            let s0 = (rota[0].servico || "").toUpperCase();
-            if (s0.includes("DESINSTALA") || s0.includes("RETIRA")) {
-                let swapIdx = rota.findIndex(r => { let s = (r.servico || "").toUpperCase(); return s.includes("INSTALA") || s.includes("TROCA"); });
-                if (swapIdx > 0) { let temp = rota[0]; rota[0] = rota[swapIdx]; rota[swapIdx] = temp; }
-            }
-        }
-        return rota;
     }
 
     async function obterCoordenadasSilenciosa(cliente) {
@@ -762,28 +361,18 @@
 
     async function iniciarCalculoTecnico(nome) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
-        const el = document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`);
-        if(el) el.classList.add('ativo');
-        
+        document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
         tecnicoAtivo = nome; modoVisaoGlobal = false;
-        const dadosTecnico = dadosGlobaisRotas[nome];
-        let perfil = dadosTecnico.perfil || window.equipeCompleta.find(t => t.nome === nome);
         
-        let destinoLat = null; let destinoLon = null;
-        if (dadosTecnico.destinoFim === 'casa' && perfil && perfil.lat) {
-            destinoLat = perfil.lat; destinoLon = perfil.lon;
-        } else if (dadosTecnico.destinoFim === 'base') {
-            destinoLat = configGalpao.lat; destinoLon = configGalpao.lon;
-        }
+        const dadosTecnico = dadosGlobaisRotas[nome];
+        
+        let coordsManha = [...dadosTecnico.manha];
+        let coordsTarde = [...dadosTecnico.tarde]; 
 
-        let rotaManha = otimizarSequencia([...dadosTecnico.manha], configGalpao.lat, configGalpao.lon, destinoLat, destinoLon);
-        rotaManha = aplicarRegraCaixas(rotaManha, perfil);
-
+        let rotaManha = otimizarSequencia(coordsManha, configGalpao.lat, configGalpao.lon);
         let latFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lat : configGalpao.lat;
         let lonFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lon : configGalpao.lon;
-
-        let rotaTarde = otimizarSequencia([...dadosTecnico.tarde], latFimManha, lonFimManha, destinoLat, destinoLon);
-        rotaTarde = aplicarRegraCaixas(rotaTarde, perfil);
+        let rotaTarde = otimizarSequencia(coordsTarde, latFimManha, lonFimManha);
 
         rotaAtiva = [...rotaManha, ...rotaTarde];
         
@@ -981,6 +570,10 @@
                         lon: crds.lon
                     })
                 });
+
+                if (!res.ok) {
+                    alert("⚠️ Atualizado localmente, mas não foi possível persistir no banco de dados.");
+                }
             } else {
                 localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
             }
@@ -988,6 +581,7 @@
             atualizarTela(true);
 
         } catch (e) {
+            alert("❌ Ocorreu um erro ao atualizar o endereço.");
         } finally {
             originalBtn.innerText = "✏️";
             originalBtn.disabled = false;
@@ -1027,7 +621,7 @@
     function limparRotas() { if(confirm("Limpar tela atual?")) { localStorage.removeItem("planilhaRotas"); window.location.reload(); } }
 
     async function salvarHistoricoBanco() {
-        if (!tecnicoAtivo || rotaAtiva.length === 0) return alert("⚠️ Selecione um técnico na lista primeiro.");
+        if (!tecnicoAtivo || rotaAtiva.length === 0) return alert("⚠️ Selecione um técnico (Modo Individual) para salvar a rota dele.");
         const hoje = new Date(); const dBR = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth()+1).padStart(2, '0')}/${hoje.getFullYear()}`;
         let dataInput = prompt("Data (DD/MM/AAAA):", dBR); if (!dataInput) return;
         try {
@@ -1061,7 +655,6 @@
             if (layerGrupo) { mapa.removeLayer(layerGrupo); }
             document.getElementById("painelPlayback").style.display = "none";
             document.getElementById("painelItinerario").style.display = "none";
-            document.getElementById("areaInjecao").style.display = "none";
             
             const divLista = document.getElementById("listaTecnicosUI");
             divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando: ${rotasEncontradas[0].data}</h4>`;
@@ -1163,7 +756,7 @@
         } catch(e) { return "-"; }
     }
 
-    async function exportarRelatorioHistorico() {
+    async function exportarRelatorioExcel() {
         const dataInput = document.getElementById("buscaData").value;
         let url = '/api/rotas';
         let nomeArquivo = 'Telemetria_Equipe_Geral.xlsx';
