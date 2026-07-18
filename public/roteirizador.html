@@ -381,7 +381,7 @@
     }
 
     // =========================================================================
-    // O CÉREBRO V9: CLUSTERING & SWEEP (BLINDADO CONTRA LOOP INFINITO)
+    // O CÉREBRO V10: CLUSTERING POR ZONAS (A Lógica Humana de Dividir o Mapa)
     // =========================================================================
     async function distribuirRotasInteligente(lotes) {
         let tipoVeiculo = document.getElementById("tipoPlanilha").value;
@@ -403,36 +403,51 @@
             }
             tec.cargaAtualOS = 0;
             tec.rotasSugeridas = { manha: [], tarde: [] };
-            tec.posAtual = { lat: tec.lat, lon: tec.lon }; 
-            tec.lotado = false;
+            tec.centroDeGravidade = { lat: tec.lat, lon: tec.lon }; 
             tec.capacidade = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
         }
 
         let lotesPendentes = [...lotes];
 
-        // 2. Loop Principal Anti-Travamento
+        // 2. Loop Principal: Entrega OS por OS à viatura mais apropriada
         while (lotesPendentes.length > 0) {
             
-            // Ordena sempre para pegar o lote mais distante primeiro
+            // Pega sempre a OS que está mais longe do Galpão primeiro
+            // (Para garantir que as bordas da cidade são atribuídas primeiro)
             lotesPendentes.sort((a, b) => {
                 let distA = calcularDistancia(configGalpao.lat, configGalpao.lon, a.lat, a.lon);
                 let distB = calcularDistancia(configGalpao.lat, configGalpao.lon, b.lat, b.lon);
                 return distB - distA; 
             });
             
-            // GARANTIA: Remove a Semente da lista imediatamente para evitar loop infinito
-            let seedLote = lotesPendentes.shift(); 
+            let loteAtual = lotesPendentes.shift(); 
 
             let melhorTec = null;
             let menorCusto = Infinity;
 
             for (let tec of equipeValida) {
-                if (tec.lotado) continue; 
-                let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, seedLote.lat, seedLote.lon);
+                // A distância é sempre para o Centro de Gravidade daquele técnico
+                let dist = calcularDistancia(tec.centroDeGravidade.lat, tec.centroDeGravidade.lon, loteAtual.lat, loteAtual.lon);
                 let custo = dist;
                 
-                // MULTA DO SONO: Evita acordar novos técnicos se não for necessário
-                if (tec.cargaAtualOS === 0) custo += 20; 
+                // MULTA 1: PENALIDADE DE STANDBY (O Segredo para usar menos carros)
+                // Se a IA acordar este técnico, ele leva com 40 km virtuais de multa.
+                // A IA vai preferir dar a OS a quem já está na rua na região, do que acordar alguém novo.
+                if (tec.cargaAtualOS === 0) {
+                    custo += 40; 
+                }
+
+                // MULTA 2: EXCESSO DE LIMITE
+                let projecaoCarga = tec.cargaAtualOS + loteAtual.qtdOS;
+                if (projecaoCarga > tec.capacidade) {
+                    let excedente = projecaoCarga - tec.capacidade;
+                    
+                    // Ninguém pode exceder mais do que 3 OS acima do seu limite de agenda
+                    if (excedente > 3) continue; 
+                    
+                    // Pesa 15km a mais por cada OS excedente.
+                    custo += (excedente * 15);
+                }
 
                 if (custo < menorCusto) {
                     menorCusto = custo;
@@ -440,61 +455,27 @@
                 }
             }
 
-            // Fallback: Se todos lotaram, força no menos distante para não perder a OS
+            // Fallback: A OS está muito perdida e todos já bateram no teto rígido (+3 OS).
             if (!melhorTec) {
                 menorCusto = Infinity;
                 for (let tec of equipeValida) {
-                    let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, seedLote.lat, seedLote.lon);
-                    if (dist < menorCusto) { menorCusto = dist; melhorTec = tec; }
-                }
-                melhorTec.lotado = false; 
-            }
-
-            // Atribui a Semente
-            melhorTec.cargaAtualOS += seedLote.qtdOS;
-            if (seedLote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(seedLote);
-            else melhorTec.rotasSugeridas.tarde.push(seedLote);
-            melhorTec.posAtual = { lat: seedLote.lat, lon: seedLote.lon };
-
-            // 3. Loop de Varredura do Bairro
-            let varrendo = true;
-            while (varrendo && lotesPendentes.length > 0) {
-                let loteIndex = -1;
-                let minDistVarredura = Infinity;
-
-                for (let i = 0; i < lotesPendentes.length; i++) {
-                    let d = calcularDistancia(melhorTec.posAtual.lat, melhorTec.posAtual.lon, lotesPendentes[i].lat, lotesPendentes[i].lon);
-                    if (d < minDistVarredura) { minDistVarredura = d; loteIndex = i; }
-                }
-
-                let proximoLote = lotesPendentes[loteIndex];
-
-                // Parada 1: Distância excedeu 8km
-                if (minDistVarredura > 8.0) {
-                    varrendo = false;
-                    continue; 
-                }
-
-                // Parada 2: Limite de Agenda c/ Tolerância
-                let projecaoCarga = melhorTec.cargaAtualOS + proximoLote.qtdOS;
-                if (projecaoCarga > melhorTec.capacidade) {
-                    let excedente = projecaoCarga - melhorTec.capacidade;
-                    if (excedente <= 3 && minDistVarredura <= 2.5) {
-                        // Tolerância ativada!
-                    } else {
-                        melhorTec.lotado = true;
-                        varrendo = false;
-                        continue; 
+                    let dist = calcularDistancia(tec.centroDeGravidade.lat, tec.centroDeGravidade.lon, loteAtual.lat, loteAtual.lon);
+                    if (dist < menorCusto) { 
+                        menorCusto = dist; 
+                        melhorTec = tec; 
                     }
                 }
-
-                // Absorve o vizinho
-                let loteConfirmado = lotesPendentes.splice(loteIndex, 1)[0];
-                melhorTec.cargaAtualOS += loteConfirmado.qtdOS;
-                if (loteConfirmado.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(loteConfirmado);
-                else melhorTec.rotasSugeridas.tarde.push(loteConfirmado);
-                melhorTec.posAtual = { lat: loteConfirmado.lat, lon: loteConfirmado.lon };
             }
+
+            // 3. O Técnico recebe a OS e "Puxa" o seu Centro de Gravidade
+            melhorTec.cargaAtualOS += loteAtual.qtdOS;
+            if (loteAtual.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(loteAtual);
+            else melhorTec.rotasSugeridas.tarde.push(loteAtual);
+            
+            // O Segredo da V10: O Centro de Gravidade dele muda para o meio do caminho
+            // entre onde ele estava focado e a nova OS. Isso cria uma "Bolha" orgânica perfeita.
+            melhorTec.centroDeGravidade.lat = (melhorTec.centroDeGravidade.lat + loteAtual.lat) / 2;
+            melhorTec.centroDeGravidade.lon = (melhorTec.centroDeGravidade.lon + loteAtual.lon) / 2;
         }
 
         // 4. Finalização
