@@ -381,7 +381,7 @@
     }
 
     // =========================================================================
-    // O CÉREBRO V7: ANTI-FRAGMENTAÇÃO (MULTA POR ACORDAR NOVO TÉCNICO)
+    // O CÉREBRO V8: CLUSTERING & SWEEP (VARREDURA POR REGIÃO E ANTI-FRAGMENTAÇÃO)
     // =========================================================================
     async function distribuirRotasInteligente(lotes) {
         let tipoVeiculo = document.getElementById("tipoPlanilha").value;
@@ -392,7 +392,7 @@
             return;
         }
 
-        // 1. Prepara a equipa: Geolocaliza a casa de cada um
+        // 1. Prepara a equipa: Geolocaliza e baseia todos na sua própria casa
         for (let tec of equipeValida) {
             if (!tec.lat && tec.cep) {
                 let coords = await obterCoordenadasSilenciosa({ rua: "", cidade: "São Paulo", cep: tec.cep });
@@ -403,72 +403,111 @@
             }
             tec.cargaAtualOS = 0;
             tec.rotasSugeridas = { manha: [], tarde: [] };
+            tec.posAtual = { lat: tec.lat, lon: tec.lon }; 
+            tec.lotado = false;
+            tec.capacidade = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
         }
 
-        // 2. Ordena os Lotes dos mais distantes da base para os mais próximos
-        lotes.sort((a, b) => {
-            let distA = calcularDistancia(configGalpao.lat, configGalpao.lon, a.lat, a.lon);
-            let distB = calcularDistancia(configGalpao.lat, configGalpao.lon, b.lat, b.lon);
-            return distB - distA; 
-        });
+        let lotesPendentes = [...lotes];
 
-        // 3. Distribuição com Custo Ponderado e "Anti-Standby"
-        for (let lote of lotes) {
+        // 2. Loop Principal das Sementes (Enquanto houver OS para distribuir)
+        while (lotesPendentes.length > 0) {
+            
+            // A) Escolhe a Semente (O cliente pendente mais distante do Galpão)
+            // Começa sempre pelas bordas do mapa (ex: Cotia, Caieiras, Itapecerica)
+            lotesPendentes.sort((a, b) => {
+                let distA = calcularDistancia(configGalpao.lat, configGalpao.lon, a.lat, a.lon);
+                let distB = calcularDistancia(configGalpao.lat, configGalpao.lon, b.lat, b.lon);
+                return distB - distA; 
+            });
+            let seedLote = lotesPendentes[0];
+
+            // B) Escolhe o melhor técnico para varrer esta região
             let melhorTec = null;
             let menorCusto = Infinity;
 
             for (let tec of equipeValida) {
-                let distParaCasa = calcularDistancia(tec.lat, tec.lon, lote.lat, lote.lon);
-                let cap = tec.capacidadeOS ? parseInt(tec.capacidadeOS) : 999;
-                
-                let custoFinal = distParaCasa;
-                let projecaoCarga = tec.cargaAtualOS + lote.qtdOS;
+                if (tec.lotado) continue; 
 
-                // ========================================================
-                // MULTA 1: ACORDAR UM TÉCNICO NOVO (ANTI-FRAGMENTAÇÃO)
-                // Se o técnico não tem NENHUMA OS ainda, adicionamos 40km de penalidade.
-                // Isso força a IA a encher quem JÁ ESTÁ na rua antes de despachar viaturas novas.
+                let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, seedLote.lat, seedLote.lon);
+                let custo = dist;
+
+                // A MULTA DO SONO: Se o técnico está na base, a IA cobra 20 km a mais para o acordar.
+                // Isso força a dar prioridade a quem já está a trabalhar na rua!
                 if (tec.cargaAtualOS === 0) {
-                    custoFinal += 40; 
-                }
-                // ========================================================
-
-                // MULTA 2: EXCEDER O LIMITE DE AGENDA
-                if (projecaoCarga > cap) {
-                    let excedente = projecaoCarga - cap;
-                    // Trava Absoluta: Ninguém ultrapassa mais de 3 OS além do limite
-                    if (excedente > 3) continue;
-                    
-                    // Pesa 15km a mais por cada OS excedente
-                    custoFinal += (excedente * 15);
+                    custo += 20; 
                 }
 
-                if (custoFinal < menorCusto) {
-                    menorCusto = custoFinal;
+                if (custo < menorCusto) {
+                    menorCusto = custo;
                     melhorTec = tec;
                 }
             }
 
-            // Fallback (Proteção de segurança)
+            // Fallback (Se TODOS estiverem lotados, reabre o menos longe para não perder a OS)
             if (!melhorTec) {
                 menorCusto = Infinity;
                 for (let tec of equipeValida) {
-                    let distParaCasa = calcularDistancia(tec.lat, tec.lon, lote.lat, lote.lon);
-                    if (distParaCasa < menorCusto) {
-                        menorCusto = distParaCasa;
+                    let dist = calcularDistancia(tec.posAtual.lat, tec.posAtual.lon, seedLote.lat, seedLote.lon);
+                    if (dist < menorCusto) {
+                        menorCusto = dist;
                         melhorTec = tec;
                     }
                 }
+                melhorTec.lotado = false; 
             }
 
-            if (melhorTec) {
-                melhorTec.cargaAtualOS += lote.qtdOS;
-                if (lote.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(lote);
-                else melhorTec.rotasSugeridas.tarde.push(lote);
+            // C) O Técnico "Venceu" a Semente. Agora inicia a Varredura do Bairro!
+            while (lotesPendentes.length > 0) {
+                
+                // Encontra a próxima OS mais perto do CARRO do técnico
+                let loteIndex = -1;
+                let minDistVarredura = Infinity;
+
+                for (let i = 0; i < lotesPendentes.length; i++) {
+                    let d = calcularDistancia(melhorTec.posAtual.lat, melhorTec.posAtual.lon, lotesPendentes[i].lat, lotesPendentes[i].lon);
+                    if (d < minDistVarredura) {
+                        minDistVarredura = d;
+                        loteIndex = i;
+                    }
+                }
+
+                let proximoLote = lotesPendentes[loteIndex];
+
+                // REGRA DE PARADA 1: Distância. 
+                // Se o próximo cliente está a mais de 8 KM de distância, a região atual acabou! Para a varredura!
+                if (minDistVarredura > 8.0 && melhorTec.cargaAtualOS > 0) {
+                    break; 
+                }
+
+                // REGRA DE PARADA 2: Limite de Agenda
+                let projecaoCarga = melhorTec.cargaAtualOS + proximoLote.qtdOS;
+                
+                if (projecaoCarga > melhorTec.capacidade) {
+                    let excedente = projecaoCarga - melhorTec.capacidade;
+                    
+                    // A MÁGICA DA TOLERÂNCIA HUMANA
+                    // Permite ultrapassar o limite (máx +3 OS) APENAS SE o cliente estiver a menos de 2.5 KM (colado!)
+                    if (excedente <= 3 && minDistVarredura <= 2.5) {
+                        // Continua!
+                    } else {
+                        // O técnico está completamente lotado e não há clientes colados.
+                        melhorTec.lotado = true;
+                        break; 
+                    }
+                }
+
+                // APROVADO! Técnico absorve a OS e move o carro para lá.
+                let loteConfirmado = lotesPendentes.splice(loteIndex, 1)[0];
+                melhorTec.cargaAtualOS += loteConfirmado.qtdOS;
+                if (loteConfirmado.periodo === 'MANHA') melhorTec.rotasSugeridas.manha.push(loteConfirmado);
+                else melhorTec.rotasSugeridas.tarde.push(loteConfirmado);
+                
+                melhorTec.posAtual = { lat: loteConfirmado.lat, lon: loteConfirmado.lon };
             }
         }
 
-        // 4. Transfere o resultado da IA
+        // 4. Transfere para a interface gráfica
         for (let tec of equipeValida) {
             if (tec.cargaAtualOS > 0) {
                 dadosGlobaisRotas[tec.nome] = {
