@@ -430,7 +430,7 @@ function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
         </head>
         <body>
             <div class="cartao">
-                <div class="logo-texto">cracha</div>
+                <div class="logo-texto">CRACHA TÉCNICO</div>
                 <svg id="barcode"></svg>
                 <div class="cargo">${funcao}</div>
             </div>
