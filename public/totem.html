@@ -22,9 +22,9 @@
         #leitorBarcode { opacity: 0; position: absolute; z-index: -1; }
 
         /* ========================================= */
-        /* CSS DO TOAST DE BOAS VINDAS (FOTO)        */
+        /* CSS DO TOAST DE BOAS VINDAS ÚNICO         */
         /* ========================================= */
-        .toast-saudacao {
+        #toastBoasVindas {
             position: fixed;
             top: -100px;
             left: 50%;
@@ -41,7 +41,7 @@
             transition: top 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
-        .toast-saudacao.mostrar {
+        #toastBoasVindas.mostrar {
             top: 20px; 
         }
 
@@ -104,23 +104,32 @@
     const sinteseVoz = window.speechSynthesis;
     let alertaTocando = false; 
     let historicoChamadas = new Map();
-    const BLOQUEIO_REPETICAO = 8000; // Impede que o mesmo áudio toque 2 vezes seguidas num espaço de 8 segundos
+    const BLOQUEIO_REPETICAO = 8000; 
     
-    // Variável para Trava de Bip Duplo no crachá
+    // Variáveis de Segurança Anti-Spam
     let ultimoBip = { nome: "", tempo: 0 }; 
+    let bloqueioGeral = false; // Bloqueia o leitor completamente por 1 segundo após cada bip
+    let timerToast;
 
     // =========================================================
-    // SISTEMA DE BOAS VINDAS (FOTO NO TOTEM)
+    // SISTEMA DE BOAS VINDAS (PESQUISA INTELIGENTE)
     // =========================================================
     function aoBiparEquipamento(nomeDoTecnico) {
         let fotoEncontrada = "";
         const nomeCracha = nomeDoTecnico.toUpperCase().trim();
+        const primeiroNomeCracha = nomeCracha.split(" ")[0]; // Isola só o primeiro nome
         
-        // Pesquisa Inteligente: Funciona mesmo se o crachá tiver o nome completo e o banco só o primeiro nome
+        // Pesquisa Ultra-Inteligente: Verifica match exato, ou se contém, ou apenas pelo primeiro nome
         if (typeof bancoDeFotos !== 'undefined') {
             for (let chave in bancoDeFotos) {
                 const nomeBanco = chave.toUpperCase().trim();
-                if (nomeCracha.includes(nomeBanco) || nomeBanco.includes(nomeCracha)) {
+                const primeiroNomeBanco = nomeBanco.split(" ")[0];
+                
+                if (nomeCracha === nomeBanco || 
+                    nomeCracha.includes(nomeBanco) || 
+                    nomeBanco.includes(nomeCracha) ||
+                    primeiroNomeCracha === primeiroNomeBanco) {
+                    
                     fotoEncontrada = bancoDeFotos[chave];
                     break;
                 }
@@ -130,9 +139,17 @@
         mostrarBoasVindas(nomeDoTecnico, fotoEncontrada);
     }
 
+    // =========================================================
+    // CARD DE BOAS VINDAS ÚNICO (IMPEDE DUPLICAÇÃO FÍSICA)
+    // =========================================================
     function mostrarBoasVindas(nomeCompleto, fotoBase64 = null) {
-        // SEGURANÇA VISUAL: Apaga qualquer card que já esteja na tela para não empilhar
-        document.querySelectorAll('.toast-saudacao').forEach(card => card.remove());
+        // Pega o card existente ou cria um novo se for a primeira vez
+        let toast = document.getElementById("toastBoasVindas");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "toastBoasVindas";
+            document.body.appendChild(toast);
+        }
 
         const hora = new Date().getHours();
         let textoSaudacao = "Boa noite";
@@ -158,8 +175,7 @@
             avatarHTML = `<div class="avatar-iniciais" style="background-color: ${corHSL};">${iniciais}</div>`;
         }
 
-        const toast = document.createElement("div");
-        toast.className = "toast-saudacao";
+        // Substitui o conteúdo do card (não cria outro)
         toast.innerHTML = `
             ${avatarHTML}
             <div class="toast-texto">
@@ -169,13 +185,16 @@
             <div style="color: #10B981; font-size: 20px; margin-left: 10px;">✓</div>
         `;
 
-        document.body.appendChild(toast);
+        // Reinicia a animação perfeitamente
+        toast.classList.remove("mostrar");
+        void toast.offsetWidth; // Truque de CSS para forçar a renderização imediata
+        toast.classList.add("mostrar");
 
-        setTimeout(() => toast.classList.add("mostrar"), 10);
-        setTimeout(() => {
+        // Reseta o tempo para esconder o card
+        clearTimeout(timerToast);
+        timerToast = setTimeout(() => {
             toast.classList.remove("mostrar");
-            setTimeout(() => toast.remove(), 400); 
-        }, 3000);
+        }, 3500);
     }
 
     function sair() {
@@ -190,11 +209,9 @@
         sinteseVoz.speak(new SpeechSynthesisUtterance("")); 
         try { document.documentElement.requestFullscreen(); } catch(e){} 
         focarLeitor();
-        // A TV pesquisa a base muito rápido (a cada 1.5s)
         setInterval(escutarServidorViaRede, 1500);
     }
 
-    // COMUNICAÇÃO INSTANTÂNEA: Se o painel e a TV estiverem no mesmo PC, é imediato!
     window.addEventListener('storage', (e) => {
         if (e.key === 'comandoChamadaTotem' && e.newValue) {
             const dados = JSON.parse(e.newValue);
@@ -202,21 +219,18 @@
         }
     });
 
-    // COMUNICAÇÃO VIA REDE: A TV abandona a rota quebrada e olha direto para o status da fila!
     async function escutarServidorViaRede() {
         try {
             const dataHoje = new Date().toLocaleDateString('pt-BR');
             const res = await fetch(`/api/fila/hoje?data=${encodeURIComponent(dataHoje)}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
             const chamadas = await res.json();
-
-            // Pega apenas quem está com o status de "Chamando" gerado pelo botão lá do painel
             const pendente = chamadas.find(c => c.status === 'Chamando');
             if (pendente) tentarTocar(pendente);
         } catch (e) {}
     }
 
     function tentarTocar(pessoa) {
-        if (alertaTocando) return; // Se a voz da moça ainda estiver a falar, aguarda.
+        if (alertaTocando) return; 
 
         const id = pessoa._id || pessoa.id;
         const agora = Date.now();
@@ -256,7 +270,6 @@
         speechSynthesis.speak(fala1);
     }
 
-    // Relógio e Leitor
     setInterval(() => {
         const agora = new Date();
         document.getElementById("relogioDisplay").innerText = agora.toLocaleTimeString('pt-BR');
@@ -267,22 +280,35 @@
     function focarLeitor() { inputLeitor.focus(); }
     setInterval(focarLeitor, 2000); 
 
-    inputLeitor.addEventListener("keypress", async function(e) {
+    // =========================================================
+    // TRAVA ANTI-SPAM NO LEITOR
+    // =========================================================
+    inputLeitor.addEventListener("keydown", async function(e) {
         if (e.key === 'Enter') {
+            e.preventDefault(); // Impede envios duplos do formulário interno do navegador
+            
+            // Se o sistema estiver a processar um bip neste exato milissegundo, ignora tudo.
+            if (bloqueioGeral) return;
+
             const codigo = this.value.trim(); 
             this.value = ""; 
             if (!codigo) return;
             
-            // TRAVA DE SEGURANÇA CONTRA BIP DUPLO (10 SEGUNDOS)
+            // TRAVA DE TEMPO PARA A MESMA PESSOA (10 segundos)
             const agoraMs = Date.now();
             if (ultimoBip.nome === codigo && (agoraMs - ultimoBip.tempo < 10000)) {
-                return; // Ignora se o mesmo crachá bipar de novo em menos de 10 segundos
+                return; 
             }
-            ultimoBip = { nome: codigo, tempo: agoraMs };
             
-            // CHAMA O CARD DE BOAS VINDAS NA TELA
+            bloqueioGeral = true; // Aciona o bloqueio de hardware
+            ultimoBip = { nome: codigo, tempo: agoraMs }; // Guarda a memória de quem bipou
+            
+            // CHAMA A FOTO
             aoBiparEquipamento(codigo);
             
+            // Libera o leitor para outra pessoa após 1 segundo
+            setTimeout(() => { bloqueioGeral = false; }, 1000);
+
             const agora = new Date();
             const dataAtual = `${String(agora.getDate()).padStart(2, '0')}/${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
             const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false }).substring(0, 5); 
@@ -298,7 +324,7 @@
     });
 </script>
 
-<!-- IMPORTAÇÃO DO SEU BANCO DE FOTOS ANTES DE FECHAR O BODY -->
-<script src="bancoDeFotos.js"></script>
+<!-- TRUQUE: O "?v=2" força o navegador a limpar o cache e ver as fotos novas! -->
+<script src="bancoDeFotos.js?v=2"></script>
 </body>
 </html>
