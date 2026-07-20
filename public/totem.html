@@ -22,41 +22,41 @@
         #leitorBarcode { opacity: 0; position: absolute; z-index: -1; }
 
         /* ========================================= */
-        /* CSS DO TOAST DE BOAS VINDAS               */
+        /* CSS DO TOAST DE BOAS VINDAS (TAMANHO GIGANTE) */
         /* ========================================= */
         #toastBoasVindas {
             position: fixed;
-            top: -100px;
+            top: -200px; /* Começa mais escondido para não aparecer cortado */
             left: 50%;
             transform: translateX(-50%);
             background: #1E293B;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            padding: 12px 20px;
-            border-radius: 50px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            padding: 20px 40px;
+            border-radius: 100px;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 25px;
             z-index: 99999;
-            transition: top 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transition: top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
         #toastBoasVindas.mostrar {
-            top: 20px; 
+            top: 40px; 
         }
 
         .avatar-iniciais {
-            width: 40px;
-            height: 40px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
             color: white;
             font-weight: bold;
-            font-size: 16px;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-            border: 2px solid rgba(255,255,255,0.2);
+            font-size: 36px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            border: 4px solid rgba(255,255,255,0.2);
         }
 
         .toast-texto {
@@ -65,8 +65,8 @@
             text-align: left;
         }
 
-        .toast-texto .saudacao { font-size: 12px; }
-        .toast-texto .nome { color: white; font-weight: bold; font-size: 15px; }
+        .toast-texto .saudacao { font-size: 22px; }
+        .toast-texto .nome { color: white; font-weight: bold; font-size: 32px; margin-top: 4px; }
     </style>
 </head>
 <body onclick="focarLeitor()"> 
@@ -99,7 +99,7 @@
     let historicoChamadas = new Map();
     const BLOQUEIO_REPETICAO = 8000; 
     
-    let filaDeHoje = []; // Guarda quem já passou no leitor hoje
+    let filaDeHoje = []; 
     let bloqueioGeral = false; 
     let timerToast;
 
@@ -122,7 +122,6 @@
         const partesNome = nomeCompleto.trim().split(" ");
         const primeiroNome = partesNome[0] || "Técnico";
 
-        // Cria as Iniciais para o caso da foto não existir
         let iniciais = "";
         if (partesNome.length >= 2) iniciais = (partesNome[0][0] + partesNome[partesNome.length - 1][0]).toUpperCase();
         else iniciais = primeiroNome.substring(0, 2).toUpperCase();
@@ -131,25 +130,25 @@
         for (let i = 0; i < nomeCompleto.length; i++) hash = nomeCompleto.charCodeAt(i) + ((hash << 5) - hash);
         const corHSL = `hsl(${hash % 360}, 70%, 50%)`;
 
-        // Pega o primeiro nome e tira acentos e maiúsculas para buscar o arquivo (ex: JOÃO -> joao)
-        const nomeArquivo = primeiroNome.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
+        // Pega o primeiro nome, tira acentos e joga para minúsculas
+        const nomeArquivo = primeiroNome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const urlFoto = `/fotos/${nomeArquivo}.jpg`;
 
-        // O segredo está no "onerror": se a foto não existir na pasta, ele carrega a div das iniciais!
-        const avatarHTML = `<img src="${urlFoto}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2);" onerror="this.outerHTML='<div class=\\'avatar-iniciais\\' style=\\'background-color: ${corHSL};\\'>${iniciais}</div>'">`;
+        // Avatar gigante: 100x100px
+        const avatarHTML = `<img src="${urlFoto}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid rgba(255,255,255,0.2);" onerror="this.outerHTML='<div class=\\'avatar-iniciais\\' style=\\'background-color: ${corHSL};\\'>${iniciais}</div>'">`;
 
         const corIcone = jaEntrouHoje ? "#F59E0B" : "#10B981";
         const icone = jaEntrouHoje ? "⚠️" : "✓";
         const corSaudacao = jaEntrouHoje ? "#F59E0B" : "#94A3B8";
-        const subtitulo = jaEntrouHoje ? "Você já registrou sua entrada hoje!" : "Entrada registrada";
+        const subtitulo = jaEntrouHoje ? "Você já registrou entrada hoje!" : "Entrada registrada!";
 
         toast.innerHTML = `
             ${avatarHTML}
             <div class="toast-texto">
                 <span class="saudacao" style="color: ${corSaudacao}; font-weight: bold;">${jaEntrouHoje ? 'ATENÇÃO' : textoSaudacao},</span>
-                <span class="nome">${primeiroNome}! <span style="font-size: 11px; font-weight: normal; display: block; color: #CBD5E1;">${subtitulo}</span></span>
+                <span class="nome">${primeiroNome}! <span style="font-size: 18px; font-weight: normal; display: block; color: #CBD5E1; margin-top: 5px;">${subtitulo}</span></span>
             </div>
-            <div style="color: ${corIcone}; font-size: 24px; margin-left: 10px;">${icone}</div>
+            <div style="color: ${corIcone}; font-size: 50px; margin-left: 20px;">${icone}</div>
         `;
 
         toast.classList.remove("mostrar");
@@ -244,9 +243,6 @@
     let ultimoCodigo = "";
     let tempoUltimoBip = 0;
 
-    // =========================================================
-    // LEITOR DE CÓDIGO DE BARRAS COM TRAVA DE DUPLICIDADE
-    // =========================================================
     inputLeitor.addEventListener("keydown", async function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -266,10 +262,8 @@
             bloqueioGeral = true;
             setTimeout(() => { bloqueioGeral = false; }, 1000);
 
-            // VERIFICA SE O TÉCNICO JÁ ESTÁ NO PAINEL (Evita criar Chegada #2, #3)
             const jaEntrouHoje = filaDeHoje.some(c => c.tecnico.toUpperCase().trim() === codigo.toUpperCase().trim());
             
-            // CHAMA A FOTO E O CARD
             mostrarBoasVindas(codigo, jaEntrouHoje);
             
             if (jaEntrouHoje) return; 
