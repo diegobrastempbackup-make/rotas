@@ -20,6 +20,60 @@
         .instrucao { font-size: 22px; color: #E2E8F0; background: #1E293B; padding: 20px 40px; border-radius: 12px; border: 2px dashed rgba(255,255,255,0.2); margin-bottom: 30px; }
         
         #leitorBarcode { opacity: 0; position: absolute; z-index: -1; }
+        /* ========================================= */
+/* CSS DO TOAST DE BOAS VINDAS (FOTO)        */
+/* ========================================= */
+.toast-saudacao {
+    position: fixed;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1E293B;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    padding: 12px 20px;
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 99999;
+    transition: top 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.toast-saudacao.mostrar {
+    top: 20px; 
+}
+
+.avatar-iniciais {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    border: 2px solid rgba(255,255,255,0.2);
+}
+
+.toast-texto {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.toast-texto .saudacao {
+    color: #94A3B8;
+    font-size: 12px;
+}
+
+.toast-texto .nome {
+    color: white;
+    font-weight: bold;
+    font-size: 15px;
+}
     </style>
 </head>
 <body onclick="focarLeitor()"> 
@@ -51,6 +105,70 @@
     let alertaTocando = false; 
     let historicoChamadas = new Map();
     const BLOQUEIO_REPETICAO = 8000; // Impede que o mesmo áudio toque 2 vezes seguidas num espaço de 8 segundos
+
+    // =========================================================
+// SISTEMA DE BOAS VINDAS (FOTO NO TOTEM)
+// =========================================================
+function aoBiparEquipamento(nomeDoTecnico) {
+    let fotoEncontrada = "";
+    
+    // Procura no banco de fotos (ignora maiúsculas/minúsculas para não dar erro)
+    if (typeof bancoDeFotos !== 'undefined') {
+        for (let chave in bancoDeFotos) {
+            if (chave.toUpperCase() === nomeDoTecnico.toUpperCase()) {
+                fotoEncontrada = bancoDeFotos[chave];
+                break;
+            }
+        }
+    }
+    
+    mostrarBoasVindas(nomeDoTecnico, fotoEncontrada);
+}
+
+function mostrarBoasVindas(nomeCompleto, fotoBase64 = null) {
+    const hora = new Date().getHours();
+    let textoSaudacao = "Boa noite";
+    if (hora >= 5 && hora < 12) textoSaudacao = "Bom dia";
+    else if (hora >= 12 && hora < 18) textoSaudacao = "Boa tarde";
+
+    const partesNome = nomeCompleto.trim().split(" ");
+    const primeiroNome = partesNome[0] || "Técnico";
+
+    let avatarHTML = "";
+
+    if (fotoBase64 && fotoBase64.trim() !== "") {
+        avatarHTML = `<img src="${fotoBase64}" alt="Foto" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2);">`;
+    } else {
+        let iniciais = "";
+        if (partesNome.length >= 2) iniciais = (partesNome[0][0] + partesNome[partesNome.length - 1][0]).toUpperCase();
+        else iniciais = primeiroNome.substring(0, 2).toUpperCase();
+
+        let hash = 0;
+        for (let i = 0; i < nomeCompleto.length; i++) hash = nomeCompleto.charCodeAt(i) + ((hash << 5) - hash);
+        const corHSL = `hsl(${hash % 360}, 70%, 50%)`;
+        
+        avatarHTML = `<div class="avatar-iniciais" style="background-color: ${corHSL};">${iniciais}</div>`;
+    }
+
+    const toast = document.createElement("div");
+    toast.className = "toast-saudacao";
+    toast.innerHTML = `
+        ${avatarHTML}
+        <div class="toast-texto">
+            <span class="saudacao">${textoSaudacao},</span>
+            <span class="nome">${primeiroNome}!</span>
+        </div>
+        <div style="color: #10B981; font-size: 20px; margin-left: 10px;">✓</div>
+    `;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add("mostrar"), 10);
+    setTimeout(() => {
+        toast.classList.remove("mostrar");
+        setTimeout(() => toast.remove(), 400); 
+    }, 3000);
+}
 
     function sair() {
         if (confirm("Deseja encerrar o sistema do Totem?")) {
@@ -146,12 +264,21 @@
         if (e.key === 'Enter') {
             const codigo = this.value.trim(); this.value = ""; 
             if (!codigo) return;
+            
+            // 1. CHAMA O CARD DE BOAS VINDAS COM A FOTO NA HORA!
+            aoBiparEquipamento(codigo);
+            
             const agora = new Date();
             const dataAtual = `${String(agora.getDate()).padStart(2, '0')}/${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
             const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false }).substring(0, 5); 
+            
+            // 2. Continua o processo de envio para a base de dados
             try { await fetch('/api/fila/bipar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ codigoBarras: codigo, dataBatida: dataAtual, horaBatida: horaAtual }) }); } catch (err) {}
         }
     });
 </script>
+
+<!-- IMPORTAÇÃO DO SEU BANCO DE FOTOS ANTES DE FECHAR O BODY -->
+<script src="bancoDeFotos.js"></script>
 </body>
 </html>
