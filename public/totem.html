@@ -66,7 +66,6 @@
         }
 
         .toast-texto .saudacao {
-            color: #94A3B8;
             font-size: 12px;
         }
 
@@ -102,24 +101,23 @@
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
     const sinteseVoz = window.speechSynthesis;
+    
     let alertaTocando = false; 
     let historicoChamadas = new Map();
     const BLOQUEIO_REPETICAO = 8000; 
     
-    // Variáveis de Segurança Anti-Spam
-    let ultimoBip = { nome: "", tempo: 0 }; 
-    let bloqueioGeral = false; // Bloqueia o leitor completamente por 1 segundo após cada bip
+    let filaDeHoje = []; // Guarda quem já passou no leitor hoje
+    let bloqueioGeral = false; 
     let timerToast;
 
     // =========================================================
     // SISTEMA DE BOAS VINDAS (PESQUISA INTELIGENTE)
     // =========================================================
-    function aoBiparEquipamento(nomeDoTecnico) {
+    function aoBiparEquipamento(nomeDoTecnico, jaEntrouHoje) {
         let fotoEncontrada = "";
         const nomeCracha = nomeDoTecnico.toUpperCase().trim();
-        const primeiroNomeCracha = nomeCracha.split(" ")[0]; // Isola só o primeiro nome
+        const primeiroNomeCracha = nomeCracha.split(" ")[0]; 
         
-        // Pesquisa Ultra-Inteligente: Verifica match exato, ou se contém, ou apenas pelo primeiro nome
         if (typeof bancoDeFotos !== 'undefined') {
             for (let chave in bancoDeFotos) {
                 const nomeBanco = chave.toUpperCase().trim();
@@ -136,14 +134,10 @@
             }
         }
         
-        mostrarBoasVindas(nomeDoTecnico, fotoEncontrada);
+        mostrarBoasVindas(nomeDoTecnico, fotoEncontrada, jaEntrouHoje);
     }
 
-    // =========================================================
-    // CARD DE BOAS VINDAS ÚNICO (IMPEDE DUPLICAÇÃO FÍSICA)
-    // =========================================================
-    function mostrarBoasVindas(nomeCompleto, fotoBase64 = null) {
-        // Pega o card existente ou cria um novo se for a primeira vez
+    function mostrarBoasVindas(nomeCompleto, fotoBase64 = null, jaEntrouHoje = false) {
         let toast = document.getElementById("toastBoasVindas");
         if (!toast) {
             toast = document.createElement("div");
@@ -175,26 +169,29 @@
             avatarHTML = `<div class="avatar-iniciais" style="background-color: ${corHSL};">${iniciais}</div>`;
         }
 
-        // Substitui o conteúdo do card (não cria outro)
+        // Se ele já bipou hoje, o card fica amarelo com alerta!
+        const corIcone = jaEntrouHoje ? "#F59E0B" : "#10B981";
+        const icone = jaEntrouHoje ? "⚠️" : "✓";
+        const corSaudacao = jaEntrouHoje ? "#F59E0B" : "#94A3B8";
+        const subtitulo = jaEntrouHoje ? "Você já registrou entrada hoje!" : "Entrada registrada!";
+
         toast.innerHTML = `
             ${avatarHTML}
             <div class="toast-texto">
-                <span class="saudacao">${textoSaudacao},</span>
-                <span class="nome">${primeiroNome}!</span>
+                <span class="saudacao" style="color: ${corSaudacao}; font-weight: bold;">${jaEntrouHoje ? 'ATENÇÃO' : textoSaudacao},</span>
+                <span class="nome">${primeiroNome}! <span style="font-size: 11px; font-weight: normal; display: block; color: #CBD5E1;">${subtitulo}</span></span>
             </div>
-            <div style="color: #10B981; font-size: 20px; margin-left: 10px;">✓</div>
+            <div style="color: ${corIcone}; font-size: 24px; margin-left: 10px;">${icone}</div>
         `;
 
-        // Reinicia a animação perfeitamente
         toast.classList.remove("mostrar");
-        void toast.offsetWidth; // Truque de CSS para forçar a renderização imediata
+        void toast.offsetWidth; 
         toast.classList.add("mostrar");
 
-        // Reseta o tempo para esconder o card
         clearTimeout(timerToast);
         timerToast = setTimeout(() => {
             toast.classList.remove("mostrar");
-        }, 3500);
+        }, jaEntrouHoje ? 4500 : 3000); // Fica mais tempo se for um alerta de erro
     }
 
     function sair() {
@@ -224,6 +221,10 @@
             const dataHoje = new Date().toLocaleDateString('pt-BR');
             const res = await fetch(`/api/fila/hoje?data=${encodeURIComponent(dataHoje)}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
             const chamadas = await res.json();
+            
+            // ATUALIZA A FILA GLOBAL: Para sabermos quem já está no painel
+            filaDeHoje = chamadas;
+
             const pendente = chamadas.find(c => c.status === 'Chamando');
             if (pendente) tentarTocar(pendente);
         } catch (e) {}
@@ -231,20 +232,16 @@
 
     function tentarTocar(pessoa) {
         if (alertaTocando) return; 
-
         const id = pessoa._id || pessoa.id;
         const agora = Date.now();
         const ultimaVez = historicoChamadas.get(id) || 0;
-
         if (agora - ultimaVez < BLOQUEIO_REPETICAO) return;
-
         historicoChamadas.set(id, agora);
         tocarAlerta(pessoa);
     }
 
     function tocarAlerta(pessoa) {
         alertaTocando = true; 
-
         const telaAlerta = document.getElementById('alertaChamada');
         document.getElementById('nomeChamado').innerText = pessoa.tecnico;
         telaAlerta.style.display = 'flex'; 
@@ -257,16 +254,13 @@
         let toque = new Audio('toque.mp3'); toque.volume = 0.8;
 
         window.speechSynthesis.cancel();
-
         fala1.onend = () => { toque.play(); };
         toque.onended = () => { speechSynthesis.speak(fala2); };
         toque.onerror = () => { speechSynthesis.speak(fala2); }; 
-
         fala2.onend = () => {
             telaAlerta.style.display = 'none'; 
             setTimeout(() => { alertaTocando = false; }, 1000); 
         };
-
         speechSynthesis.speak(fala1);
     }
 
@@ -281,33 +275,28 @@
     setInterval(focarLeitor, 2000); 
 
     // =========================================================
-    // TRAVA ANTI-SPAM NO LEITOR
+    // LEITOR DE CÓDIGO DE BARRAS COM BLOQUEIO DE REPETIÇÃO
     // =========================================================
     inputLeitor.addEventListener("keydown", async function(e) {
         if (e.key === 'Enter') {
-            e.preventDefault(); // Impede envios duplos do formulário interno do navegador
-            
-            // Se o sistema estiver a processar um bip neste exato milissegundo, ignora tudo.
+            e.preventDefault();
             if (bloqueioGeral) return;
 
             const codigo = this.value.trim(); 
             this.value = ""; 
             if (!codigo) return;
             
-            // TRAVA DE TEMPO PARA A MESMA PESSOA (10 segundos)
-            const agoraMs = Date.now();
-            if (ultimoBip.nome === codigo && (agoraMs - ultimoBip.tempo < 10000)) {
-                return; 
-            }
-            
-            bloqueioGeral = true; // Aciona o bloqueio de hardware
-            ultimoBip = { nome: codigo, tempo: agoraMs }; // Guarda a memória de quem bipou
-            
-            // CHAMA A FOTO
-            aoBiparEquipamento(codigo);
-            
-            // Libera o leitor para outra pessoa após 1 segundo
+            bloqueioGeral = true;
             setTimeout(() => { bloqueioGeral = false; }, 1000);
+
+            // VERIFICA SE O TÉCNICO JÁ ESTÁ NO PAINEL (Evita criar Chegada #2, #3, etc)
+            const jaEntrouHoje = filaDeHoje.some(c => c.tecnico.toUpperCase().trim() === codigo.toUpperCase().trim());
+            
+            // CHAMA A FOTO E O CARD (Verde se for novo, Amarelo se já tiver entrado)
+            aoBiparEquipamento(codigo, jaEntrouHoje);
+            
+            // SE JÁ ENTROU, BLOQUEIA AQUI E NÃO MANDA PARA O SERVIDOR!
+            if (jaEntrouHoje) return; 
 
             const agora = new Date();
             const dataAtual = `${String(agora.getDate()).padStart(2, '0')}/${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
@@ -319,12 +308,17 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
                     body: JSON.stringify({ codigoBarras: codigo, dataBatida: dataAtual, horaBatida: horaAtual }) 
                 }); 
+                
+                // Força atualização da fila imediatamente para evitar um bip rápido antes da atualização de 1.5s
+                escutarServidorViaRede();
             } catch (err) {}
         }
     });
 </script>
 
-<!-- TRUQUE: O "?v=2" força o navegador a limpar o cache e ver as fotos novas! -->
-<script src="bancoDeFotos.js?v=2"></script>
+<!-- TRUQUE: O "?v=" com o Date.now() força o navegador a destruir o cache e carregar as fotos novas sempre! -->
+<script>
+    document.write('<script src="bancoDeFotos.js?v=' + Date.now() + '"><\/script>');
+</script>
 </body>
 </html>
