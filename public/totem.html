@@ -22,7 +22,7 @@
         #leitorBarcode { opacity: 0; position: absolute; z-index: -1; }
 
         /* ========================================= */
-        /* CSS DO TOAST DE BOAS VINDAS ÚNICO         */
+        /* CSS DO TOAST DE BOAS VINDAS               */
         /* ========================================= */
         #toastBoasVindas {
             position: fixed;
@@ -65,15 +65,8 @@
             text-align: left;
         }
 
-        .toast-texto .saudacao {
-            font-size: 12px;
-        }
-
-        .toast-texto .nome {
-            color: white;
-            font-weight: bold;
-            font-size: 15px;
-        }
+        .toast-texto .saudacao { font-size: 12px; }
+        .toast-texto .nome { color: white; font-weight: bold; font-size: 15px; }
     </style>
 </head>
 <body onclick="focarLeitor()"> 
@@ -111,33 +104,9 @@
     let timerToast;
 
     // =========================================================
-    // SISTEMA DE BOAS VINDAS (PESQUISA INTELIGENTE)
+    // SISTEMA DE BOAS VINDAS DIRETO DA PASTA DE FOTOS
     // =========================================================
-    function aoBiparEquipamento(nomeDoTecnico, jaEntrouHoje) {
-        let fotoEncontrada = "";
-        const nomeCracha = nomeDoTecnico.toUpperCase().trim();
-        const primeiroNomeCracha = nomeCracha.split(" ")[0]; 
-        
-        if (typeof bancoDeFotos !== 'undefined') {
-            for (let chave in bancoDeFotos) {
-                const nomeBanco = chave.toUpperCase().trim();
-                const primeiroNomeBanco = nomeBanco.split(" ")[0];
-                
-                if (nomeCracha === nomeBanco || 
-                    nomeCracha.includes(nomeBanco) || 
-                    nomeBanco.includes(nomeCracha) ||
-                    primeiroNomeCracha === primeiroNomeBanco) {
-                    
-                    fotoEncontrada = bancoDeFotos[chave];
-                    break;
-                }
-            }
-        }
-        
-        mostrarBoasVindas(nomeDoTecnico, fotoEncontrada, jaEntrouHoje);
-    }
-
-    function mostrarBoasVindas(nomeCompleto, fotoBase64 = null, jaEntrouHoje = false) {
+    function mostrarBoasVindas(nomeCompleto, jaEntrouHoje = false) {
         let toast = document.getElementById("toastBoasVindas");
         if (!toast) {
             toast = document.createElement("div");
@@ -153,27 +122,26 @@
         const partesNome = nomeCompleto.trim().split(" ");
         const primeiroNome = partesNome[0] || "Técnico";
 
-        let avatarHTML = "";
+        // Cria as Iniciais para o caso da foto não existir
+        let iniciais = "";
+        if (partesNome.length >= 2) iniciais = (partesNome[0][0] + partesNome[partesNome.length - 1][0]).toUpperCase();
+        else iniciais = primeiroNome.substring(0, 2).toUpperCase();
 
-        if (fotoBase64 && fotoBase64.trim() !== "") {
-            avatarHTML = `<img src="${fotoBase64}" alt="Foto" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2);">`;
-        } else {
-            let iniciais = "";
-            if (partesNome.length >= 2) iniciais = (partesNome[0][0] + partesNome[partesNome.length - 1][0]).toUpperCase();
-            else iniciais = primeiroNome.substring(0, 2).toUpperCase();
+        let hash = 0;
+        for (let i = 0; i < nomeCompleto.length; i++) hash = nomeCompleto.charCodeAt(i) + ((hash << 5) - hash);
+        const corHSL = `hsl(${hash % 360}, 70%, 50%)`;
 
-            let hash = 0;
-            for (let i = 0; i < nomeCompleto.length; i++) hash = nomeCompleto.charCodeAt(i) + ((hash << 5) - hash);
-            const corHSL = `hsl(${hash % 360}, 70%, 50%)`;
-            
-            avatarHTML = `<div class="avatar-iniciais" style="background-color: ${corHSL};">${iniciais}</div>`;
-        }
+        // Pega o primeiro nome e tira acentos e maiúsculas para buscar o arquivo (ex: JOÃO -> joao)
+        const nomeArquivo = primeiroNome.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
+        const urlFoto = `/fotos/${nomeArquivo}.jpg`;
 
-        // Se ele já bipou hoje, o card fica amarelo com alerta!
+        // O segredo está no "onerror": se a foto não existir na pasta, ele carrega a div das iniciais!
+        const avatarHTML = `<img src="${urlFoto}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2);" onerror="this.outerHTML='<div class=\\'avatar-iniciais\\' style=\\'background-color: ${corHSL};\\'>${iniciais}</div>'">`;
+
         const corIcone = jaEntrouHoje ? "#F59E0B" : "#10B981";
         const icone = jaEntrouHoje ? "⚠️" : "✓";
         const corSaudacao = jaEntrouHoje ? "#F59E0B" : "#94A3B8";
-        const subtitulo = jaEntrouHoje ? "Você já registrou entrada hoje!" : "Entrada registrada!";
+        const subtitulo = jaEntrouHoje ? "Você já registrou sua entrada hoje!" : "Entrada registrada";
 
         toast.innerHTML = `
             ${avatarHTML}
@@ -191,7 +159,7 @@
         clearTimeout(timerToast);
         timerToast = setTimeout(() => {
             toast.classList.remove("mostrar");
-        }, jaEntrouHoje ? 4500 : 3000); // Fica mais tempo se for um alerta de erro
+        }, jaEntrouHoje ? 4500 : 3000); 
     }
 
     function sair() {
@@ -222,7 +190,6 @@
             const res = await fetch(`/api/fila/hoje?data=${encodeURIComponent(dataHoje)}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
             const chamadas = await res.json();
             
-            // ATUALIZA A FILA GLOBAL: Para sabermos quem já está no painel
             filaDeHoje = chamadas;
 
             const pendente = chamadas.find(c => c.status === 'Chamando');
@@ -274,8 +241,11 @@
     function focarLeitor() { inputLeitor.focus(); }
     setInterval(focarLeitor, 2000); 
 
+    let ultimoCodigo = "";
+    let tempoUltimoBip = 0;
+
     // =========================================================
-    // LEITOR DE CÓDIGO DE BARRAS COM BLOQUEIO DE REPETIÇÃO
+    // LEITOR DE CÓDIGO DE BARRAS COM TRAVA DE DUPLICIDADE
     // =========================================================
     inputLeitor.addEventListener("keydown", async function(e) {
         if (e.key === 'Enter') {
@@ -286,16 +256,22 @@
             this.value = ""; 
             if (!codigo) return;
             
+            const agoraMs = Date.now();
+            if (ultimoCodigo === codigo && (agoraMs - tempoUltimoBip < 10000)) {
+                return; 
+            }
+            
+            ultimoCodigo = codigo;
+            tempoUltimoBip = agoraMs;
             bloqueioGeral = true;
             setTimeout(() => { bloqueioGeral = false; }, 1000);
 
-            // VERIFICA SE O TÉCNICO JÁ ESTÁ NO PAINEL (Evita criar Chegada #2, #3, etc)
+            // VERIFICA SE O TÉCNICO JÁ ESTÁ NO PAINEL (Evita criar Chegada #2, #3)
             const jaEntrouHoje = filaDeHoje.some(c => c.tecnico.toUpperCase().trim() === codigo.toUpperCase().trim());
             
-            // CHAMA A FOTO E O CARD (Verde se for novo, Amarelo se já tiver entrado)
-            aoBiparEquipamento(codigo, jaEntrouHoje);
+            // CHAMA A FOTO E O CARD
+            mostrarBoasVindas(codigo, jaEntrouHoje);
             
-            // SE JÁ ENTROU, BLOQUEIA AQUI E NÃO MANDA PARA O SERVIDOR!
             if (jaEntrouHoje) return; 
 
             const agora = new Date();
@@ -309,16 +285,10 @@
                     body: JSON.stringify({ codigoBarras: codigo, dataBatida: dataAtual, horaBatida: horaAtual }) 
                 }); 
                 
-                // Força atualização da fila imediatamente para evitar um bip rápido antes da atualização de 1.5s
                 escutarServidorViaRede();
             } catch (err) {}
         }
     });
-</script>
-
-<!-- TRUQUE: O "?v=" com o Date.now() força o navegador a destruir o cache e carregar as fotos novas sempre! -->
-<script>
-    document.write('<script src="bancoDeFotos.js?v=' + Date.now() + '"><\/script>');
 </script>
 </body>
 </html>
