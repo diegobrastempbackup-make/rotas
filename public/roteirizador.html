@@ -11,10 +11,15 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
-        .main { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; }
+        .main { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; transition: 0.3s; }
+        .header-painel { display: flex; align-items: flex-start; }
         .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
         .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
         
+        /* BOTÃO MENU LATERAL */
+        .btn-toggle-menu { background: #1E293B; color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; cursor: pointer; margin-right: 15px; font-size: 20px; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .btn-toggle-menu:hover { background: #3B82F6; }
+
         .upload-area { border: 2px dashed rgba(59, 130, 246, 0.5); background: rgba(30, 41, 59, 0.5); padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
         .upload-area:hover { background: rgba(30, 41, 59, 0.8); border-color: #3B82F6; }
         .upload-area input { display: none; }
@@ -42,6 +47,10 @@
         
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
+
+        /* BOTÃO TELA CHEIA MAPA */
+        .btn-fullscreen { position: absolute; top: 80px; left: 10px; z-index: 1000; background: white; color: black; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 1px 5px rgba(0,0,0,0.65); transition: 0.2s; }
+        .btn-fullscreen:hover { background: #f4f4f4; }
 
         #painelItinerario { display: none; position: absolute; top: 15px; right: 15px; width: 340px; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.1); z-index: 1000; border-radius: 12px; padding: 15px; max-height: 80%; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
         
@@ -81,8 +90,8 @@
 </head>
 <body>
 
-<div class="container">
-    <div class="sidebar">
+<div class="container" style="display: flex;">
+    <div class="sidebar" id="menuLateral" style="transition: all 0.3s ease; width: 250px; flex-shrink: 0; overflow: hidden;">
         <div class="logo-area"><img src="logo.svg" class="logo" alt="Logo NERI" style="max-width: 100%; margin-bottom: 10px;" /></div>
         <div class="menu">
             <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
@@ -96,8 +105,11 @@
 
     <div class="main">
         <div class="header-painel">
-            <h1>Torre de Controle Logístico</h1>
-            <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
+            <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
+            <div>
+                <h1>Torre de Controle Logístico</h1>
+                <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
+            </div>
         </div>
 
         <label class="upload-area" id="areaUpload">
@@ -136,6 +148,7 @@
             </div>
             
             <div id="mapaArea">
+                <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Alternar Tela Cheia">⛶</button>
                 <div id="mapa"></div>
                 
                 <div id="painelItinerario">
@@ -202,6 +215,40 @@
         }
     });
 
+    // ==========================================
+    // NOVAS FUNÇÕES: TOGGLE MENU & FULLSCREEN
+    // ==========================================
+    function toggleMenu() {
+        const sidebar = document.getElementById('menuLateral');
+        if (sidebar.style.width === '0px' || sidebar.style.display === 'none') {
+            sidebar.style.width = '250px';
+            sidebar.style.padding = ''; // Restaura o padding do CSS global
+            sidebar.style.display = 'block';
+        } else {
+            sidebar.style.width = '0px';
+            sidebar.style.padding = '0';
+            setTimeout(() => { sidebar.style.display = 'none'; }, 300); // Aguarda a transição
+        }
+        // Recalcula o tamanho do mapa após o painel redimensionar
+        setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 350);
+    }
+
+    function toggleFullscreen() {
+        const mapaArea = document.getElementById('mapaArea');
+        if (!document.fullscreenElement) {
+            if (mapaArea.requestFullscreen) { mapaArea.requestFullscreen(); } 
+            else if (mapaArea.webkitRequestFullscreen) { mapaArea.webkitRequestFullscreen(); } 
+            else if (mapaArea.msRequestFullscreen) { mapaArea.msRequestFullscreen(); }
+        } else {
+            if (document.exitFullscreen) { document.exitFullscreen(); }
+        }
+    }
+
+    // Escuta mudanças de tela cheia para reajustar o mapa interno
+    document.addEventListener('fullscreenchange', () => {
+        setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 200);
+    });
+
     function calcularDistancia(lat1, lon1, lat2, lon2) {
         const R = 6371; 
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -265,7 +312,6 @@
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
-            // REFINAMENTO DO AGRUPAMENTO: Agora junta Cliente + Rua + CEP
             let chaveAgrupamento = `${String(cliente).trim().toUpperCase()}_${rua.toUpperCase()}_${cepFormatado}`;
             let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
 
@@ -660,10 +706,10 @@
             divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando: ${rotasEncontradas[0].data}</h4>`;
             
             rotasEncontradas.forEach((roteiro, idx) => {
-                let statusCount = { pendente:0, deslocamento:0, llegada:0, sucesso:0, insucesso:0 };
+                let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
                 roteiro.itinerario.forEach(c => { 
                     let st = c.status || 'pendente';
-                    if (st === 'chegada') st = 'llegada'; 
+                    if (st === 'chegada') st = 'chegada'; // correção no contador original
                     if(statusCount[st] !== undefined) statusCount[st]++; else statusCount.pendente++; 
                 });
 
