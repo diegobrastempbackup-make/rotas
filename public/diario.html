@@ -23,12 +23,10 @@
 
         .container { padding: 15px; padding-bottom: 80px; }
         
-        .paragem-card { background: #1E293B; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border-left: 5px solid #64748B; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .paragem-card { background: #1E293B; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border-left: 5px solid #64748B; transition: all 0.4s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .status-pendente { border-left-color: #64748B; } 
         .status-deslocamento { border-left-color: #FACC15; } 
         .status-chegada { border-left-color: #F97316; } 
-        .status-sucesso { border-left-color: #10B981; opacity: 0.7; } 
-        .status-insucesso { border-left-color: #EF4444; opacity: 0.7; } 
 
         .paragem-header { padding: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .paragem-header:active { background: rgba(255,255,255,0.05); }
@@ -73,7 +71,6 @@
         <div class="resumo-box"><div class="resumo-valor" id="resumoT" style="color:#10B981;">0</div><div class="resumo-titulo">Tarde</div></div>
     </div>
 
-    <!-- NOVO BOTÃO DE MAPA -->
     <div style="padding: 15px 15px 0 15px;">
         <button class="btn-gigante" style="background-color: #3B82F6; color: white;" onclick="abrirMapa()">🗺️ Visualizar Mapa do Dia</button>
     </div>
@@ -85,7 +82,7 @@
     <!-- TELA DO MAPA (FLUTUANTE) -->
     <div id="modalMapa" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0F172A; z-index:1000; flex-direction:column;">
         <div style="background:#1E293B; padding:20px 15px; display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #3B82F6;">
-            <h3 style="margin:0; color:white; font-size: 18px;">Minha Rota</h3>
+            <h3 style="margin:0; color:white; font-size: 18px;">O que falta fazer</h3>
             <button onclick="fecharMapa()" style="background:#EF4444; color:white; border:none; padding:8px 15px; border-radius:6px; font-weight:bold; cursor:pointer;">Fechar</button>
         </div>
         <div id="mapaTecnico" style="flex:1; width:100%;"></div>
@@ -138,6 +135,7 @@
         let qtdM = 0; let qtdT = 0;
         let kmTotal = 0;
         
+        // Mantivemos o cálculo total do dia intacto para os indicadores superiores
         itinerarioDia.forEach(item => { if(item.periodo === 'MANHA') qtdM++; else qtdT++; });
         for(let i = 0; i < itinerarioDia.length - 1; i++) {
             kmTotal += calcularDistanciaKM(itinerarioDia[i].lat, itinerarioDia[i].lon, itinerarioDia[i+1].lat, itinerarioDia[i+1].lon);
@@ -151,9 +149,14 @@
     function renderizarLista() {
         const container = document.getElementById("listaOrdens");
         container.innerHTML = "";
+        let itensPendentesNaTela = 0;
 
         itinerarioDia.forEach((cliente, index) => {
-            const seq = index + 1;
+            // TRAVA DE SEGURANÇA: Se estiver finalizado, pula para a próxima OS e não desenha o card
+            if (cliente.status === 'sucesso' || cliente.status === 'insucesso') return;
+            
+            itensPendentesNaTela++;
+            const seq = index + 1; // Mantém a sequência numérica original
             const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
             const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${cliente.lat},${cliente.lon}`;
             
@@ -166,9 +169,6 @@
                 botoesHTML = `<button class="btn-gigante btn-cheguei" onclick="mudarStatus('${cliente.codigo}', 'chegada', 'horaChegada', ${index})">📍 Cheguei no Cliente</button>`;
             } else if (cliente.status === 'chegada') {
                 botoesHTML = `<div class="botoes-duplos"><button class="btn-sucesso" onclick="mudarStatus('${cliente.codigo}', 'sucesso', 'horaFinal', ${index})">✅ Sucesso</button><button class="btn-insucesso" onclick="mudarStatus('${cliente.codigo}', 'insucesso', 'horaFinal', ${index})">❌ Insucesso</button></div>`;
-            } else {
-                iconeStatus = cliente.status === 'sucesso' ? "✅" : "❌";
-                botoesHTML = `<div style="text-align:center; padding:10px; color:#94A3B8; font-weight:bold;">Serviço Finalizado</div>`;
             }
 
             container.innerHTML += `
@@ -194,13 +194,21 @@
                 </div>
             `;
         });
+
+        // Caso a lista fique vazia (todos finalizados), exibe a mensagem de sucesso
+        if (itensPendentesNaTela === 0) {
+            container.innerHTML = `<div style="text-align:center; margin-top:40px; padding:20px; background:#1E293B; border-radius:12px; border: 1px solid rgba(16, 185, 129, 0.3);">🎉 Todas as tarefas de hoje foram concluídas! Bom descanso.</div>`;
+        }
     }
 
     function toggleCard(indexExpandir) {
-        itinerarioDia.forEach((_, index) => {
+        itinerarioDia.forEach((cliente, index) => {
+            if (cliente.status === 'sucesso' || cliente.status === 'insucesso') return;
             const body = document.getElementById(`body-${index}`);
-            if (index === indexExpandir) body.style.display = body.style.display === "block" ? "none" : "block";
-            else body.style.display = "none";
+            if(body) {
+                if (index === indexExpandir) body.style.display = body.style.display === "block" ? "none" : "block";
+                else body.style.display = "none";
+            }
         });
     }
 
@@ -217,21 +225,35 @@
 
             if (res.ok) {
                 itinerarioDia[indexArray].status = novoStatus;
-                renderizarLista();
-                document.getElementById(`body-${indexArray}`).style.display = "block"; 
-                if(novoStatus === 'sucesso' || novoStatus === 'insucesso') { setTimeout(() => { document.getElementById(`body-${indexArray}`).style.display = "none"; }, 800); }
+                
+                // LÓGICA DE ANIMAÇÃO AO FINALIZAR
+                if (novoStatus === 'sucesso' || novoStatus === 'insucesso') {
+                    const cardElement = document.getElementById(`card-${indexArray}`);
+                    if (cardElement) {
+                        cardElement.style.opacity = "0";
+                        cardElement.style.transform = "scale(0.8)";
+                    }
+                    // Aguarda a animação visual e depois apaga da lista recriando os elementos
+                    setTimeout(() => { renderizarLista(); }, 400); 
+                } else {
+                    renderizarLista();
+                    document.getElementById(`body-${indexArray}`).style.display = "block"; 
+                }
             } else { alert("❌ Erro ao comunicar com a base."); }
         } catch (e) { alert("❌ Sem internet. Verifique o seu sinal 4G/Wifi."); } 
         finally { document.getElementById("loader").style.display = "none"; }
     }
 
-    // --- NOVA FUNÇÃO: RENDERIZAR MAPA NO CELULAR ---
+    // MAPA COM FILTRO DE PENDENTES
     function abrirMapa() {
-        if(itinerarioDia.length === 0) return alert("Não há rotas para desenhar no mapa.");
+        // Filtra para desenhar apenas o que falta
+        const rotasRestantes = itinerarioDia.filter(c => c.status !== 'sucesso' && c.status !== 'insucesso');
+
+        if(rotasRestantes.length === 0) return alert("Não há rotas pendentes para desenhar no mapa.");
         document.getElementById("modalMapa").style.display = "flex";
         
         if (!mapaTecnico) {
-            let startLat = itinerarioDia[0].lat; let startLon = itinerarioDia[0].lon;
+            let startLat = rotasRestantes[0].lat; let startLon = rotasRestantes[0].lon;
             mapaTecnico = L.map('mapaTecnico').setView([startLat, startLon], 12);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapaTecnico);
         }
@@ -241,14 +263,15 @@
 
         let latlngs = [];
         itinerarioDia.forEach((cliente, index) => {
+            // TRAVA NO MAPA: Ignora marcadores de ordens finalizadas
+            if (cliente.status === 'sucesso' || cliente.status === 'insucesso') return;
+
             const seq = index + 1;
             latlngs.push([cliente.lat, cliente.lon]);
             
             let corPino = "#64748B";
             if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
             else if (cliente.status === 'chegada') corPino = "#F97316"; 
-            else if (cliente.status === 'sucesso') corPino = "#10B981"; 
-            else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
 
             const miniIcon = L.divIcon({
                 className: 'custom-pin',
@@ -264,7 +287,6 @@
             mapaTecnico.fitBounds(layerGrupoTecnico.getBounds(), {padding: [30, 30]});
         }
         
-        // Força a renderização do mapa ao abrir o modal
         setTimeout(() => { mapaTecnico.invalidateSize(); }, 300);
     }
 
