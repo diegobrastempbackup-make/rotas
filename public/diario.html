@@ -5,22 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>App do Técnico - NERI</title>
     
-    <!-- Bibliotecas do Mapa -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0F172A; color: white; -webkit-tap-highlight-color: transparent; }
-        
         .header { background-color: #1E293B; padding: 20px 15px; text-align: center; border-bottom: 3px solid #3B82F6; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .header h2 { margin: 0; font-size: 18px; color: #E2E8F0; text-transform: uppercase; letter-spacing: 1px; }
         .btn-sair { position: absolute; top: 15px; right: 15px; background: rgba(239, 68, 68, 0.1); color: #EF4444; border: 1px solid #EF4444; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-
         .resumo-dia { display: flex; justify-content: space-between; gap: 10px; padding: 15px; background: #172033; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .resumo-box { flex: 1; background: #1E293B; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
         .resumo-valor { font-size: 20px; font-weight: bold; color: #3B82F6; margin-bottom: 4px; }
         .resumo-titulo { font-size: 11px; color: #94A3B8; text-transform: uppercase; }
-
         .container { padding: 15px; padding-bottom: 80px; }
         
         .paragem-card { background: #1E293B; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border-left: 5px solid #64748B; transition: all 0.4s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
@@ -29,7 +25,6 @@
         .status-chegada { border-left-color: #F97316; } 
 
         .paragem-header { padding: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-        .paragem-header:active { background: rgba(255,255,255,0.05); }
         .p-seq { font-size: 18px; font-weight: bold; color: white; width: 35px; }
         .p-info { flex: 1; padding: 0 10px; }
         .p-os { color: #60A5FA; font-size: 13px; font-weight: bold; margin-bottom: 3px; display: block; }
@@ -44,16 +39,18 @@
         .btn-gigante { width: 100%; padding: 16px; font-size: 15px; font-weight: bold; text-align: center; border-radius: 8px; border: none; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; }
         .btn-deslocamento { background: #FACC15; color: #422006; margin-top: 10px; }
         .btn-cheguei { background: #F97316; color: white; margin-top: 10px; }
-        
         .botoes-duplos { display: flex; gap: 10px; margin-top: 10px; }
         .btn-sucesso { background: #10B981; color: white; flex: 1; padding: 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .btn-insucesso { background: #EF4444; color: white; flex: 1; padding: 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-
         .btn-nav-pequeno { border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; flex: 1; display: flex; justify-content: center; align-items: center; gap: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
 
         .loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.9); z-index:999; display:flex; justify-content:center; align-items:center; flex-direction:column; display: none; }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Sinalizador Visual de Rastreamento Ativo */
+        #avisoRastreio { display: none; background: #EF4444; color: white; text-align: center; padding: 8px; font-size: 12px; font-weight: bold; animation: piscar 2s infinite; }
+        @keyframes piscar { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
         .custom-pin { background: transparent; border: none; }
     </style>
@@ -64,6 +61,9 @@
         <button class="btn-sair" onclick="sair()">Sair</button>
         <h2 id="nomeTecnico">Carregando...</h2>
     </div>
+
+    <!-- Barra que avisa ao técnico que o GPS dele está a ser gravado -->
+    <div id="avisoRastreio">📡 Rastreamento de Rota em andamento...</div>
 
     <div class="resumo-dia">
         <div class="resumo-box"><div class="resumo-valor" id="resumoKM">0</div><div class="resumo-titulo">KM Total</div></div>
@@ -79,7 +79,6 @@
         <div style="text-align: center; color: #94A3B8; margin-top: 50px;">A buscar rotas de hoje...</div>
     </div>
 
-    <!-- TELA DO MAPA (FLUTUANTE) -->
     <div id="modalMapa" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0F172A; z-index:1000; flex-direction:column;">
         <div style="background:#1E293B; padding:20px 15px; display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #3B82F6;">
             <h3 style="margin:0; color:white; font-size: 18px;">O que falta fazer</h3>
@@ -103,6 +102,10 @@
     let dataDeHojeBR = "";
     let mapaTecnico = null;
     let layerGrupoTecnico = null;
+    
+    // VARIÁVEIS DO RASTREAMENTO EM TEMPO REAL
+    let intervaloRastreio = null;
+    let osEmDeslocamento = null; // Guarda o código da OS atual
 
     function calcularDistanciaKM(lat1, lon1, lat2, lon2) {
         const R = 6371; 
@@ -125,6 +128,11 @@
                 itinerarioDia = minhaRota.itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
                 atualizarResumoTopo();
                 renderizarLista();
+                
+                // Se o App foi reiniciado e o técnico já estava em deslocamento, retoma o GPS!
+                const ordemAberta = itinerarioDia.find(i => i.status === 'deslocamento');
+                if (ordemAberta) iniciarRastreioGPS(ordemAberta.codigo);
+                
             } else {
                 document.getElementById("listaOrdens").innerHTML = `<div style="text-align:center; margin-top:40px; padding:20px; background:#1E293B; border-radius:12px;">🎉 Nenhuma rota para hoje. Bom descanso!</div>`;
             }
@@ -132,15 +140,11 @@
     }
 
     function atualizarResumoTopo() {
-        let qtdM = 0; let qtdT = 0;
-        let kmTotal = 0;
-        
-        // Mantivemos o cálculo total do dia intacto para os indicadores superiores
+        let qtdM = 0; let qtdT = 0; let kmTotal = 0;
         itinerarioDia.forEach(item => { if(item.periodo === 'MANHA') qtdM++; else qtdT++; });
         for(let i = 0; i < itinerarioDia.length - 1; i++) {
             kmTotal += calcularDistanciaKM(itinerarioDia[i].lat, itinerarioDia[i].lon, itinerarioDia[i+1].lat, itinerarioDia[i+1].lon);
         }
-
         document.getElementById("resumoM").innerText = qtdM;
         document.getElementById("resumoT").innerText = qtdT;
         document.getElementById("resumoKM").innerText = (kmTotal * 1.3).toFixed(1); 
@@ -152,11 +156,10 @@
         let itensPendentesNaTela = 0;
 
         itinerarioDia.forEach((cliente, index) => {
-            // TRAVA DE SEGURANÇA: Se estiver finalizado, pula para a próxima OS e não desenha o card
             if (cliente.status === 'sucesso' || cliente.status === 'insucesso') return;
             
             itensPendentesNaTela++;
-            const seq = index + 1; // Mantém a sequência numérica original
+            const seq = index + 1; 
             const wazeUrl = `https://waze.com/ul?ll=${cliente.lat},${cliente.lon}&navigate=yes`;
             const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${cliente.lat},${cliente.lon}`;
             
@@ -195,7 +198,6 @@
             `;
         });
 
-        // Caso a lista fique vazia (todos finalizados), exibe a mensagem de sucesso
         if (itensPendentesNaTela === 0) {
             container.innerHTML = `<div style="text-align:center; margin-top:40px; padding:20px; background:#1E293B; border-radius:12px; border: 1px solid rgba(16, 185, 129, 0.3);">🎉 Todas as tarefas de hoje foram concluídas! Bom descanso.</div>`;
         }
@@ -212,6 +214,57 @@
         });
     }
 
+    // ========================================================
+    // MOTOR DE RASTREAMENTO (BREADCRUMBING)
+    // ========================================================
+    function iniciarRastreioGPS(codigoOs) {
+        pararRastreioGPS(); // Garante que não temos 2 cronômetros rodando
+        osEmDeslocamento = codigoOs;
+        document.getElementById("avisoRastreio").style.display = "block";
+
+        // Tenta capturar a primeira migalha imediatamente
+        enviarMigalhaAoServidor();
+
+        // Configura o robô para capturar de 1 em 1 minuto (60.000 ms)
+        intervaloRastreio = setInterval(enviarMigalhaAoServidor, 60000);
+    }
+
+    function pararRastreioGPS() {
+        if (intervaloRastreio) {
+            clearInterval(intervaloRastreio);
+            intervaloRastreio = null;
+        }
+        osEmDeslocamento = null;
+        document.getElementById("avisoRastreio").style.display = "none";
+    }
+
+    function enviarMigalhaAoServidor() {
+        if (!osEmDeslocamento || !navigator.geolocation) return;
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            
+            try {
+                // Envia de forma invisível, sem travar a tela do técnico
+                fetch('/api/rotas/tracking', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                        data: dataDeHojeBR, 
+                        tecnico: nomeUsuario, 
+                        codigoOs: osEmDeslocamento, 
+                        lat: lat, 
+                        lon: lon 
+                    })
+                });
+            } catch (e) { console.log("Falha silenciosa ao enviar tracking", e); }
+        }, 
+        (err) => { console.log("Erro de GPS no celular:", err); }, 
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
+    // ========================================================
+
     async function mudarStatus(codigoOs, novoStatus, campoCronometro, indexArray) {
         document.getElementById("loader").style.display = "flex";
         const horaExata = new Date().toLocaleTimeString('pt-BR', { hour12: false });
@@ -226,14 +279,16 @@
             if (res.ok) {
                 itinerarioDia[indexArray].status = novoStatus;
                 
-                // LÓGICA DE ANIMAÇÃO AO FINALIZAR
+                // GATILHOS DO RASTREAMENTO
+                if (novoStatus === 'deslocamento') iniciarRastreioGPS(codigoOs);
+                if (novoStatus === 'chegada') pararRastreioGPS();
+
                 if (novoStatus === 'sucesso' || novoStatus === 'insucesso') {
                     const cardElement = document.getElementById(`card-${indexArray}`);
                     if (cardElement) {
                         cardElement.style.opacity = "0";
                         cardElement.style.transform = "scale(0.8)";
                     }
-                    // Aguarda a animação visual e depois apaga da lista recriando os elementos
                     setTimeout(() => { renderizarLista(); }, 400); 
                 } else {
                     renderizarLista();
@@ -244,11 +299,8 @@
         finally { document.getElementById("loader").style.display = "none"; }
     }
 
-    // MAPA COM FILTRO DE PENDENTES
     function abrirMapa() {
-        // Filtra para desenhar apenas o que falta
         const rotasRestantes = itinerarioDia.filter(c => c.status !== 'sucesso' && c.status !== 'insucesso');
-
         if(rotasRestantes.length === 0) return alert("Não há rotas pendentes para desenhar no mapa.");
         document.getElementById("modalMapa").style.display = "flex";
         
@@ -263,22 +315,13 @@
 
         let latlngs = [];
         itinerarioDia.forEach((cliente, index) => {
-            // TRAVA NO MAPA: Ignora marcadores de ordens finalizadas
             if (cliente.status === 'sucesso' || cliente.status === 'insucesso') return;
-
             const seq = index + 1;
             latlngs.push([cliente.lat, cliente.lon]);
-            
             let corPino = "#64748B";
             if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
             else if (cliente.status === 'chegada') corPino = "#F97316"; 
-
-            const miniIcon = L.divIcon({
-                className: 'custom-pin',
-                html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 12px;">${seq}</div>`,
-                iconSize: [24, 24], iconAnchor: [12, 12]
-            });
-            
+            const miniIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 12px;">${seq}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] });
             L.marker([cliente.lat, cliente.lon], {icon: miniIcon}).bindPopup(`<b>#${seq} - ${cliente.cliente}</b><br>OS: ${cliente.codigo}`).addTo(layerGrupoTecnico);
         });
 
@@ -286,12 +329,10 @@
             L.polyline(latlngs, {color: '#3B82F6', weight: 3, dashArray: '5, 5'}).addTo(layerGrupoTecnico);
             mapaTecnico.fitBounds(layerGrupoTecnico.getBounds(), {padding: [30, 30]});
         }
-        
         setTimeout(() => { mapaTecnico.invalidateSize(); }, 300);
     }
 
     function fecharMapa() { document.getElementById("modalMapa").style.display = "none"; }
-
     function sair() { localStorage.clear(); window.location.replace("/login.html"); }
 
     buscarRotaDoServidor();

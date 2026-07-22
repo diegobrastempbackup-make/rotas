@@ -205,7 +205,6 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       if (data) filtro.data = data;
       
       if (codigo) {
-          // Permite encontrar uma OS mesmo que esteja agrupada (ex: "101" dentro de "101 / 102")
           filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
       }
 
@@ -256,7 +255,32 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     }
 });
 
-// 5. NOVA ROTA: EDITAR ENDEREÇO DA PARAGEM
+// 5. NOVA ROTA: RECEBER RASTREAMENTO EM TEMPO REAL (MIGALHAS GPS)
+app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, lat, lon } = req.body;
+        
+        let filterDoc = { 
+            data: data, 
+            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
+            cliente_id: req.usuario.cliente_id, 
+            "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } 
+        };
+
+        let novoPonto = { lat, lon, timestamp: new Date() };
+
+        const resultado = await db.collection("planejamento_rotas").updateOne(
+            filterDoc, 
+            { $push: { "itinerario.$.rastroReal": novoPonto } }
+        );
+
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ erro: "Erro ao salvar tracking." });
+    }
+});
+
+// 6. EDITAR ENDEREÇO DA PARAGEM MANUALMENTE
 app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
@@ -370,6 +394,7 @@ async function iniciarSistema() {
     app.listen(PORT, () => console.log(`🚀 Motor SaaS NERI 2.0 a correr na porta ${PORT}`));
   } catch (err) { console.error("❌ Erro:", err); process.exit(1); }
 }
+
 // ==========================================
 // FASE 5: SISTEMA DE FILA, TOTEM E CRACHÁS
 // ==========================================
