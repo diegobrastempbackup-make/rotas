@@ -120,7 +120,10 @@
         dataDeHojeBR = `${String(dataAtual.getDate()).padStart(2, '0')}/${String(dataAtual.getMonth() + 1).padStart(2, '0')}/${dataAtual.getFullYear()}`;
         
         try {
-            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}&_=${new Date().getTime()}`, { 
+    headers: { 'Authorization': `Bearer ${token}` },
+    cache: 'no-store'
+    });
             const rotas = await res.json();
             const minhaRota = rotas.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
 
