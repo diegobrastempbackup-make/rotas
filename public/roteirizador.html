@@ -16,7 +16,6 @@
         .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
         .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
         
-        /* BOTÃO MENU LATERAL */
         .btn-toggle-menu { background: #1E293B; color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; cursor: pointer; margin-right: 15px; font-size: 20px; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
         .btn-toggle-menu:hover { background: #3B82F6; }
 
@@ -48,7 +47,6 @@
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
 
-        /* BOTÃO TELA CHEIA MAPA */
         .btn-fullscreen { position: absolute; top: 80px; left: 10px; z-index: 1000; background: white; color: black; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 1px 5px rgba(0,0,0,0.65); transition: 0.2s; }
         .btn-fullscreen:hover { background: #f4f4f4; }
 
@@ -215,21 +213,17 @@
         }
     });
 
-    // ==========================================
-    // NOVAS FUNÇÕES: TOGGLE MENU & FULLSCREEN
-    // ==========================================
     function toggleMenu() {
         const sidebar = document.getElementById('menuLateral');
         if (sidebar.style.width === '0px' || sidebar.style.display === 'none') {
             sidebar.style.width = '250px';
-            sidebar.style.padding = ''; // Restaura o padding do CSS global
+            sidebar.style.padding = ''; 
             sidebar.style.display = 'block';
         } else {
             sidebar.style.width = '0px';
             sidebar.style.padding = '0';
-            setTimeout(() => { sidebar.style.display = 'none'; }, 300); // Aguarda a transição
+            setTimeout(() => { sidebar.style.display = 'none'; }, 300); 
         }
-        // Recalcula o tamanho do mapa após o painel redimensionar
         setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 350);
     }
 
@@ -244,7 +238,6 @@
         }
     }
 
-    // Escuta mudanças de tela cheia para reajustar o mapa interno
     document.addEventListener('fullscreenchange', () => {
         setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 200);
     });
@@ -496,14 +489,19 @@
         let htmlLista = "";
         let coordOSRM = [`${configGalpao.lon},${configGalpao.lat}`];
 
+        // ----- CORREÇÃO DO PINO DO CARRO PARA O TÉCNICO INDIVIDUAL -----
+        let posicaoAtualCarro = { lat: configGalpao.lat, lon: configGalpao.lon };
+        let corBordaCarroAtual = "#64748B";
+        let tecnicoJaIniciou = false;
+
         rotaAtiva.forEach((cliente, index) => {
             const seq = index + 1;
             let corPino = "#64748B"; 
             if (cliente.precisaCorrecao) corPino = "#000000"; 
-            else if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
-            else if (cliente.status === 'chegada') corPino = "#F97316"; 
-            else if (cliente.status === 'sucesso') corPino = "#10B981"; 
-            else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
+            else if (cliente.status === 'deslocamento') { corPino = "#FACC15"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
+            else if (cliente.status === 'chegada') { corPino = "#F97316"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
+            else if (cliente.status === 'sucesso') { corPino = "#10B981"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
+            else if (cliente.status === 'insucesso') { corPino = "#EF4444"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
 
             if (index < limite) {
                 coordOSRM.push(`${cliente.lon},${cliente.lat}`);
@@ -550,16 +548,14 @@
         document.getElementById("listaItinerarioUI").innerHTML = htmlLista;
 
         if (coordOSRM.length > 1) {
-            let ultimoPonto = rotaFatiada[rotaFatiada.length - 1];
-            let jaIniciou = rotaFatiada.some(p => p.status !== 'pendente');
-            
-            if (jaIniciou && tecnicoAtivo) {
+            // O pino agora lê a variável de "posicaoAtualCarro" em vez da barra de progresso
+            if (tecnicoJaIniciou && tecnicoAtivo) {
                 const carIcon = L.divIcon({
                     className: 'custom-pin',
-                    html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 ${tecnicoAtivo.split(' ')[0]}</div>`,
+                    html: `<div class="car-pin" style="border-color: ${corBordaCarroAtual};">🚗 ${tecnicoAtivo.split(' ')[0]}</div>`,
                     iconSize: [80, 25], iconAnchor: [40, 12]
                 });
-                L.marker([ultimoPonto.lat, ultimoPonto.lon], {icon: carIcon, zIndexOffset: 1000}).addTo(layerGrupo);
+                L.marker([posicaoAtualCarro.lat, posicaoAtualCarro.lon], {icon: carIcon, zIndexOffset: 1000}).addTo(layerGrupo);
             }
 
             try {
@@ -709,7 +705,7 @@
                 let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
                 roteiro.itinerario.forEach(c => { 
                     let st = c.status || 'pendente';
-                    if (st === 'chegada') st = 'chegada'; // correção no contador original
+                    if (st === 'chegada') st = 'chegada'; 
                     if(statusCount[st] !== undefined) statusCount[st]++; else statusCount.pendente++; 
                 });
 
