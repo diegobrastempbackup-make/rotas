@@ -218,12 +218,11 @@
     }
 
    // ========================================================
-    // MOTOR DE RASTREAMENTO (BREADCRUMBING) - VERSÃO BLINDADA
+    // MOTOR DE RASTREAMENTO (BREADCRUMBING) - MODO AGRESSIVO
     // ========================================================
-    let watchId = null;
-    let ultimaMigalhaEnviada = 0;
+    let intervaloRastreio = null;
 
-    // Função para impedir a tela do celular de apagar
+    // Tenta forçar a tela a não apagar (se o navegador permitir)
     async function manterTelaLigada() {
         try {
             if ('wakeLock' in navigator) {
@@ -232,61 +231,55 @@
         } catch (err) { console.log("Wake Lock falhou", err); }
     }
 
+    function dispararAntenaGPS() {
+        if (!osEmDeslocamento || !navigator.geolocation) return;
+
+        // Força a leitura do chip GPS no momento exato
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                
+                try {
+                    await fetch('/api/rotas/tracking', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ 
+                            data: dataDeHojeBR, 
+                            tecnico: nomeUsuario, 
+                            codigoOs: osEmDeslocamento, 
+                            lat: lat, 
+                            lon: lon 
+                        })
+                    });
+                } catch (e) { console.log("Falha silenciosa ao enviar tracking", e); }
+            }, 
+            (err) => { 
+                console.log("Erro de GPS no celular:", err); 
+            }, 
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } // Proíbe usar localização antiga
+        );
+    }
+
     function iniciarRastreioGPS(codigoOs) {
-        pararRastreioGPS(); // Limpa se houver algo
+        pararRastreioGPS(); 
         osEmDeslocamento = codigoOs;
         document.getElementById("avisoRastreio").style.display = "block";
         manterTelaLigada();
 
-        if (!navigator.geolocation) {
-            alert("⚠️ O seu navegador não suporta GPS.");
-            return;
-        }
+        // Dispara imediatamente o Ponto 1
+        dispararAntenaGPS();
 
-        // watchPosition é o sensor contínuo (como o do Waze)
-        watchId = navigator.geolocation.watchPosition(
-            async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                const agora = new Date().getTime();
-
-                // Filtro: Só envia para o servidor a cada 60 segundos (60000 ms)
-                if (agora - ultimaMigalhaEnviada >= 60000) {
-                    ultimaMigalhaEnviada = agora;
-                    
-                    try {
-                        await fetch('/api/rotas/tracking', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                            body: JSON.stringify({ 
-                                data: dataDeHojeBR, 
-                                tecnico: nomeUsuario, 
-                                codigoOs: osEmDeslocamento, 
-                                lat: lat, 
-                                lon: lon 
-                            })
-                        });
-                    } catch (e) { console.log("Falha na internet ao enviar sinal"); }
-                }
-            }, 
-            (err) => { 
-                if(err.code === 1) {
-                    alert("⚠️ ATENÇÃO: Você NEGOU o GPS. O rastreamento não vai funcionar! Permita o uso da Localização no navegador.");
-                } else {
-                    alert("⚠️ Sinal de GPS perdido. Tente ir para uma área mais aberta.");
-                }
-            }, 
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-        );
+        // O SEGREDO: Cronômetro que obriga o envio a cada 30 segundos (30000 ms)
+        intervaloRastreio = setInterval(dispararAntenaGPS, 30000); 
     }
 
     function pararRastreioGPS() {
-        if (watchId) {
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
+        if (intervaloRastreio) {
+            clearInterval(intervaloRastreio);
+            intervaloRastreio = null;
         }
         osEmDeslocamento = null;
-        ultimaMigalhaEnviada = 0;
         document.getElementById("avisoRastreio").style.display = "none";
     }
     // ========================================================
