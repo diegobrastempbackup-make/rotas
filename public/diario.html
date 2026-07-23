@@ -217,55 +217,79 @@
         });
     }
 
+   // ========================================================
+    // MOTOR DE RASTREAMENTO (BREADCRUMBING) - VERSÃO BLINDADA
     // ========================================================
-    // MOTOR DE RASTREAMENTO (BREADCRUMBING)
-    // ========================================================
+    let watchId = null;
+    let ultimaMigalhaEnviada = 0;
+
+    // Função para impedir a tela do celular de apagar
+    async function manterTelaLigada() {
+        try {
+            if ('wakeLock' in navigator) {
+                await navigator.wakeLock.request('screen');
+            }
+        } catch (err) { console.log("Wake Lock falhou", err); }
+    }
+
     function iniciarRastreioGPS(codigoOs) {
-        pararRastreioGPS(); // Garante que não temos 2 cronômetros rodando
+        pararRastreioGPS(); // Limpa se houver algo
         osEmDeslocamento = codigoOs;
         document.getElementById("avisoRastreio").style.display = "block";
+        manterTelaLigada();
 
-        // Tenta capturar a primeira migalha imediatamente
-        enviarMigalhaAoServidor();
+        if (!navigator.geolocation) {
+            alert("⚠️ O seu navegador não suporta GPS.");
+            return;
+        }
 
-        // Configura o robô para capturar de 1 em 1 minuto (60.000 ms)
-        intervaloRastreio = setInterval(enviarMigalhaAoServidor, 60000);
+        // watchPosition é o sensor contínuo (como o do Waze)
+        watchId = navigator.geolocation.watchPosition(
+            async (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const agora = new Date().getTime();
+
+                // Filtro: Só envia para o servidor a cada 60 segundos (60000 ms)
+                if (agora - ultimaMigalhaEnviada >= 60000) {
+                    ultimaMigalhaEnviada = agora;
+                    
+                    try {
+                        await fetch('/api/rotas/tracking', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ 
+                                data: dataDeHojeBR, 
+                                tecnico: nomeUsuario, 
+                                codigoOs: osEmDeslocamento, 
+                                lat: lat, 
+                                lon: lon 
+                            })
+                        });
+                    } catch (e) { console.log("Falha na internet ao enviar sinal"); }
+                }
+            }, 
+            (err) => { 
+                if(err.code === 1) {
+                    alert("⚠️ ATENÇÃO: Você NEGOU o GPS. O rastreamento não vai funcionar! Permita o uso da Localização no navegador.");
+                } else {
+                    alert("⚠️ Sinal de GPS perdido. Tente ir para uma área mais aberta.");
+                }
+            }, 
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+        );
     }
 
     function pararRastreioGPS() {
-        if (intervaloRastreio) {
-            clearInterval(intervaloRastreio);
-            intervaloRastreio = null;
+        if (watchId) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
         }
         osEmDeslocamento = null;
+        ultimaMigalhaEnviada = 0;
         document.getElementById("avisoRastreio").style.display = "none";
     }
-
-    function enviarMigalhaAoServidor() {
-        if (!osEmDeslocamento || !navigator.geolocation) return;
-
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const lat = pos.coords.latitude;
-            const lon = pos.coords.longitude;
-            
-            try {
-                // Envia de forma invisível, sem travar a tela do técnico
-                fetch('/api/rotas/tracking', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ 
-                        data: dataDeHojeBR, 
-                        tecnico: nomeUsuario, 
-                        codigoOs: osEmDeslocamento, 
-                        lat: lat, 
-                        lon: lon 
-                    })
-                });
-            } catch (e) { console.log("Falha silenciosa ao enviar tracking", e); }
-        }, 
-        (err) => { console.log("Erro de GPS no celular:", err); }, 
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-    }
+    // ========================================================
     // ========================================================
 
     async function mudarStatus(codigoOs, novoStatus, campoCronometro, indexArray) {
