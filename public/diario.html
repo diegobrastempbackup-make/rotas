@@ -125,7 +125,8 @@
     cache: 'no-store'
     });
             const rotas = await res.json();
-            const minhaRota = rotas.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
+            const nomeLimpoApp = nomeUsuario.toUpperCase().replace(/\./g, '').trim();
+            const minhaRota = rotas.find(r => r.tecnico.toUpperCase().replace(/\./g, '').trim() === nomeLimpoApp);
 
             if (minhaRota && minhaRota.itinerario.length > 0) {
                 itinerarioDia = minhaRota.itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
