@@ -120,13 +120,9 @@
         dataDeHojeBR = `${String(dataAtual.getDate()).padStart(2, '0')}/${String(dataAtual.getMonth() + 1).padStart(2, '0')}/${dataAtual.getFullYear()}`;
         
         try {
-            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}&_=${new Date().getTime()}`, { 
-    headers: { 'Authorization': `Bearer ${token}` },
-    cache: 'no-store'
-    });
+            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}`, { headers: { 'Authorization': `Bearer ${token}` } });
             const rotas = await res.json();
-            const nomeLimpoApp = nomeUsuario.toUpperCase().replace(/\./g, '').trim();
-            const minhaRota = rotas.find(r => r.tecnico.toUpperCase().replace(/\./g, '').trim() === nomeLimpoApp);
+            const minhaRota = rotas.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
 
             if (minhaRota && minhaRota.itinerario.length > 0) {
                 itinerarioDia = minhaRota.itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
@@ -218,61 +214,19 @@
         });
     }
 
-   // ========================================================
-    // MOTOR DE RASTREAMENTO (BREADCRUMBING) - MODO AGRESSIVO
     // ========================================================
-    let intervaloRastreio = null;
-
-    // Tenta forçar a tela a não apagar (se o navegador permitir)
-    async function manterTelaLigada() {
-        try {
-            if ('wakeLock' in navigator) {
-                await navigator.wakeLock.request('screen');
-            }
-        } catch (err) { console.log("Wake Lock falhou", err); }
-    }
-
-    function dispararAntenaGPS() {
-        if (!osEmDeslocamento || !navigator.geolocation) return;
-
-        // Força a leitura do chip GPS no momento exato
-        navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                
-                try {
-                    await fetch('/api/rotas/tracking', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ 
-                            data: dataDeHojeBR, 
-                            tecnico: nomeUsuario, 
-                            codigoOs: osEmDeslocamento, 
-                            lat: lat, 
-                            lon: lon 
-                        })
-                    });
-                } catch (e) { console.log("Falha silenciosa ao enviar tracking", e); }
-            }, 
-            (err) => { 
-                console.log("Erro de GPS no celular:", err); 
-            }, 
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } // Proíbe usar localização antiga
-        );
-    }
-
+    // MOTOR DE RASTREAMENTO (BREADCRUMBING)
+    // ========================================================
     function iniciarRastreioGPS(codigoOs) {
-        pararRastreioGPS(); 
+        pararRastreioGPS(); // Garante que não temos 2 cronômetros rodando
         osEmDeslocamento = codigoOs;
         document.getElementById("avisoRastreio").style.display = "block";
-        manterTelaLigada();
 
-        // Dispara imediatamente o Ponto 1
-        dispararAntenaGPS();
+        // Tenta capturar a primeira migalha imediatamente
+        enviarMigalhaAoServidor();
 
-        // O SEGREDO: Cronômetro que obriga o envio a cada 30 segundos (30000 ms)
-        intervaloRastreio = setInterval(dispararAntenaGPS, 30000); 
+        // Configura o robô para capturar de 1 em 1 minuto (60.000 ms)
+        intervaloRastreio = setInterval(enviarMigalhaAoServidor, 60000);
     }
 
     function pararRastreioGPS() {
@@ -283,7 +237,32 @@
         osEmDeslocamento = null;
         document.getElementById("avisoRastreio").style.display = "none";
     }
-    // ========================================================
+
+    function enviarMigalhaAoServidor() {
+        if (!osEmDeslocamento || !navigator.geolocation) return;
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            
+            try {
+                // Envia de forma invisível, sem travar a tela do técnico
+                fetch('/api/rotas/tracking', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                        data: dataDeHojeBR, 
+                        tecnico: nomeUsuario, 
+                        codigoOs: osEmDeslocamento, 
+                        lat: lat, 
+                        lon: lon 
+                    })
+                });
+            } catch (e) { console.log("Falha silenciosa ao enviar tracking", e); }
+        }, 
+        (err) => { console.log("Erro de GPS no celular:", err); }, 
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
     // ========================================================
 
     async function mudarStatus(codigoOs, novoStatus, campoCronometro, indexArray) {
