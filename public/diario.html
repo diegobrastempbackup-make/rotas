@@ -76,7 +76,7 @@
     </div>
 
     <div class="container" id="listaOrdens">
-        <div style="text-align: center; color: #94A3B8; margin-top: 50px;">A sincronizar rotas (V5)...</div>
+        <div style="text-align: center; color: #94A3B8; margin-top: 50px;">A buscar rotas de hoje...</div>
     </div>
 
     <div id="modalMapa" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0F172A; z-index:1000; flex-direction:column;">
@@ -105,7 +105,7 @@
     
     // VARIÁVEIS DO RASTREAMENTO EM TEMPO REAL
     let intervaloRastreio = null;
-    let osEmDeslocamento = null; 
+    let osEmDeslocamento = null; // Guarda o código da OS atual
 
     function calcularDistanciaKM(lat1, lon1, lat2, lon2) {
         const R = 6371; 
@@ -120,14 +120,8 @@
         dataDeHojeBR = `${String(dataAtual.getDate()).padStart(2, '0')}/${String(dataAtual.getMonth() + 1).padStart(2, '0')}/${dataAtual.getFullYear()}`;
         
         try {
-            // Forçamos o navegador a não usar cache adicionando o tempo atual na URL
-            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}&_=${new Date().getTime()}`, { 
-                headers: { 'Authorization': `Bearer ${token}` },
-                cache: 'no-store'
-            });
+            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}`, { headers: { 'Authorization': `Bearer ${token}` } });
             const rotas = await res.json();
-            
-            // Lógica exata que funcionou na versão 4
             const minhaRota = rotas.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
 
             if (minhaRota && minhaRota.itinerario.length > 0) {
@@ -135,6 +129,7 @@
                 atualizarResumoTopo();
                 renderizarLista();
                 
+                // Se o App foi reiniciado e o técnico já estava em deslocamento, retoma o GPS!
                 const ordemAberta = itinerarioDia.find(i => i.status === 'deslocamento');
                 if (ordemAberta) iniciarRastreioGPS(ordemAberta.codigo);
                 
@@ -220,55 +215,18 @@
     }
 
     // ========================================================
-    // MOTOR DE RASTREAMENTO (BREADCRUMBING) - MODO AGRESSIVO (V5)
+    // MOTOR DE RASTREAMENTO (BREADCRUMBING)
     // ========================================================
-    let intervaloRastreio = null;
-
-    async function manterTelaLigada() {
-        try {
-            if ('wakeLock' in navigator) {
-                await navigator.wakeLock.request('screen');
-            }
-        } catch (err) { console.log("Wake Lock falhou", err); }
-    }
-
-    function dispararAntenaGPS() {
-        if (!osEmDeslocamento || !navigator.geolocation) return;
-
-        navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                
-                try {
-                    await fetch('/api/rotas/tracking', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ 
-                            data: dataDeHojeBR, 
-                            tecnico: nomeUsuario, 
-                            codigoOs: osEmDeslocamento, 
-                            lat: lat, 
-                            lon: lon 
-                        })
-                    });
-                } catch (e) { console.log("Falha silenciosa ao enviar tracking", e); }
-            }, 
-            (err) => { 
-                console.log("Erro de GPS no celular:", err); 
-            }, 
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } 
-        );
-    }
-
     function iniciarRastreioGPS(codigoOs) {
-        pararRastreioGPS(); 
+        pararRastreioGPS(); // Garante que não temos 2 cronômetros rodando
         osEmDeslocamento = codigoOs;
         document.getElementById("avisoRastreio").style.display = "block";
-        manterTelaLigada();
 
-        dispararAntenaGPS();
-        intervaloRastreio = setInterval(dispararAntenaGPS, 30000); 
+        // Tenta capturar a primeira migalha imediatamente
+        enviarMigalhaAoServidor();
+
+        // 🚨 ÚNICA MUDANÇA: Agora dispara a cada 30 segundos! (30.000 ms)
+        intervaloRastreio = setInterval(enviarMigalhaAoServidor, 30000);
     }
 
     function pararRastreioGPS() {
@@ -279,7 +237,32 @@
         osEmDeslocamento = null;
         document.getElementById("avisoRastreio").style.display = "none";
     }
-    // ========================================================
+
+    function enviarMigalhaAoServidor() {
+        if (!osEmDeslocamento || !navigator.geolocation) return;
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            
+            try {
+                // Envia de forma invisível, sem travar a tela do técnico
+                fetch('/api/rotas/tracking', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                        data: dataDeHojeBR, 
+                        tecnico: nomeUsuario, 
+                        codigoOs: osEmDeslocamento, 
+                        lat: lat, 
+                        lon: lon 
+                    })
+                });
+            } catch (e) { console.log("Falha silenciosa ao enviar tracking", e); }
+        }, 
+        (err) => { console.log("Erro de GPS no celular:", err); }, 
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }
     // ========================================================
 
     async function mudarStatus(codigoOs, novoStatus, campoCronometro, indexArray) {
@@ -296,6 +279,7 @@
             if (res.ok) {
                 itinerarioDia[indexArray].status = novoStatus;
                 
+                // GATILHOS DO RASTREAMENTO
                 if (novoStatus === 'deslocamento') iniciarRastreioGPS(codigoOs);
                 if (novoStatus === 'chegada') pararRastreioGPS();
 
