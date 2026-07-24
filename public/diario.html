@@ -120,9 +120,13 @@
         dataDeHojeBR = `${String(dataAtual.getDate()).padStart(2, '0')}/${String(dataAtual.getMonth() + 1).padStart(2, '0')}/${dataAtual.getFullYear()}`;
         
         try {
-            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDeHojeBR)}&_=${new Date().getTime()}`, { 
+    headers: { 'Authorization': `Bearer ${token}` },
+    cache: 'no-store'
+    });
             const rotas = await res.json();
-            const minhaRota = rotas.find(r => r.tecnico.toUpperCase() === nomeUsuario.toUpperCase());
+            const nomeLimpoApp = nomeUsuario.toUpperCase().replace(/\./g, '').trim();
+            const minhaRota = rotas.find(r => r.tecnico.toUpperCase().replace(/\./g, '').trim() === nomeLimpoApp);
 
             if (minhaRota && minhaRota.itinerario.length > 0) {
                 itinerarioDia = minhaRota.itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
@@ -214,11 +218,12 @@
         });
     }
 
-    // ========================================================
-    // MOTOR DE RASTREAMENTO (BREADCRUMBING) - MODO AGRESSIVO (Focado na Linha Vermelha)
+   // ========================================================
+    // MOTOR DE RASTREAMENTO (BREADCRUMBING) - MODO AGRESSIVO
     // ========================================================
     let intervaloRastreio = null;
 
+    // Tenta forçar a tela a não apagar (se o navegador permitir)
     async function manterTelaLigada() {
         try {
             if ('wakeLock' in navigator) {
@@ -253,7 +258,7 @@
             (err) => { 
                 console.log("Erro de GPS no celular:", err); 
             }, 
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } // maximumAge: 0 FORÇA buscar posição nova
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } // Proíbe usar localização antiga
         );
     }
 
