@@ -420,7 +420,7 @@
         atualizarTela(true); 
     }
 
-    async function atualizarTela(recentrarMapa = true) {
+   async function atualizarTela(recentrarMapa = true) {
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
 
@@ -444,37 +444,62 @@
                 
                 roteiro.itinerario.forEach((cliente, idx) => {
                     let corPino = "#64748B"; 
-                    if (cliente.precisaCorrecao) corPino = "#000000"; 
-                    else if (cliente.status === 'deslocamento') { corPino = "#FACC15"; posicaoCarro = cliente; statusCarro = "Em Deslocamento"; corBordaCarro = corPino; jaIniciou = true; } 
-                    else if (cliente.status === 'chegada') { corPino = "#F97316"; posicaoCarro = cliente; statusCarro = "No Local"; corBordaCarro = corPino; jaIniciou = true; } 
-                    else if (cliente.status === 'sucesso') { corPino = "#10B981"; posicaoCarro = cliente; statusCarro = "Finalizou Última"; corBordaCarro = corPino; jaIniciou = true; } 
-                    else if (cliente.status === 'insucesso') { corPino = "#EF4444"; posicaoCarro = cliente; statusCarro = "Insucesso na Última"; corBordaCarro = corPino; jaIniciou = true; } 
+                    
+                    // O cliente permanece SEMPRE fixo nas coordenadas originais dele (cliente.lat e cliente.lon)
+                    let latClienteFixo = cliente.lat;
+                    let lonClienteFixo = cliente.lon;
 
-                    // DESENHAR O RASTRO REAL E POSICIONAR O CARRO NA ÚLTIMA MIGALHA
+                    if (cliente.precisaCorrecao) {
+                        corPino = "#000000"; 
+                    } else if (cliente.status === 'deslocamento') { 
+                        corPino = "#FACC15"; 
+                        posicaoCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                        statusCarro = "Em Deslocamento"; 
+                        corBordaCarro = corPino; 
+                        jaIniciou = true; 
+                    } else if (cliente.status === 'chegada') { 
+                        corPino = "#F97316"; 
+                        // Se o técnico enviou a coordenada exata de check-in, o carro posiciona-se nela; senão, fica no cliente
+                        if (cliente.latCheckin && cliente.lonCheckin) {
+                            posicaoCarro = { lat: cliente.latCheckin, lon: cliente.lonCheckin };
+                        } else {
+                            posicaoCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                        }
+                        statusCarro = "No Local"; 
+                        corBordaCarro = corPino; 
+                        jaIniciou = true; 
+                    } else if (cliente.status === 'sucesso') { 
+                        corPino = "#10B981"; 
+                        posicaoCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                        statusCarro = "Finalizou Última"; 
+                        corBordaCarro = corPino; 
+                        jaIniciou = true; 
+                    } else if (cliente.status === 'insucesso') { 
+                        corPino = "#EF4444"; 
+                        posicaoCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                        statusCarro = "Insucesso na Última"; 
+                        corBordaCarro = corPino; 
+                        jaIniciou = true; 
+                    } 
+
+                    // Desenhar rastro real (migalhas de GPS) se houver
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
                         L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
                         
-                        if (cliente.status === 'deslocamento') {
-                            let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
+                        let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
+                        if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
                             posicaoCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon };
                         }
                     }
 
-                    // CORREÇÃO: Usar coordenada real do check-in para o pino, caso exista
-                    let latPino = cliente.lat;
-                    let lonPino = cliente.lon;
-                    if ((cliente.status === 'chegada' || cliente.status === 'sucesso' || cliente.status === 'insucesso') && cliente.latCheckin && cliente.lonCheckin) {
-                        latPino = cliente.latCheckin;
-                        lonPino = cliente.lonCheckin;
-                    }
-
+                    // Renderiza o pino do cliente estritamente no endereço fixo
                     const miniIcon = L.divIcon({
                         className: 'custom-pin',
                         html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`,
                         iconSize: [22, 22]
                     });
-                    L.marker([latPino, lonPino], {icon: miniIcon}).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
+                    L.marker([latClienteFixo, lonClienteFixo], {icon: miniIcon}).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
                 });
 
                 if (jaIniciou) {
@@ -515,40 +540,59 @@
         rotaAtiva.forEach((cliente, index) => {
             const seq = index + 1;
             let corPino = "#64748B"; 
-            if (cliente.precisaCorrecao) corPino = "#000000"; 
-            else if (cliente.status === 'deslocamento') { corPino = "#FACC15"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
-            else if (cliente.status === 'chegada') { corPino = "#F97316"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
-            else if (cliente.status === 'sucesso') { corPino = "#10B981"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
-            else if (cliente.status === 'insucesso') { corPino = "#EF4444"; posicaoAtualCarro = cliente; corBordaCarroAtual = corPino; tecnicoJaIniciou = true; } 
 
-            // DESENHAR O RASTRO REAL E POSICIONAR O CARRO NA ÚLTIMA MIGALHA DO MODO INDIVIDUAL
+            // Coordenada fixa original do cliente
+            let latClienteFixo = cliente.lat;
+            let lonClienteFixo = cliente.lon;
+
+            if (cliente.precisaCorrecao) {
+                corPino = "#000000"; 
+            } else if (cliente.status === 'deslocamento') { 
+                corPino = "#FACC15"; 
+                posicaoAtualCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                corBordaCarroAtual = corPino; 
+                tecnicoJaIniciou = true; 
+            } else if (cliente.status === 'chegada') { 
+                corPino = "#F97316"; 
+                if (cliente.latCheckin && cliente.lonCheckin) {
+                    posicaoAtualCarro = { lat: cliente.latCheckin, lon: cliente.lonCheckin };
+                } else {
+                    posicaoAtualCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                }
+                corBordaCarroAtual = corPino; 
+                tecnicoJaIniciou = true; 
+            } else if (cliente.status === 'sucesso') { 
+                corPino = "#10B981"; 
+                posicaoAtualCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                corBordaCarroAtual = corPino; 
+                tecnicoJaIniciou = true; 
+            } else if (cliente.status === 'insucesso') { 
+                corPino = "#EF4444"; 
+                posicaoAtualCarro = { lat: latClienteFixo, lon: lonClienteFixo };
+                corBordaCarroAtual = corPino; 
+                tecnicoJaIniciou = true; 
+            } 
+
+            // Rastro real do GPS
             if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                 let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
                 L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
                 
-                if (cliente.status === 'deslocamento') {
-                    let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
+                let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
+                if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
                     posicaoAtualCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon };
                 }
             }
 
-            // CORREÇÃO: Usar coordenada real do check-in para o pino, caso exista
-            let latPino = cliente.lat;
-            let lonPino = cliente.lon;
-            if ((cliente.status === 'chegada' || cliente.status === 'sucesso' || cliente.status === 'insucesso') && cliente.latCheckin && cliente.lonCheckin) {
-                latPino = cliente.latCheckin;
-                lonPino = cliente.lonCheckin;
-            }
-
             if (index < limite) {
-                coordOSRM.push(`${lonPino},${latPino}`);
+                coordOSRM.push(`${lonClienteFixo},${latClienteFixo}`);
                 
                 const customIcon = L.divIcon({
                     className: 'custom-pin',
                     html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 13px;">${seq}</div>`,
                     iconSize: [26, 26], iconAnchor: [13, 13]
                 });
-                L.marker([latPino, lonPino], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
+                L.marker([latClienteFixo, lonClienteFixo], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
             }
 
             let opacidade = index < limite ? "1" : "0.4";
