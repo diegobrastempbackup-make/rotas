@@ -461,12 +461,20 @@
                         }
                     }
 
+                    // CORREÇÃO: Usar coordenada real do check-in para o pino, caso exista
+                    let latPino = cliente.lat;
+                    let lonPino = cliente.lon;
+                    if ((cliente.status === 'chegada' || cliente.status === 'sucesso' || cliente.status === 'insucesso') && cliente.latCheckin && cliente.lonCheckin) {
+                        latPino = cliente.latCheckin;
+                        lonPino = cliente.lonCheckin;
+                    }
+
                     const miniIcon = L.divIcon({
                         className: 'custom-pin',
                         html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`,
                         iconSize: [22, 22]
                     });
-                    L.marker([cliente.lat, cliente.lon], {icon: miniIcon}).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
+                    L.marker([latPino, lonPino], {icon: miniIcon}).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
                 });
 
                 if (jaIniciou) {
@@ -524,15 +532,23 @@
                 }
             }
 
+            // CORREÇÃO: Usar coordenada real do check-in para o pino, caso exista
+            let latPino = cliente.lat;
+            let lonPino = cliente.lon;
+            if ((cliente.status === 'chegada' || cliente.status === 'sucesso' || cliente.status === 'insucesso') && cliente.latCheckin && cliente.lonCheckin) {
+                latPino = cliente.latCheckin;
+                lonPino = cliente.lonCheckin;
+            }
+
             if (index < limite) {
-                coordOSRM.push(`${cliente.lon},${cliente.lat}`);
+                coordOSRM.push(`${lonPino},${latPino}`);
                 
                 const customIcon = L.divIcon({
                     className: 'custom-pin',
                     html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 13px;">${seq}</div>`,
                     iconSize: [26, 26], iconAnchor: [13, 13]
                 });
-                L.marker([cliente.lat, cliente.lon], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
+                L.marker([latPino, lonPino], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
             }
 
             let opacidade = index < limite ? "1" : "0.4";
