@@ -11,8 +11,8 @@ const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // =====================================================================
-// URL DO SEU SISTEMA NO RENDER (Para o Ping Anti-Hibernação)
-const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com/login.html"; 
+// [CORREÇÃO] Removido o "/login.html" do final para o ping funcionar corretamente
+const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com"; 
 // =====================================================================
 
 // MONGO DB
@@ -22,6 +22,12 @@ let db = null;
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+
+// [CORREÇÃO] Middleware de segurança para evitar crash se a requisição chegar antes da conexão do DB
+app.use((req, res, next) => {
+  if (!db) return res.status(503).json({ erro: "Banco de dados inicializando. Tente novamente em instantes." });
+  next();
+});
 
 // MIDDLEWARE DE AUTENTICAÇÃO
 const autenticarToken = (req, res, next) => {
@@ -135,11 +141,19 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
-    const { nome, usuario, senha, tipo } = req.body;
+    
+    // [CORREÇÃO] Permite que o Superadmin passe o cliente_id alvo pelo body, evitando cadastrar na tenant "GLOBAL_SYSTEM"
+    const { nome, usuario, senha, tipo, cliente_id } = req.body; 
+    
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (existe) return res.status(400).json({ erro: "Login já em uso" });
+    
     const senhaHash = await bcrypt.hash(senha, 10);
-    await db.collection("usuarios").insertOne({ cliente_id: req.usuario.cliente_id, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date() });
+    
+    // [CORREÇÃO] Validação do tenant para o novo usuário
+    const tenantId = (req.usuario.tipo === "superadmin" && cliente_id) ? cliente_id : req.usuario.cliente_id;
+
+    await db.collection("usuarios").insertOne({ cliente_id: tenantId, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date() });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -232,7 +246,7 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
 // 4. ATUALIZAR STATUS DA PARAGEM (TELEMETRIA EM TEMPO REAL)
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
-        const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo } = req.body;
+        const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
         
         let filterDoc = { 
             data: data, 
@@ -242,8 +256,21 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
         };
 
         let atualizacao = { "itinerario.$.status": novoStatus };
+
+        // Grava a hora exata da alteração do status
         if (campoTempo && valorTempo) {
             atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
+        }
+
+        // NOVO: Se o app enviou a localização real no clique, grava na paragem!
+        if (latitude !== undefined && longitude !== undefined) {
+            atualizacao["itinerario.$.latCheckin"] = latitude;
+            atualizacao["itinerario.$.lonCheckin"] = longitude;
+        }
+
+        // Registra motivo de insucesso, caso exista
+        if (motivo) {
+            atualizacao["itinerario.$.motivoInsucesso"] = motivo;
         }
 
         const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
@@ -384,6 +411,7 @@ async function iniciarSistema() {
 
     // LOOP ANTI-HIBERNAÇÃO
     setInterval(() => {
+      // [CORREÇÃO] Agora puxa da variável raiz correta e adiciona o /ping no request
       https.get(`${URL_DO_SEU_SISTEMA}/ping`, (resp) => {
         console.log(`⏱️ [${new Date().toLocaleTimeString()}] Ping automático enviado. Render mantido acordado!`);
       }).on("error", (err) => {
