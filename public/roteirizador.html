@@ -69,9 +69,6 @@
         .btn-lapis { background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 5px; font-size: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .btn-lapis:hover { color: #FACC15; background: rgba(255,255,255,0.05); }
 
-        .btn-mini { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 12px; font-weight: bold; }
-        .btn-mini:hover { background: #2563EB; }
-        
         .badge-turno { font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; }
         .badge-tarde { background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981; }
@@ -186,15 +183,12 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
+    // Configuração persistente do Galpão / Base (Guardado permanentemente no LocalStorage)
     let configGalpao = JSON.parse(localStorage.getItem("configGalpao"));
-if (!configGalpao) {
-    configGalpao = { 
-        lat: -23.5186083, 
-        lon: -46.7460113, 
-        nome: "Base Operacional", 
-        endereco: "Rua Antônio Ayrosa, 191 - Vila dos Remédios, São Paulo - SP" 
-    };
-}
+    if (!configGalpao || !configGalpao.lat) {
+        configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Rua Antonio Ayrosa 191" };
+        localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
+    }
 
     let mapa = null;
     let layerGrupo = null; 
@@ -399,9 +393,13 @@ if (!configGalpao) {
     }
 
     async function obterCoordenadasSilenciosa(cliente) {
-        let cepBusca = cliente.cep.replace(/\D/g, '');
+        let cepBusca = (cliente.cep || "").replace(/\D/g, '');
         if (cepBusca.length === 8) { try { let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`); if (r.ok) { let d = await r.json(); if (d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) }; } } catch(e) {} }
-        try { let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cliente.rua.split(',')[0].trim() + ', ' + cliente.cidade + ', Brasil')}`); if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; } } catch(e) {}
+        try { 
+            let termoBusca = cliente.rua || cliente.endereco || "";
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(termoBusca.split(',')[0].trim() + ', ' + (cliente.cidade || "São Paulo") + ', Brasil')}`); 
+            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; } 
+        } catch(e) {}
         return null; 
     }
 
@@ -427,11 +425,40 @@ if (!configGalpao) {
         atualizarTela(true); 
     }
 
+    // Função Interactiva para alterar a Base/Galpão (clicando no pino da base no mapa)
+    async function editarEnderecoGalpao() {
+        let novoEndereco = prompt("✏️ Digite o novo endereço ou rua da Base / Galpão:", configGalpao.endereco);
+        if (!novoEndereco || novoEndereco.trim() === "") return;
+
+        let crds = await obterCoordenadasSilenciosa({ rua: novoEndereco, cidade: "São Paulo" });
+        if (!crds) {
+            alert("❌ Não foi possível encontrar coordenadas GPS para este endereço da Base.");
+            return;
+        }
+
+        configGalpao = {
+            lat: crds.lat,
+            lon: crds.lon,
+            nome: "Base Operacional",
+            endereco: novoEndereco
+        };
+
+        // Salva permanentemente para o dia seguinte e recarregamentos
+        localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
+        alert("✅ Base atualizada e salva com sucesso!");
+        atualizarTela(true);
+    }
+
    async function atualizarTela(recentrarMapa = true) {
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
 
-        const iconeGalpao = L.divIcon({ className: 'custom-pin', html: `<div style="background: #000; color: white; border-radius: 8px; padding: 4px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap;">🏢 Base</div>`, iconSize: [40, 20] });
+        // Pino da Base interactivo (clique nele abre prompt para alteração)
+        const iconeGalpao = L.divIcon({ 
+            className: 'custom-pin', 
+            html: `<div onclick="editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, 
+            iconSize: [140, 30] 
+        });
         L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
 
         if (modoVisaoGlobal) {
@@ -451,8 +478,6 @@ if (!configGalpao) {
                 
                 roteiro.itinerario.forEach((cliente, idx) => {
                     let corPino = "#64748B"; 
-                    
-                    // O cliente permanece SEMPRE fixo nas coordenadas originais dele (cliente.lat e cliente.lon)
                     let latClienteFixo = cliente.lat;
                     let lonClienteFixo = cliente.lon;
 
@@ -466,7 +491,6 @@ if (!configGalpao) {
                         jaIniciou = true; 
                     } else if (cliente.status === 'chegada') { 
                         corPino = "#F97316"; 
-                        // Se o técnico enviou a coordenada exata de check-in, o carro posiciona-se nela; senão, fica no cliente
                         if (cliente.latCheckin && cliente.lonCheckin) {
                             posicaoCarro = { lat: cliente.latCheckin, lon: cliente.lonCheckin };
                         } else {
@@ -489,7 +513,6 @@ if (!configGalpao) {
                         jaIniciou = true; 
                     } 
 
-                    // Desenhar rastro real (migalhas de GPS) se houver
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
                         L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
@@ -500,7 +523,6 @@ if (!configGalpao) {
                         }
                     }
 
-                    // Renderiza o pino do cliente estritamente no endereço fixo
                     const miniIcon = L.divIcon({
                         className: 'custom-pin',
                         html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`,
@@ -548,7 +570,6 @@ if (!configGalpao) {
             const seq = index + 1;
             let corPino = "#64748B"; 
 
-            // Coordenada fixa original do cliente
             let latClienteFixo = cliente.lat;
             let lonClienteFixo = cliente.lon;
 
@@ -580,7 +601,6 @@ if (!configGalpao) {
                 tecnicoJaIniciou = true; 
             } 
 
-            // Rastro real do GPS
             if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                 let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
                 L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
@@ -725,7 +745,7 @@ if (!configGalpao) {
 
     function ativarVisaoGlobal() {
         if (!visualizandoHistorico) {
-            alert("⚠️ MODO RASCUNHO DETETADO!\n\nPara o Radar funcionar ao vivo com os telemóveis, você precisa seguir a ordem:\n1º Salvar Planejamento no Banco\n2º Buscar Planejamento (usando a data de hoje)\n\nSó depois de Buscar é que a Torre de Controle se conecta à rua!");
+            alert("⚠️ MODO RASCUNHO DETECTADO!\n\nPara o Radar funcionar ao vivo com os telemóveis, você precisa seguir a ordem:\n1º Salvar Planejamento no Banco\n2º Buscar Planejamento (usando a data de hoje)\n\nSó depois de Buscar é que a Torre de Controle se conecta à rua!");
             return;
         }
 
