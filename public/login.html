@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - NERI 2.0</title>
-    
 </head>
 <body>
 <style>
@@ -22,318 +21,316 @@ body{
 }
 
 body{
-
     font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
-
     background:
         linear-gradient(rgba(5,15,30,.55),rgba(5,15,30,.55)),
         url("fundo-login.png");
-
     background-size:cover;
     background-position:center;
     background-repeat:no-repeat;
     background-attachment:fixed;
-
     display:flex;
     justify-content:center;
     align-items:center;
-
     overflow:hidden;
-
     color:#FFF;
 }
 
 /*==============================
     CAIXA DO LOGIN
 ==============================*/
-
 .login-box{
-
     position:relative;
-
-    width:580px;
+    width:520px;
     max-width:92%;
-
-    padding:60px 70px;
-
-    background:rgba(8,18,34,.88);
-
-    backdrop-filter:blur(18px);
-
-    border-radius:22px;
-
-    border:1px solid rgba(120,180,255,.20);
-
-    box-shadow:
-        0 35px 90px rgba(0,0,0,.65),
-        inset 0 0 0 1px rgba(255,255,255,.03);
-
-    overflow:hidden;
-
+    padding:50px 60px;
+    
+    /* Transparência e Glassmorphism */
+    background: rgba(10, 22, 45, 0.35);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border-radius: 24px;
+    
+    /* Borda sutil e brilho */
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 
+        0 30px 60px rgba(0, 0, 0, 0.6),
+        0 0 40px rgba(47, 132, 255, 0.15),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    
+    overflow: hidden;
 }
 
+/* Efeito de luz superior na borda */
 .login-box::before{
-
     content:"";
-
     position:absolute;
-
-    inset:0;
-
-    border-radius:22px;
-
-    padding:1px;
-
-    background:linear-gradient(
-        135deg,
-        rgba(0,180,255,.45),
-        rgba(255,255,255,.04),
-        rgba(0,180,255,.25)
-    );
-
-    -webkit-mask:
-        linear-gradient(#fff 0 0) content-box,
-        linear-gradient(#fff 0 0);
-
-    -webkit-mask-composite:xor;
-
-    pointer-events:none;
-
+    top: 0;
+    left: 15%;
+    right: 15%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(120, 180, 255, 0.8), transparent);
+    box-shadow: 0 0 15px rgba(120, 180, 255, 0.6);
 }
 
 /*==============================
     LOGO
 ==============================*/
-
 .logo-container{
-
     text-align:center;
-
-    margin-bottom:35px;
-
+    margin-bottom:25px;
 }
-
 .logo-container img{
-
-    width:240px;
-
+    width:280px; /* Mais imponente */
     max-width:100%;
-
-    filter:drop-shadow(0 0 18px rgba(30,140,255,.45));
-
+    filter:drop-shadow(0 0 20px rgba(30,140,255,.6));
 }
 
 /*==============================
-    TITULO
+    TITULO (BEM-VINDO)
 ==============================*/
-
-.login-box h2{
-
-    text-align:center;
-
-    font-size:46px;
-
-    font-weight:700;
-
-    margin-bottom:45px;
-
-    color:white;
-
+.welcome-text {
+    text-align: center;
+    margin-bottom: 40px;
+}
+.welcome-text h2 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #3B82F6;
+    margin-bottom: 8px;
+    text-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+}
+.welcome-text p {
+    font-size: 16px;
+    color: #A0B3C6;
 }
 
 /*==============================
     CAMPOS
 ==============================*/
-
 .input-group{
-
-    margin-bottom:28px;
-
+    margin-bottom:24px;
 }
-
 .input-group label{
-
     display:block;
-
-    margin-bottom:12px;
-
-    color:#D5E0F3;
-
-    font-size:19px;
-
+    margin-bottom:10px;
+    color:#E2E8F0;
+    font-size:15px;
+}
+.input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.input-wrapper .icon-left {
+    position: absolute;
+    left: 20px;
+    width: 20px;
+    height: 20px;
+    stroke: #3B82F6;
+}
+.input-wrapper .icon-right {
+    position: absolute;
+    right: 20px;
+    width: 20px;
+    height: 20px;
+    stroke: #64748B;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.input-wrapper .icon-right:hover {
+    stroke: #A0B3C6;
 }
 
 .input-group input{
-
     width:100%;
-
-    height:66px;
-
-    padding:0 22px;
-
-    border-radius:14px;
-
-    border:1px solid rgba(255,255,255,.12);
-
-    background:rgba(255,255,255,.08);
-
+    height:56px;
+    padding:0 50px 0 55px; /* Espaço para os ícones */
+    border-radius:12px;
+    
+    /* Fundo escuro transparente */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.25);
+    
     color:white;
-
-    font-size:21px;
-
+    font-size:16px;
     transition:.30s;
-
 }
-
 .input-group input::placeholder{
-
-    color:#9fb0ca;
-
+    color:#64748B;
 }
-
 .input-group input:focus{
-
     outline:none;
-
-    border-color:#2E89FF;
-
-    box-shadow:
-        0 0 18px rgba(46,137,255,.35);
-
+    border-color:#3B82F6;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
 }
 
 /*==============================
     BOTÃO
 ==============================*/
-
 .btn-login{
-
     width:100%;
-
-    height:68px;
-
+    height:60px;
     border:none;
-
-    border-radius:14px;
-
+    border-radius:12px;
     cursor:pointer;
-
-    font-size:24px;
-
-    font-weight:700;
-
+    font-size:18px;
+    font-weight:600;
     color:white;
-
-    background:linear-gradient(180deg,#2F84FF,#1A5BE6);
-
-    box-shadow:
-        0 15px 35px rgba(30,90,255,.40);
-
+    background:linear-gradient(135deg, #1A5BE6, #3B82F6);
+    box-shadow: 0 10px 25px rgba(30, 90, 255, 0.3);
     transition:.30s;
-
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
-
 .btn-login:hover{
-
     transform:translateY(-2px);
-
-    background:linear-gradient(180deg,#4695FF,#2467F2);
-
+    background:linear-gradient(135deg, #2467F2, #4695FF);
+    box-shadow: 0 15px 35px rgba(30, 90, 255, 0.4);
+}
+.btn-login:disabled{
+    opacity:.7;
+    cursor:not-allowed;
 }
 
-.btn-login:disabled{
-
-    opacity:.7;
-
-    cursor:not-allowed;
-
+/*==============================
+    RODAPÉ / ACESSO RESTRITO
+==============================*/
+.login-footer {
+    margin-top: 35px;
+}
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #64748B;
+    font-size: 14px;
+    margin-bottom: 25px;
+}
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.divider span {
+    padding: 0 15px;
+}
+.security-msg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #A0B3C6;
+    font-size: 13px;
+    gap: 8px;
 }
 
 /*==============================
     ERRO
 ==============================*/
-
 .erro-msg{
-
     text-align:center;
-
-    margin-top:20px;
-
+    margin-top:15px;
     color:#FF6A6A;
-
-    font-size:16px;
-
+    font-size:14px;
     min-height:20px;
-
 }
 
 /*==============================
     RESPONSIVO
 ==============================*/
-
 @media (max-width:700px){
-
     .login-box{
-
         width:95%;
-
-        padding:40px;
-
+        padding:40px 30px;
     }
-
     .logo-container img{
-
-        width:190px;
-
+        width:220px;
     }
-
-    .login-box h2{
-
-        font-size:34px;
-
+    .welcome-text h2{
+        font-size:26px;
     }
-
     .input-group input{
-
-        height:58px;
-
-        font-size:18px;
-
+        height:52px;
+        font-size:15px;
     }
-
     .btn-login{
-
-        height:60px;
-
-        font-size:20px;
-
+        height:56px;
+        font-size:16px;
     }
-
 }
-
 </style>
+
     <div class="login-box">
         <div class="logo-container">
             <img src="logo.svg" alt="NERI Logo" onerror="this.style.display='none'">
         </div>
-        <h2>Acesso ao Sistema</h2>
+        
+        <div class="welcome-text">
+            <h2>Bem-vindo!</h2>
+            <p>Faça login para continuar</p>
+        </div>
         
         <div class="input-group">
             <label for="usuario">Utilizador</label>
-            <input type="text" id="usuario" placeholder="Digite o seu login" autocomplete="username">
+            <div class="input-wrapper">
+                <svg class="icon-left" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <input type="text" id="usuario" placeholder="Digite o seu login" autocomplete="username">
+            </div>
         </div>
         
         <div class="input-group">
             <label for="senha">Palavra-passe</label>
-            <input type="password" id="senha" placeholder="Digite a sua senha" autocomplete="current-password">
+            <div class="input-wrapper">
+                <svg class="icon-left" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <input type="password" id="senha" placeholder="Digite a sua senha" autocomplete="current-password">
+                <svg class="icon-right" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="togglePassword()">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </div>
         </div>
         
-        <button class="btn-login" id="btn-entrar" onclick="fazerLogin()">Entrar</button>
+        <button class="btn-login" id="btn-entrar" onclick="fazerLogin()">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            Entrar
+        </button>
         
         <div class="erro-msg" id="erro-msg"></div>
+
+        <div class="login-footer">
+            <div class="divider"><span>ou</span></div>
+            <div class="security-msg">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <span>Acesso restrito. Por favor, utilize suas credenciais.</span>
+            </div>
+        </div>
     </div>
 
     <script>
+        function togglePassword() {
+            const senhaInput = document.getElementById("senha");
+            if (senhaInput.type === "password") {
+                senhaInput.type = "text";
+            } else {
+                senhaInput.type = "password";
+            }
+        }
+
         document.getElementById("senha").addEventListener("keypress", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -353,7 +350,7 @@ body{
             }
 
             erroMsg.innerText = "";
-            btn.innerText = "Aguarde...";
+            btn.innerHTML = "Aguarde...";
             btn.disabled = true;
 
             try {
@@ -372,7 +369,6 @@ body{
 
                     const tipo = dados.tipo;
 
-                    // O NOVO REDIRECIONAMENTO (MODO QUIOSQUE E SUPER ADMIN INCLUÍDOS)
                     if (tipo === "totem") {
                         window.location.replace(`totem.html?token=${dados.token}`);
                     } else if (tipo === "tecnico") {
@@ -380,7 +376,6 @@ body{
                     } else if (tipo === "estoque") {
                         window.location.replace(`estoque.html?token=${dados.token}`);
                     } else if (tipo === "superadmin") {
-                        // O Super Admin vai direto para a sala de comando!
                         window.location.replace(`tecnicos.html?token=${dados.token}`);
                     } else if (tipo === "master" || tipo === "admin" || tipo === "simples") {
                         window.location.replace(`index.html?token=${dados.token}`);
@@ -389,12 +384,12 @@ body{
                     }
                 } else {
                     erroMsg.innerText = dados.erro || "Erro de autenticação.";
-                    btn.innerText = "Entrar";
+                    btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg> Entrar`;
                     btn.disabled = false;
                 }
             } catch (err) {
                 erroMsg.innerText = "Falha de ligação com o servidor.";
-                btn.innerText = "Entrar";
+                btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg> Entrar`;
                 btn.disabled = false;
             }
         }
