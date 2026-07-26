@@ -5,90 +5,175 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - NERI 2.0</title>
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background-color: #0F172A; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            color: white; 
-        }
-        .login-box { 
-            background-color: #1E293B; 
-            padding: 40px; 
-            border-radius: 12px; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
-            width: 100%; 
-            max-width: 380px; 
-            text-align: center; 
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-        .login-box h2 { 
-            margin-top: 0; 
-            color: #E2E8F0; 
-            font-size: 24px; 
-            margin-bottom: 30px;
-        }
-        .input-group { 
-            margin-bottom: 20px; 
-            text-align: left; 
-        }
-        .input-group label { 
-            display: block; 
-            margin-bottom: 8px; 
-            color: #94A3B8; 
-            font-size: 14px; 
-        }
-        .input-group input { 
-            width: 100%; 
-            padding: 12px; 
-            border-radius: 8px; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            background-color: #0F172A; 
-            color: white; 
-            box-sizing: border-box; 
-            font-size: 15px;
-            transition: 0.3s;
-        }
-        .input-group input:focus { 
-            outline: none; 
-            border-color: #3B82F6; 
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-        }
-        .btn-login { 
-            width: 100%; 
-            padding: 12px; 
-            background-color: #3B82F6; 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            transition: 0.3s; 
-            margin-top: 10px;
-        }
-        .btn-login:hover { 
-            background-color: #2563EB; 
-        }
-        .btn-login:disabled { 
-            background-color: #475569; 
-            cursor: not-allowed; 
-        }
-        .erro-msg { 
-            color: #EF4444; 
-            margin-top: 15px; 
-            font-size: 14px; 
-            min-height: 20px; 
-        }
-        .logo-container img {
-            max-width: 150px;
-            margin-bottom: 20px;
-        }
-    </style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+
+    font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+
+    background:
+        linear-gradient(rgba(5,15,30,.55),rgba(5,15,30,.55)),
+        url("fundo-login.png");
+
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    background-attachment:fixed;
+
+    width:100%;
+    height:100vh;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    overflow:hidden;
+
+    color:white;
+
+}
+
+.login-box{
+
+    width:400px;
+
+    background:rgba(15,23,42,.82);
+
+    backdrop-filter:blur(14px);
+
+    border-radius:18px;
+
+    padding:40px;
+
+    border:1px solid rgba(255,255,255,.08);
+
+    box-shadow:0 25px 60px rgba(0,0,0,.55);
+
+}
+
+.logo-container{
+
+    text-align:center;
+    margin-bottom:25px;
+
+}
+
+.logo-container img{
+
+    width:140px;
+
+}
+
+.login-box h2{
+
+    text-align:center;
+
+    margin-bottom:30px;
+
+    font-size:26px;
+
+    color:white;
+
+}
+
+.input-group{
+
+    margin-bottom:20px;
+
+}
+
+.input-group label{
+
+    display:block;
+
+    margin-bottom:8px;
+
+    color:#b8c7dc;
+
+    font-size:14px;
+
+}
+
+.input-group input{
+
+    width:100%;
+
+    height:48px;
+
+    border-radius:8px;
+
+    border:1px solid rgba(255,255,255,.15);
+
+    background:rgba(255,255,255,.08);
+
+    color:white;
+
+    padding:0 15px;
+
+    font-size:15px;
+
+    transition:.3s;
+
+}
+
+.input-group input:focus{
+
+    outline:none;
+
+    border-color:#2196f3;
+
+    box-shadow:0 0 10px rgba(33,150,243,.4);
+
+}
+
+.btn-login{
+
+    width:100%;
+
+    height:48px;
+
+    border:none;
+
+    border-radius:8px;
+
+    background:#1976D2;
+
+    color:white;
+
+    font-size:17px;
+
+    font-weight:600;
+
+    cursor:pointer;
+
+    transition:.3s;
+
+}
+
+.btn-login:hover{
+
+    background:#2196F3;
+
+    transform:translateY(-2px);
+
+}
+
+.erro-msg{
+
+    text-align:center;
+
+    margin-top:15px;
+
+    color:#ff5b5b;
+
+}
+
+</style>
 </head>
 <body>
 
