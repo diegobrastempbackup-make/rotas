@@ -187,7 +187,14 @@
     }
 
     let configGalpao = JSON.parse(localStorage.getItem("configGalpao"));
-    if (!configGalpao) configGalpao = { lat: -23.5184, lon: -46.7461, nome: "Base Operacional", endereco: "Rua Antonio Ayrosa 191" };
+if (!configGalpao) {
+    configGalpao = { 
+        lat: -23.5186083, 
+        lon: -46.7460113, 
+        nome: "Base Operacional", 
+        endereco: "Rua Antônio Ayrosa, 191 - Vila dos Remédios, São Paulo - SP" 
+    };
+}
 
     let mapa = null;
     let layerGrupo = null; 
