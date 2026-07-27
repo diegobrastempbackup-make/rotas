@@ -565,10 +565,8 @@
                 iconSize: [26, 26], iconAnchor: [13, 13]
             });
             L.marker([latClienteFixo, lonClienteFixo], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
-            if (cliente.rastroReal && cliente.rastroReal.length > 0) {
-            let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
-            L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
-        }
+            
+           
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             let hSaida = cliente.horaSaida || "-";
             let hChegada = cliente.horaChegada || "-";
@@ -645,6 +643,21 @@
                 L.polyline(coordsLine, { color: 'rgba(59, 130, 246, 0.6)', weight: 3, dashArray: '8, 8' }).addTo(layerGrupo);
             }
         }
+
+        // --- DESENHA O RASTRO REAL VERMELHO POR CÚMULO POR ÚLTIMO PARA COBRIR A LINHA AZUL ---
+        let rastroTotalCoordenadas = [];
+        rotaAtiva.forEach(cliente => {
+            if (cliente.rastroReal && cliente.rastroReal.length > 0) {
+                cliente.rastroReal.forEach(p => {
+                    rastroTotalCoordenadas.push([p.lat, p.lon]);
+                });
+            }
+        });
+
+        if (rastroTotalCoordenadas.length > 0) {
+            L.polyline(rastroTotalCoordenadas, { color: '#EF4444', weight: 5, opacity: 0.9, zIndexOffset: 500 }).addTo(layerGrupo);
+        }
+        // ------------------------------------------------------------------------------------
         
         if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
     }
