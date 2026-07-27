@@ -497,7 +497,7 @@
                     // PRIORIDADE ABSOLUTA: Se houver rastro real do GPS do telemóvel, o carro usa a migalha em tempo real
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
-                        L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
+                        //L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
                         
                         let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
                         if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
@@ -565,7 +565,10 @@
                 iconSize: [26, 26], iconAnchor: [13, 13]
             });
             L.marker([latClienteFixo, lonClienteFixo], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
-
+            if (cliente.rastroReal && cliente.rastroReal.length > 0) {
+            let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
+            L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
+        }
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             let hSaida = cliente.horaSaida || "-";
             let hChegada = cliente.horaChegada || "-";
