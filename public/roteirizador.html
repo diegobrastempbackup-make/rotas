@@ -472,7 +472,9 @@
         layerGrupo = L.featureGroup().addTo(mapa);
 
         const iconeGalpao = L.divIcon({ 
-            className: 'custom-pin', html: `<div onclick="editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, iconSize: [140, 30] 
+            className: 'custom-pin', 
+            html: `<div onclick="editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, 
+            iconSize: [140, 30] 
         });
         L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
 
@@ -487,48 +489,126 @@
 
             listaTotal.forEach(roteiro => {
                 let posicaoCarro = { lat: configGalpao.lat, lon: configGalpao.lon };
-                let statusCarro = "Aguardando Início"; let corBordaCarro = "#64748B"; let jaIniciou = false; 
+                let statusCarro = "Aguardando Início";
+                let corBordaCarro = "#64748B"; 
+                let jaIniciou = false; 
+                let maiorTempoCarroGlobal = 0; // Ajuda a achar o GPS mais recente!
                 
                 roteiro.itinerario.forEach((cliente, idx) => {
-                    let corPino = "#64748B"; let latClienteFixo = cliente.lat; let lonClienteFixo = cliente.lon;
+                    let corPino = "#64748B"; 
+                    let latClienteFixo = cliente.lat;
+                    let lonClienteFixo = cliente.lon;
 
-                    if (cliente.precisaCorrecao) { corPino = "#000000"; } else if (cliente.status === 'deslocamento') { corPino = "#FACC15"; jaIniciou = true; } else if (cliente.status === 'chegada') { corPino = "#F97316"; jaIniciou = true; } else if (cliente.status === 'sucesso') { corPino = "#10B981"; jaIniciou = true; } else if (cliente.status === 'insucesso') { corPino = "#EF4444"; jaIniciou = true; } 
+                    if (cliente.precisaCorrecao) {
+                        corPino = "#000000"; 
+                    } else if (cliente.status === 'deslocamento') { 
+                        corPino = "#FACC15"; jaIniciou = true; 
+                    } else if (cliente.status === 'chegada') { 
+                        corPino = "#F97316"; jaIniciou = true; 
+                    } else if (cliente.status === 'sucesso') { 
+                        corPino = "#10B981"; jaIniciou = true; 
+                    } else if (cliente.status === 'insucesso') { 
+                        corPino = "#EF4444"; jaIniciou = true; 
+                    } 
 
+                    // --- NOVO: Procura o Ping GPS temporalmente mais recente de TODAS as OS ---
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
-                        if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) { posicaoCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon }; statusCarro = "Em Movimento (GPS Real)"; corBordaCarro = "#3B82F6"; jaIniciou = true; }
-                    } else if (cliente.latCheckin && cliente.lonCheckin && (cliente.status === 'chegada' || cliente.status === 'sucesso')) {
-                        posicaoCarro = { lat: cliente.latCheckin, lon: cliente.lonCheckin }; statusCarro = "No Local de Atendimento"; corBordaCarro = corPino; jaIniciou = true;
+                        if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
+                            let tempoMigalha = ultimaMigalha.timestamp ? new Date(ultimaMigalha.timestamp).getTime() : 0;
+                            // Só atualiza a posição do carro se essa migalha for mais nova que a anterior
+                            if (tempoMigalha >= maiorTempoCarroGlobal) {
+                                maiorTempoCarroGlobal = tempoMigalha;
+                                posicaoCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon };
+                                statusCarro = "Em Movimento (GPS Real)";
+                                corBordaCarro = "#3B82F6";
+                                jaIniciou = true;
+                            }
+                        }
                     }
 
-                    const miniIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`, iconSize: [22, 22] });
+                    const miniIcon = L.divIcon({
+                        className: 'custom-pin',
+                        html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`,
+                        iconSize: [22, 22]
+                    });
                     L.marker([latClienteFixo, lonClienteFixo], {icon: miniIcon}).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
                 });
 
                 if (jaIniciou) {
-                    const carIcon = L.divIcon({ className: 'custom-pin', html: `<div class="car-pin" style="border-color: ${corBordaCarro};">🚗 ${roteiro.tecnico.split(' ')[0]}</div>`, iconSize: [80, 25], iconAnchor: [40, 12] });
+                    const carIcon = L.divIcon({
+                        className: 'custom-pin',
+                        html: `<div class="car-pin" style="border-color: ${corBordaCarro};">🚗 ${roteiro.tecnico.split(' ')[0]}</div>`,
+                        iconSize: [80, 25], iconAnchor: [40, 12]
+                    });
                     L.marker([posicaoCarro.lat, posicaoCarro.lon], {icon: carIcon}).bindPopup(`<b>Viatura: ${roteiro.tecnico}</b><br>Status Atual: ${statusCarro}`).addTo(layerGrupo);
                 }
             });
-            if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]}); return; 
+
+            if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+            return; 
         }
 
-        document.getElementById("painelPlayback").style.display = "flex"; document.getElementById("tituloPainelLateral").innerText = "🛠️ Itinerário";
-        const slider = document.getElementById("sliderPlayback"); let progressoSlider = parseFloat(slider.value) / parseFloat(slider.max || 10);
-        let htmlLista = ""; let coordOSRM = [`${configGalpao.lon},${configGalpao.lat}`];
+        // ============================================
+        // MODO INDIVIDUAL (LINHA DO TEMPO)
+        // ============================================
+        document.getElementById("painelPlayback").style.display = "flex";
+        document.getElementById("tituloPainelLateral").innerText = "🛠️ Itinerário";
+        
+        const slider = document.getElementById("sliderPlayback");
+        let progressoSlider = parseFloat(slider.value) / parseFloat(slider.max || 10);
+        
+        let htmlLista = "";
+        let coordOSRM = [`${configGalpao.lon},${configGalpao.lat}`];
+        
+        let pingMaisRecenteIndividual = null;
+        let maiorTempoIndividual = 0;
 
         rotaAtiva.forEach((cliente, index) => {
-            const seq = index + 1; let corPino = "#64748B"; let latClienteFixo = cliente.lat; let lonClienteFixo = cliente.lon;
-            if (cliente.precisaCorrecao) corPino = "#000000"; else if (cliente.status === 'deslocamento') corPino = "#FACC15"; else if (cliente.status === 'chegada') corPino = "#F97316"; else if (cliente.status === 'sucesso') corPino = "#10B981"; else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
+            const seq = index + 1;
+            let corPino = "#64748B"; 
+            let latClienteFixo = cliente.lat;
+            let lonClienteFixo = cliente.lon;
+
+            if (cliente.precisaCorrecao) corPino = "#000000"; 
+            else if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
+            else if (cliente.status === 'chegada') corPino = "#F97316"; 
+            else if (cliente.status === 'sucesso') corPino = "#10B981"; 
+            else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
 
             coordOSRM.push(`${lonClienteFixo},${latClienteFixo}`);
             
-            const customIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 13px;">${seq}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+            const customIcon = L.divIcon({
+                className: 'custom-pin',
+                html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 13px;">${seq}</div>`,
+                iconSize: [26, 26], iconAnchor: [13, 13]
+            });
             L.marker([latClienteFixo, lonClienteFixo], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
             
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
-            let hSaida = cliente.horaSaida || "-"; let hChegada = cliente.horaChegada || "-"; let hFinal = cliente.horaFinal || "-";
-            let telemetriaHTML = `<div class="card-telemetria"><span class="time-stamp" title="Deslocamento">🚗 ${hSaida}</span><span class="time-stamp" title="Chegada">📍 ${hChegada}</span><span class="time-stamp" title="Finalização">🏁 ${hFinal}</span></div>`;
+            let hSaida = cliente.horaSaida || "-";
+            let hChegada = cliente.horaChegada || "-";
+            let hFinal = cliente.horaFinal || "-";
+
+            let telemetriaHTML = `
+                <div class="card-telemetria">
+                    <span class="time-stamp" title="Deslocamento">🚗 ${hSaida}</span>
+                    <span class="time-stamp" title="Chegada">📍 ${hChegada}</span>
+                    <span class="time-stamp" title="Finalização">🏁 ${hFinal}</span>
+                </div>
+            `;
+            
+            // --- NOVO: Procura o Ping GPS temporalmente mais recente de TODAS as OS (Para o Modo Individual) ---
+            if (cliente.rastroReal && cliente.rastroReal.length > 0) {
+                let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
+                if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
+                    let tempoMigalha = ultimaMigalha.timestamp ? new Date(ultimaMigalha.timestamp).getTime() : 0;
+                    if (tempoMigalha >= maiorTempoIndividual) {
+                        maiorTempoIndividual = tempoMigalha;
+                        pingMaisRecenteIndividual = ultimaMigalha;
+                    }
+                }
+            }
 
             htmlLista += `
                 <div class="itinerario-item" style="border-left-color: ${corPino};" draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})">
@@ -548,34 +628,64 @@
                 </div>
             `;
         });
+
         document.getElementById("listaItinerarioUI").innerHTML = htmlLista;
 
         if (coordOSRM.length > 1) {
             try {
-                let resRota = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordOSRM.join(';')}?overview=full&geometries=geojson`); let dadosRota = await resRota.json();
+                let resRota = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordOSRM.join(';')}?overview=full&geometries=geojson`);
+                let dadosRota = await resRota.json();
+                
                 if (dadosRota.routes && dadosRota.routes.length > 0) {
-                    let coordenadasRotaCompleta = dadosRota.routes[0].geometry.coordinates; let distanciaTotalMetros = dadosRota.routes[0].distance;
+                    let coordenadasRotaCompleta = dadosRota.routes[0].geometry.coordinates; 
+                    let distanciaTotalMetros = dadosRota.routes[0].distance;
+                    
                     document.getElementById("txtKMTarefa").innerText = `${(distanciaTotalMetros / 1000 * 1.3 * progressoSlider).toFixed(1)} KM percorridos`;
                     document.getElementById("lblPlaybackStatus").innerText = `Progresso do Percurso: ${Math.round(progressoSlider * 100)}%`;
 
-                    let limiteCoordenadas = Math.max(2, Math.floor(coordenadasRotaCompleta.length * progressoSlider)); let subCoordenadasLonLat = coordenadasRotaCompleta.slice(0, limiteCoordenadas); let subCoordenadasLatLon = subCoordenadasLonLat.map(coord => [coord[1], coord[0]]);
+                    let limiteCoordenadas = Math.max(2, Math.floor(coordenadasRotaCompleta.length * progressoSlider));
+                    let subCoordenadasLonLat = coordenadasRotaCompleta.slice(0, limiteCoordenadas);
+                    let subCoordenadasLatLon = subCoordenadasLonLat.map(coord => [coord[1], coord[0]]);
+
                     L.polyline(subCoordenadasLatLon, { color: '#3B82F6', weight: 5, opacity: 0.9 }).addTo(layerGrupo);
 
                     if (subCoordenadasLatLon.length > 0) {
-                        let ultimaCoord = subCoordenadasLatLon[subCoordenadasLatLon.length - 1]; let ultimaOSComRastro = [...rotaAtiva].reverse().find(c => c.rastroReal && c.rastroReal.length > 0); let posicaoRenderCarro = ultimaCoord;
-                        if (progressoSlider >= 0.99 && ultimaOSComRastro) { let ultimaMigalha = ultimaOSComRastro.rastroReal[ultimaOSComRastro.rastroReal.length - 1]; if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) { posicaoRenderCarro = [ultimaMigalha.lat, ultimaMigalha.lon]; } }
-                        const carIcon = L.divIcon({ className: 'custom-pin', html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 ${tecnicoAtivo ? tecnicoAtivo.split(' ')[0] : 'Técnico'}</div>`, iconSize: [80, 25], iconAnchor: [40, 12] });
+                        // Começamos assumindo a posição final da linha azul desenhada no OSRM
+                        let posicaoRenderCarro = subCoordenadasLatLon[subCoordenadasLatLon.length - 1];
+                        
+                        // Se o slider está a 100% (tempo real) e achámos um ping fresco, furamos a linha do OSRM e saltamos para o GPS exato!
+                        if (progressoSlider >= 0.99 && pingMaisRecenteIndividual) {
+                            posicaoRenderCarro = [pingMaisRecenteIndividual.lat, pingMaisRecenteIndividual.lon];
+                        }
+
+                        const carIcon = L.divIcon({
+                            className: 'custom-pin',
+                            html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 ${tecnicoAtivo ? tecnicoAtivo.split(' ')[0] : 'Técnico'}</div>`,
+                            iconSize: [80, 25], iconAnchor: [40, 12]
+                        });
                         L.marker(posicaoRenderCarro, {icon: carIcon, zIndexOffset: 1000}).addTo(layerGrupo);
                     }
                 }
             } catch(e) {
-                let coordsLine = rotaAtiva.map(c => [c.lat, c.lon]); coordsLine.unshift([configGalpao.lat, configGalpao.lon]); L.polyline(coordsLine, { color: 'rgba(59, 130, 246, 0.6)', weight: 3, dashArray: '8, 8' }).addTo(layerGrupo);
+                let coordsLine = rotaAtiva.map(c => [c.lat, c.lon]);
+                coordsLine.unshift([configGalpao.lat, configGalpao.lon]);
+                L.polyline(coordsLine, { color: 'rgba(59, 130, 246, 0.6)', weight: 3, dashArray: '8, 8' }).addTo(layerGrupo);
             }
         }
 
         let rastroTotalCoordenadas = [];
-        rotaAtiva.forEach(cliente => { if (cliente.rastroReal && cliente.rastroReal.length > 0) { cliente.rastroReal.forEach(p => { rastroTotalCoordenadas.push([p.lat, p.lon]); }); } });
-        if (rastroTotalCoordenadas.length > 0) { L.polyline(rastroTotalCoordenadas, { color: '#EF4444', weight: 5, opacity: 0.9, zIndexOffset: 500 }).addTo(layerGrupo); }
+        rotaAtiva.forEach(cliente => {
+            if (cliente.rastroReal && cliente.rastroReal.length > 0) {
+                cliente.rastroReal.forEach(p => {
+                    rastroTotalCoordenadas.push([p.lat, p.lon]);
+                });
+            }
+        });
+
+        if (rastroTotalCoordenadas.length > 0) {
+            L.polyline(rastroTotalCoordenadas, { color: '#EF4444', weight: 5, opacity: 0.9, zIndexOffset: 500 }).addTo(layerGrupo);
+        }
+        
         if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
     }
 
