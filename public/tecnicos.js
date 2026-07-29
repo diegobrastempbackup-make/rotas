@@ -358,16 +358,22 @@ async function carregarEquipeTotem() {
     corpo.innerHTML = `<tr><td colspan="3" style="text-align:center;">Carregando...</td></tr>`;
     try {
         const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
-        const equipe = await res.json();
+        cacheTotem = await res.json(); // GUARDA A EQUIPE NA MEMÓRIA AQUI!
         corpo.innerHTML = "";
         
-        equipe.forEach(p => {
+        cacheTotem.forEach((p, index) => {
+            const imgSrc = p.foto ? p.foto : "https://via.placeholder.com/30?text=👤";
+            
             corpo.innerHTML += `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <td style="padding: 15px; color: #F8FAFC;"><strong>${p.nome}</strong></td>
+                    <td style="padding: 15px; color: #F8FAFC; display: flex; align-items: center; gap: 10px;">
+                        <img src="${imgSrc}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                        <strong>${p.nome}</strong>
+                    </td>
                     <td style="padding: 15px; color: #94A3B8;">${p.funcao || "Base"}</td>
                     <td style="padding: 15px; display:flex; gap: 8px;">
-                        <button class="btn-mini btn-editar" onclick="prepararEdicaoTotem('${p._id}', '${p.nome}', '${p.funcao}')">Editar</button>
+                        <!-- Passamos apenas o index (0, 1, 2...) em vez da foto gigante -->
+                        <button class="btn-mini btn-editar" onclick="prepararEdicaoTotem(${index})">Editar</button>
                         <button class="btn-mini btn-excluir" onclick="deletarPessoaTotem('${p._id}')">Excluir</button>
                         <button class="btn-mini" style="background:#8B5CF6; border:1px solid #7C3AED; color:white;" onclick="imprimirCracha('${p.nome}', '${p.funcao || "Base"}')">🖨️ Crachá</button>
                     </td>
@@ -379,29 +385,49 @@ async function carregarEquipeTotem() {
 
 function abrirModalTotem() {
     document.getElementById("modalTituloTotem").innerText = "Cadastrar Pessoa";
-    document.getElementById("totemId").value = ""; document.getElementById("formTotemNome").value = "";
-    document.getElementById("formTotemFuncao").value = ""; document.getElementById("modalTotem").classList.add("ativo");
-}
-
-function prepararEdicaoTotem(id, nome, funcao) {
-    document.getElementById("modalTituloTotem").innerText = "Editar Pessoa";
-    document.getElementById("totemId").value = id; document.getElementById("formTotemNome").value = nome;
-    document.getElementById("formTotemFuncao").value = funcao !== 'undefined' ? funcao : '';
+    document.getElementById("totemId").value = ""; 
+    document.getElementById("formTotemNome").value = "";
+    document.getElementById("formTotemFuncao").value = ""; 
+    document.getElementById("totemFotoBase64").value = ""; // Limpa a foto oculta
+    document.getElementById("previewFotoTotem").src = "https://via.placeholder.com/100?text=Sem+Foto"; // Reseta a imagem visual
     document.getElementById("modalTotem").classList.add("ativo");
 }
 
+function prepararEdicaoTotem(index) {
+    const p = cacheTotem[index]; // Puxa os dados levinhos da memória
+    document.getElementById("modalTituloTotem").innerText = "Editar Pessoa";
+    document.getElementById("totemId").value = p._id; 
+    document.getElementById("formTotemNome").value = p.nome;
+    document.getElementById("formTotemFuncao").value = p.funcao || '';
+    
+    document.getElementById("totemFotoBase64").value = p.foto || "";
+    document.getElementById("previewFotoTotem").src = p.foto ? p.foto : "https://via.placeholder.com/100?text=Sem+Foto";
+    
+    document.getElementById("modalTotem").classList.add("ativo");
+}
 async function salvarPessoaTotem() {
     const id = document.getElementById("totemId").value;
     const nome = document.getElementById("formTotemNome").value.trim();
     const funcao = document.getElementById("formTotemFuncao").value.trim();
+    const fotoBase64 = document.getElementById("totemFotoBase64").value; // Pega a foto comprimida
 
     if (!nome) return alert("O Nome é obrigatório.");
     try {
         const url = id ? `/api/equipe-totem/${id}` : "/api/equipe-totem";
         const metodo = id ? "PUT" : "POST";
-        const res = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, funcao }) });
+        
+        // Agora envia o payload com a foto!
+        const payload = JSON.stringify({ nome, funcao, foto: fotoBase64 });
+
+        const res = await fetch(url, { 
+            method: metodo, 
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
+            body: payload 
+        });
+        
         if (!res.ok) return alert("Erro no servidor.");
-        fecharModal('modalTotem'); await carregarEquipeTotem();
+        fecharModal('modalTotem'); 
+        await carregarEquipeTotem();
     } catch (err) { alert("Erro de conexão."); }
 }
 

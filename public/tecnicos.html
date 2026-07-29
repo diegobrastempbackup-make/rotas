@@ -135,6 +135,21 @@
             <button class="fechar-modal" onclick="fecharModal('modalTotem')">×</button>
         </div>
         <input type="hidden" id="totemId">
+        
+        <!-- CAMPO OCULTO PARA A FOTO SUPER LEVE -->
+        <input type="hidden" id="totemFotoBase64">
+
+        <div class="form-group" style="text-align: center;">
+            <label style="color: #94A3B8; font-size: 13px; display: block; margin-bottom: 10px;">Foto do Crachá (Opcional)</label>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                <img id="previewFotoTotem" src="https://via.placeholder.com/100?text=Sem+Foto" style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 2px solid #3B82F6; background: #0F172A;">
+                <label for="formTotemFoto" style="background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold;">
+                    📸 Carregar Foto
+                </label>
+                <input type="file" id="formTotemFoto" accept="image/*" style="display: none;" onchange="comprimirFotoMagicamente(event)">
+            </div>
+        </div>
+
         <div class="form-group">
             <label>Nome Completo (Será lido pelo Totem)</label>
             <input type="text" id="formTotemNome" placeholder="Ex: João Silva">
@@ -146,6 +161,47 @@
         <button class="btn-bloco" onclick="salvarPessoaTotem()">Salvar</button>
     </div>
 </div>
+
+<script>
+    // A mágica da compressão "Peso Zero" no navegador!
+    function comprimirFotoMagicamente(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                // Cria um canvas invisível para redimensionar
+                const canvas = document.createElement('canvas');
+                const TAMANHO_MAXIMO = 150; // Bem pequeno, focado no crachá/totem
+                let width = img.width;
+                let height = img.height;
+
+                // Mantém a proporção da imagem
+                if (width > height) {
+                    if (width > TAMANHO_MAXIMO) { height *= TAMANHO_MAXIMO / width; width = TAMANHO_MAXIMO; }
+                } else {
+                    if (height > TAMANHO_MAXIMO) { width *= TAMANHO_MAXIMO / height; height = TAMANHO_MAXIMO; }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Converte para JPEG reduzindo a qualidade para 70% (fica minúsculo, tipo 3KB)
+                const base64Leve = canvas.toDataURL('image/jpeg', 0.7);
+                
+                // Atualiza a tela e o input escondido
+                document.getElementById('previewFotoTotem').src = base64Leve;
+                document.getElementById('totemFotoBase64').value = base64Leve;
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+</script>
 
         <!-- ABA EMPRESAS (SÓ PARA O MODO DEUS) -->
         <div id="abaEmpresas" style="display: none;">

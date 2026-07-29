@@ -102,9 +102,20 @@
     let filaDeHoje = []; 
     let bloqueioGeral = false; 
     let timerToast;
+    
+    // NOVO: Guarda os rostos do banco de dados levinhos na memória
+    let cacheEquipeTotem = []; 
+
+    // Busca as fotos compactadas no banco de forma silenciosa
+    async function carregarRostosTotem() {
+        try {
+            const res = await fetch('/api/equipe-totem', { headers: { 'Authorization': `Bearer ${token}` } });
+            cacheEquipeTotem = await res.json();
+        } catch (e) {}
+    }
 
     // =========================================================
-    // SISTEMA DE BOAS VINDAS DIRETO DA PASTA DE FOTOS
+    // SISTEMA DE BOAS VINDAS COM BASE64
     // =========================================================
     function mostrarBoasVindas(nomeCompleto, jaEntrouHoje = false) {
         let toast = document.getElementById("toastBoasVindas");
@@ -130,12 +141,17 @@
         for (let i = 0; i < nomeCompleto.length; i++) hash = nomeCompleto.charCodeAt(i) + ((hash << 5) - hash);
         const corHSL = `hsl(${hash % 360}, 70%, 50%)`;
 
-        // Pega o primeiro nome, tira acentos e joga para minúsculas
-        const nomeArquivo = primeiroNome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const urlFoto = `/fotos/${nomeArquivo}.jpg`;
-
-        // Avatar gigante: 100x100px
-        const avatarHTML = `<img src="${urlFoto}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid rgba(255,255,255,0.2);" onerror="this.outerHTML='<div class=\\'avatar-iniciais\\' style=\\'background-color: ${corHSL};\\'>${iniciais}</div>'">`;
+        // Busca o técnico no nosso cache silencioso para puxar a foto Base64
+        const pessoaBanco = cacheEquipeTotem.find(p => p.nome.toUpperCase().trim() === nomeCompleto.toUpperCase().trim());
+        
+        let avatarHTML = "";
+        // Se a pessoa tiver a foto salva em Base64, carrega-a instantaneamente!
+        if (pessoaBanco && pessoaBanco.foto) {
+            avatarHTML = `<img src="${pessoaBanco.foto}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid rgba(255,255,255,0.2);">`;
+        } else {
+            // Se não tiver foto, gera o avatar com as iniciais do nome
+            avatarHTML = `<div class="avatar-iniciais" style="background-color: ${corHSL};">${iniciais}</div>`;
+        }
 
         const corIcone = jaEntrouHoje ? "#F59E0B" : "#10B981";
         const icone = jaEntrouHoje ? "⚠️" : "✓";
@@ -173,6 +189,10 @@
         sinteseVoz.speak(new SpeechSynthesisUtterance("")); 
         try { document.documentElement.requestFullscreen(); } catch(e){} 
         focarLeitor();
+        
+        carregarRostosTotem(); // Carrega os rostos assim que a tela abre!
+        setInterval(carregarRostosTotem, 60000); // Atualiza os rostos a cada 1 minuto (se adicionarem fotos novas)
+        
         setInterval(escutarServidorViaRede, 1500);
     }
 
