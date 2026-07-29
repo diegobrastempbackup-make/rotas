@@ -34,7 +34,7 @@
         .btn-global { background: #8B5CF6 !important; margin-top: 10px; border: 1px solid #7C3AED !important; transition: 0.2s; }
         .btn-global:hover { background: #7C3AED !important; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.4); }
         
-        .lista-tecnicos { background: #1E293B; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
+        .lista-tecnicos { background: #1E293B; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; overflow: hidden; }
         .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
         .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 14px; }
         .lista-clientes { flex-grow: 1; overflow-y: auto; }
@@ -133,12 +133,23 @@
                     <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
                 </div>
 
-                <div class="lista-tecnicos">
+                <div class="lista-tecnicos" style="flex-grow: 1;">
                     <div class="lista-tecnicos-header">
                         <h3>Equipe em Operação</h3>
                         <button onclick="limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px;">🔄 Limpar</button>
                     </div>
                     <div class="lista-clientes" id="listaTecnicosUI"></div>
+                </div>
+
+                <!-- NOVO: Painel de Ordens Não Alocadas -->
+                <div class="lista-tecnicos" style="flex-grow: 0; min-height: 200px; max-height: 250px; border-color: #F59E0B;">
+                    <div class="lista-tecnicos-header" style="background: rgba(245, 158, 11, 0.2);">
+                        <h3 style="color: #FACC15;">⚠️ Fila de Espera</h3>
+                        <button onclick="criarOrdemManual()" style="background: #F59E0B; border: none; color: #1E293B; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold;">+ Nova OS Manual</button>
+                    </div>
+                    <div class="lista-clientes" id="listaNaoAlocadasUI" style="padding: 10px; overflow-y: auto;">
+                        <div style="color: #94A3B8; font-size: 12px; text-align: center; padding: 10px;">Nenhuma ordem na fila.</div>
+                    </div>
                 </div>
             </div>
             
@@ -446,7 +457,6 @@
         atualizarTela(true);
     }
 
-    // --- CORREÇÃO APLICADA: Localização em tempo real correta preservada + Linha do tempo dinâmica ---
     async function atualizarTela(recentrarMapa = true) {
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
@@ -494,11 +504,8 @@
                         jaIniciou = true; 
                     } 
 
-                    // PRIORIDADE ABSOLUTA: Se houver rastro real do GPS do telemóvel, o carro usa a migalha em tempo real
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let rastroLatLngs = cliente.rastroReal.map(p => [p.lat, p.lon]);
-                        //L.polyline(rastroLatLngs, {color: '#EF4444', weight: 4, opacity: 0.8}).addTo(layerGrupo);
-                        
                         let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
                         if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
                             posicaoCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon };
@@ -535,7 +542,6 @@
             return; 
         }
 
-        // Modo Individual / Linha do Tempo Dinâmica seguindo o trajeto do técnico
         document.getElementById("painelPlayback").style.display = "flex";
         document.getElementById("tituloPainelLateral").innerText = "🛠️ Itinerário";
         
@@ -589,7 +595,11 @@
                             <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${cliente.codigo} ${badgeHTML}</div>
                             <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
                         </div>
-                        <button class="btn-lapis" onclick="editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço">✏️</button>
+                        <div style="display: flex;">
+                            <button class="btn-lapis" onclick="editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço">✏️</button>
+                            <!-- NOVO: Botão Desalocar -->
+                            <button class="btn-lapis" style="color:#EF4444;" onclick="desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Espera" ${visualizandoHistorico ? 'disabled' : ''}>✖</button>
+                        </div>
                     </div>
                     ${telemetriaHTML}
                 </div>
@@ -619,7 +629,6 @@
                     if (subCoordenadasLatLon.length > 0) {
                         let ultimaCoord = subCoordenadasLatLon[subCoordenadasLatLon.length - 1];
                         
-                        // Garante que se houver rastro real recente do GPS do telemóvel na ponta, ele reflete a posição exata
                         let ultimaOSComRastro = [...rotaAtiva].reverse().find(c => c.rastroReal && c.rastroReal.length > 0);
                         let posicaoRenderCarro = ultimaCoord;
                         if (progressoSlider >= 0.99 && ultimaOSComRastro) {
@@ -644,7 +653,6 @@
             }
         }
 
-        // --- DESENHA O RASTRO REAL VERMELHO POR CÚMULO POR ÚLTIMO PARA COBRIR A LINHA AZUL ---
         let rastroTotalCoordenadas = [];
         rotaAtiva.forEach(cliente => {
             if (cliente.rastroReal && cliente.rastroReal.length > 0) {
@@ -657,7 +665,6 @@
         if (rastroTotalCoordenadas.length > 0) {
             L.polyline(rastroTotalCoordenadas, { color: '#EF4444', weight: 5, opacity: 0.9, zIndexOffset: 500 }).addTo(layerGrupo);
         }
-        // ------------------------------------------------------------------------------------
         
         if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
     }
@@ -724,7 +731,7 @@
 
     function configurarSliderInicio() {
         const slider = document.getElementById("sliderPlayback");
-        slider.max = rotaAtiva.length * 10; // Maior precisão na barra da linha do tempo
+        slider.max = rotaAtiva.length * 10; 
         slider.value = rotaAtiva.length * 10;
     }
 
@@ -929,6 +936,122 @@
             XLSX.writeFile(workbook, nomeArquivo);
             toast.remove(); alert("✅ Relatório extraído!");
         } catch(e) { if(toast) toast.remove(); alert("❌ Erro."); }
+    }
+
+    // ==========================================
+    // SISTEMA DE FILA DE ESPERA E CRIAÇÃO MANUAL
+    // ==========================================
+    let ordensNaoAlocadas = JSON.parse(localStorage.getItem("ordensNaoAlocadas") || "[]");
+
+    document.addEventListener("DOMContentLoaded", () => {
+        setTimeout(renderNaoAlocadas, 500); 
+    });
+
+    function renderNaoAlocadas() {
+        const divFila = document.getElementById("listaNaoAlocadasUI");
+        if (!divFila) return;
+        
+        if (ordensNaoAlocadas.length === 0) {
+            divFila.innerHTML = `<div style="color: #94A3B8; font-size: 12px; text-align: center; padding: 10px;">Fila limpa. Nenhuma ordem pendente.</div>`;
+            localStorage.setItem("ordensNaoAlocadas", "[]");
+            return;
+        }
+
+        let html = "";
+        ordensNaoAlocadas.forEach((ordem, idx) => {
+            html += `
+            <div class="itinerario-item" style="border-left-color: #F59E0B; margin-bottom: 5px; padding: 8px; cursor: default;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 12px; color: white;"><b>OS: ${ordem.codigo}</b></div>
+                    <button onclick="alocarParaTecnicoAtivo(${idx})" style="background: #10B981; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="Atribuir ao técnico selecionado na tela">✚ Alocar</button>
+                </div>
+                <div style="font-size: 10px; color: #94A3B8;">${ordem.rua}</div>
+            </div>`;
+        });
+        divFila.innerHTML = html;
+        localStorage.setItem("ordensNaoAlocadas", JSON.stringify(ordensNaoAlocadas));
+    }
+
+    function desalocarOrdem(index, event) {
+        event.stopPropagation();
+        if (visualizandoHistorico) return alert("Não é possível remover OS em visualização de histórico antigo.");
+        
+        let ordemRemovida = rotaAtiva.splice(index, 1)[0];
+        
+        if (tecnicoAtivo && dadosGlobaisRotas[tecnicoAtivo]) {
+             let idxM = dadosGlobaisRotas[tecnicoAtivo].manha.findIndex(o => o.codigo === ordemRemovida.codigo);
+             if(idxM > -1) dadosGlobaisRotas[tecnicoAtivo].manha.splice(idxM, 1);
+             
+             let idxT = dadosGlobaisRotas[tecnicoAtivo].tarde.findIndex(o => o.codigo === ordemRemovida.codigo);
+             if(idxT > -1) dadosGlobaisRotas[tecnicoAtivo].tarde.splice(idxT, 1);
+
+             localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+        }
+
+        ordensNaoAlocadas.push(ordemRemovida);
+        renderNaoAlocadas();
+        configurarSliderInicio();
+        atualizarTela(false);
+    }
+
+    function alocarParaTecnicoAtivo(idxOrdemFila) {
+        if (!tecnicoAtivo) return alert("⚠️ Primeiro, clique no nome de um Técnico na lista acima para selecioná-lo.");
+        if (visualizandoHistorico) return alert("Saia do modo histórico para alterar rotas.");
+
+        let ordem = ordensNaoAlocadas.splice(idxOrdemFila, 1)[0];
+        
+        rotaAtiva.push(ordem);
+
+        if (!dadosGlobaisRotas[tecnicoAtivo]) {
+            dadosGlobaisRotas[tecnicoAtivo] = { manha: [], tarde: [] };
+        }
+
+        if (ordem.periodo === 'MANHA') {
+            dadosGlobaisRotas[tecnicoAtivo].manha.push(ordem);
+        } else {
+            dadosGlobaisRotas[tecnicoAtivo].tarde.push(ordem);
+        }
+        
+        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+        
+        renderNaoAlocadas();
+        configurarSliderInicio();
+        atualizarTela(true);
+    }
+
+    async function criarOrdemManual() {
+        let codigo = prompt("Digite o CÓDIGO da Nova OS:");
+        if (!codigo) return;
+        let rua = prompt("Digite o ENDEREÇO completo com número e bairro:");
+        if (!rua) return;
+        let cliente = prompt("Nome do Cliente (opcional):") || "Não informado";
+        
+        let isManha = confirm("A OS deve ser atendida no período da MANHÃ?\n(Clique OK para Manhã, CANCELAR para Tarde)");
+        let periodo = isManha ? "MANHA" : "TARDE";
+
+        let novaOrdem = {
+            chaveAgrupamento: `MANUAL_${Date.now()}`,
+            codigo: codigo,
+            cliente: cliente,
+            rua: rua,
+            cidade: "São Paulo", 
+            cep: "",
+            periodo: periodo,
+            status: 'pendente'
+        };
+
+        document.getElementById("listaNaoAlocadasUI").innerHTML = `<div style="color: #FACC15; font-size: 12px; text-align: center; padding: 10px;">Buscando GPS no satélite... 🛰️</div>`;
+
+        let crds = await obterCoordenadasSilenciosa(novaOrdem);
+        novaOrdem.lat = crds ? crds.lat : configGalpao.lat;
+        novaOrdem.lon = crds ? crds.lon : configGalpao.lon;
+        novaOrdem.precisaCorrecao = !crds;
+
+        if(!crds) alert("⚠️ Endereço não encontrado com exatidão pelo GPS, ele foi jogado provisoriamente na Base. Edite depois se necessário.");
+
+        ordensNaoAlocadas.push(novaOrdem);
+        renderNaoAlocadas();
+        alert("✅ Ordem Manual criada! Ela está na 'Fila de Espera' e pode ser alocada a qualquer técnico.");
     }
 </script>
 </body>
