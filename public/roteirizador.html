@@ -78,6 +78,17 @@
 
         .custom-pin { background: transparent; border: none; }
         .car-pin { background: #1E293B; color: white; border-radius: 8px; padding: 4px 8px; border: 2px solid #3B82F6; font-size: 11px; font-weight:bold; white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display:flex; align-items:center; gap:5px; transition: all 0.3s; }
+
+        /* Estilo do Modal de Transferência */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .modal-box { background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid #3B82F6; width: 320px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        .modal-box h3 { margin: 0 0 10px 0; font-size: 16px; color: #60A5FA; }
+        .modal-box select { width: 100%; padding: 12px; margin-top: 10px; margin-bottom: 20px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; outline: none; }
+        .modal-box select:focus { border-color: #3B82F6; }
+        .modal-actions { display: flex; justify-content: space-between; }
+        .modal-actions button { padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; border: none; }
+        .btn-cancel { background: transparent; border: 1px solid #64748B !important; color: #94A3B8; }
+        .btn-confirm { background: #3B82F6; color: white; }
     </style>
     <script>
         function navegarSeguro(rota) { const token = localStorage.getItem("token"); window.location.href = `${rota}?token=${token}`; }
@@ -141,7 +152,7 @@
                     <div class="lista-clientes" id="listaTecnicosUI"></div>
                 </div>
 
-                <!-- NOVO: Painel de Ordens Não Alocadas -->
+                <!-- Painel de Ordens Não Alocadas / Espera -->
                 <div class="lista-tecnicos" style="flex-grow: 0; min-height: 200px; max-height: 250px; border-color: #F59E0B;">
                     <div class="lista-tecnicos-header" style="background: rgba(245, 158, 11, 0.2);">
                         <h3 style="color: #FACC15;">⚠️ Fila de Espera</h3>
@@ -182,6 +193,24 @@
                 </div>
 
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL TRANSFERÊNCIA DE TÉCNICO -->
+<div id="modalTransferencia" class="modal-overlay">
+    <div class="modal-box">
+        <h3>🔄 Transferir Roteiro</h3>
+        <p style="font-size:12px; color:#94A3B8;">Transferindo de: <b id="lblNomeAntigo" style="color:white;"></b></p>
+        <label style="font-size:12px; color:#94A3B8;">Selecione o novo titular da rota:</label>
+        
+        <select id="selectNovoTecnico">
+            <option value="">Aguarde, carregando técnicos...</option>
+        </select>
+
+        <div class="modal-actions">
+            <button onclick="fecharModalTransferencia()" class="btn-cancel">Cancelar</button>
+            <button onclick="confirmarTransferencia()" class="btn-confirm">Confirmar Troca</button>
         </div>
     </div>
 </div>
@@ -227,12 +256,9 @@
     function toggleMenu() {
         const sidebar = document.getElementById('menuLateral');
         if (sidebar.style.width === '0px' || sidebar.style.display === 'none') {
-            sidebar.style.width = '250px';
-            sidebar.style.padding = ''; 
-            sidebar.style.display = 'block';
+            sidebar.style.width = '250px'; sidebar.style.padding = ''; sidebar.style.display = 'block';
         } else {
-            sidebar.style.width = '0px';
-            sidebar.style.padding = '0';
+            sidebar.style.width = '0px'; sidebar.style.padding = '0';
             setTimeout(() => { sidebar.style.display = 'none'; }, 300); 
         }
         setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 350);
@@ -248,10 +274,7 @@
             if (document.exitFullscreen) { document.exitFullscreen(); }
         }
     }
-
-    document.addEventListener('fullscreenchange', () => {
-        setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 200);
-    });
+    document.addEventListener('fullscreenchange', () => { setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 200); });
 
     function calcularDistancia(lat1, lon1, lat2, lon2) {
         const R = 6371; 
@@ -277,7 +300,6 @@
                 const workbook = XLSX.read(data, {type: 'array'});
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
                 const dadosNormalizados = jsonData.map(linha => { let novaLinha = {}; for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; } return novaLinha; });
-                
                 agruparEGeocodificar(dadosNormalizados);
             } catch (erro) { alert("❌ Erro: " + erro.message); }
         };
@@ -315,20 +337,11 @@
 
             if (ordemExistente) {
                 ordemExistente.codigo += ` / ${codigo}`;
-                if (servico) {
-                    ordemExistente.servico += ` / ${servico}`;
-                }
+                if (servico) { ordemExistente.servico += ` / ${servico}`; }
             } else {
                 ordensPorTecnico[tecnico].push({
-                    chaveAgrupamento: chaveAgrupamento,
-                    codigo: String(codigo), 
-                    cliente: String(cliente).trim(), 
-                    servico: servico,
-                    rua: rua,
-                    cidade: cidade,
-                    cep: cepFormatado, 
-                    periodo: periodoOriginal, 
-                    status: 'pendente' 
+                    chaveAgrupamento: chaveAgrupamento, codigo: String(codigo), cliente: String(cliente).trim(), servico: servico, rua: rua,
+                    cidade: cidade, cep: cepFormatado, periodo: periodoOriginal, status: 'pendente' 
                 });
                 totalOS++; 
             }
@@ -341,7 +354,6 @@
 
         for (let tecnico of Object.keys(ordensPorTecnico)) {
             dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
-            
             for (let ordem of ordensPorTecnico[tecnico]) {
                 concluidos++;
                 let perc = Math.round((concluidos / totalOS) * 100);
@@ -379,7 +391,7 @@
                     <div style="width: 100%;">
                         <div class="tecnico-nome" style="display:flex; justify-content:space-between; align-items:center;">
                             <span>${nome}</span>
-                            <button onclick="renomearTecnico('${nome}', false, event)" style="background:none;border:none;cursor:pointer;font-size:16px; padding: 2px;" title="Transferir Roteiro para outro Técnico">🔄</button>
+                            <button onclick="abrirModalTransferencia('${nome}', false, event)" style="background:none;border:none;cursor:pointer;font-size:16px; padding: 2px;" title="Transferir Roteiro para outro Técnico">🔄</button>
                         </div>
                         <div class="tecnico-stats">Total: ${total} paradas</div>
                     </div>
@@ -418,19 +430,13 @@
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
         tecnicoAtivo = nome; modoVisaoGlobal = false;
         
-        let coordsManha = [];
-        let coordsTarde = [];
-
-        // Trata a leitura diferente dependendo se é local ou do banco de dados (histórico)
+        let coordsManha = []; let coordsTarde = [];
         if (visualizandoHistorico) {
             let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === nome);
-            if (rotaHist) {
-                rotaAtiva = [...rotaHist.itinerario]; // Pega exatamente a ordem do banco
-            }
+            if (rotaHist) { rotaAtiva = [...rotaHist.itinerario]; }
         } else {
             const dadosTecnico = dadosGlobaisRotas[nome];
-            coordsManha = [...dadosTecnico.manha];
-            coordsTarde = [...dadosTecnico.tarde]; 
+            coordsManha = [...dadosTecnico.manha]; coordsTarde = [...dadosTecnico.tarde]; 
 
             let rotaManha = otimizarSequencia(coordsManha, configGalpao.lat, configGalpao.lon);
             let latFimManha = rotaManha.length > 0 ? rotaManha[rotaManha.length-1].lat : configGalpao.lat;
@@ -439,25 +445,17 @@
             rotaAtiva = [...rotaManha, ...rotaTarde];
         }
         
-        configurarSliderInicio();
-        document.getElementById("painelItinerario").style.display = "block";
-        atualizarTela(true); 
+        configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); 
     }
 
     async function editarEnderecoGalpao() {
         let novoEndereco = prompt("✏️ Digite o novo endereço ou rua da Base / Galpão:", configGalpao.endereco);
         if (!novoEndereco || novoEndereco.trim() === "") return;
-
         let crds = await obterCoordenadasSilenciosa({ rua: novoEndereco, cidade: "São Paulo" });
-        if (!crds) {
-            alert("❌ Não foi possível encontrar coordenadas GPS para este endereço da Base.");
-            return;
-        }
+        if (!crds) return alert("❌ Não foi possível encontrar coordenadas GPS para este endereço da Base.");
 
         configGalpao = { lat: crds.lat, lon: crds.lon, nome: "Base Operacional", endereco: novoEndereco };
-        localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
-        alert("✅ Base atualizada e salva com sucesso!");
-        atualizarTela(true);
+        localStorage.setItem("configGalpao", JSON.stringify(configGalpao)); alert("✅ Base atualizada e salva com sucesso!"); atualizarTela(true);
     }
 
     async function atualizarTela(recentrarMapa = true) {
@@ -465,9 +463,7 @@
         layerGrupo = L.featureGroup().addTo(mapa);
 
         const iconeGalpao = L.divIcon({ 
-            className: 'custom-pin', 
-            html: `<div onclick="editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, 
-            iconSize: [140, 30] 
+            className: 'custom-pin', html: `<div onclick="editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, iconSize: [140, 30] 
         });
         L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
 
@@ -482,108 +478,49 @@
 
             listaTotal.forEach(roteiro => {
                 let posicaoCarro = { lat: configGalpao.lat, lon: configGalpao.lon };
-                let statusCarro = "Aguardando Início";
-                let corBordaCarro = "#64748B"; 
-                let jaIniciou = false; 
+                let statusCarro = "Aguardando Início"; let corBordaCarro = "#64748B"; let jaIniciou = false; 
                 
                 roteiro.itinerario.forEach((cliente, idx) => {
-                    let corPino = "#64748B"; 
-                    let latClienteFixo = cliente.lat;
-                    let lonClienteFixo = cliente.lon;
+                    let corPino = "#64748B"; let latClienteFixo = cliente.lat; let lonClienteFixo = cliente.lon;
 
-                    if (cliente.precisaCorrecao) {
-                        corPino = "#000000"; 
-                    } else if (cliente.status === 'deslocamento') { 
-                        corPino = "#FACC15"; jaIniciou = true; 
-                    } else if (cliente.status === 'chegada') { 
-                        corPino = "#F97316"; jaIniciou = true; 
-                    } else if (cliente.status === 'sucesso') { 
-                        corPino = "#10B981"; jaIniciou = true; 
-                    } else if (cliente.status === 'insucesso') { 
-                        corPino = "#EF4444"; jaIniciou = true; 
-                    } 
+                    if (cliente.precisaCorrecao) { corPino = "#000000"; } else if (cliente.status === 'deslocamento') { corPino = "#FACC15"; jaIniciou = true; } else if (cliente.status === 'chegada') { corPino = "#F97316"; jaIniciou = true; } else if (cliente.status === 'sucesso') { corPino = "#10B981"; jaIniciou = true; } else if (cliente.status === 'insucesso') { corPino = "#EF4444"; jaIniciou = true; } 
 
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
-                        if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
-                            posicaoCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon };
-                            statusCarro = "Em Movimento (GPS Real)";
-                            corBordaCarro = "#3B82F6";
-                            jaIniciou = true;
-                        }
+                        if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) { posicaoCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon }; statusCarro = "Em Movimento (GPS Real)"; corBordaCarro = "#3B82F6"; jaIniciou = true; }
                     } else if (cliente.latCheckin && cliente.lonCheckin && (cliente.status === 'chegada' || cliente.status === 'sucesso')) {
-                        posicaoCarro = { lat: cliente.latCheckin, lon: cliente.lonCheckin };
-                        statusCarro = "No Local de Atendimento";
-                        corBordaCarro = corPino;
-                        jaIniciou = true;
+                        posicaoCarro = { lat: cliente.latCheckin, lon: cliente.lonCheckin }; statusCarro = "No Local de Atendimento"; corBordaCarro = corPino; jaIniciou = true;
                     }
 
-                    const miniIcon = L.divIcon({
-                        className: 'custom-pin',
-                        html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`,
-                        iconSize: [22, 22]
-                    });
+                    const miniIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`, iconSize: [22, 22] });
                     L.marker([latClienteFixo, lonClienteFixo], {icon: miniIcon}).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
                 });
 
                 if (jaIniciou) {
-                    const carIcon = L.divIcon({
-                        className: 'custom-pin',
-                        html: `<div class="car-pin" style="border-color: ${corBordaCarro};">🚗 ${roteiro.tecnico.split(' ')[0]}</div>`,
-                        iconSize: [80, 25], iconAnchor: [40, 12]
-                    });
+                    const carIcon = L.divIcon({ className: 'custom-pin', html: `<div class="car-pin" style="border-color: ${corBordaCarro};">🚗 ${roteiro.tecnico.split(' ')[0]}</div>`, iconSize: [80, 25], iconAnchor: [40, 12] });
                     L.marker([posicaoCarro.lat, posicaoCarro.lon], {icon: carIcon}).bindPopup(`<b>Viatura: ${roteiro.tecnico}</b><br>Status Atual: ${statusCarro}`).addTo(layerGrupo);
                 }
             });
-
-            if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
-            return; 
+            if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]}); return; 
         }
 
-        document.getElementById("painelPlayback").style.display = "flex";
-        document.getElementById("tituloPainelLateral").innerText = "🛠️ Itinerário";
-        
-        const slider = document.getElementById("sliderPlayback");
-        let progressoSlider = parseFloat(slider.value) / parseFloat(slider.max || 10);
-        
-        let htmlLista = "";
-        let coordOSRM = [`${configGalpao.lon},${configGalpao.lat}`];
+        document.getElementById("painelPlayback").style.display = "flex"; document.getElementById("tituloPainelLateral").innerText = "🛠️ Itinerário";
+        const slider = document.getElementById("sliderPlayback"); let progressoSlider = parseFloat(slider.value) / parseFloat(slider.max || 10);
+        let htmlLista = ""; let coordOSRM = [`${configGalpao.lon},${configGalpao.lat}`];
 
         rotaAtiva.forEach((cliente, index) => {
-            const seq = index + 1;
-            let corPino = "#64748B"; 
-            let latClienteFixo = cliente.lat;
-            let lonClienteFixo = cliente.lon;
-
-            if (cliente.precisaCorrecao) corPino = "#000000"; 
-            else if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
-            else if (cliente.status === 'chegada') corPino = "#F97316"; 
-            else if (cliente.status === 'sucesso') corPino = "#10B981"; 
-            else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
+            const seq = index + 1; let corPino = "#64748B"; let latClienteFixo = cliente.lat; let lonClienteFixo = cliente.lon;
+            if (cliente.precisaCorrecao) corPino = "#000000"; else if (cliente.status === 'deslocamento') corPino = "#FACC15"; else if (cliente.status === 'chegada') corPino = "#F97316"; else if (cliente.status === 'sucesso') corPino = "#10B981"; else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
 
             coordOSRM.push(`${lonClienteFixo},${latClienteFixo}`);
             
-            const customIcon = L.divIcon({
-                className: 'custom-pin',
-                html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 13px;">${seq}</div>`,
-                iconSize: [26, 26], iconAnchor: [13, 13]
-            });
+            const customIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 13px;">${seq}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
             L.marker([latClienteFixo, lonClienteFixo], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
             
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
-            let hSaida = cliente.horaSaida || "-";
-            let hChegada = cliente.horaChegada || "-";
-            let hFinal = cliente.horaFinal || "-";
+            let hSaida = cliente.horaSaida || "-"; let hChegada = cliente.horaChegada || "-"; let hFinal = cliente.horaFinal || "-";
+            let telemetriaHTML = `<div class="card-telemetria"><span class="time-stamp" title="Deslocamento">🚗 ${hSaida}</span><span class="time-stamp" title="Chegada">📍 ${hChegada}</span><span class="time-stamp" title="Finalização">🏁 ${hFinal}</span></div>`;
 
-            let telemetriaHTML = `
-                <div class="card-telemetria">
-                    <span class="time-stamp" title="Deslocamento">🚗 ${hSaida}</span>
-                    <span class="time-stamp" title="Chegada">📍 ${hChegada}</span>
-                    <span class="time-stamp" title="Finalização">🏁 ${hFinal}</span>
-                </div>
-            `;
-
-            // NOVO: removido o bloqueio para CRUD completo
             htmlLista += `
                 <div class="itinerario-item" style="border-left-color: ${corPino};" draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})">
                     <div class="card-topo">
@@ -602,93 +539,50 @@
                 </div>
             `;
         });
-
         document.getElementById("listaItinerarioUI").innerHTML = htmlLista;
 
         if (coordOSRM.length > 1) {
             try {
-                let resRota = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordOSRM.join(';')}?overview=full&geometries=geojson`);
-                let dadosRota = await resRota.json();
-                
+                let resRota = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordOSRM.join(';')}?overview=full&geometries=geojson`); let dadosRota = await resRota.json();
                 if (dadosRota.routes && dadosRota.routes.length > 0) {
-                    let coordenadasRotaCompleta = dadosRota.routes[0].geometry.coordinates; 
-                    let distanciaTotalMetros = dadosRota.routes[0].distance;
-                    
+                    let coordenadasRotaCompleta = dadosRota.routes[0].geometry.coordinates; let distanciaTotalMetros = dadosRota.routes[0].distance;
                     document.getElementById("txtKMTarefa").innerText = `${(distanciaTotalMetros / 1000 * 1.3 * progressoSlider).toFixed(1)} KM percorridos`;
                     document.getElementById("lblPlaybackStatus").innerText = `Progresso do Percurso: ${Math.round(progressoSlider * 100)}%`;
 
-                    let limiteCoordenadas = Math.max(2, Math.floor(coordenadasRotaCompleta.length * progressoSlider));
-                    let subCoordenadasLonLat = coordenadasRotaCompleta.slice(0, limiteCoordenadas);
-                    let subCoordenadasLatLon = subCoordenadasLonLat.map(coord => [coord[1], coord[0]]);
-
+                    let limiteCoordenadas = Math.max(2, Math.floor(coordenadasRotaCompleta.length * progressoSlider)); let subCoordenadasLonLat = coordenadasRotaCompleta.slice(0, limiteCoordenadas); let subCoordenadasLatLon = subCoordenadasLonLat.map(coord => [coord[1], coord[0]]);
                     L.polyline(subCoordenadasLatLon, { color: '#3B82F6', weight: 5, opacity: 0.9 }).addTo(layerGrupo);
 
                     if (subCoordenadasLatLon.length > 0) {
-                        let ultimaCoord = subCoordenadasLatLon[subCoordenadasLatLon.length - 1];
-                        
-                        let ultimaOSComRastro = [...rotaAtiva].reverse().find(c => c.rastroReal && c.rastroReal.length > 0);
-                        let posicaoRenderCarro = ultimaCoord;
-                        if (progressoSlider >= 0.99 && ultimaOSComRastro) {
-                            let ultimaMigalha = ultimaOSComRastro.rastroReal[ultimaOSComRastro.rastroReal.length - 1];
-                            if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
-                                posicaoRenderCarro = [ultimaMigalha.lat, ultimaMigalha.lon];
-                            }
-                        }
-
-                        const carIcon = L.divIcon({
-                            className: 'custom-pin',
-                            html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 ${tecnicoAtivo ? tecnicoAtivo.split(' ')[0] : 'Técnico'}</div>`,
-                            iconSize: [80, 25], iconAnchor: [40, 12]
-                        });
+                        let ultimaCoord = subCoordenadasLatLon[subCoordenadasLatLon.length - 1]; let ultimaOSComRastro = [...rotaAtiva].reverse().find(c => c.rastroReal && c.rastroReal.length > 0); let posicaoRenderCarro = ultimaCoord;
+                        if (progressoSlider >= 0.99 && ultimaOSComRastro) { let ultimaMigalha = ultimaOSComRastro.rastroReal[ultimaOSComRastro.rastroReal.length - 1]; if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) { posicaoRenderCarro = [ultimaMigalha.lat, ultimaMigalha.lon]; } }
+                        const carIcon = L.divIcon({ className: 'custom-pin', html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 ${tecnicoAtivo ? tecnicoAtivo.split(' ')[0] : 'Técnico'}</div>`, iconSize: [80, 25], iconAnchor: [40, 12] });
                         L.marker(posicaoRenderCarro, {icon: carIcon, zIndexOffset: 1000}).addTo(layerGrupo);
                     }
                 }
             } catch(e) {
-                let coordsLine = rotaAtiva.map(c => [c.lat, c.lon]);
-                coordsLine.unshift([configGalpao.lat, configGalpao.lon]);
-                L.polyline(coordsLine, { color: 'rgba(59, 130, 246, 0.6)', weight: 3, dashArray: '8, 8' }).addTo(layerGrupo);
+                let coordsLine = rotaAtiva.map(c => [c.lat, c.lon]); coordsLine.unshift([configGalpao.lat, configGalpao.lon]); L.polyline(coordsLine, { color: 'rgba(59, 130, 246, 0.6)', weight: 3, dashArray: '8, 8' }).addTo(layerGrupo);
             }
         }
 
         let rastroTotalCoordenadas = [];
-        rotaAtiva.forEach(cliente => {
-            if (cliente.rastroReal && cliente.rastroReal.length > 0) {
-                cliente.rastroReal.forEach(p => {
-                    rastroTotalCoordenadas.push([p.lat, p.lon]);
-                });
-            }
-        });
-
-        if (rastroTotalCoordenadas.length > 0) {
-            L.polyline(rastroTotalCoordenadas, { color: '#EF4444', weight: 5, opacity: 0.9, zIndexOffset: 500 }).addTo(layerGrupo);
-        }
-        
+        rotaAtiva.forEach(cliente => { if (cliente.rastroReal && cliente.rastroReal.length > 0) { cliente.rastroReal.forEach(p => { rastroTotalCoordenadas.push([p.lat, p.lon]); }); } });
+        if (rastroTotalCoordenadas.length > 0) { L.polyline(rastroTotalCoordenadas, { color: '#EF4444', weight: 5, opacity: 0.9, zIndexOffset: 500 }).addTo(layerGrupo); }
         if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
     }
 
     async function editarEnderecoManual(codigo, ruaAtual, event) {
-        event.stopPropagation(); 
-        let novoEndereco = prompt("✏️ Edite o endereço desta OS:", ruaAtual);
+        event.stopPropagation(); let novoEndereco = prompt("✏️ Edite o endereço desta OS:", ruaAtual);
         if (!novoEndereco || novoEndereco.trim() === "" || novoEndereco === ruaAtual) return;
-
         const originalBtn = event.target; originalBtn.innerText = "⏳"; originalBtn.disabled = true;
 
         try {
-            let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" };
-            let crds = await obterCoordenadasSilenciosa(geoData);
-
+            let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" }; let crds = await obterCoordenadasSilenciosa(geoData);
             if (!crds) return alert("❌ Não conseguimos converter esse endereço em GPS. Verifique a grafia.");
             
             let itemLocal = rotaAtiva.find(p => p.codigo === codigo || String(p.codigo) === String(codigo));
-            if (itemLocal) {
-                itemLocal.rua = novoEndereco; itemLocal.lat = crds.lat; itemLocal.lon = crds.lon; itemLocal.precisaCorrecao = false;
-            }
-
-            sincronizarMemoriaGlobal();
-            atualizarTela(true);
-
-        } catch (e) { alert("❌ Ocorreu um erro ao atualizar o endereço."); } 
-        finally { originalBtn.innerText = "✏️"; originalBtn.disabled = false; }
+            if (itemLocal) { itemLocal.rua = novoEndereco; itemLocal.lat = crds.lat; itemLocal.lon = crds.lon; itemLocal.precisaCorrecao = false; }
+            sincronizarMemoriaGlobal(); atualizarTela(true);
+        } catch (e) { alert("❌ Ocorreu um erro ao atualizar o endereço."); } finally { originalBtn.innerText = "✏️"; originalBtn.disabled = false; }
     }
 
     // ===============================================
@@ -699,13 +593,8 @@
             let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
             if (rotaHist) {
                 rotaHist.itinerario = [...rotaAtiva];
-                // Se a rota está ao vivo no banco, atualiza em background silenciosamente
                 if (dataAtiva) {
-                    fetch('/api/rotas', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ data: rotaHist.data, tecnico: tecnicoAtivo, itinerario: rotaAtiva })
-                    }).catch(e => console.error("Falha ao sincronizar online", e));
+                    fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: rotaHist.data, tecnico: tecnicoAtivo, itinerario: rotaAtiva }) }).catch(e => console.error(e));
                 }
             }
         } else {
@@ -718,14 +607,49 @@
     }
 
     // ==========================================
-    // SISTEMA DE TROCA DE TITULAR (TECNICO) 
+    // SISTEMA DE TROCA DE TITULAR E MODAL
     // ==========================================
-    window.renomearTecnico = async function(nomeAntigo, isHistorico, event) {
+    let transfTempData = {};
+
+    window.abrirModalTransferencia = async function(nomeAntigo, isHistorico, event) {
         event.stopPropagation();
-        let novoNome = prompt(`Transferir roteiro de ${nomeAntigo} para qual técnico?`, nomeAntigo);
-        if (!novoNome || novoNome.trim() === "" || novoNome === nomeAntigo) return;
+        transfTempData = { nomeAntigo, isHistorico };
         
-        novoNome = novoNome.trim().toUpperCase();
+        document.getElementById('lblNomeAntigo').innerText = nomeAntigo;
+        const select = document.getElementById('selectNovoTecnico');
+        select.innerHTML = '<option value="">Aguarde, carregando técnicos...</option>';
+        document.getElementById('modalTransferencia').style.display = 'flex';
+
+        // Usa Set para guardar os técnicos encontrados em vários cantos
+        let tecnicos = new Set();
+        Object.keys(dadosGlobaisRotas).forEach(t => tecnicos.add(t));
+        window.historicoRotasMemoria.forEach(r => tecnicos.add(r.tecnico));
+
+        try {
+            // Tenta buscar ativamente do servidor todos os utilizadores
+            let res = await fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) {
+                let users = await res.json();
+                users.forEach(u => { if(u.nome) tecnicos.add(u.nome.toUpperCase()); });
+            }
+        } catch(e) { console.log("O servidor não retornou /api/usuarios. Serão usados os nomes locais."); }
+
+        select.innerHTML = '<option value="">-- Selecione o Técnico --</option>';
+        Array.from(tecnicos).sort().forEach(t => {
+            if (t !== nomeAntigo) { select.innerHTML += `<option value="${t}">${t}</option>`; }
+        });
+    };
+
+    window.fecharModalTransferencia = function() {
+        document.getElementById('modalTransferencia').style.display = 'none';
+    };
+
+    window.confirmarTransferencia = async function() {
+        let novoNome = document.getElementById('selectNovoTecnico').value;
+        if (!novoNome) return alert("Por favor, selecione um técnico na lista.");
+        
+        let { nomeAntigo, isHistorico } = transfTempData;
+        fecharModalTransferencia();
 
         if (isHistorico) {
             let rotaIndex = window.historicoRotasMemoria.findIndex(r => r.tecnico === nomeAntigo);
@@ -737,20 +661,12 @@
                 if (tecnicoAtivo === nomeAntigo) tecnicoAtivo = novoNome;
                 
                 try {
-                    // Tenta atualizar no banco criando o novo
-                    await fetch('/api/rotas', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ data: roteiro.data, tecnico: novoNome, itinerario: roteiro.itinerario })
-                    });
-                    // Apaga o registro com nome velho para evitar duplicidade
-                    if (idBancoAntigo) {
-                        await fetch(`/api/rotas/${idBancoAntigo}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                    }
+                    await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: roteiro.data, tecnico: novoNome, itinerario: roteiro.itinerario }) });
+                    if (idBancoAntigo) { await fetch(`/api/rotas/${idBancoAntigo}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); }
                 } catch(e) {}
                 
                 alert(`✅ Roteiro transferido com sucesso para ${novoNome}!`);
-                buscarHistorico(); // Recarrega para mostrar a lista atualizada certinho
+                buscarHistorico(); 
             }
         } else {
             dadosGlobaisRotas[novoNome] = dadosGlobaisRotas[nomeAntigo];
@@ -760,38 +676,23 @@
             renderizarListaTecnicosModoNovo();
             if (tecnicoAtivo) document.getElementById(`tecnico-${tecnicoAtivo.replace(/\s+/g, '')}`).classList.add('ativo');
         }
-        
         if (tecnicoAtivo === novoNome) atualizarTela(false);
     };
 
-    function configurarSliderInicio() {
-        const slider = document.getElementById("sliderPlayback");
-        slider.max = rotaAtiva.length * 10; 
-        slider.value = rotaAtiva.length * 10;
-    }
-
-    function ativarVisaoGlobal() {
-        modoVisaoGlobal = true; document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
-        tecnicoAtivo = ""; atualizarTela(true); 
-        if (dataAtiva) iniciarAutoRefresh(); 
-    }
+    function configurarSliderInicio() { const slider = document.getElementById("sliderPlayback"); slider.max = rotaAtiva.length * 10; slider.value = rotaAtiva.length * 10; }
+    function ativarVisaoGlobal() { modoVisaoGlobal = true; document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); tecnicoAtivo = ""; atualizarTela(true); if (dataAtiva) iniciarAutoRefresh(); }
 
     // ===============================================
     // ARRASTAR E SOLTAR (CRUD LIBERADO)
     // ===============================================
     let itemArrastadoIndice = null;
-    function iniciarArraste(e, index) { 
-        itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; 
-    }
+    function iniciarArraste(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
     function permitirSoltar(e) { e.preventDefault(); }
     
     function soltarItem(e, indexAlvo) {
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
-        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; 
-        rotaAtiva.splice(indexAlvo, 0, item);
-        sincronizarMemoriaGlobal();
-        atualizarTela(false);
+        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); sincronizarMemoriaGlobal(); atualizarTela(false);
     }
 
     function limparRotas() { if(confirm("Limpar tela atual?")) { localStorage.removeItem("planilhaRotas"); window.location.reload(); } }
@@ -809,50 +710,35 @@
     window.historicoRotasMemoria = [];
 
     async function buscarHistorico() {
-        let dataInput = document.getElementById("buscaData").value;
-        const codigoBusca = document.getElementById("buscaCodigo").value.trim();
+        let dataInput = document.getElementById("buscaData").value; const codigoBusca = document.getElementById("buscaCodigo").value.trim();
         if (!dataInput && !codigoBusca) return alert("⚠️ Preencha Data ou Código.");
         
         let dFormatada = ""; if (dataInput) { const p = dataInput.split('-'); dFormatada = `${p[2]}/${p[1]}/${p[0]}`; dataAtiva = dFormatada; }
-        
-        let url = '/api/rotas?'; 
-        if (dFormatada) url += `data=${encodeURIComponent(dFormatada)}&`; 
-        if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`;
-        url += `_=${new Date().getTime()}`;
+        let url = '/api/rotas?'; if (dFormatada) url += `data=${encodeURIComponent(dFormatada)}&`; if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`; url += `_=${new Date().getTime()}`;
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
             const rotasEncontradas = await res.json();
             if (rotasEncontradas.length === 0) return alert("❌ Nenhum roteiro encontrado.");
-
-            visualizandoHistorico = true;
-            window.historicoRotasMemoria = rotasEncontradas;
+            visualizandoHistorico = true; window.historicoRotasMemoria = rotasEncontradas;
             
             if (layerGrupo) { mapa.removeLayer(layerGrupo); }
-            document.getElementById("painelPlayback").style.display = "none";
-            document.getElementById("painelItinerario").style.display = "none";
+            document.getElementById("painelPlayback").style.display = "none"; document.getElementById("painelItinerario").style.display = "none";
             
             const divLista = document.getElementById("listaTecnicosUI");
             divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando: ${rotasEncontradas[0].data}</h4>`;
             
             rotasEncontradas.forEach((roteiro, idx) => {
                 let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
-                roteiro.itinerario.forEach(c => { 
-                    let st = c.status || 'pendente'; if (st === 'chegada') st = 'chegada'; 
-                    if(statusCount[st] !== undefined) statusCount[st]++; else statusCount.pendente++; 
-                });
-
-                let concluídos = statusCount.sucesso + statusCount.insucesso;
-                let perc = Math.round((concluídos / item_total_length(roteiro.itinerario)) * 100);
-
-                function item_total_length(arr) { return arr ? arr.length : 1; }
+                roteiro.itinerario.forEach(c => { let st = c.status || 'pendente'; if (st === 'chegada') st = 'chegada'; if(statusCount[st] !== undefined) statusCount[st]++; else statusCount.pendente++; });
+                let concluídos = statusCount.sucesso + statusCount.insucesso; let perc = Math.round((concluídos / (roteiro.itinerario ? roteiro.itinerario.length : 1)) * 100);
 
                 divLista.innerHTML += `
                     <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">
                         <div style="flex-grow: 1; cursor: pointer;" onclick="carregarRotaHistorica(${idx}, true)">
                             <div class="tecnico-nome" style="display:flex; align-items:center; gap:8px;">
                                 ${roteiro.tecnico}
-                                <button onclick="renomearTecnico('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir para outro Técnico">🔄</button>
+                                <button onclick="abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir para outro Técnico">🔄</button>
                             </div>
                             <div class="tecnico-stats" style="color:#10B981; font-weight:bold;">Progresso: ${perc}%</div>
                         </div>
@@ -865,47 +751,26 @@
     }
 
     function carregarRotaHistorica(idx, clickManual) {
-        if(clickManual) {
-            document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
-            document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo');
-        }
-        const roteiro = window.historicoRotasMemoria[idx];
-        tecnicoAtivo = roteiro.tecnico;
-        rotaAtiva = [...roteiro.itinerario]; // Clona para garantir que não suja a memória por referência falha
-        modoVisaoGlobal = false; 
-        
-        configurarSliderInicio();
-        document.getElementById("painelItinerario").style.display = "block";
-        atualizarTela(true);
-        if (clickManual && dataAtiva) iniciarAutoRefresh();
+        if(clickManual) { document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo'); }
+        const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...roteiro.itinerario]; modoVisaoGlobal = false; 
+        configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); if (clickManual && dataAtiva) iniciarAutoRefresh();
     }
 
-    async function deletarRotaHistorica(id, event) {
-        event.stopPropagation(); if(!confirm("⚠️ Apagar rota permanentemente?")) return;
-        try { const res = await fetch(`/api/rotas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if(res.ok) buscarHistorico(); } catch(e){}
-    }
+    async function deletarRotaHistorica(id, event) { event.stopPropagation(); if(!confirm("⚠️ Apagar rota permanentemente?")) return; try { const res = await fetch(`/api/rotas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if(res.ok) buscarHistorico(); } catch(e){} }
 
     function iniciarAutoRefresh() {
         pararAutoRefresh();
         autoRefreshInterval = setInterval(async () => {
             if (!visualizandoHistorico || !dataAtiva) { pararAutoRefresh(); return; }
             try {
-                const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataAtiva)}&_=${new Date().getTime()}`, { 
-                    headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store'
-                });
-                
+                const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataAtiva)}&_=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
                 const rotasEncontradas = await res.json();
-                
                 if (modoVisaoGlobal) {
                     let houveMudancaGlobal = JSON.stringify(window.historicoRotasMemoria) !== JSON.stringify(rotasEncontradas);
                     if (houveMudancaGlobal) { window.historicoRotasMemoria = rotasEncontradas; atualizarTela(false); }
                 } else if (tecnicoAtivo) {
-                    const rotaAtualizada = rotasEncontradas.find(r => r.tecnico === tecnicoAtivo);
-                    const rotaAntiga = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
-                    
-                    if (rotaAtualizada && JSON.stringify(rotaAntiga) !== JSON.stringify(rotaAtualizada)) {
-                        window.historicoRotasMemoria = rotasEncontradas; rotaAtiva = [...rotaAtualizada.itinerario]; atualizarTela(false);
-                    }
+                    const rotaAtualizada = rotasEncontradas.find(r => r.tecnico === tecnicoAtivo); const rotaAntiga = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
+                    if (rotaAtualizada && JSON.stringify(rotaAntiga) !== JSON.stringify(rotaAtualizada)) { window.historicoRotasMemoria = rotasEncontradas; rotaAtiva = [...rotaAtualizada.itinerario]; atualizarTela(false); }
                 }
             } catch(e) {} 
         }, 10000); 
@@ -916,27 +781,22 @@
     function calcularDiferencaMinutos(inicio, fim) {
         if(!inicio || !fim || inicio === "-" || fim === "-") return "-";
         try {
-            const [h1, m1, s1] = inicio.split(':').map(Number);
-            const [h2, m2, s2] = fim.split(':').map(Number);
+            const [h1, m1, s1] = inicio.split(':').map(Number); const [h2, m2, s2] = fim.split(':').map(Number);
             let d1 = new Date(2000, 0, 1, h1, m1, s1 || 0); let d2 = new Date(2000, 0, 1, h2, m2, s2 || 0);
             let diffMins = Math.floor((d2 - d1) / 60000); if(diffMins < 0) diffMins += 24 * 60; return diffMins;
         } catch(e) { return "-"; }
     }
 
     async function exportarRelatorioExcel() {
-        const dataInput = document.getElementById("buscaData").value;
-        let url = '/api/rotas'; let nomeArquivo = 'Telemetria_Equipe_Geral.xlsx';
+        const dataInput = document.getElementById("buscaData").value; let url = '/api/rotas'; let nomeArquivo = 'Telemetria_Equipe_Geral.xlsx';
         if (dataInput) { const p = dataInput.split('-'); const dFormatada = `${p[2]}/${p[1]}/${p[0]}`; url += `?data=${encodeURIComponent(dFormatada)}`; nomeArquivo = `Telemetria_Equipe_${p[2]}_${p[1]}_${p[0]}.xlsx`; } 
         else { if(!confirm("Baixar o histórico de TODAS as rotas de sempre?")) return; }
-
         const toast = document.createElement("div"); toast.innerText = `A gerar relatório Excel...`; toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; document.getElementById("mapaArea").appendChild(toast);
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
             let rotas = await res.json(); if(rotas.length === 0) { toast.remove(); return alert("❌ Sem rotas."); }
-            if (tecnicoAtivo && !modoVisaoGlobal) {
-                if (confirm(`Baixar APENAS de ${tecnicoAtivo}?\nCancel para Toda a Equipe.`)) { rotas = rotas.filter(r => r.tecnico === tecnicoAtivo); nomeArquivo = `Telemetria_${tecnicoAtivo.split(' ')[0]}_${dataInput ? dataInput : 'Geral'}.xlsx`; }
-            }
+            if (tecnicoAtivo && !modoVisaoGlobal) { if (confirm(`Baixar APENAS de ${tecnicoAtivo}?\nCancel para Toda a Equipe.`)) { rotas = rotas.filter(r => r.tecnico === tecnicoAtivo); nomeArquivo = `Telemetria_${tecnicoAtivo.split(' ')[0]}_${dataInput ? dataInput : 'Geral'}.xlsx`; } }
             let dadosExcel = [];
             rotas.forEach(roteiro => { roteiro.itinerario.forEach((item, idx) => { dadosExcel.push({ "Data da Rota": roteiro.data, "Técnico": roteiro.tecnico, "Sequência": idx + 1, "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", "Código OS": item.codigo, "Cliente": item.cliente, "Serviço": item.servico || "-", "Desfecho": (item.status || 'pendente').toUpperCase(), "Hora Saída": item.horaSaida || "-", "Hora Chegada": item.horaChegada || "-", "Hora Fim": item.horaFinal || "-", "Trânsito (Min)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada), "Serviço (Min)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal) }); }); });
             const worksheet = XLSX.utils.json_to_sheet(dadosExcel); const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria"); XLSX.writeFile(workbook, nomeArquivo); toast.remove(); alert("✅ Relatório extraído!");
@@ -949,7 +809,7 @@
     let ordensNaoAlocadas = JSON.parse(localStorage.getItem("ordensNaoAlocadas") || "[]");
     document.addEventListener("DOMContentLoaded", () => { setTimeout(renderNaoAlocadas, 500); });
 
-    function renderNaoAlocadas() {
+    window.renderNaoAlocadas = function() {
         const divFila = document.getElementById("listaNaoAlocadasUI");
         if (!divFila) return;
         if (ordensNaoAlocadas.length === 0) {
@@ -962,37 +822,57 @@
             <div class="itinerario-item" style="border-left-color: #F59E0B; margin-bottom: 5px; padding: 8px; cursor: default;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div style="font-size: 12px; color: white;"><b>OS: ${ordem.codigo}</b></div>
-                    <button onclick="alocarParaTecnicoAtivo(${idx})" style="background: #10B981; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="Atribuir ao técnico selecionado na tela">✚ Alocar</button>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="editarOrdemFila(${idx})" class="btn-lapis" style="padding: 2px;" title="Editar Endereço">✏️</button>
+                        <button onclick="excluirOrdemFila(${idx})" class="btn-lapis" style="color:#EF4444; padding: 2px;" title="Excluir da Fila">✖</button>
+                        <button onclick="alocarParaTecnicoAtivo(${idx})" style="background: #10B981; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="Atribuir ao técnico selecionado">✚ Alocar</button>
+                    </div>
                 </div>
                 <div style="font-size: 10px; color: #94A3B8;">${ordem.rua}</div>
             </div>`;
         });
         divFila.innerHTML = html; localStorage.setItem("ordensNaoAlocadas", JSON.stringify(ordensNaoAlocadas));
-    }
+    };
+
+    window.editarOrdemFila = async function(idx) {
+        let ordem = ordensNaoAlocadas[idx];
+        let novoEndereco = prompt("✏️ Edite o endereço desta OS na fila:", ordem.rua);
+        if (!novoEndereco || novoEndereco.trim() === "" || novoEndereco === ordem.rua) return;
+
+        document.getElementById("listaNaoAlocadasUI").innerHTML = `<div style="color: #FACC15; font-size: 12px; text-align: center; padding: 10px;">Buscando GPS... 🛰️</div>`;
+        
+        let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" };
+        let crds = await obterCoordenadasSilenciosa(geoData);
+        if (!crds) {
+            alert("❌ Não conseguimos converter esse endereço em GPS. Verifique a grafia.");
+            renderNaoAlocadas(); return;
+        }
+        
+        ordem.rua = novoEndereco; ordem.lat = crds.lat; ordem.lon = crds.lon; ordem.precisaCorrecao = false;
+        renderNaoAlocadas();
+    };
+
+    window.excluirOrdemFila = function(idx) {
+        if(confirm("Tem certeza que deseja excluir esta OS definitivamente da fila de espera?")) {
+            ordensNaoAlocadas.splice(idx, 1); renderNaoAlocadas();
+        }
+    };
 
     window.desalocarOrdem = function(index, event) {
         try {
             if (event) { event.preventDefault(); event.stopPropagation(); }
             let ordemRemovida = rotaAtiva.splice(index, 1)[0];
-            ordensNaoAlocadas.push(ordemRemovida);
-            renderNaoAlocadas();
-            sincronizarMemoriaGlobal();
-            configurarSliderInicio();
-            atualizarTela(false);
+            ordensNaoAlocadas.push(ordemRemovida); renderNaoAlocadas(); sincronizarMemoriaGlobal(); configurarSliderInicio(); atualizarTela(false);
         } catch (erro) { alert("Houve um pequeno erro, a tela recarregará."); window.location.reload(); }
     };
 
-    function alocarParaTecnicoAtivo(idxOrdemFila) {
+    window.alocarParaTecnicoAtivo = function(idxOrdemFila) {
         if (!tecnicoAtivo) return alert("⚠️ Primeiro, clique no nome de um Técnico na lista acima para selecioná-lo.");
         let ordem = ordensNaoAlocadas.splice(idxOrdemFila, 1)[0];
-        rotaAtiva.push(ordem);
-        sincronizarMemoriaGlobal();
-        renderNaoAlocadas();
-        configurarSliderInicio();
-        atualizarTela(true);
-    }
+        rotaAtiva.push(ordem); sincronizarMemoriaGlobal(); renderNaoAlocadas(); configurarSliderInicio(); atualizarTela(true);
+    };
 
-    async function criarOrdemManual() {
+    window.criarOrdemManual = async function() {
         let codigo = prompt("Digite o CÓDIGO da Nova OS:"); if (!codigo) return;
         let rua = prompt("Digite o ENDEREÇO completo com número e bairro:"); if (!rua) return;
         let cliente = prompt("Nome do Cliente (opcional):") || "Não informado";
@@ -1006,7 +886,7 @@
 
         if(!crds) alert("⚠️ Endereço não encontrado com exatidão pelo GPS, ele foi jogado provisoriamente na Base. Edite depois se necessário.");
         ordensNaoAlocadas.push(novaOrdem); renderNaoAlocadas(); alert("✅ Ordem Manual criada! Ela está na 'Fila de Espera' e pode ser alocada a qualquer técnico.");
-    }
+    };
 </script>
 </body>
 </html>
