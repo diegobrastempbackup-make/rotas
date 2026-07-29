@@ -327,6 +327,7 @@
             if (cepFormatado.length === 8) cepFormatado = cepFormatado.substring(0, 5) + "-" + cepFormatado.substring(5);
 
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
+            let detalhes = String(buscarValorNaLinha(linha, ["DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
 
@@ -340,8 +341,16 @@
                 if (servico) { ordemExistente.servico += ` / ${servico}`; }
             } else {
                 ordensPorTecnico[tecnico].push({
-                    chaveAgrupamento: chaveAgrupamento, codigo: String(codigo), cliente: String(cliente).trim(), servico: servico, rua: rua,
-                    cidade: cidade, cep: cepFormatado, periodo: periodoOriginal, status: 'pendente' 
+                    chaveAgrupamento: chaveAgrupamento,
+                    codigo: String(codigo), 
+                    cliente: String(cliente).trim(), 
+                    servico: servico,
+                    rua: rua,
+                    detalhes: detalhes, // <-- ADICIONADO AQUI PARA IR PRA NUVEM
+                    cidade: cidade,
+                    cep: cepFormatado, 
+                    periodo: periodoOriginal, 
+                    status: 'pendente' 
                 });
                 totalOS++; 
             }
