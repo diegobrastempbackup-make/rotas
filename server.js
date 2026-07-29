@@ -437,18 +437,20 @@ app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
 
 app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
     try {
-        const { nome, funcao } = req.body;
-        await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao });
+        // CORREÇÃO: Recebendo a variável 'foto'
+        const { nome, funcao, foto } = req.body;
+        await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao, foto });
         res.json({ok: true});
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
 app.put('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
     try {
-        const { nome, funcao } = req.body;
+        // CORREÇÃO: Recebendo a variável 'foto'
+        const { nome, funcao, foto } = req.body;
         await db.collection("equipe_totem").updateOne(
             { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, 
-            { $set: { nome, funcao } }
+            { $set: { nome, funcao, foto } }
         );
         res.json({ok: true});
     } catch(e) { res.status(500).json({erro: "Erro"}); }
