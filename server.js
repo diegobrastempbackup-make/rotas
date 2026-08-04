@@ -477,10 +477,20 @@ app.get('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/config-base', autenticarToken, async (req, res) => {
     try {
-        const { limiteAtraso } = req.body;
-        await db.collection("configuracoes").updateOne({ cliente_id: req.usuario.cliente_id }, { $set: { limiteAtraso } }, { upsert: true });
+        // 1. Agora o servidor recebe todos os campos enviados pelo Painel Web
+        const { limiteAtraso, latBase, lonBase, raioBase } = req.body;
+        
+        // 2. Salva todos eles no banco de dados da empresa logada
+        await db.collection("configuracoes").updateOne(
+            { cliente_id: req.usuario.cliente_id }, 
+            { $set: { limiteAtraso, latBase, lonBase, raioBase } }, 
+            { upsert: true }
+        );
+        
         res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro"}); }
+    } catch(e) { 
+        res.status(500).json({erro: "Erro"}); 
+    }
 });
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
