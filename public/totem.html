@@ -94,6 +94,11 @@
     let bloqueioGeral = false; 
     let timerToast;
     
+    // --- NOVO: Radar para detectar Check-ins do Celular ---
+    let idsConhecidos = new Set();
+    let primeiraBusca = true;
+    // ------------------------------------------------------
+    
     // Guarda os rostos do banco de dados levinhos na memória
     let cacheEquipeTotem = []; 
 
@@ -196,6 +201,9 @@
         }
     });
 
+    // =========================================================
+    // ESCUTA DE REDE (Detecta Check-ins Remotos do App)
+    // =========================================================
     async function escutarServidorViaRede() {
         try {
             const dataHoje = new Date().toLocaleDateString('pt-BR');
@@ -203,6 +211,18 @@
             const chamadas = await res.json();
             
             filaDeHoje = chamadas;
+
+            // RADAR: Verifica se tem alguém novo na fila
+            chamadas.forEach(c => {
+                if (!idsConhecidos.has(c._id)) {
+                    idsConhecidos.add(c._id);
+                    // Se não for o primeiro carregamento da página, significa que alguém acabou de fazer check-in no App!
+                    if (!primeiraBusca) {
+                        mostrarBoasVindas(c.tecnico, false);
+                    }
+                }
+            });
+            primeiraBusca = false; // Desativa após carregar a primeira vez
 
             const pendente = chamadas.find(c => c.status === 'Chamando');
             if (pendente) tentarTocar(pendente);
