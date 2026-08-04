@@ -495,7 +495,8 @@ app.post('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
-        const { codigoBarras, horaBatida, dataBatida } = req.body;
+        // NOVO: Recebendo a "origem"
+        const { codigoBarras, horaBatida, dataBatida, origem } = req.body;
         
         const pessoa = await db.collection("equipe_totem").findOne({ 
             nome: new RegExp(`^${codigoBarras}$`, 'i'), 
@@ -503,6 +504,14 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
         });
 
         if (!pessoa) return res.status(404).json({ erro: "Crachá não reconhecido na Base!" });
+
+        const jaEntrouHoje = await db.collection("fila_ponto").findOne({
+            cliente_id: req.usuario.cliente_id,
+            tecnico: pessoa.nome,
+            data: dataBatida
+        });
+
+        if (jaEntrouHoje) return res.status(400).json({ erro: "Entrada já registrada hoje." });
 
         let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
         const limite = config && config.limiteAtraso ? config.limiteAtraso : "08:00";
@@ -515,12 +524,15 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
             horaChegada: horaBatida,
             status: "Aguardando", 
             atrasado: atrasado,
+            origem: origem || "Totem", // NOVO: Salva a origem (Padrão: Totem se vier vazio)
             timestamp: new Date()
         };
 
         await db.collection("fila_ponto").insertOne(registro);
         res.json({ ok: true, tecnico: pessoa.nome, atrasado });
-    } catch(e) { res.status(500).json({erro: "Erro no servidor."}); }
+    } catch(e) { 
+        res.status(500).json({erro: "Erro no servidor."}); 
+    }
 });
 
 app.get('/api/fila/hoje', autenticarToken, async (req, res) => {

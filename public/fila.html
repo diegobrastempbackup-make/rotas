@@ -219,7 +219,8 @@
         try {
             await fetch('/api/fila/bipar', {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ codigoBarras: nome, dataBatida: dataAtual, horaBatida: horaAtual })
+                // NOVO: Adicionado origem: "Manual"
+                body: JSON.stringify({ codigoBarras: nome, dataBatida: dataAtual, horaBatida: horaAtual, origem: "Manual" })
             });
             document.getElementById("manualTecnico").value = ""; 
             atualizarFila();
@@ -235,7 +236,7 @@
         } catch(e) {}
     }
 
-    function desenharFila() {
+    ffunction desenharFila() {
         const container = document.getElementById("containerFila");
         container.innerHTML = "";
         
@@ -272,12 +273,19 @@
                 ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171;">⏰ Atrasado</span>` 
                 : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399;">✅ No Horário</span>`;
 
+            // NOVO: Define o ícone e o texto com base na origem
+            let origemIcon = "📠 Via Totem";
+            if (item.origem === "App") origemIcon = "📱 Via App";
+            else if (item.origem === "Manual") origemIcon = "⌨️ Manual";
+
+            let tagOrigem = `<span style="background:rgba(255,255,255,0.05); color: #CBD5E1; padding: 4px 8px; border-radius: 4px; font-size: 11px; margin-left: 5px;">${origemIcon}</span>`;
+
             container.innerHTML += `
                 <div class="fila-card" style="border-left-color: ${corBorda}; opacity: ${opacity};">
                     <div class="card-info">
                         <span style="color:#60A5FA; font-size:12px; font-weight:bold;">Chegada #${index + 1}</span>
                         <h3 class="tec-nome">${item.tecnico}</h3>
-                        <div class="tec-hora">Entrou às ${item.horaChegada} ${badgeHtml}</div>
+                        <div class="tec-hora">Entrou às ${item.horaChegada} ${badgeHtml} ${tagOrigem}</div>
                         <div class="status-texto" style="color: ${statusCor};">${statusTexto}</div>
                     </div>
                     

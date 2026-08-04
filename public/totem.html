@@ -324,7 +324,7 @@
                 await fetch('/api/fila/bipar', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ codigoBarras: codigo, dataBatida: dataAtual, horaBatida: horaAtual }) 
+                    body: JSON.stringify({ codigoBarras: codigo, dataBatida: dataAtual, horaBatida: horaAtual, origem: "Totem" }) 
                 }); 
                 
                 escutarServidorViaRede();
