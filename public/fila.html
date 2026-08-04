@@ -15,7 +15,6 @@
         .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; transition: 0.2s; }
         .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
         
-        /* NOVO LAYOUT VERTICAL DOS CARDS */
         .fila-lista { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
         
         .fila-card { 
@@ -40,7 +39,6 @@
         .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
     </style>
     
-    <!-- Bibliotecas para Gerar PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     
@@ -72,12 +70,10 @@
     <div class="abas-nav" style="margin-top: 15px;">
         <button class="aba-btn ativa" id="btnAbaFila" onclick="mudarAba('fila')">📍 Fila ao Vivo</button>
         <button class="aba-btn" id="btnAbaRelatorio" onclick="mudarAba('relatorio')">📄 Relatório de Ponto (PDF)</button>
-        <button class="aba-btn" id="btnAbaConfig" onclick="mudarAba('config')">⚙️ Regra de Atraso</button>
+        <button class="aba-btn" id="btnAbaConfig" onclick="mudarAba('config')">⚙️ Regras e Base GPS</button>
     </div>
 
-    <!-- ============================================== -->
-    <!-- ABA 1: FILA AO VIVO (CARDS VERTICAIS) -->
-    <!-- ============================================== -->
+    <!-- ABA 1: FILA AO VIVO -->
     <div id="abaFila">
         <div class="painel-controles">
             <div class="box-controle" style="border: 1px dashed rgba(255,255,255,0.2);">
@@ -98,9 +94,7 @@
         </div>
     </div>
 
-    <!-- ============================================== -->
-    <!-- ABA 2: RELATÓRIO PDF (O que você pediu para voltar!) -->
-    <!-- ============================================== -->
+    <!-- ABA 2: RELATÓRIO PDF -->
     <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); margin-top: 20px;">
         <h3 style="margin-top:0; color:#60A5FA;">📅 Emitir Extrato de Horários e Atrasos</h3>
         <p style="color: #94A3B8; font-size: 14px; margin-bottom: 20px;">Selecione o mês e o técnico (ou todos) para exportar um PDF com os dias, horários de chegada e a quantidade de atrasos no período.</p>
@@ -122,14 +116,24 @@
         </div>
     </div>
 
-    <!-- ============================================== -->
-    <!-- ABA 3: CONFIGURAÇÃO DE ATRASO -->
-    <!-- ============================================== -->
+    <!-- ABA 3: CONFIGURAÇÕES GERAIS (GEOFENCING) -->
     <div id="abaConfig" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); max-width: 500px; margin-top: 20px;">
         <h3 style="margin-top:0; color:#60A5FA;">Regras Matinais</h3>
-        <p style="font-size: 13px; color: #94A3B8; margin-bottom: 20px;">Defina o horário limite de chegada. Quem bipar o crachá depois desta hora será marcado de vermelho.</p>
-        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Horário Limite (Tolerância)</label>
-        <input type="time" id="inputLimiteAtraso" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Horário Limite (Tolerância de Atraso)</label>
+        <input type="time" id="inputLimiteAtraso" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 25px;">
+        
+        <h3 style="margin-top:0; color:#60A5FA; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">Geofencing (Check-in pelo App)</h3>
+        <p style="font-size: 13px; color: #94A3B8; margin-bottom: 15px;">Defina as coordenadas do galpão e o raio de tolerância. O técnico só consegue entrar na fila se o GPS do celular estiver dentro deste raio.</p>
+        
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Latitude da Base</label>
+        <input type="text" id="inputLatBase" placeholder="Ex: -23.550520" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
+        
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Longitude da Base</label>
+        <input type="text" id="inputLonBase" placeholder="Ex: -46.633308" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
+        
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Raio Máximo Permitido (Em Metros)</label>
+        <input type="number" id="inputRaioBase" value="150" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 25px;">
+
         <button onclick="salvarConfigBase()" style="width: 100%; padding:12px; background:#2563EB; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Guardar Configuração</button>
     </div>
 </div>
@@ -140,7 +144,6 @@
     let filaAtual = [];
 
     document.addEventListener("DOMContentLoaded", async () => {
-        // Preenche o mês atual no filtro do PDF por padrão
         const agora = new Date();
         document.getElementById("filtroMesPonto").value = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
         
@@ -150,7 +153,6 @@
         setInterval(atualizarFila, 2500); 
     });
 
-    // SISTEMA DE ABAS (Para navegar entre Fila e PDF)
     function mudarAba(aba) {
         ['Fila', 'Relatorio', 'Config'].forEach(id => {
             document.getElementById(`aba${id}`).style.display = 'none';
@@ -164,15 +166,27 @@
         try {
             const res = await fetch("/api/config-base", { headers: { "Authorization": `Bearer ${token}` } });
             const conf = await res.json();
-            if (conf && conf.limiteAtraso) document.getElementById("inputLimiteAtraso").value = conf.limiteAtraso;
+            if (conf) {
+                if(conf.limiteAtraso) document.getElementById("inputLimiteAtraso").value = conf.limiteAtraso;
+                if(conf.latBase) document.getElementById("inputLatBase").value = conf.latBase;
+                if(conf.lonBase) document.getElementById("inputLonBase").value = conf.lonBase;
+                if(conf.raioBase) document.getElementById("inputRaioBase").value = conf.raioBase;
+            }
         } catch(e) {}
     }
 
     async function salvarConfigBase() {
         const limiteAtraso = document.getElementById("inputLimiteAtraso").value;
+        const latBase = document.getElementById("inputLatBase").value;
+        const lonBase = document.getElementById("inputLonBase").value;
+        const raioBase = document.getElementById("inputRaioBase").value;
         try {
-            await fetch("/api/config-base", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ limiteAtraso }) });
-            alert("✅ Tolerância de atraso atualizada!");
+            await fetch("/api/config-base", { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
+                body: JSON.stringify({ limiteAtraso, latBase, lonBase, raioBase }) 
+            });
+            alert("✅ Configurações da Base salvas com sucesso!");
         } catch(e) {}
     }
 
@@ -186,7 +200,6 @@
             comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
             comboRelatorio.innerHTML = `<option value="TODOS">Geral (Todos os Funcionários)</option>`;
             
-            // Ordem Alfabética
             equipe.sort((a, b) => a.nome.localeCompare(b.nome));
             
             equipe.forEach(p => { 
@@ -235,7 +248,6 @@
         document.getElementById("msgFilaVazia").style.display = "none";
 
         filaVisivel.forEach((item, index) => {
-            // LÓGICA DE TEXTOS E CORES QUE VOCÊ PEDIU
             let statusTexto = "⏳ Aguardando ser chamado";
             let statusCor = "#94A3B8";
             let corBorda = item.atrasado ? "#EF4444" : "#3B82F6"; 
@@ -247,20 +259,19 @@
                 corBorda = "#F59E0B";
             } else if (item.status === "Em atendimento") {
                 statusTexto = "🛠️ Em atendimento";
-                statusCor = "#8B5CF6"; // Roxo
+                statusCor = "#8B5CF6"; 
                 corBorda = "#8B5CF6";
             } else if (item.status === "Atendido") {
                 statusTexto = "✅ Atendido";
-                statusCor = "#10B981"; // Verde
+                statusCor = "#10B981"; 
                 corBorda = "#10B981";
-                opacity = "0.5"; // Fica transparente, mas OS BOTÕES CONTINUAM ATIVOS!
+                opacity = "0.5"; 
             }
             
             let badgeHtml = item.atrasado 
                 ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171;">⏰ Atrasado</span>` 
                 : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399;">✅ No Horário</span>`;
 
-            // O NOVO CARD VERTICAL SUPER CLEAN E ELEGANTE
             container.innerHTML += `
                 <div class="fila-card" style="border-left-color: ${corBorda}; opacity: ${opacity};">
                     <div class="card-info">
@@ -279,17 +290,14 @@
         });
     }
 
-    // A MÁGICA DOS BOTÕES (Sem loops!)
     async function chamarCard(idRegistro) {
         try {
-            // 1. Muda para 'Chamando' (A TV pega este sinal instantaneamente e grita o nome)
             await fetch(`/api/fila/${idRegistro}/status`, { 
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
                 body: JSON.stringify({ status: 'Chamando' }) 
             });
             atualizarFila();
 
-            // 2. Após 4 segundos (tempo da TV falar), muda automaticamente para "Em atendimento"
             setTimeout(async () => {
                 await fetch(`/api/fila/${idRegistro}/status`, { 
                     method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
@@ -297,13 +305,11 @@
                 });
                 atualizarFila();
             }, 4000);
-            
         } catch(e) {}
     }
 
     async function liberarCard(idRegistro) {
         try {
-            // Muda o status para "Atendido". O Card fica transparente, mas OS BOTÕES CONTINUAM LÁ para chamar de novo se precisar!
             await fetch(`/api/fila/${idRegistro}/status`, { 
                 method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
                 body: JSON.stringify({ status: 'Atendido' }) 
@@ -325,14 +331,10 @@
         atualizarFila();
     }
 
-    // ==============================================
-    // A GERAÇÃO DE PDF QUE VOCÊ PEDIU
-    // ==============================================
     async function gerarPDFPonto() {
         const mesAnoStr = document.getElementById("filtroMesPonto").value; 
         if (!mesAnoStr) return alert("Por favor, selecione um mês.");
         
-        // Converte "2024-06" para "06/2024" para buscar na sua API
         const p = mesAnoStr.split('-'); 
         const mesFormato = `${p[1]}/${p[0]}`; 
         const tecnicoSel = document.getElementById("filtroTecnicoPonto").value;
@@ -346,7 +348,6 @@
             const { jsPDF } = window.jspdf; 
             const doc = new jsPDF();
             
-            // Cabeçalho do PDF
             doc.setFont("helvetica", "bold"); 
             doc.setFontSize(18); 
             doc.text("Relatório de Frequência e Horários", 14, 20);
@@ -356,12 +357,10 @@
             doc.text(`Período analisado: ${p[1]}/${p[0]}`, 14, 28); 
             doc.text(`Colaborador: ${tecnicoSel === "TODOS" ? "Geral (Toda a Base)" : tecnicoSel}`, 14, 34);
             
-            // O Resumo (Quantas vezes chegou e quantos atrasos)
             const totalAtrasos = historico.filter(i => i.atrasado).length;
             doc.text(`Total de dias trabalhados: ${historico.length}`, 130, 28); 
             doc.text(`Total de Atrasos: ${totalAtrasos}`, 130, 34);
 
-            // Tabela detalhada (Dias, Horários e Status)
             doc.autoTable({
                 head: [["Data", "Colaborador", "Hora da Chegada", "Status do Horário"]],
                 body: historico.map(item => [ item.data, item.tecnico, item.horaChegada, item.atrasado ? "ATRASADO" : "NO HORÁRIO" ]),
