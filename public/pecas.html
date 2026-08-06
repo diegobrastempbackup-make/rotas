@@ -27,7 +27,6 @@
         .btn-amarelo { background: #F59E0B; color: black; }
     </style>
     
-    <!-- Bibliotecas para geração de PDF (Mesmas usadas no seu relatório de ponto) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     
@@ -52,7 +51,7 @@
     <h1>Gestão de Peças</h1>
     
     <div class="abas-nav">
-        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')">🔔 Solicitações e Histórico</button>
+        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')">🔔 Solicitações por Data</button>
         <button class="aba-btn" id="btnAbaCatalogo" onclick="mudarAba('catalogo')">⚙️ Catálogo e Estoque</button>
     </div>
 
@@ -69,7 +68,7 @@
 
         <table id="tabelaSolicitacoes">
             <thead>
-                <tr><th>Data/Hora</th><th>Técnico</th><th>Peça</th><th>Qtd Pedida</th><th>Status</th><th>Ações</th></tr>
+                <tr><th>Data/Hora</th><th>Técnico</th><th>Peça Solicitada</th><th>Quantidade</th><th>Ações</th></tr>
             </thead>
             <tbody></tbody>
         </table>
@@ -95,8 +94,8 @@
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
 
-    // Deixa a data de hoje pré-selecionada no filtro por comodidade
-    document.getElementById("filtroData").valueAsDate = new Date();
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById("filtroData").value = hoje;
 
     function mudarAba(aba) {
         document.getElementById('abaSolicitacoes').style.display = aba === 'solicitacoes' ? 'block' : 'none';
@@ -154,42 +153,30 @@
         tbody.innerHTML = "";
         
         if(cacheSolicitacoes.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94A3B8;">Nenhum pedido encontrado para esta data.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94A3B8;">Nenhum pedido encontrado para a data selecionada.</td></tr>`;
             return;
         }
 
         cacheSolicitacoes.forEach(p => {
             const dataF = new Date(p.dataSolicitacao).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});
-            let statusBadge = p.status === 'Entregue' 
-                ? `<span style="color:#10B981; font-weight:bold;">✅ Entregue</span>` 
-                : `<span style="color:#F59E0B; font-weight:bold;">⏳ Pendente</span>`;
 
-            let acoesHtml = "";
-            if (p.status === 'Pendente') {
-                acoesHtml = `
-                    
-                    <button class="btn-acao btn-amarelo" onclick="editarQtd('${p._id}', ${p.quantidade})" style="padding: 5px 10px; font-size:12px;">✏️ Editar</button>
-                    <button class="btn-acao btn-vermelho" onclick="excluirSolicitacao('${p._id}')" style="padding: 5px 10px; font-size:12px;">🗑️ Excluir</button>
-                `;
-            } else {
-                acoesHtml = `<span style="color: #64748B; font-size: 13px;">Finalizado</span>`;
-            }
+            let acoesHtml = `
+                <button class="btn-acao btn-amarelo" onclick="editarQtd('${p._id}', ${p.quantidade})" style="padding: 5px 10px; font-size:12px;">✏️ Editar Qtd</button>
+                <button class="btn-acao btn-vermelho" onclick="excluirSolicitacao('${p._id}')" style="padding: 5px 10px; font-size:12px;">🗑️ Excluir</button>
+            `;
 
             tbody.innerHTML += `<tr>
                 <td style="color:#94A3B8; font-size:13px;">${dataF}</td>
                 <td><strong>${p.tecnico}</strong></td>
                 <td>${p.nome_peca} ${p.observacao ? '<br><small style="color:#93C5FD;">Obs: '+p.observacao+'</small>' : ''}</td>
                 <td><strong>${p.quantidade} un.</strong></td>
-                <td>${statusBadge}</td>
                 <td>${acoesHtml}</td>
             </tr>`;
         });
     }
 
-    
-
     async function editarQtd(id, qtdAtual) {
-        let novaQtd = prompt("Informe a nova quantidade a ser entregue:", qtdAtual);
+        let novaQtd = prompt("Informe a quantidade corrigida para entrega:", qtdAtual);
         if (novaQtd === null || novaQtd.trim() === "") return;
         
         await fetch(`/api/pecas/solicitacoes/${id}/editar`, {
@@ -201,7 +188,7 @@
     }
 
     async function excluirSolicitacao(id) {
-        if(!confirm("Deseja excluir esta solicitação (por falta de peça ou cancelamento)?")) return;
+        if(!confirm("Deseja excluir esta solicitação?")) return;
         await fetch(`/api/pecas/solicitacoes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
         carregarSolicitacoes();
     }
@@ -218,24 +205,23 @@
         
         doc.setFontSize(11); 
         doc.setFont("helvetica", "normal"); 
-        const dataFiltroStr = document.getElementById("filtroData").value || "Geral (Todas as datas)";
-        doc.text(`Filtro de Data: ${dataFiltroStr}`, 14, 28); 
+        const dataFiltroStr = document.getElementById("filtroData").value || "Geral";
+        doc.text(`Data do Filtro: ${dataFiltroStr}`, 14, 28); 
 
         doc.autoTable({
-            head: [["Data/Hora", "Técnico", "Peça", "Quantidade", "Status"]],
+            head: [["Data/Hora", "Técnico", "Peça", "Quantidade"]],
             body: cacheSolicitacoes.map(item => [ 
                 new Date(item.dataSolicitacao).toLocaleString('pt-BR'), 
                 item.tecnico, 
                 item.nome_peca, 
-                item.quantidade + " un.", 
-                item.status 
+                item.quantidade + " un." 
             ]),
             startY: 35, 
             theme: 'striped', 
             headStyles: { fillColor: [30, 41, 59] }
         });
         
-        doc.save(`Relatorio_Pecas_${dataFiltroStr.replace(/\//g, '-')}.pdf`);
+        doc.save(`Relatorio_Pecas_${dataFiltroStr}.pdf`);
     }
 
     carregarSolicitacoes();

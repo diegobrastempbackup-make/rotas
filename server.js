@@ -716,52 +716,18 @@ app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
             nome_peca,
             quantidade: Number(quantidade),
             observacao,
-            status: "Pendente", // Pendente, Entregue, Cancelado
             dataSolicitacao: new Date()
         });
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro ao solicitar peça"}); }
 });
 
-// 5. Listar solicitações para o Coordenador (Painel Web)
-app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
-    try {
-        const solicitacoes = await db.collection("solicitacoes_pecas")
-            .find({ cliente_id: req.usuario.cliente_id, status: "Pendente" })
-            .sort({ dataSolicitacao: 1 }).toArray();
-        res.json(solicitacoes);
-    } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
-});
-
-// 6. Coordenador marca a peça como entregue
-app.put('/api/pecas/solicitacoes/:id/entregar', autenticarToken, async (req, res) => {
-    try {
-        const solicitacao = await db.collection("solicitacoes_pecas").findOne({ _id: new ObjectId(req.params.id) });
-        
-        if (solicitacao) {
-            // Atualiza o status da solicitação
-            await db.collection("solicitacoes_pecas").updateOne(
-                { _id: new ObjectId(req.params.id) },
-                { $set: { status: "Entregue", dataEntrega: new Date() } }
-            );
-
-            // Dá baixa no estoque do catálogo
-            await db.collection("catalogo_pecas").updateOne(
-                { _id: new ObjectId(solicitacao.peca_id) },
-                { $inc: { estoque: -Number(solicitacao.quantidade) } }
-            );
-        }
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro ao baixar solicitação"}); }
-});
 // 5. Listar solicitações (com suporte a filtro por data)
 app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
     try {
-        const { data, status } = req.query;
+        const { data } = req.query;
         let filtro = { cliente_id: req.usuario.cliente_id };
-        if (status) filtro.status = status;
         
-        // Se passar uma data (YYYY-MM-DD), filtra pelo dia da solicitação
         if (data) {
             let inicio = new Date(data);
             let fim = new Date(data);
@@ -774,7 +740,7 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
 });
 
-// 6. Editar quantidade de uma solicitação pendente
+// 6. Editar quantidade de uma solicitação
 app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
     try {
         const { nova_quantidade } = req.body;
@@ -794,24 +760,5 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao excluir solicitação"}); }
 });
 
-// 8. Coordenador marca a peça como entregue (dando baixa exata na quantidade salva)
-app.put('/api/pecas/solicitacoes/:id/entregar', autenticarToken, async (req, res) => {
-    try {
-        const solicitacao = await db.collection("solicitacoes_pecas").findOne({ _id: new ObjectId(req.params.id) });
-        
-        if (solicitacao && solicitacao.status === "Pendente") {
-            await db.collection("solicitacoes_pecas").updateOne(
-                { _id: new ObjectId(req.params.id) },
-                { $set: { status: "Entregue", dataEntrega: new Date() } }
-            );
-
-            await db.collection("catalogo_pecas").updateOne(
-                { _id: new ObjectId(solicitacao.peca_id) },
-                { $inc: { estoque: -Number(solicitacao.quantidade) } }
-            );
-        }
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro ao baixar solicitação"}); }
-});
-
 iniciarSistema();
+
