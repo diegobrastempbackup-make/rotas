@@ -224,7 +224,9 @@
         doc.save(`Relatorio_Pecas_${dataFiltroStr}.pdf`);
     }
 
+    // Inicialização e atualização automática em tempo real
     carregarSolicitacoes();
+    setInterval(carregarSolicitacoes, 3000); // 3 em 3 segundos atualiza sozinho na tela!
 </script>
 </body>
 </html>
