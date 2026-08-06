@@ -754,5 +754,64 @@ app.put('/api/pecas/solicitacoes/:id/entregar', autenticarToken, async (req, res
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro ao baixar solicitação"}); }
 });
+// 5. Listar solicitações (com suporte a filtro por data)
+app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
+    try {
+        const { data, status } = req.query;
+        let filtro = { cliente_id: req.usuario.cliente_id };
+        if (status) filtro.status = status;
+        
+        // Se passar uma data (YYYY-MM-DD), filtra pelo dia da solicitação
+        if (data) {
+            let inicio = new Date(data);
+            let fim = new Date(data);
+            fim.setDate(fim.getDate() + 1);
+            filtro.dataSolicitacao = { $gte: inicio, $lt: fim };
+        }
+
+        const solicitacoes = await db.collection("solicitacoes_pecas").find(filtro).sort({ dataSolicitacao: -1 }).toArray();
+        res.json(solicitacoes);
+    } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
+});
+
+// 6. Editar quantidade de uma solicitação pendente
+app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
+    try {
+        const { nova_quantidade } = req.body;
+        await db.collection("solicitacoes_pecas").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
+            { $set: { quantidade: Number(nova_quantidade) } }
+        );
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao editar solicitação"}); }
+});
+
+// 7. Excluir uma solicitação
+app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
+    try {
+        await db.collection("solicitacoes_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao excluir solicitação"}); }
+});
+
+// 8. Coordenador marca a peça como entregue (dando baixa exata na quantidade salva)
+app.put('/api/pecas/solicitacoes/:id/entregar', autenticarToken, async (req, res) => {
+    try {
+        const solicitacao = await db.collection("solicitacoes_pecas").findOne({ _id: new ObjectId(req.params.id) });
+        
+        if (solicitacao && solicitacao.status === "Pendente") {
+            await db.collection("solicitacoes_pecas").updateOne(
+                { _id: new ObjectId(req.params.id) },
+                { $set: { status: "Entregue", dataEntrega: new Date() } }
+            );
+
+            await db.collection("catalogo_pecas").updateOne(
+                { _id: new ObjectId(solicitacao.peca_id) },
+                { $inc: { estoque: -Number(solicitacao.quantidade) } }
+            );
+        }
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao baixar solicitação"}); }
+});
 
 iniciarSistema();

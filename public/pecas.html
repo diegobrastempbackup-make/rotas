@@ -19,11 +19,18 @@
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
         th { background: #0F172A; color: #94A3B8; font-size: 13px; text-transform: uppercase; }
         
-        .form-group { display: flex; gap: 10px; margin-bottom: 20px; background: #1E293B; padding: 20px; border-radius: 8px; }
-        .form-group input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; }
+        .form-group { display: flex; gap: 10px; margin-bottom: 20px; background: #1E293B; padding: 20px; border-radius: 8px; align-items: center; flex-wrap: wrap; }
+        .form-group input, .form-group select { padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; }
         .btn-acao { background: #3B82F6; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .btn-verde { background: #10B981; }
+        .btn-vermelho { background: #EF4444; }
+        .btn-amarelo { background: #F59E0B; color: black; }
     </style>
+    
+    <!-- Bibliotecas para geração de PDF (Mesmas usadas no seu relatório de ponto) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
     <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
 </head>
 <body>
@@ -45,16 +52,24 @@
     <h1>Gestão de Peças</h1>
     
     <div class="abas-nav">
-        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')">🔔 Solicitações Pendentes</button>
+        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')">🔔 Solicitações e Histórico</button>
         <button class="aba-btn" id="btnAbaCatalogo" onclick="mudarAba('catalogo')">⚙️ Catálogo e Estoque</button>
     </div>
 
     <!-- ABA SOLICITAÇÕES -->
     <div id="abaSolicitacoes">
-        <p style="color: #94A3B8;">Pedidos feitos pelo aplicativo aguardando entrega no balcão.</p>
+        <div class="form-group">
+            <label style="color: #94A3B8; font-size: 14px;">Filtrar por Data:</label>
+            <input type="date" id="filtroData" onchange="carregarSolicitacoes()">
+            <button class="btn-acao" onclick="document.getElementById('filtroData').value=''; carregarSolicitacoes();" style="background: #475569;">🔄 Limpar Data</button>
+            <div style="margin-left: auto;">
+                <button class="btn-acao btn-verde" onclick="gerarPDFSolicitacoes()">📄 Baixar Relatório PDF</button>
+            </div>
+        </div>
+
         <table id="tabelaSolicitacoes">
             <thead>
-                <tr><th>Data/Hora</th><th>Técnico</th><th>Peça Solicitada</th><th>Qtd</th><th>Ação</th></tr>
+                <tr><th>Data/Hora</th><th>Técnico</th><th>Peça</th><th>Qtd Pedida</th><th>Status</th><th>Ações</th></tr>
             </thead>
             <tbody></tbody>
         </table>
@@ -63,7 +78,7 @@
     <!-- ABA CATÁLOGO -->
     <div id="abaCatalogo" style="display: none;">
         <div class="form-group">
-            <input type="text" id="novaPecaNome" placeholder="Nome da Peça (Ex: Roteador Wi-Fi 6)">
+            <input type="text" id="novaPecaNome" placeholder="Nome da Peça (Ex: Roteador Wi-Fi 6)" style="flex: 2;">
             <input type="number" id="novaPecaQtd" placeholder="Estoque Inicial" style="max-width: 150px;">
             <button class="btn-acao" onclick="cadastrarPeca()">➕ Cadastrar</button>
         </div>
@@ -79,6 +94,9 @@
 <script>
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
+
+    // Deixa a data de hoje pré-selecionada no filtro por comodidade
+    document.getElementById("filtroData").valueAsDate = new Date();
 
     function mudarAba(aba) {
         document.getElementById('abaSolicitacoes').style.display = aba === 'solicitacoes' ? 'block' : 'none';
@@ -98,7 +116,7 @@
             tbody.innerHTML += `<tr>
                 <td>${p.nome}</td>
                 <td><strong style="color: ${p.estoque > 5 ? '#10B981' : '#EF4444'}">${p.estoque} un.</strong></td>
-                <td><button onclick="excluirPeca('${p._id}')" style="background:#EF4444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">Excluir</button></td>
+                <td><button onclick="excluirPeca('${p._id}')" class="btn-acao btn-vermelho" style="padding: 5px 10px; font-size:12px;">Excluir</button></td>
             </tr>`;
         });
     }
@@ -117,40 +135,114 @@
     }
 
     async function excluirPeca(id) {
-        if(!confirm("Tem certeza?")) return;
+        if(!confirm("Tem certeza que deseja excluir esta peça do catálogo?")) return;
         await fetch(`/api/pecas/catalogo/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
         carregarCatalogo();
     }
 
+    let cacheSolicitacoes = [];
+
     async function carregarSolicitacoes() {
-        const res = await fetch('/api/pecas/solicitacoes', { headers: { 'Authorization': `Bearer ${token}` }});
-        const pedidos = await res.json();
+        const dataSelecionada = document.getElementById("filtroData").value;
+        let url = '/api/pecas/solicitacoes';
+        if (dataSelecionada) url += `?data=${dataSelecionada}`;
+
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }});
+        cacheSolicitacoes = await res.json();
+        
         const tbody = document.querySelector("#tabelaSolicitacoes tbody");
         tbody.innerHTML = "";
-        if(pedidos.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94A3B8;">Nenhum pedido pendente.</td></tr>`;
+        
+        if(cacheSolicitacoes.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94A3B8;">Nenhum pedido encontrado para esta data.</td></tr>`;
             return;
         }
-        pedidos.forEach(p => {
-            const hora = new Date(p.dataSolicitacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+
+        cacheSolicitacoes.forEach(p => {
+            const dataF = new Date(p.dataSolicitacao).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});
+            let statusBadge = p.status === 'Entregue' 
+                ? `<span style="color:#10B981; font-weight:bold;">✅ Entregue</span>` 
+                : `<span style="color:#F59E0B; font-weight:bold;">⏳ Pendente</span>`;
+
+            let acoesHtml = "";
+            if (p.status === 'Pendente') {
+                acoesHtml = `
+                    <button class="btn-acao btn-verde" onclick="entregarPeca('${p._id}')" style="padding: 5px 10px; font-size:12px;">✅ Entregar</button>
+                    <button class="btn-acao btn-amarelo" onclick="editarQtd('${p._id}', ${p.quantidade})" style="padding: 5px 10px; font-size:12px;">✏️ Editar</button>
+                    <button class="btn-acao btn-vermelho" onclick="excluirSolicitacao('${p._id}')" style="padding: 5px 10px; font-size:12px;">🗑️ Excluir</button>
+                `;
+            } else {
+                acoesHtml = `<span style="color: #64748B; font-size: 13px;">Finalizado</span>`;
+            }
+
             tbody.innerHTML += `<tr>
-                <td style="color:#94A3B8;">${hora}</td>
+                <td style="color:#94A3B8; font-size:13px;">${dataF}</td>
                 <td><strong>${p.tecnico}</strong></td>
-                <td>${p.nome_peca}</td>
-                <td>${p.quantidade}</td>
-                <td><button class="btn-acao btn-verde" onclick="entregarPeca('${p._id}')">✅ Entregar</button></td>
+                <td>${p.nome_peca} ${p.observacao ? '<br><small style="color:#93C5FD;">Obs: '+p.observacao+'</small>' : ''}</td>
+                <td><strong>${p.quantidade} un.</strong></td>
+                <td>${statusBadge}</td>
+                <td>${acoesHtml}</td>
             </tr>`;
         });
     }
 
     async function entregarPeca(id) {
+        if(!confirm("Confirmar a entrega desta quantidade ao técnico? O estoque será baixado.")) return;
         await fetch(`/api/pecas/solicitacoes/${id}/entregar`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` }});
         carregarSolicitacoes();
     }
 
-    // Inicializa carregando solicitações e atualiza a cada 5 segundos
+    async function editarQtd(id, qtdAtual) {
+        let novaQtd = prompt("Informe a nova quantidade a ser entregue:", qtdAtual);
+        if (novaQtd === null || novaQtd.trim() === "") return;
+        
+        await fetch(`/api/pecas/solicitacoes/${id}/editar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ nova_quantidade: novaQtd })
+        });
+        carregarSolicitacoes();
+    }
+
+    async function excluirSolicitacao(id) {
+        if(!confirm("Deseja excluir esta solicitação (por falta de peça ou cancelamento)?")) return;
+        await fetch(`/api/pecas/solicitacoes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
+        carregarSolicitacoes();
+    }
+
+    function gerarPDFSolicitacoes() {
+        if (cacheSolicitacoes.length === 0) return alert("Não há dados para gerar relatório.");
+
+        const { jsPDF } = window.jspdf; 
+        const doc = new jsPDF();
+        
+        doc.setFont("helvetica", "bold"); 
+        doc.setFontSize(18); 
+        doc.text("Relatório de Solicitações de Peças", 14, 20);
+        
+        doc.setFontSize(11); 
+        doc.setFont("helvetica", "normal"); 
+        const dataFiltroStr = document.getElementById("filtroData").value || "Geral (Todas as datas)";
+        doc.text(`Filtro de Data: ${dataFiltroStr}`, 14, 28); 
+
+        doc.autoTable({
+            head: [["Data/Hora", "Técnico", "Peça", "Quantidade", "Status"]],
+            body: cacheSolicitacoes.map(item => [ 
+                new Date(item.dataSolicitacao).toLocaleString('pt-BR'), 
+                item.tecnico, 
+                item.nome_peca, 
+                item.quantidade + " un.", 
+                item.status 
+            ]),
+            startY: 35, 
+            theme: 'striped', 
+            headStyles: { fillColor: [30, 41, 59] }
+        });
+        
+        doc.save(`Relatorio_Pecas_${dataFiltroStr.replace(/\//g, '-')}.pdf`);
+    }
+
     carregarSolicitacoes();
-    setInterval(carregarSolicitacoes, 5000);
 </script>
 </body>
 </html>
