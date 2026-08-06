@@ -85,6 +85,21 @@
                 </div>
                 <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Adicionar à Fila</button>
             </div>
+            
+            <!-- NOVA BOX: CHAMADA DE COORDENADOR -->
+            <div class="box-controle" style="border: 1px dashed rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.05);">
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Coordenador</label>
+                    <input type="text" id="nomeCoordenador" placeholder="Seu nome (Ex: José Pereira)" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Chamar Técnico</label>
+                    <select id="tecnicoConversa" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                        <option value="">Selecione o funcionário...</option>
+                    </select>
+                </div>
+                <button onclick="chamarParaConversa()" style="padding:10px 20px; background:#F59E0B; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📢 Chamar no Totem</button>
+            </div>
         </div>
 
         <div class="fila-lista" id="containerFila"></div>
@@ -194,17 +209,21 @@
         try {
             const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
             const equipe = await res.json();
+            
             const comboManual = document.getElementById("manualTecnico");
             const comboRelatorio = document.getElementById("filtroTecnicoPonto");
+            const comboConversa = document.getElementById("tecnicoConversa");
             
             comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
             comboRelatorio.innerHTML = `<option value="TODOS">Geral (Todos os Funcionários)</option>`;
+            comboConversa.innerHTML = `<option value="">Selecione o funcionário...</option>`;
             
             equipe.sort((a, b) => a.nome.localeCompare(b.nome));
             
             equipe.forEach(p => { 
                 comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
                 comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
+                comboConversa.innerHTML += `<option value="${p.nome}">${p.nome}</option>`;
             });
         } catch(e) {}
     }
@@ -219,7 +238,6 @@
         try {
             await fetch('/api/fila/bipar', {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                // NOVO: Adicionado origem: "Manual"
                 body: JSON.stringify({ codigoBarras: nome, dataBatida: dataAtual, horaBatida: horaAtual, origem: "Manual" })
             });
             document.getElementById("manualTecnico").value = ""; 
@@ -273,7 +291,6 @@
                 ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171;">⏰ Atrasado</span>` 
                 : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399;">✅ No Horário</span>`;
 
-            // NOVO: Define o ícone e o texto com base na origem
             let origemIcon = "📠 Via Totem";
             if (item.origem === "App") origemIcon = "📱 Via App";
             else if (item.origem === "Manual") origemIcon = "⌨️ Manual";
@@ -388,6 +405,35 @@
             doc.save(`Frequencia_${tecnicoSel.replace(/\s+/g, '_')}_${p[1]}_${p[0]}.pdf`);
         } catch (e) { 
             alert("Erro ao conectar com o banco de dados para gerar PDF."); 
+        }
+    }
+
+    // NOVA FUNÇÃO: Chamada de Coordenador no Balcão
+    async function chamarParaConversa() {
+        const coordenador = document.getElementById("nomeCoordenador").value.trim();
+        const tecnico = document.getElementById("tecnicoConversa").value;
+
+        if (!coordenador || !tecnico) {
+            return alert("⚠️ Por favor, preencha o seu nome (Coordenador) e selecione um técnico.");
+        }
+
+        const mensagem = `Atenção ${tecnico}, o(a) ${coordenador} te aguarda no balcão de atendimento.`;
+
+        try {
+            await fetch('/api/totem/alerta-balcao', {
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    tecnico: tecnico,
+                    coordenador: coordenador,
+                    mensagem: mensagem
+                })
+            });
+            
+            alert(`✅ Chamada enviada para o Totem!\n\n"${mensagem}"`);
+            document.getElementById("tecnicoConversa").value = "";
+        } catch (err) {
+            alert("❌ Erro ao enviar a chamada para o painel.");
         }
     }
 </script>
