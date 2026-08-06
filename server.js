@@ -670,4 +670,89 @@ app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
     res.json({ ok: true, token: tokenNovo });
 });
 
+// ==========================================
+// MÓDULO: GESTÃO E SOLICITAÇÃO DE PEÇAS
+// ==========================================
+
+// 1. Cadastrar nova peça no catálogo
+app.post('/api/pecas/catalogo', autenticarToken, async (req, res) => {
+    try {
+        const { nome, codigo, quantidade_inicial } = req.body;
+        await db.collection("catalogo_pecas").insertOne({
+            cliente_id: req.usuario.cliente_id,
+            nome: nome.toUpperCase().trim(),
+            codigo: codigo || "",
+            estoque: Number(quantidade_inicial) || 0,
+            criadoEm: new Date()
+        });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao cadastrar peça"}); }
+});
+
+// 2. Listar todas as peças (Usado no Painel e no App)
+app.get('/api/pecas/catalogo', autenticarToken, async (req, res) => {
+    try {
+        const pecas = await db.collection("catalogo_pecas").find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray();
+        res.json(pecas);
+    } catch(e) { res.status(500).json({erro: "Erro ao listar peças"}); }
+});
+
+// 3. Excluir peça do catálogo
+app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
+    try {
+        await db.collection("catalogo_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
+});
+
+// 4. Técnico solicita uma peça (Rota para o APP)
+app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
+    try {
+        const { tecnico, peca_id, nome_peca, quantidade, observacao } = req.body;
+        await db.collection("solicitacoes_pecas").insertOne({
+            cliente_id: req.usuario.cliente_id,
+            tecnico,
+            peca_id,
+            nome_peca,
+            quantidade: Number(quantidade),
+            observacao,
+            status: "Pendente", // Pendente, Entregue, Cancelado
+            dataSolicitacao: new Date()
+        });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao solicitar peça"}); }
+});
+
+// 5. Listar solicitações para o Coordenador (Painel Web)
+app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
+    try {
+        const solicitacoes = await db.collection("solicitacoes_pecas")
+            .find({ cliente_id: req.usuario.cliente_id, status: "Pendente" })
+            .sort({ dataSolicitacao: 1 }).toArray();
+        res.json(solicitacoes);
+    } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
+});
+
+// 6. Coordenador marca a peça como entregue
+app.put('/api/pecas/solicitacoes/:id/entregar', autenticarToken, async (req, res) => {
+    try {
+        const solicitacao = await db.collection("solicitacoes_pecas").findOne({ _id: new ObjectId(req.params.id) });
+        
+        if (solicitacao) {
+            // Atualiza o status da solicitação
+            await db.collection("solicitacoes_pecas").updateOne(
+                { _id: new ObjectId(req.params.id) },
+                { $set: { status: "Entregue", dataEntrega: new Date() } }
+            );
+
+            // Dá baixa no estoque do catálogo
+            await db.collection("catalogo_pecas").updateOne(
+                { _id: new ObjectId(solicitacao.peca_id) },
+                { $inc: { estoque: -Number(solicitacao.quantidade) } }
+            );
+        }
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao baixar solicitação"}); }
+});
+
 iniciarSistema();

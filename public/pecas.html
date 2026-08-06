@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestão de Peças - NERI</title>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0F172A; color: white; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 250px; background: #1E293B; border-right: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; padding: 20px; }
+        .menu button { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94A3B8; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; width: 100%; transition: 0.2s;}
+        .menu button:hover { background: rgba(255,255,255,0.05); color: white; }
+        .btn-sair { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; margin-top: auto; }
+        .main { padding: 25px; display: flex; flex-direction: column; gap: 20px; flex: 1; overflow-y: auto; }
+        
+        .abas-nav { display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; }
+        .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #1E293B; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        th { background: #0F172A; color: #94A3B8; font-size: 13px; text-transform: uppercase; }
+        
+        .form-group { display: flex; gap: 10px; margin-bottom: 20px; background: #1E293B; padding: 20px; border-radius: 8px; }
+        .form-group input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; }
+        .btn-acao { background: #3B82F6; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-verde { background: #10B981; }
+    </style>
+    <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo-area"><img src="logo.svg" style="max-width: 100%; margin-bottom: 20px;" onerror="this.style.display='none'" /></div>
+    <div class="menu">
+        <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
+        <button onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
+        <button onclick="navegarSeguro('/roteirizador.html')">🗺️ Roteirizador</button>
+        <button onclick="navegarSeguro('/fila.html')">🗣️ Triagem e Ponto</button>
+        <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+        <button style="background: #2563EB; color: white; border-color: #3B82F6;">🔧 Peças</button>
+        <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">🚪 Sair</button>
+    </div>
+</div>
+
+<div class="main">
+    <h1>Gestão de Peças</h1>
+    
+    <div class="abas-nav">
+        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')">🔔 Solicitações Pendentes</button>
+        <button class="aba-btn" id="btnAbaCatalogo" onclick="mudarAba('catalogo')">⚙️ Catálogo e Estoque</button>
+    </div>
+
+    <!-- ABA SOLICITAÇÕES -->
+    <div id="abaSolicitacoes">
+        <p style="color: #94A3B8;">Pedidos feitos pelo aplicativo aguardando entrega no balcão.</p>
+        <table id="tabelaSolicitacoes">
+            <thead>
+                <tr><th>Data/Hora</th><th>Técnico</th><th>Peça Solicitada</th><th>Qtd</th><th>Ação</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- ABA CATÁLOGO -->
+    <div id="abaCatalogo" style="display: none;">
+        <div class="form-group">
+            <input type="text" id="novaPecaNome" placeholder="Nome da Peça (Ex: Roteador Wi-Fi 6)">
+            <input type="number" id="novaPecaQtd" placeholder="Estoque Inicial" style="max-width: 150px;">
+            <button class="btn-acao" onclick="cadastrarPeca()">➕ Cadastrar</button>
+        </div>
+        <table id="tabelaCatalogo">
+            <thead>
+                <tr><th>Nome da Peça</th><th>Estoque Atual</th><th>Ação</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.replace("/login.html");
+
+    function mudarAba(aba) {
+        document.getElementById('abaSolicitacoes').style.display = aba === 'solicitacoes' ? 'block' : 'none';
+        document.getElementById('abaCatalogo').style.display = aba === 'catalogo' ? 'block' : 'none';
+        document.getElementById('btnAbaSolicitacoes').classList.toggle('ativa', aba === 'solicitacoes');
+        document.getElementById('btnAbaCatalogo').classList.toggle('ativa', aba === 'catalogo');
+        if(aba === 'catalogo') carregarCatalogo();
+        if(aba === 'solicitacoes') carregarSolicitacoes();
+    }
+
+    async function carregarCatalogo() {
+        const res = await fetch('/api/pecas/catalogo', { headers: { 'Authorization': `Bearer ${token}` }});
+        const pecas = await res.json();
+        const tbody = document.querySelector("#tabelaCatalogo tbody");
+        tbody.innerHTML = "";
+        pecas.forEach(p => {
+            tbody.innerHTML += `<tr>
+                <td>${p.nome}</td>
+                <td><strong style="color: ${p.estoque > 5 ? '#10B981' : '#EF4444'}">${p.estoque} un.</strong></td>
+                <td><button onclick="excluirPeca('${p._id}')" style="background:#EF4444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">Excluir</button></td>
+            </tr>`;
+        });
+    }
+
+    async function cadastrarPeca() {
+        const nome = document.getElementById("novaPecaNome").value;
+        const qtd = document.getElementById("novaPecaQtd").value;
+        if(!nome) return alert("Preencha o nome da peça!");
+        await fetch('/api/pecas/catalogo', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ nome, quantidade_inicial: qtd })
+        });
+        document.getElementById("novaPecaNome").value = "";
+        document.getElementById("novaPecaQtd").value = "";
+        carregarCatalogo();
+    }
+
+    async function excluirPeca(id) {
+        if(!confirm("Tem certeza?")) return;
+        await fetch(`/api/pecas/catalogo/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
+        carregarCatalogo();
+    }
+
+    async function carregarSolicitacoes() {
+        const res = await fetch('/api/pecas/solicitacoes', { headers: { 'Authorization': `Bearer ${token}` }});
+        const pedidos = await res.json();
+        const tbody = document.querySelector("#tabelaSolicitacoes tbody");
+        tbody.innerHTML = "";
+        if(pedidos.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94A3B8;">Nenhum pedido pendente.</td></tr>`;
+            return;
+        }
+        pedidos.forEach(p => {
+            const hora = new Date(p.dataSolicitacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            tbody.innerHTML += `<tr>
+                <td style="color:#94A3B8;">${hora}</td>
+                <td><strong>${p.tecnico}</strong></td>
+                <td>${p.nome_peca}</td>
+                <td>${p.quantidade}</td>
+                <td><button class="btn-acao btn-verde" onclick="entregarPeca('${p._id}')">✅ Entregar</button></td>
+            </tr>`;
+        });
+    }
+
+    async function entregarPeca(id) {
+        await fetch(`/api/pecas/solicitacoes/${id}/entregar`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` }});
+        carregarSolicitacoes();
+    }
+
+    // Inicializa carregando solicitações e atualiza a cada 5 segundos
+    carregarSolicitacoes();
+    setInterval(carregarSolicitacoes, 5000);
+</script>
+</body>
+</html>
