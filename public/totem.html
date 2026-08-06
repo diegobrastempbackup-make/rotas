@@ -116,6 +116,7 @@
     carregarRostosTotem(); // Carrega os rostos assim que a tela abre
     setInterval(carregarRostosTotem, 60000); // Atualiza os rostos a cada 1 minuto
     setInterval(escutarServidorViaRede, 1500); // Inicia a escuta de chamadas
+    setInterval(verificarAlertasBalcao, 2000); // NOVO: Escuta as chamadas do coordenador a cada 2 segundos
     
     // Forçar carregamento das vozes do sistema operacional
     if (speechSynthesis.onvoiceschanged !== undefined) {
@@ -331,6 +332,81 @@
             } catch (err) {}
         }
     });
+
+    // =========================================================
+    // SISTEMA DE CHAMADA AVULSA (COORDENADOR)
+    // =========================================================
+    async function verificarAlertasBalcao() {
+        if (alertaTocando) return; // Se já estiver falando algo, espera
+        
+        try {
+            const res = await fetch('/api/totem/alertas-pendentes', { headers: { 'Authorization': `Bearer ${token}` }});
+            const alertas = await res.json();
+            
+            if (alertas && alertas.length > 0) {
+                tocarAlertaCoordenador(alertas[0]);
+            }
+        } catch(e) {
+            console.error("Erro ao buscar alertas avulsos", e);
+        }
+    }
+
+    function tocarAlertaCoordenador(alerta) {
+        alertaTocando = true;
+        const telaAlerta = document.getElementById('alertaChamada');
+        const subtituloDiv = telaAlerta.querySelector('div:last-child'); // Pega a div do "COMPARECER AO BALCÃO"
+        
+        // Muda o texto da tela
+        document.getElementById('nomeChamado').innerText = alerta.tecnico;
+        subtituloDiv.innerText = `O(A) COORDENADOR(A) ${alerta.coordenador.toUpperCase()} TE AGUARDA!`;
+        
+        telaAlerta.style.display = 'flex';
+
+        // Prepara a voz com a mensagem personalizada vinda do servidor
+        let fala1 = new SpeechSynthesisUtterance(alerta.mensagem);
+        let fala2 = new SpeechSynthesisUtterance(alerta.mensagem);
+        fala1.lang = 'pt-BR'; 
+        fala2.lang = 'pt-BR';
+
+        // Busca voz feminina (Igual ao padrão atual)
+        const vozesDisponiveis = window.speechSynthesis.getVoices();
+        const vozFeminina = vozesDisponiveis.find(voz => 
+            voz.lang.includes('pt-BR') && 
+            (voz.name.includes('Google') || voz.name.includes('Luciana') || voz.name.includes('Maria') || voz.name.toLowerCase().includes('female'))
+        ) || vozesDisponiveis.find(voz => voz.lang.includes('pt-BR')); 
+
+        if (vozFeminina) {
+            fala1.voice = vozFeminina;
+            fala2.voice = vozFeminina;
+        }
+
+        let toque = new Audio('toque.mp3'); 
+        toque.volume = 0.8;
+
+        window.speechSynthesis.cancel(); // Limpa a fila
+        fala1.onend = () => { toque.play(); };
+        toque.onended = () => { speechSynthesis.speak(fala2); };
+        toque.onerror = () => { speechSynthesis.speak(fala2); }; 
+        
+        // Quando terminar de falar a segunda vez, fecha a tela e avisa o banco
+        fala2.onend = async () => {
+            telaAlerta.style.display = 'none'; 
+            subtituloDiv.innerText = "COMPARECER AO BALCÃO"; // Restaura o texto original para as outras chamadas
+            
+            try {
+                // Baixa o alerta no banco para não tocar de novo
+                await fetch(`/api/totem/alerta-balcao/${alerta._id}/concluido`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch(e) {}
+
+            setTimeout(() => { alertaTocando = false; }, 1000); 
+        };
+        
+        // Inicia a fala
+        speechSynthesis.speak(fala1);
+    }
 </script>
 </body>
 </html>

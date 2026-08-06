@@ -562,6 +562,54 @@ app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
+// MÓDULO: CHAMADAS AVULSAS DO COORDENADOR
+// ==========================================
+
+// 1. Recebe a chamada enviada pelo painel da doca
+app.post('/api/totem/alerta-balcao', autenticarToken, async (req, res) => {
+    try {
+        const { tecnico, coordenador, mensagem } = req.body;
+        await db.collection("alertas_totem").insertOne({
+            cliente_id: req.usuario.cliente_id,
+            tecnico,
+            coordenador,
+            mensagem,
+            status: "Pendente",
+            timestamp: new Date()
+        });
+        res.json({ ok: true });
+    } catch(e) { 
+        res.status(500).json({erro: "Erro ao registrar alerta"}); 
+    }
+});
+
+// 2. O Totem consulta essa rota de segundos em segundos para ver se há alguém chamando
+app.get('/api/totem/alertas-pendentes', autenticarToken, async (req, res) => {
+    try {
+        const alertas = await db.collection("alertas_totem").find({
+            cliente_id: req.usuario.cliente_id,
+            status: "Pendente"
+        }).sort({ timestamp: 1 }).toArray();
+        res.json(alertas);
+    } catch(e) { 
+        res.status(500).json({erro: "Erro ao buscar alertas"}); 
+    }
+});
+
+// 3. O Totem avisa que já tocou a mensagem na tela e marca como concluído
+app.put('/api/totem/alerta-balcao/:id/concluido', autenticarToken, async (req, res) => {
+    try {
+        await db.collection("alertas_totem").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
+            { $set: { status: "Concluido", lidoEm: new Date() } }
+        );
+        res.json({ok: true});
+    } catch(e) { 
+        res.status(500).json({erro: "Erro ao atualizar alerta"}); 
+    }
+});
+
+// ==========================================
 // ROTA DE COMUNICAÇÃO: PAINEL -> TOTEM
 // ==========================================
 app.put('/api/fila/:id/chamar-totem', autenticarToken, async (req, res) => {
