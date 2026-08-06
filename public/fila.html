@@ -417,7 +417,7 @@
             return alert("⚠️ Por favor, preencha o seu nome (Coordenador) e selecione um técnico.");
         }
 
-        const mensagem = `Atenção ${tecnico}, o(a) ${coordenador} te aguarda no balcão de atendimento.`;
+        const mensagem = `Atenção ${tecnico}, ${coordenador} te aguarda no balcão de atendimento.`;
 
         try {
             await fetch('/api/totem/alerta-balcao', {
