@@ -167,7 +167,7 @@
             let acoesHtml = "";
             if (p.status === 'Pendente') {
                 acoesHtml = `
-                    <button class="btn-acao btn-verde" onclick="entregarPeca('${p._id}')" style="padding: 5px 10px; font-size:12px;">✅ Entregar</button>
+                    
                     <button class="btn-acao btn-amarelo" onclick="editarQtd('${p._id}', ${p.quantidade})" style="padding: 5px 10px; font-size:12px;">✏️ Editar</button>
                     <button class="btn-acao btn-vermelho" onclick="excluirSolicitacao('${p._id}')" style="padding: 5px 10px; font-size:12px;">🗑️ Excluir</button>
                 `;
@@ -186,11 +186,7 @@
         });
     }
 
-    async function entregarPeca(id) {
-        if(!confirm("Confirmar a entrega desta quantidade ao técnico? O estoque será baixado.")) return;
-        await fetch(`/api/pecas/solicitacoes/${id}/entregar`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` }});
-        carregarSolicitacoes();
-    }
+    
 
     async function editarQtd(id, qtdAtual) {
         let novaQtd = prompt("Informe a nova quantidade a ser entregue:", qtdAtual);
