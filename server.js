@@ -704,6 +704,17 @@ app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
 });
+// 3.5 Editar peça do catálogo (Novo nome e novo estoque)
+app.put('/api/pecas/catalogo/:id/editar', autenticarToken, async (req, res) => {
+    try {
+        const { novo_nome, novo_estoque } = req.body;
+        await db.collection("catalogo_pecas").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
+            { $set: { nome: novo_nome, estoque: Number(novo_estoque) } }
+        );
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro ao editar peça"}); }
+});
 
 // 4. Técnico solicita uma peça (Rota para o APP)
 app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {

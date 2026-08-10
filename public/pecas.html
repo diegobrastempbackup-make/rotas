@@ -51,8 +51,8 @@
     <h1>Gestão de Peças</h1>
     
     <div class="abas-nav">
-        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')">🔔 Solicitações por Data</button>
-        <button class="aba-btn" id="btnAbaCatalogo" onclick="mudarAba('catalogo')">⚙️ Catálogo e Estoque</button>
+        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')"> Solicitações por Data</button>
+        <button class="aba-btn" id="btnAbaCatalogo" onclick="mudarAba('catalogo')"> Catálogo de Peças</button>
     </div>
 
     <!-- ABA SOLICITAÇÕES -->
@@ -115,7 +115,10 @@
             tbody.innerHTML += `<tr>
                 <td>${p.nome}</td>
                 <td><strong style="color: ${p.estoque > 5 ? '#10B981' : '#EF4444'}">${p.estoque} un.</strong></td>
-                <td><button onclick="excluirPeca('${p._id}')" class="btn-acao btn-vermelho" style="padding: 5px 10px; font-size:12px;">Excluir</button></td>
+                <td>
+                    <button onclick="editarPecaCatalogo('${p._id}', '${p.nome}', ${p.estoque})" class="btn-acao btn-amarelo" style="padding: 5px 10px; font-size:12px;">✏️ Editar</button>
+                    <button onclick="excluirPeca('${p._id}')" class="btn-acao btn-vermelho" style="padding: 5px 10px; font-size:12px;">Excluir</button>
+                </td>
             </tr>`;
         });
     }
@@ -130,6 +133,22 @@
         });
         document.getElementById("novaPecaNome").value = "";
         document.getElementById("novaPecaQtd").value = "";
+        carregarCatalogo();
+    }
+
+    // Função Nova para Editar Estoque e Nome do Catálogo
+    async function editarPecaCatalogo(id, nomeAtual, estoqueAtual) {
+        let novoNome = prompt("Edite o nome da peça:", nomeAtual);
+        if (novoNome === null || novoNome.trim() === "") return;
+        
+        let novoEstoque = prompt("Edite a quantidade em estoque:", estoqueAtual);
+        if (novoEstoque === null || novoEstoque.trim() === "") return;
+
+        await fetch(`/api/pecas/catalogo/${id}/editar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ novo_nome: novoNome.trim().toUpperCase(), novo_estoque: novoEstoque })
+        });
         carregarCatalogo();
     }
 
@@ -226,7 +245,7 @@
 
     // Inicialização e atualização automática em tempo real
     carregarSolicitacoes();
-    setInterval(carregarSolicitacoes, 3000); // 3 em 3 segundos atualiza sozinho na tela!
+    setInterval(carregarSolicitacoes, 3000); 
 </script>
 </body>
 </html>
