@@ -32,8 +32,6 @@
         .botoes-acao { display: flex; gap: 10px; }
         .btn-chamar { background: #3B82F6; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.2s; }
         .btn-chamar:hover { background: #2563EB; }
-        .btn-liberar { background: #10B981; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.2s; }
-        .btn-liberar:hover { background: #059669; }
 
         .painel-controles { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
         .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
@@ -87,7 +85,7 @@
                 <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Adicionar à Fila</button>
             </div>
             
-            <!-- NOVA BOX: CHAMADA DE COORDENADOR -->
+            <!-- CHAMADA DE COORDENADOR -->
             <div class="box-controle" style="border: 1px dashed rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.05);">
                 <div style="flex: 1;">
                     <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Coordenador</label>
@@ -298,6 +296,7 @@
 
             let tagOrigem = `<span style="background:rgba(255,255,255,0.05); color: #CBD5E1; padding: 4px 8px; border-radius: 4px; font-size: 11px; margin-left: 5px;">${origemIcon}</span>`;
 
+            // Botão "Liberar" removido do HTML gerado abaixo:
             container.innerHTML += `
                 <div class="fila-card" style="border-left-color: ${corBorda}; opacity: ${opacity};">
                     <div class="card-info">
@@ -309,7 +308,6 @@
                     
                     <div class="botoes-acao">
                         <button class="btn-chamar" onclick="chamarCard('${item._id}')">🗣️ Chamar</button>
-                        <button class="btn-liberar" onclick="liberarCard('${item._id}')">✅ Liberar</button>
                     </div>
                 </div>
             `;
@@ -331,16 +329,6 @@
                 });
                 atualizarFila();
             }, 4000);
-        } catch(e) {}
-    }
-
-    async function liberarCard(idRegistro) {
-        try {
-            await fetch(`/api/fila/${idRegistro}/status`, { 
-                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                body: JSON.stringify({ status: 'Atendido' }) 
-            });
-            atualizarFila();
         } catch(e) {}
     }
 
@@ -409,7 +397,6 @@
         }
     }
 
-    // NOVA FUNÇÃO: Chamada de Coordenador no Balcão
     async function chamarParaConversa() {
         const coordenador = document.getElementById("nomeCoordenador").value.trim();
         const tecnico = document.getElementById("tecnicoConversa").value;

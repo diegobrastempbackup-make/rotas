@@ -223,10 +223,25 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
-    let configGalpao = JSON.parse(localStorage.getItem("configGalpao"));
-    if (!configGalpao || !configGalpao.lat) {
-        configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Rua Antonio Ayrosa 191" };
-        localStorage.setItem("configGalpao", JSON.stringify(configGalpao));
+    // Configuração unificada do Galpão (Busca automaticamente a base unificada de Fila)
+    let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
+
+    async function carregarBaseOficial() {
+        try {
+            const res = await fetch("/api/config-base", { headers: { "Authorization": `Bearer ${token}` } });
+            const conf = await res.json();
+            if (conf && conf.latBase && conf.lonBase) {
+                configGalpao = { 
+                    lat: parseFloat(conf.latBase), 
+                    lon: parseFloat(conf.lonBase), 
+                    nome: "Base Operacional", 
+                    endereco: "Base Centralizada" 
+                };
+            }
+        } catch(e) {
+            let galpaoLocal = JSON.parse(localStorage.getItem("configGalpao"));
+            if (galpaoLocal && galpaoLocal.lat) configGalpao = galpaoLocal;
+        }
     }
 
     let mapa = null;
@@ -239,7 +254,9 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
 
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
+        await carregarBaseOficial(); // Sincroniza a base com o painel de Fila
+
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
         
@@ -346,7 +363,7 @@
                     cliente: String(cliente).trim(), 
                     servico: servico,
                     rua: rua,
-                    detalhes: detalhes, // <-- ADICIONADO AQUI PARA IR PRA NUVEM
+                    detalhes: detalhes,
                     cidade: cidade,
                     cep: cepFormatado, 
                     periodo: periodoOriginal, 
@@ -423,16 +440,96 @@
         return rotaOrdenada;
     }
 
+    // =========================================================================
+    // FUNÇÕES DE PRECISÃO CIRÚRGICA: ABREVIAÇÕES + RODOVIAS/KM + CEP
+    // =========================================================================
+    function expandirAbreviacoes(texto) {
+        if (!texto) return "";
+        let t = texto;
+        t = t.replace(/\bR\.\s*/gi, "Rua ");
+        t = t.replace(/\bAv\.\s*/gi, "Avenida ");
+        t = t.replace(/\bAl\.\s*/gi, "Alameda ");
+        t = t.replace(/\bPça\.?\s*/gi, "Praça ");
+        t = t.replace(/\bPca\.?\s*/gi, "Praça ");
+        t = t.replace(/\bTr\.?\s*/gi, "Travessa ");
+        t = t.replace(/\bRod\.?\s*/gi, "Rodovia ");
+        t = t.replace(/\bEst\.?\s*/gi, "Estrada ");
+        t = t.replace(/\bVl\.?\s*/gi, "Vila ");
+        t = t.replace(/\bJd\.?\s*/gi, "Jardim ");
+        return t;
+    }
+
+    function ehRodoviaOuKm(texto) {
+        if (!texto) return false;
+        let t = texto.toUpperCase();
+        return t.includes("KM") || t.includes("RODOVIA") || t.includes("ROD") || t.includes("ESTRADA") || t.includes("SP-") || t.includes("BR-");
+    }
+
     async function obterCoordenadasSilenciosa(cliente) {
+        let ruaOriginal = cliente.rua || cliente.endereco || "";
+        let detalhesOriginal = cliente.detalhes || "";
+        let textoCompleto = `${ruaOriginal} ${detalhesOriginal}`;
+        let cidade = cliente.cidade || "São Paulo";
+
+        // 1. SE FOR RODOVIA OU CONTER KM: Ignora CEP e busca na rodovia/km
+        if (ehRodoviaOuKm(textoCompleto)) {
+            let termoLimpo = expandirAbreviacoes(textoCompleto);
+            try {
+                let query = `${termoLimpo}, ${cidade}, Brasil`;
+                let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+                }
+            } catch(e) {}
+            
+            try {
+                let query = `${termoLimpo}, São Paulo, Brasil`;
+                let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+                }
+            } catch(e) {}
+        }
+
+        // 2. SE NÃO FOR RODOVIA: Tenta CEP primeiro (altamente preciso em áreas urbanas)
         let cepBusca = (cliente.cep || "").replace(/\D/g, '');
-        if (cepBusca.length === 8) { try { let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`); if (r.ok) { let d = await r.json(); if (d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) }; } } catch(e) {} }
-        try { 
-            let termoBusca = cliente.rua || cliente.endereco || "";
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(termoBusca.split(',')[0].trim() + ', ' + (cliente.cidade || "São Paulo") + ', Brasil')}`); 
-            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; } 
+        if (cepBusca.length === 8) {
+            try {
+                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d && d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
+                }
+            } catch(e) {}
+        }
+
+        // 3. FALLBACK URBANO: Endereço completo com expansão de abreviações
+        let ruaExpandida = expandirAbreviacoes(ruaOriginal);
+        let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
+        
+        try {
+            let query = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            if (r.ok) {
+                let d = await r.json();
+                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            }
         } catch(e) {}
+
+        try {
+            let query = `${ruaExpandida}, ${cidade}, Brasil`.trim();
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            if (r.ok) {
+                let d = await r.json();
+                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            }
+        } catch(e) {}
+
         return null; 
     }
+    // =========================================================================
 
     async function iniciarCalculoTecnico(nome) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
@@ -457,23 +554,14 @@
         configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); 
     }
 
-    async function editarEnderecoGalpao() {
-        let novoEndereco = prompt("✏️ Digite o novo endereço ou rua da Base / Galpão:", configGalpao.endereco);
-        if (!novoEndereco || novoEndereco.trim() === "") return;
-        let crds = await obterCoordenadasSilenciosa({ rua: novoEndereco, cidade: "São Paulo" });
-        if (!crds) return alert("❌ Não foi possível encontrar coordenadas GPS para este endereço da Base.");
-
-        configGalpao = { lat: crds.lat, lon: crds.lon, nome: "Base Operacional", endereco: novoEndereco };
-        localStorage.setItem("configGalpao", JSON.stringify(configGalpao)); alert("✅ Base atualizada e salva com sucesso!"); atualizarTela(true);
-    }
-
     async function atualizarTela(recentrarMapa = true) {
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
 
+        // Pino da Base (Usa as coordenadas oficiais sincronizadas do Fila)
         const iconeGalpao = L.divIcon({ 
             className: 'custom-pin', 
-            html: `<div onclick="editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, 
+            html: `<div style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap;" title="Base Operacional Oficial (Configurada na Triagem e Ponto)">🏢 ${configGalpao.nome}</div>`, 
             iconSize: [140, 30] 
         });
         L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
@@ -492,7 +580,7 @@
                 let statusCarro = "Aguardando Início";
                 let corBordaCarro = "#64748B"; 
                 let jaIniciou = false; 
-                let maiorTempoCarroGlobal = 0; // Ajuda a achar o GPS mais recente!
+                let maiorTempoCarroGlobal = 0; 
                 
                 roteiro.itinerario.forEach((cliente, idx) => {
                     let corPino = "#64748B"; 
@@ -511,12 +599,10 @@
                         corPino = "#EF4444"; jaIniciou = true; 
                     } 
 
-                    // --- NOVO: Procura o Ping GPS temporalmente mais recente de TODAS as OS ---
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
                         if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
                             let tempoMigalha = ultimaMigalha.timestamp ? new Date(ultimaMigalha.timestamp).getTime() : 0;
-                            // Só atualiza a posição do carro se essa migalha for mais nova que a anterior
                             if (tempoMigalha >= maiorTempoCarroGlobal) {
                                 maiorTempoCarroGlobal = tempoMigalha;
                                 posicaoCarro = { lat: ultimaMigalha.lat, lon: ultimaMigalha.lon };
@@ -598,7 +684,6 @@
                 </div>
             `;
             
-            // --- NOVO: Procura o Ping GPS temporalmente mais recente de TODAS as OS (Para o Modo Individual) ---
             if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                 let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
                 if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
@@ -650,10 +735,8 @@
                     L.polyline(subCoordenadasLatLon, { color: '#3B82F6', weight: 5, opacity: 0.9 }).addTo(layerGrupo);
 
                     if (subCoordenadasLatLon.length > 0) {
-                        // Começamos assumindo a posição final da linha azul desenhada no OSRM
                         let posicaoRenderCarro = subCoordenadasLatLon[subCoordenadasLatLon.length - 1];
                         
-                        // Se o slider está a 100% (tempo real) e achámos um ping fresco, furamos a linha do OSRM e saltamos para o GPS exato!
                         if (progressoSlider >= 0.99 && pingMaisRecenteIndividual) {
                             posicaoRenderCarro = [pingMaisRecenteIndividual.lat, pingMaisRecenteIndividual.lon];
                         }
@@ -690,12 +773,14 @@
     }
 
     async function editarEnderecoManual(codigo, ruaAtual, event) {
-        event.stopPropagation(); let novoEndereco = prompt("✏️ Edite o endereço desta OS:", ruaAtual);
+        event.stopPropagation(); 
+        let novoEndereco = prompt("✏️ Edite o endereço desta OS:", ruaAtual);
         if (!novoEndereco || novoEndereco.trim() === "" || novoEndereco === ruaAtual) return;
         const originalBtn = event.target; originalBtn.innerText = "⏳"; originalBtn.disabled = true;
 
         try {
-            let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" }; let crds = await obterCoordenadasSilenciosa(geoData);
+            let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" }; 
+            let crds = await obterCoordenadasSilenciosa(geoData);
             if (!crds) return alert("❌ Não conseguimos converter esse endereço em GPS. Verifique a grafia.");
             
             let itemLocal = rotaAtiva.find(p => p.codigo === codigo || String(p.codigo) === String(codigo));
@@ -704,9 +789,6 @@
         } catch (e) { alert("❌ Ocorreu um erro ao atualizar o endereço."); } finally { originalBtn.innerText = "✏️"; originalBtn.disabled = false; }
     }
 
-    // ===============================================
-    // SINCRONIZADOR INVISÍVEL PARA SALVAR ALTERAÇÕES
-    // ===============================================
     function sincronizarMemoriaGlobal() {
         if (visualizandoHistorico) {
             let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
@@ -725,33 +807,26 @@
         }
     }
 
-    // ==========================================
-    // SISTEMA DE TROCA DE TITULAR E MODAL
-    // ==========================================
     let transfTempData = {};
-
     window.abrirModalTransferencia = async function(nomeAntigo, isHistorico, event) {
         event.stopPropagation();
         transfTempData = { nomeAntigo, isHistorico };
-        
         document.getElementById('lblNomeAntigo').innerText = nomeAntigo;
         const select = document.getElementById('selectNovoTecnico');
         select.innerHTML = '<option value="">Aguarde, carregando técnicos...</option>';
         document.getElementById('modalTransferencia').style.display = 'flex';
 
-        // Usa Set para guardar os técnicos encontrados em vários cantos
         let tecnicos = new Set();
         Object.keys(dadosGlobaisRotas).forEach(t => tecnicos.add(t));
         window.historicoRotasMemoria.forEach(r => tecnicos.add(r.tecnico));
 
         try {
-            // Tenta buscar ativamente do servidor todos os utilizadores
             let res = await fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } });
             if (res.ok) {
                 let users = await res.json();
                 users.forEach(u => { if(u.nome) tecnicos.add(u.nome.toUpperCase()); });
             }
-        } catch(e) { console.log("O servidor não retornou /api/usuarios. Serão usados os nomes locais."); }
+        } catch(e) {}
 
         select.innerHTML = '<option value="">-- Selecione o Técnico --</option>';
         Array.from(tecnicos).sort().forEach(t => {
@@ -759,14 +834,11 @@
         });
     };
 
-    window.fecharModalTransferencia = function() {
-        document.getElementById('modalTransferencia').style.display = 'none';
-    };
+    window.fecharModalTransferencia = function() { document.getElementById('modalTransferencia').style.display = 'none'; };
 
     window.confirmarTransferencia = async function() {
         let novoNome = document.getElementById('selectNovoTecnico').value;
         if (!novoNome) return alert("Por favor, selecione um técnico na lista.");
-        
         let { nomeAntigo, isHistorico } = transfTempData;
         fecharModalTransferencia();
 
@@ -775,15 +847,12 @@
             if (rotaIndex > -1) {
                 let roteiro = window.historicoRotasMemoria[rotaIndex];
                 let idBancoAntigo = roteiro._id;
-                
                 roteiro.tecnico = novoNome;
                 if (tecnicoAtivo === nomeAntigo) tecnicoAtivo = novoNome;
-                
                 try {
                     await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: roteiro.data, tecnico: novoNome, itinerario: roteiro.itinerario }) });
                     if (idBancoAntigo) { await fetch(`/api/rotas/${idBancoAntigo}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); }
                 } catch(e) {}
-                
                 alert(`✅ Roteiro transferido com sucesso para ${novoNome}!`);
                 buscarHistorico(); 
             }
@@ -801,13 +870,9 @@
     function configurarSliderInicio() { const slider = document.getElementById("sliderPlayback"); slider.max = rotaAtiva.length * 10; slider.value = rotaAtiva.length * 10; }
     function ativarVisaoGlobal() { modoVisaoGlobal = true; document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); tecnicoAtivo = ""; atualizarTela(true); if (dataAtiva) iniciarAutoRefresh(); }
 
-    // ===============================================
-    // ARRASTAR E SOLTAR (CRUD LIBERADO)
-    // ===============================================
     let itemArrastadoIndice = null;
     function iniciarArraste(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
     function permitirSoltar(e) { e.preventDefault(); }
-    
     function soltarItem(e, indexAlvo) {
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
@@ -831,7 +896,6 @@
     async function buscarHistorico() {
         let dataInput = document.getElementById("buscaData").value; const codigoBusca = document.getElementById("buscaCodigo").value.trim();
         if (!dataInput && !codigoBusca) return alert("⚠️ Preencha Data ou Código.");
-        
         let dFormatada = ""; if (dataInput) { const p = dataInput.split('-'); dFormatada = `${p[2]}/${p[1]}/${p[0]}`; dataAtiva = dFormatada; }
         let url = '/api/rotas?'; if (dFormatada) url += `data=${encodeURIComponent(dFormatada)}&`; if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`; url += `_=${new Date().getTime()}`;
 
@@ -922,9 +986,6 @@
         } catch(e) { if(toast) toast.remove(); alert("❌ Erro."); }
     }
 
-    // ==========================================
-    // SISTEMA DE FILA DE ESPERA E CRIAÇÃO MANUAL
-    // ==========================================
     let ordensNaoAlocadas = JSON.parse(localStorage.getItem("ordensNaoAlocadas") || "[]");
     document.addEventListener("DOMContentLoaded", () => { setTimeout(renderNaoAlocadas, 500); });
 
@@ -993,7 +1054,7 @@
 
     window.criarOrdemManual = async function() {
         let codigo = prompt("Digite o CÓDIGO da Nova OS:"); if (!codigo) return;
-        let rua = prompt("Digite o ENDEREÇO completo com número e bairro:"); if (!rua) return;
+        let rua = prompt("Digite o ENDEREÇO completo com número e bairro (ou Rodovia e KM):"); if (!rua) return;
         let cliente = prompt("Nome do Cliente (opcional):") || "Não informado";
         let isManha = confirm("A OS deve ser atendida no período da MANHÃ?\n(Clique OK para Manhã, CANCELAR para Tarde)");
         
