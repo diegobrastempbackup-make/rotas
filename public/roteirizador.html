@@ -554,6 +554,16 @@
         configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); 
     }
 
+    async function editarEnderecoGalpao() {
+        let novoEndereco = prompt("✏️ Digite o novo endereço ou rua da Base / Galpão:", configGalpao.endereco);
+        if (!novoEndereco || novoEndereco.trim() === "") return;
+        let crds = await obterCoordenadasSilenciosa({ rua: novoEndereco, cidade: "São Paulo" });
+        if (!crds) return alert("❌ Não foi possível encontrar coordenadas GPS para este endereço da Base.");
+
+        configGalpao = { lat: crds.lat, lon: crds.lon, nome: "Base Operacional", endereco: novoEndereco };
+        localStorage.setItem("configGalpao", JSON.stringify(configGalpao)); alert("✅ Base atualizada e salva com sucesso!"); atualizarTela(true);
+    }
+
     async function atualizarTela(recentrarMapa = true) {
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
@@ -561,7 +571,7 @@
         // Pino da Base (Usa as coordenadas oficiais sincronizadas do Fila)
         const iconeGalpao = L.divIcon({ 
             className: 'custom-pin', 
-            html: `<div style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap;" title="Base Operacional Oficial (Configurada na Triagem e Ponto)">🏢 ${configGalpao.nome}</div>`, 
+            html: `<div onclick="editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, 
             iconSize: [140, 30] 
         });
         L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
@@ -636,7 +646,7 @@
         }
 
         // ============================================
-        // MODO INDIVIDUAL (LINHA DO TEMPO)
+        // MODO INDIVIDUAL (LINHA DO TEMPO) - CORRIGIDO PARA APENAS 1 CARRO
         // ============================================
         document.getElementById("painelPlayback").style.display = "flex";
         document.getElementById("tituloPainelLateral").innerText = "🛠️ Itinerário";
@@ -732,15 +742,18 @@
                     let subCoordenadasLonLat = coordenadasRotaCompleta.slice(0, limiteCoordenadas);
                     let subCoordenadasLatLon = subCoordenadasLonLat.map(coord => [coord[1], coord[0]]);
 
+                    // Desenha a linha azul do percurso programado acompanhando a barra
                     L.polyline(subCoordenadasLatLon, { color: '#3B82F6', weight: 5, opacity: 0.9 }).addTo(layerGrupo);
 
                     if (subCoordenadasLatLon.length > 0) {
                         let posicaoRenderCarro = subCoordenadasLatLon[subCoordenadasLatLon.length - 1];
                         
+                        // Garante que o carro estará no ponto exato do GPS real se o slider estiver no final
                         if (progressoSlider >= 0.99 && pingMaisRecenteIndividual) {
                             posicaoRenderCarro = [pingMaisRecenteIndividual.lat, pingMaisRecenteIndividual.lon];
                         }
 
+                        // Coloca APENAS 1 carrinho na ponta atual da linha do slider
                         const carIcon = L.divIcon({
                             className: 'custom-pin',
                             html: `<div class="car-pin" style="border-color: #3B82F6;">🚗 ${tecnicoAtivo ? tecnicoAtivo.split(' ')[0] : 'Técnico'}</div>`,
@@ -756,6 +769,7 @@
             }
         }
 
+        // Desenha a linha contínua do trajeto real feito pelo técnico
         let rastroTotalCoordenadas = [];
         rotaAtiva.forEach(cliente => {
             if (cliente.rastroReal && cliente.rastroReal.length > 0) {
