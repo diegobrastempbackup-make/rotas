@@ -5,18 +5,70 @@
 <title>Dados - NERI</title>
 
 <style>
+/* Adições para Sidebar e Menu Flex */
 body {
   background: #0F172A;
   color: white;
   font-family: Arial, sans-serif;
   margin: 0;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.container {
-  padding: 25px;
-  max-width: 1400px;
-  margin: 0 auto;
+.sidebar { 
+  width: 250px; 
+  background: #1E293B; 
+  border-right: 1px solid rgba(255,255,255,0.05); 
+  display: flex; 
+  flex-direction: column; 
+  padding: 20px; 
+  transition: all 0.3s ease; 
+  flex-shrink: 0; 
+  overflow: hidden; 
+  box-sizing: border-box; 
 }
+.logo-area { text-align: center; margin-bottom: 20px; }
+.menu { display: flex; flex-direction: column; gap: 8px; flex-grow: 1; overflow-y: auto; }
+.menu button { 
+  background: transparent; 
+  border: 1px solid rgba(255,255,255,0.1); 
+  color: #94A3B8; 
+  padding: 12px; 
+  border-radius: 8px; 
+  cursor: pointer; 
+  text-align: left; 
+  font-size: 14px; 
+  width: 100%; 
+  transition: 0.2s; 
+  white-space: nowrap; 
+}
+.menu button:hover { background: rgba(255,255,255,0.05); color: white; }
+.btn-sair { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; margin-top: auto; }
+
+.main {
+  flex: 1;
+  padding: 25px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.btn-toggle-menu { 
+  background: #1E293B; 
+  color: white; 
+  border: 1px solid rgba(255,255,255,0.1); 
+  padding: 10px 15px; 
+  border-radius: 8px; 
+  cursor: pointer; 
+  margin-right: 10px; 
+  font-size: 20px; 
+  transition: 0.2s; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  height: 44px; 
+}
+.btn-toggle-menu:hover { background: #3B82F6; }
 
 .topo {
   display: flex;
@@ -139,12 +191,44 @@ h2 {
   padding-left: 12px;
 }
 </style>
+<script>
+    function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }
+    
+    function toggleMenu() {
+        const sidebar = document.getElementById('menuLateral');
+        if (sidebar.style.width === '0px' || sidebar.style.display === 'none') {
+            sidebar.style.width = '250px'; 
+            sidebar.style.padding = '20px'; 
+            sidebar.style.display = 'flex';
+        } else {
+            sidebar.style.width = '0px'; 
+            sidebar.style.padding = '0';
+            setTimeout(() => { sidebar.style.display = 'none'; }, 300); 
+        }
+    }
+</script>
 </head>
 
 <body>
 
-<div class="container">
+<div class="sidebar" id="menuLateral">
+    <div class="logo-area"><img src="logo.svg" style="max-width: 100%; margin-bottom: 20px;" onerror="this.style.display='none'" /></div>
+    <div class="menu">
+        <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
+        <button style="background: #2563EB; color: white; border-color: #3B82F6;">📂 Lançar Dados</button>
+        <button onclick="navegarSeguro('/roteirizador.html')">🗺️ Roteirizador</button>
+        <button onclick="navegarSeguro('/fila.html')">🗣️ Triagem e Ponto</button>
+        <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+        <button onclick="navegarSeguro('/pecas.html')">🔧 Peças</button>
+        <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair" style="margin-top: 20px;">🚪 Sair</button>
+    </div>
+</div>
+
+<div class="main">
   <div class="topo">
+    <!-- Botão de ocultar/mostrar Menu adicionado aqui -->
+    <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
+    
     <button onclick="voltarAoDashboard()">⬅ Voltar</button>
     <button onclick="salvar()">💾 Salvar</button>
     <input type="month" id="mesFiltro" style="width: auto; display: inline-block;">
