@@ -471,7 +471,7 @@
         let textoCompleto = `${ruaOriginal} ${detalhesOriginal}`;
         let cidade = cliente.cidade || "São Paulo";
 
-        // 1. SE FOR RODOVIA OU CONTER KM: Ignora CEP e busca na rodovia/km
+        // 1. SE FOR RODOVIA OU CONTER KM: Mantém a regra original para estradas
         if (ehRodoviaOuKm(textoCompleto)) {
             let termoLimpo = expandirAbreviacoes(textoCompleto);
             try {
@@ -493,19 +493,7 @@
             } catch(e) {}
         }
 
-        // 2. SE NÃO FOR RODOVIA: Tenta CEP primeiro (altamente preciso em áreas urbanas)
-        let cepBusca = (cliente.cep || "").replace(/\D/g, '');
-        if (cepBusca.length === 8) {
-            try {
-                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
-                if (r.ok) {
-                    let d = await r.json();
-                    if (d && d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
-                }
-            } catch(e) {}
-        }
-
-        // 3. FALLBACK URBANO: Endereço completo com expansão de abreviações
+        // 2. PARÂMETRO 1: Tenta buscar pelo ENDEREÇO URBANO primeiro
         let ruaExpandida = expandirAbreviacoes(ruaOriginal);
         let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
         
@@ -526,6 +514,18 @@
                 if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
             }
         } catch(e) {}
+
+        // 3. PARÂMETRO 2 (FALLBACK): Se o endereço não retornar dados, busca pelo CEP
+        let cepBusca = (cliente.cep || "").replace(/\D/g, '');
+        if (cepBusca.length === 8) {
+            try {
+                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d && d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
+                }
+            } catch(e) {}
+        }
 
         return null; 
     }

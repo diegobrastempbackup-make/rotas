@@ -5,12 +5,20 @@
     <title>Painel de Fila - NERI</title>
     <style>
         body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0F172A; color: white; display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 250px; background: #1E293B; border-right: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; padding: 20px; }
-        .menu button { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94A3B8; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; transition: 0.2s; width: 100%; }
+        
+        /* Adicionado transition, overflow e id para a animação funcionar */
+        .sidebar { width: 250px; background: #1E293B; border-right: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; padding: 20px; transition: all 0.3s ease; flex-shrink: 0; overflow: hidden; box-sizing: border-box; }
+        
+        .menu button { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94A3B8; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; transition: 0.2s; width: 100%; white-space: nowrap; }
         .menu button:hover { background: rgba(255,255,255,0.05); color: white; }
         .btn-sair { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; margin-top: auto; }
         
         .main { padding: 25px; display: flex; flex-direction: column; gap: 20px; height: 100vh; overflow-y: auto; flex: 1; box-sizing: border-box;}
+        
+        /* CSS do botão de toggle adicionado */
+        .btn-toggle-menu { background: #1E293B; color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; cursor: pointer; margin-right: 15px; font-size: 20px; transition: 0.2s; display: flex; align-items: center; justify-content: center; height: 44px; }
+        .btn-toggle-menu:hover { background: #3B82F6; }
+
         .abas-nav { display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
         .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; transition: 0.2s; }
         .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
@@ -44,7 +52,7 @@
 </head>
 <body>
 
-<div class="sidebar">
+<div class="sidebar" id="menuLateral">
     <div class="logo-area"><img src="logo.svg" alt="Logo NERI" style="max-width: 100%; margin-bottom: 20px;" onerror="this.style.display='none'" /></div>
     <div class="menu">
         <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
@@ -59,9 +67,13 @@
 
 <div class="main">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
-            <p style="margin: 0; color: #94A3B8; font-size: 14px;">Acompanhamento de chegadas.</p>
+        <div style="display: flex; align-items: flex-start;">
+            <!-- Botão de Toggle Inserido Aqui -->
+            <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
+            <div>
+                <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
+                <p style="margin: 0; color: #94A3B8; font-size: 14px;">Acompanhamento de chegadas.</p>
+            </div>
         </div>
         <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">🧹 Limpar Tela (Fim do Dia)</button>
     </div>
@@ -153,6 +165,20 @@
 </div>
 
 <script>
+    // Função para recolher/expandir o menu lateral adicionada
+    function toggleMenu() {
+        const sidebar = document.getElementById('menuLateral');
+        if (sidebar.style.width === '0px' || sidebar.style.display === 'none') {
+            sidebar.style.width = '250px'; 
+            sidebar.style.padding = '20px'; 
+            sidebar.style.display = 'flex';
+        } else {
+            sidebar.style.width = '0px'; 
+            sidebar.style.padding = '0';
+            setTimeout(() => { sidebar.style.display = 'none'; }, 300); 
+        }
+    }
+
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
     let filaAtual = [];
