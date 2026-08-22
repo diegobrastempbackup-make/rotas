@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // =====================================================================
-// URL DO SISTEMA
+// [CORREÇÃO] Removido o "/login.html" do final para o ping funcionar corretamente
 const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com"; 
 // =====================================================================
 
@@ -23,7 +23,7 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// Middleware de segurança para evitar crash se a requisição chegar antes da conexão do DB
+// [CORREÇÃO] Middleware de segurança para evitar crash se a requisição chegar antes da conexão do DB
 app.use((req, res, next) => {
   if (!db) return res.status(503).json({ erro: "Banco de dados inicializando. Tente novamente em instantes." });
   next();
@@ -65,20 +65,15 @@ app.get("/ping", (req, res) => {
 });
 
 // =====================================================================
-// LOGIN E GESTÃO DE EMPRESAS (SaaS)
+// LOGIN E GESTÃO DE UTILIZADORES / EMPRESAS
 // =====================================================================
 app.post("/login", async (req, res) => {
   try {
-    const { usuario, senha, origem } = req.body;
+    const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     
     if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
     if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso. Contacte a administração." });
-
-    // Se a requisição vier do App do Técnico, verifica a flag de permissão
-    if (origem === "app" && (!usuarioBanco.flags || !usuarioBanco.flags.acessaAppTecnico)) {
-        return res.status(403).json({ erro: "Sem permissão para aceder ao App de Rotas." });
-    }
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta" });
@@ -136,103 +131,61 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
     const empresaMaster = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
     if(empresaMaster && empresaMaster.cliente_id) {
         const cid = empresaMaster.cliente_id;
-        const colecoes = ["usuarios", "estoque", "historico_estoque", "registros", "planejamento_rotas"];
+        const colecoes = ["usuarios", "tecnicos_dashboard", "tecnicos", "estoque", "historico_estoque", "registros", "planejamento_rotas"];
         for(let col of colecoes) await db.collection(col).deleteMany({ cliente_id: cid });
     }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// =====================================================================
-// NOVO MÓDULO UNIFICADO: COLABORADORES (SUBSTITUI USUÁRIOS, FROTA E TOTEM)
-// =====================================================================
+app.post("/cadastro", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
+    
+    // [CORREÇÃO] Permite que o Superadmin passe o cliente_id alvo pelo body, evitando cadastrar na tenant "GLOBAL_SYSTEM"
+    const { nome, usuario, senha, tipo, cliente_id } = req.body; 
+    
+    const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
+    if (existe) return res.status(400).json({ erro: "Login já em uso" });
+    
+    const senhaHash = await bcrypt.hash(senha, 10);
+    
+    // [CORREÇÃO] Validação do tenant para o novo usuário
+    const tenantId = (req.usuario.tipo === "superadmin" && cliente_id) ? cliente_id : req.usuario.cliente_id;
 
-app.get("/api/colaboradores", autenticarToken, async (req, res) => {
-    try { 
-        const colaboradores = await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).toArray();
-        res.json(colaboradores); 
-    } catch (err) { res.status(500).json({ erro: "Erro ao buscar colaboradores" }); }
+    await db.collection("usuarios").insertOne({ cliente_id: tenantId, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date() });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
-  
-app.post("/api/colaboradores", autenticarToken, async (req, res) => {
-    try {
-        if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin" && req.usuario?.tipo !== "admin") {
-            return res.status(403).json({ erro: "Permissão negada." });
-        }
-      
-        const { nome, usuario, senha, tipo, flags, dadosFrota, dadosTotem, cliente_id } = req.body; 
-        
-        if (usuario && usuario.trim() !== "") {
-            const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
-            if (existe) return res.status(400).json({ erro: "Login já em uso no sistema." });
-        }
-      
-        let senhaHash = null;
-        if (senha) senhaHash = await bcrypt.hash(senha, 10);
-      
-        const tenantId = (req.usuario.tipo === "superadmin" && cliente_id) ? cliente_id : req.usuario.cliente_id;
-  
-        const novoColaborador = {
-            cliente_id: tenantId, 
-            nome: nome.trim(), 
-            usuario: usuario ? usuario.toLowerCase().trim() : null, 
-            tipo: tipo || "nenhum", 
-            ativo: true, 
-            criadoEm: new Date(),
-            flags: flags || {},
-            dadosFrota: dadosFrota || {},
-            dadosTotem: dadosTotem || {}
-        };
-  
-        if (senhaHash) novoColaborador.senha = senhaHash;
-  
-        await db.collection("usuarios").insertOne(novoColaborador);
-        res.json({ ok: true });
-    } catch (err) { res.status(500).json({ erro: "Erro ao criar colaborador" }); }
+
+app.get("/api/usuarios", autenticarToken, async (req, res) => {
+  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
-  
-app.put("/api/colaboradores/:id", autenticarToken, async (req, res) => {
-    try {
-        if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin" && req.usuario.tipo !== "admin") {
-            return res.status(403).json({ erro: "Negado" });
-        }
-  
-        const { nome, tipo, senha, flags, dadosFrota, dadosTotem } = req.body;
-        
-        const atualizacao = { 
-            nome: nome.trim(), 
-            tipo: tipo || "nenhum",
-            flags: flags || {},
-            dadosFrota: dadosFrota || {},
-            dadosTotem: dadosTotem || {}
-        };
-  
-        if (senha && senha.trim() !== "") {
-            atualizacao.senha = await bcrypt.hash(senha, 10);
-        }
-  
-        await db.collection("usuarios").updateOne(
-            { _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, 
-            { $set: atualizacao }
-        );
-        res.json({ ok: true });
-    } catch (err) { res.status(500).json({ erro: "Erro ao atualizar" }); }
+
+app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
+    await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
-  
-app.delete("/api/colaboradores/:id", autenticarToken, async (req, res) => {
-    try {
-        if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin" && req.usuario.tipo !== "admin") {
-            return res.status(403).json({ erro: "Negado" });
-        }
-        await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) });
-        res.json({ ok: true });
-    } catch (err) { res.status(500).json({ erro: "Erro ao excluir" }); }
+
+app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
+  try {
+    if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
+    const { nome, tipo, senha } = req.body;
+    const atualizacao = { nome, tipo };
+    if (senha && senha.trim() !== "") atualizacao.senha = await bcrypt.hash(senha, 10);
+    await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: atualizacao });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
 // =====================================================================
-// MÓDULO: ROTEIRIZADOR INTELIGENTE
+// NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE
 // =====================================================================
 
+// 1. GUARDAR ROTA
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, tecnico, itinerario } = req.body;
@@ -257,6 +210,7 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
   }
 });
 
+// 2. PESQUISAR ROTA (Suporta OS Agrupadas)
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
@@ -275,6 +229,7 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
   }
 });
 
+// 3. EXCLUIR ROTA
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   try {
       const resultado = await db.collection("planejamento_rotas").deleteOne({
@@ -288,6 +243,7 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   }
 });
 
+// 4. ATUALIZAR STATUS DA PARAGEM (TELEMETRIA EM TEMPO REAL)
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
@@ -301,15 +257,18 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
 
         let atualizacao = { "itinerario.$.status": novoStatus };
 
+        // Grava a hora exata da alteração do status
         if (campoTempo && valorTempo) {
             atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         }
 
+        // NOVO: Se o app enviou a localização real no clique, grava na paragem!
         if (latitude !== undefined && longitude !== undefined) {
             atualizacao["itinerario.$.latCheckin"] = latitude;
             atualizacao["itinerario.$.lonCheckin"] = longitude;
         }
 
+        // Registra motivo de insucesso, caso exista
         if (motivo) {
             atualizacao["itinerario.$.motivoInsucesso"] = motivo;
         }
@@ -323,6 +282,7 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     }
 });
 
+// 5. NOVA ROTA: RECEBER RASTREAMENTO EM TEMPO REAL (MIGALHAS GPS)
 app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, lat, lon } = req.body;
@@ -347,6 +307,7 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     }
 });
 
+// 6. EDITAR ENDEREÇO DA PARAGEM MANUALMENTE
 app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
@@ -375,8 +336,16 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ESTOQUE E REGISTROS
+// RESTANTES MÓDULOS (Dashboard, Almoxarifado, Registros)
 // =====================================================================
+app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { const { nome, status, telefone, email, veiculo, placa } = req.body; const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Técnico já registado" }); await db.collection("tecnicos_dashboard").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", telefone, email, veiculo, placa, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { nome: req.body.nome.trim(), status: req.body.status, telefone: req.body.telefone, email: req.body.email, veiculo: req.body.veiculo, placa: req.body.placa } }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+app.delete("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+
+app.get("/api/tecnicos", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
+app.post("/api/tecnicos", autenticarToken, async (req, res) => { try { const nome = (req.body.nome || "").trim(); const existe = await db.collection("tecnicos").findOne({ nome, cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Já registado" }); await db.collection("tecnicos").insertOne({ cliente_id: req.usuario.cliente_id, nome, criadoEm: new Date() }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
+app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 
 app.get("/api/estoque", autenticarToken, async (req, res) => { try { res.json(await db.collection("estoque").find(getFiltroSaaS(req)).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 app.post("/api/estoque", autenticarToken, async (req, res) => { try { await db.collection("estoque").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id, preco: Number(req.body.preco) || 0, qtd: Number(req.body.qtd) || 0, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
@@ -426,8 +395,7 @@ async function iniciarSistema() {
     await client.connect(); db = client.db("rotas"); console.log("✅ Conexão estabelecida!");
     
     const defaultClienteId = "neri_matriz_01";
-    // Atualizado com a coleção unificada 'usuarios' ao invés das antigas separadas
-    for (let col of ["usuarios", "estoque", "historico_estoque", "registros", "planejamento_rotas"]) {
+    for (let col of ["usuarios", "tecnicos", "tecnicos_dashboard", "estoque", "historico_estoque", "registros", "planejamento_rotas"]) {
       await db.collection(col).updateMany({ cliente_id: { $exists: false } }, { $set: { cliente_id: defaultClienteId } });
     }
 
@@ -436,14 +404,14 @@ async function iniciarSistema() {
       const senhaHash = await bcrypt.hash("neri2026", 10);
       await db.collection("usuarios").insertOne({
         cliente_id: "GLOBAL_SYSTEM", empresaNome: "NERI PLATAFORMA", nome: "Diego Neri (Super Admin)",
-        usuario: "neri.admin", senha: senhaHash, tipo: "superadmin", ativo: true, criadoEm: new Date(),
-        flags: { acessaAppTecnico: true, exibeDashboard: true, exibeTotem: true }
+        usuario: "neri.admin", senha: senhaHash, tipo: "superadmin", ativo: true, criadoEm: new Date()
       });
       console.log("👑 Conta Super Admin Criada: neri.admin / neri2026");
     }
 
     // LOOP ANTI-HIBERNAÇÃO
     setInterval(() => {
+      // [CORREÇÃO] Agora puxa da variável raiz correta e adiciona o /ping no request
       https.get(`${URL_DO_SEU_SISTEMA}/ping`, (resp) => {
         console.log(`⏱️ [${new Date().toLocaleTimeString()}] Ping automático enviado. Render mantido acordado!`);
       }).on("error", (err) => {
@@ -456,9 +424,49 @@ async function iniciarSistema() {
 }
 
 // ==========================================
-// SISTEMA DE FILA E TOTEM
+// FASE 5: SISTEMA DE FILA, TOTEM E CRACHÁS
 // ==========================================
 
+// --- CRUD DA EQUIPA ISOLADA DO TOTEM ---
+app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
+    try {
+        const equipe = await db.collection("equipe_totem").find({ cliente_id: req.usuario.cliente_id }).toArray();
+        res.json(equipe);
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
+    try {
+        // CORREÇÃO: Recebendo a variável 'foto'
+        const { nome, funcao, foto } = req.body;
+        await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao, foto });
+        res.json({ok: true});
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+app.put('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
+    try {
+        // CORREÇÃO: Recebendo a variável 'foto'
+        const { nome, funcao, foto } = req.body;
+        await db.collection("equipe_totem").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, 
+            { $set: { nome, funcao, foto } }
+        );
+        res.json({ok: true});
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+app.delete('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
+    try {
+        await db.collection("equipe_totem").deleteOne({ 
+            _id: new ObjectId(req.params.id), 
+            cliente_id: req.usuario.cliente_id 
+        });
+        res.json({ok: true});
+    } catch(e) { res.status(500).json({erro: "Erro"}); }
+});
+
+// --- REGRAS E FILA DO TOTEM ---
 app.get('/api/config-base', autenticarToken, async (req, res) => {
     try {
         let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
@@ -469,12 +477,16 @@ app.get('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/config-base', autenticarToken, async (req, res) => {
     try {
+        // 1. Agora o servidor recebe todos os campos enviados pelo Painel Web
         const { limiteAtraso, latBase, lonBase, raioBase } = req.body;
+        
+        // 2. Salva todos eles no banco de dados da empresa logada
         await db.collection("configuracoes").updateOne(
             { cliente_id: req.usuario.cliente_id }, 
             { $set: { limiteAtraso, latBase, lonBase, raioBase } }, 
             { upsert: true }
         );
+        
         res.json({ ok: true });
     } catch(e) { 
         res.status(500).json({erro: "Erro"}); 
@@ -483,16 +495,15 @@ app.post('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
+        // NOVO: Recebendo a "origem"
         const { codigoBarras, horaBatida, dataBatida, origem } = req.body;
         
-        // NOVO: Busca o crachá na coleção unificada de usuários validando a flag do Totem
-        const pessoa = await db.collection("usuarios").findOne({ 
-            nome: new RegExp(`^${codigoBarras}$`, 'i'),
-            "flags.exibeTotem": true,
+        const pessoa = await db.collection("equipe_totem").findOne({ 
+            nome: new RegExp(`^${codigoBarras}$`, 'i'), 
             cliente_id: req.usuario.cliente_id 
         });
 
-        if (!pessoa) return res.status(404).json({ erro: "Crachá não reconhecido na Base ou sem permissão!" });
+        if (!pessoa) return res.status(404).json({ erro: "Crachá não reconhecido na Base!" });
 
         const jaEntrouHoje = await db.collection("fila_ponto").findOne({
             cliente_id: req.usuario.cliente_id,
@@ -513,7 +524,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
             horaChegada: horaBatida,
             status: "Aguardando", 
             atrasado: atrasado,
-            origem: origem || "Totem", 
+            origem: origem || "Totem", // NOVO: Salva a origem (Padrão: Totem se vier vazio)
             timestamp: new Date()
         };
 
@@ -551,9 +562,10 @@ app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
-// CHAMADAS AVULSAS DO COORDENADOR
+// MÓDULO: CHAMADAS AVULSAS DO COORDENADOR
 // ==========================================
 
+// 1. Recebe a chamada enviada pelo painel da doca
 app.post('/api/totem/alerta-balcao', autenticarToken, async (req, res) => {
     try {
         const { tecnico, coordenador, mensagem } = req.body;
@@ -571,6 +583,7 @@ app.post('/api/totem/alerta-balcao', autenticarToken, async (req, res) => {
     }
 });
 
+// 2. O Totem consulta essa rota de segundos em segundos para ver se há alguém chamando
 app.get('/api/totem/alertas-pendentes', autenticarToken, async (req, res) => {
     try {
         const alertas = await db.collection("alertas_totem").find({
@@ -583,6 +596,7 @@ app.get('/api/totem/alertas-pendentes', autenticarToken, async (req, res) => {
     }
 });
 
+// 3. O Totem avisa que já tocou a mensagem na tela e marca como concluído
 app.put('/api/totem/alerta-balcao/:id/concluido', autenticarToken, async (req, res) => {
     try {
         await db.collection("alertas_totem").updateOne(
@@ -629,7 +643,7 @@ app.put('/api/fila/:id/chamada-concluida', autenticarToken, async (req, res) => 
 });
 
 // ==========================================
-// MODO "ESPIÃO" (SaaS LOGIN AS)
+// FASE 6: MODO "ESPIÃO" (SaaS LOGIN AS)
 // ==========================================
 app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({erro: "Acesso Negado"});
@@ -657,8 +671,10 @@ app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
-// GESTÃO E SOLICITAÇÃO DE PEÇAS
+// MÓDULO: GESTÃO E SOLICITAÇÃO DE PEÇAS
 // ==========================================
+
+// 1. Cadastrar nova peça no catálogo
 app.post('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     try {
         const { nome, codigo, quantidade_inicial } = req.body;
@@ -673,6 +689,7 @@ app.post('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao cadastrar peça"}); }
 });
 
+// 2. Listar todas as peças (Usado no Painel e no App)
 app.get('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     try {
         const pecas = await db.collection("catalogo_pecas").find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray();
@@ -680,13 +697,14 @@ app.get('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao listar peças"}); }
 });
 
+// 3. Excluir peça do catálogo
 app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
     try {
         await db.collection("catalogo_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
 });
-
+// 3.5 Editar peça do catálogo (Novo nome e novo estoque)
 app.put('/api/pecas/catalogo/:id/editar', autenticarToken, async (req, res) => {
     try {
         const { novo_nome, novo_estoque } = req.body;
@@ -698,6 +716,7 @@ app.put('/api/pecas/catalogo/:id/editar', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao editar peça"}); }
 });
 
+// 4. Técnico solicita uma peça (Rota para o APP)
 app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
     try {
         const { tecnico, peca_id, nome_peca, quantidade, observacao } = req.body;
@@ -714,6 +733,7 @@ app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao solicitar peça"}); }
 });
 
+// 5. Listar solicitações (com suporte a filtro por data)
 app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
     try {
         const { data } = req.query;
@@ -731,6 +751,7 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
 });
 
+// 6. Editar quantidade de uma solicitação
 app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
     try {
         const { nova_quantidade } = req.body;
@@ -742,6 +763,7 @@ app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) 
     } catch(e) { res.status(500).json({erro: "Erro ao editar solicitação"}); }
 });
 
+// 7. Excluir uma solicitação
 app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
     try {
         await db.collection("solicitacoes_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
@@ -750,3 +772,4 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
 });
 
 iniciarSistema();
+

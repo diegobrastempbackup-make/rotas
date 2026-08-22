@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administração Unificada - NERI</title>
+    <title>Administração - NERI</title>
     <link rel="stylesheet" href="style.css?v=2">
     <style>
         .main { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 25px; box-sizing: border-box; }
@@ -13,34 +13,27 @@
         .card-tec.ativos::before { background: #10B981; } .card-tec.ferias::before { background: #06B6D4; } .card-tec.afastados::before { background: #F59E0B; } .card-tec.desligados::before { background: #EF4444; }
         .card-tec-titulo { font-size: 12px; font-weight: bold; color: #94A3B8; text-transform: uppercase; }
         .card-tec-valor { font-size: 32px; font-weight: 800; margin: 8px 0 4px 0; color: white; }
-        
+        .card-tec-sub { font-size: 12px; font-weight: bold; }
         .area-filtros { display: flex; gap: 15px; background: rgba(30, 41, 59, 0.4); padding: 15px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
         .area-filtros input, .area-filtros select { background: #0F172A; border: 1px solid rgba(255, 255, 255, 0.1); color: white; padding: 12px; border-radius: 8px; flex: 1; outline: none; min-width: 200px; }
         .btn-novo { background: #2563EB; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .btn-novo:hover { background: #3B82F6; }
-        
+        .btn-novo-verde { background: #10B981; } .btn-novo-verde:hover { background: #34D399; }
         .painel-tabela { background: #1E293B; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); padding: 10px; overflow-x: auto; flex-grow: 1; }
         table { width: 100%; border-collapse: collapse; text-align: left; }
         th { color: #94A3B8; font-size: 12px; padding: 14px; text-transform: uppercase; border-bottom: 1px solid rgba(255, 255, 255, 0.05); position: sticky; top: 0; background-color: #1E293B; z-index: 10; }
         td { padding: 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 14px; color: #E2E8F0; }
         tr:hover td { background: rgba(255, 255, 255, 0.02); }
-        
         .badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; display: inline-block; }
         .badge-ativo { background: rgba(16, 185, 129, 0.15); color: #34D399; } .badge-ferias { background: rgba(6, 182, 212, 0.15); color: #22D3EE; } .badge-afastado { background: rgba(245, 158, 11, 0.15); color: #FBBF24; } .badge-desligado { background: rgba(239, 68, 68, 0.15); color: #F87171; }
-        .badge-nivel { background: rgba(148,163,184,0.15); color: #94A3B8; }
-        .badge-master { background: rgba(245,158,11,0.15); color: #FBBF24; }
-        .badge-admin { background: rgba(96,165,250,0.15); color: #60A5FA; }
-        
         .btn-mini { border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; margin-right: 5px; transition: 0.2s; }
         .btn-editar { background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3); } .btn-editar:hover { background: #2563EB; color: white; }
         .btn-excluir { background: rgba(239, 68, 68, 0.2); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3); } .btn-excluir:hover { background: #EF4444; color: white; }
-        
         .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
         .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        
-        .tabs-container { display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px; overflow-x: auto; }
-        .tab-btn { background: transparent; color: #94A3B8; border: none; padding: 12px 24px; font-size: 15px; font-weight: bold; cursor: pointer; border-radius: 8px; transition: 0.3s; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        .tabs-container { display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px; }
+        .tab-btn { background: transparent; color: #94A3B8; border: none; padding: 12px 24px; font-size: 15px; font-weight: bold; cursor: pointer; border-radius: 8px; transition: 0.3s; display: flex; align-items: center; gap: 8px; }
         .tab-btn:hover { color: white; background: rgba(255,255,255,0.05); }
         .tab-btn.ativa { background: #2563EB; color: white; }
     </style>
@@ -61,18 +54,18 @@
 
     <div class="main">
         <div class="header-painel">
-            <h1>Central de Administração (Unificada)</h1>
-            <p>Gerencie todos os colaboradores da sua frota e sistema num único lugar.</p>
+            <h1>Central de Administração</h1>
+            <p>Gerencie a frota, acessos e os clientes da sua plataforma.</p>
         </div>
 
         <div class="tabs-container">
-            <button id="btnTabTecnicos" class="tab-btn ativa" onclick="mudarAba('tecnicos')">🚗 Frota Dashboard</button>
-            <button id="btnTabUsuarios" class="tab-btn" onclick="mudarAba('usuarios')" style="display:none;">🔐 Usuários do Sistema</button>
-            <button id="btnTabTotem" class="tab-btn" onclick="mudarAba('totem')">🪪 Equipa Totem (Crachás)</button>
+            <button id="btnTabTecnicos" class="tab-btn ativa" onclick="mudarAba('tecnicos')">🚗 Técnicos Dashboard</button>
+            <button id="btnTabUsuarios" class="tab-btn" onclick="mudarAba('usuarios')" style="display:none;">🔐 Usuários</button>
+            <button id="btnTabTotem" class="tab-btn" onclick="mudarAba('totem')">🪪 Técnicos Lista</button>
             <button id="btnTabEmpresas" class="tab-btn" onclick="mudarAba('empresas')" style="display:none; background:rgba(16, 185, 129, 0.1); color:#10B981; border:1px solid rgba(16, 185, 129, 0.3);">🏢 Clientes (SaaS)</button>
         </div>
 
-        <!-- ABA 1: FROTA DASHBOARD -->
+        <!-- ABA TÉCNICOS -->
         <div id="abaTecnicos">
             <div class="cards-tecnicos">
                 <div class="card-tec ativos"><span class="card-tec-titulo">Ativos</span><span class="card-tec-valor" id="cardAtivos">0</span></div>
@@ -81,29 +74,25 @@
                 <div class="card-tec desligados"><span class="card-tec-titulo">Desligados</span><span class="card-tec-valor" id="cardDesligados">0</span></div>
             </div>
             <div class="area-filtros">
-                <input type="text" id="buscaNome" placeholder="🔍 Buscar colaborador..." oninput="filtrarDados()">
-                <select id="filtroStatus" onchange="filtrarDados()">
-                    <option value="TODOS">Todos os status</option>
-                    <option value="Ativo">Ativos</option>
-                    <option value="Em Férias">Em Férias</option>
-                    <option value="Afastado">Afastados</option>
-                    <option value="Desligado">Desligados</option>
+                <input type="text" id="buscaNome" placeholder="🔍 Buscar técnico...">
+                <select id="filtroStatus">
+                    <option value="TODOS">Todos os status</option><option value="Ativo">Ativos</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastados</option><option value="Desligado">Desligados</option>
                 </select>
-                <button class="btn-novo" style="display:none;" onclick="abrirModalUnificado()">+ Novo Colaborador</button>
+                <button class="btn-novo" onclick="abrirModalTecnico()">+ Adicionar Técnico</button>
             </div>
             <div class="painel-tabela">
                 <table>
-                    <thead><tr><th>Nome</th><th>Status</th><th>Telefone</th><th>Veículo</th><th>Placa</th><th>Ações</th></tr></thead>
+                    <thead><tr><th>Nome</th><th>Status</th><th>Telefone</th><th>E-mail</th><th>Veículo</th><th>Placa</th><th>Ações</th></tr></thead>
                     <tbody id="corpoTabelaTecnicos"></tbody>
                 </table>
             </div>
         </div>
 
-        <!-- ABA 2: USUÁRIOS DO SISTEMA -->
+        <!-- ABA USUÁRIOS -->
         <div id="abaUsuarios" style="display: none;">
             <div class="area-filtros">
-                <div style="flex: 1;"><h3 style="margin:0; color:white;">Controle de Acessos</h3><p style="margin:5px 0 0 0; color:#94A3B8; font-size:13px;">Defina quem acede ao painel e ao App.</p></div>
-                <button class="btn-novo" style="display:none; background:#10B981;" onclick="abrirModalUnificado()">+ Novo Colaborador</button>
+                <div style="flex: 1;"><h3 style="margin:0; color:white;">Controle de Acessos</h3><p style="margin:5px 0 0 0; color:#94A3B8; font-size:13px;">Defina quem pode aceder ao sistema da sua empresa.</p></div>
+                <button class="btn-novo btn-novo-verde" onclick="abrirModalUsuario()">+ Novo Usuário</button>
             </div>
             <div class="painel-tabela">
                 <table>
@@ -113,28 +102,38 @@
             </div>
         </div>
 
-        <!-- ABA 3: EQUIPA TOTEM -->
+        <!-- ABA: EQUIPA TOTEM (CRACHÁS E FILA) -->
         <div id="abaTotem" style="display: none;">
-            <div class="area-filtros">
-                <div style="flex: 1;"><h3 style="margin:0; color:white;">Fila de Entrada (Totem)</h3><p style="margin:5px 0 0 0; color:#94A3B8; font-size:13px;">Colaboradores autorizados a bipar o crachá no Totem.</p></div>
-                <button class="btn-novo" style="display:none; background:#8B5CF6;" onclick="abrirModalUnificado()">+ Novo Colaborador</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: white; margin: 0;">Equipa Totem (Fila de Entrada)</h2>
+                <button class="btn-bloco" style="width: auto; padding: 10px 20px;" onclick="abrirModalTotem()">+ Cadastrar Pessoa</button>
             </div>
-            <div class="painel-tabela">
-                <table>
-                    <thead><tr><th>Foto & Nome no Crachá</th><th>Função</th><th>Ações</th></tr></thead>
-                    <tbody id="corpoTabelaTotem"></tbody>
+            
+            <div class="tabela-container" style="background: #1E293B; border-radius: 12px; padding: 20px;">
+                <table width="100%" style="color: white; text-align: left; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94A3B8; font-size: 12px;">
+                            <th style="padding: 10px;">NOME NO CRACHÁ</th>
+                            <th style="padding: 10px;">FUNÇÃO</th>
+                            <th style="padding: 10px;">AÇÕES</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpoTabelaTotem">
+                        <!-- Preenchido via JS -->
+                    </tbody>
                 </table>
             </div>
         </div>
-        
-        <!-- ABA 4: EMPRESAS SAAS (Inalterada) -->
+
+        <!-- ABA EMPRESAS (SÓ PARA O MODO DEUS) -->
         <div id="abaEmpresas" style="display: none;">
-             <div class="area-filtros">
+            <div class="area-filtros" style="border-color: rgba(16, 185, 129, 0.3);">
+                <div style="flex: 1;"><h3 style="margin:0; color:#10B981;">Plataforma SaaS</h3><p style="margin:5px 0 0 0; color:#94A3B8; font-size:13px;">Crie ambientes isolados (Painéis em branco) para os seus novos clientes.</p></div>
                 <button class="btn-novo" style="background:#10B981;" onclick="abrirModalEmpresa()">+ Registar Nova Empresa</button>
             </div>
             <div class="painel-tabela">
                 <table>
-                    <thead><tr><th>Empresa</th><th>Responsável</th><th>Login</th><th>Status</th><th>Ações</th></tr></thead>
+                    <thead><tr><th>Empresa (Cliente)</th><th>Pessoa Responsável</th><th>Login do Cliente</th><th>Status</th><th>Data de Registo</th><th>Ações</th></tr></thead>
                     <tbody id="corpoTabelaEmpresas"></tbody>
                 </table>
             </div>
@@ -142,102 +141,97 @@
     </div>
 </div>
 
-<!-- ========================================== -->
-<!-- MODAL ÚNICO: GERENCIAR COLABORADOR         -->
-<!-- ========================================== -->
-<div id="modalUnificado" class="modal">
-    <div class="modal-conteudo" style="max-width: 650px; background: #0F172A; border: 1px solid #3B82F6;">
+<!-- MODAL EQUIPA TOTEM -->
+<div class="modal" id="modalTotem">
+    <div class="modal-conteudo">
         <div class="modal-header">
-            <h3 id="modalTituloUnificado" style="color:white; font-size: 20px; margin: 0;">Gerenciar Colaborador</h3>
-            <button class="fechar-modal" onclick="fecharModal('modalUnificado')">×</button>
+            <h3 style="color:white;" id="modalTituloTotem">Cadastrar Pessoa</h3>
+            <button class="fechar-modal" onclick="fecharModal('modalTotem')">×</button>
         </div>
-        
-        <input type="hidden" id="uniId">
+        <input type="hidden" id="totemId">
+        <input type="hidden" id="totemFotoBase64">
 
-        <!-- SESSÃO 1: DADOS BÁSICOS -->
-        <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-            <h4 style="color: #3B82F6; margin: 0 0 15px 0; border-bottom: 1px solid rgba(59,130,246,0.3); padding-bottom: 5px;">1. Dados Base & Acesso</h4>
-            <div class="form-group"><label>Nome Completo (Obrigatório)</label><input type="text" id="uniNome"></div>
-            
-            <div class="form-grid">
-                <div class="form-group"><label>Login de Acesso</label><input type="text" id="uniLogin"></div>
-                <div class="form-group"><label>Senha</label><input type="password" id="uniSenha" placeholder="Deixe em branco p/ não alterar"></div>
-            </div>
-
-            <div class="form-group">
-                <label>Nível de Permissão (Painel Web)</label>
-                <select id="uniNivel">
-                    <option value="nenhum">Sem acesso ao Painel Web</option>
-                    <option value="simples">Acesso Simples (Lançamentos)</option>
-                    <option value="estoque">Estoque (Almoxarifado)</option>
-                    <option value="tecnico">Visualização (App/Relatórios)</option>
-                    <option value="admin" id="optAdmin">Administrador</option>
-                    <option value="master" id="optMaster">Master</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- SESSÃO 2: FLAGS DE ATIVAÇÃO -->
-        <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-            <h4 style="color: #10B981; margin: 0 0 15px 0; border-bottom: 1px solid rgba(16,185,129,0.3); padding-bottom: 5px;">2. Permissões de Módulos (Flags)</h4>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #E2E8F0; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
-                    <input type="checkbox" id="flagApp" style="width: 18px; height: 18px;"> 📱 <b>App Mobile:</b> Pode fazer login no App de Rotas.
+        <div class="form-group" style="text-align: center;">
+            <label style="color: #94A3B8; font-size: 13px; display: block; margin-bottom: 10px;">Foto do Crachá (Opcional)</label>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                <!-- O SRC inicial está vazio, será preenchido pelo JS -->
+                <img id="previewFotoTotem" src="" style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 2px solid #3B82F6; background: #0F172A;">
+                <label for="formTotemFoto" style="background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold;">
+                    📸 Carregar Foto
                 </label>
-                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #E2E8F0; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
-                    <input type="checkbox" id="flagDashboard" onchange="toggleSecao('secaoFrota', this.checked)" style="width: 18px; height: 18px;"> 🚗 <b>Frota:</b> Exibir no Dashboard de Frota.
-                </label>
-                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #E2E8F0; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
-                    <input type="checkbox" id="flagTotem" onchange="toggleSecao('secaoTotem', this.checked)" style="width: 18px; height: 18px;"> 🪪 <b>Totem:</b> Pode bipar crachá na Base.
-                </label>
-            </div>
-        </div>
-
-        <!-- SEÇÃO FROTA (Escondida por padrão) -->
-        <div id="secaoFrota" style="display: none; background: rgba(59, 130, 246, 0.08); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3B82F6;">
-            <h4 style="color: #60A5FA; margin: 0 0 15px 0;">Dados da Frota</h4>
-            <div class="form-grid">
-                <div class="form-group"><label>Status do Motorista</label><select id="uniStatus"><option value="Ativo">Ativo</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastado</option><option value="Desligado">Desligado</option></select></div>
-                <div class="form-group"><label>Telefone</label><input type="text" id="uniTelefone"></div>
-            </div>
-            <div class="form-grid">
-                <div class="form-group"><label>Veículo</label><input type="text" id="uniVeiculo"></div>
-                <div class="form-group"><label>Placa</label><input type="text" id="uniPlaca"></div>
-            </div>
-        </div>
-
-        <!-- SEÇÃO TOTEM (Escondida por padrão) -->
-        <div id="secaoTotem" style="display: none; background: rgba(139, 92, 246, 0.08); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #A78BFA;">
-            <h4 style="color: #A78BFA; margin: 0 0 15px 0;">Dados do Crachá</h4>
-            <div class="form-group" style="text-align: center;">
-                <img id="previewFotoTotem" src="data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394A3B8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #8B5CF6; margin-bottom: 10px; background: #1E293B;">
-                <input type="hidden" id="uniFotoBase64">
-                <br>
-                <label for="formTotemFoto" style="background: rgba(139, 92, 246, 0.2); color: #C4B5FD; border: 1px solid rgba(139, 92, 246, 0.3); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold;">📸 Carregar Foto</label>
                 <input type="file" id="formTotemFoto" accept="image/*" style="display: none;" onchange="comprimirFotoMagicamente(event)">
             </div>
-            <div class="form-group"><label>Função no Crachá</label><input type="text" id="uniFuncao" placeholder="Ex: Técnico de Campo"></div>
         </div>
 
-        <button class="btn-bloco" style="background:#10B981; font-size: 16px; padding: 15px; margin-top: 10px;" onclick="salvarColaboradorUnificado()">💾 Gravar Cadastro Completo</button>
+        <div class="form-group">
+            <label>Nome Completo (Será lido pelo Totem)</label>
+            <input type="text" id="formTotemNome" placeholder="Ex: João Silva">
+        </div>
+        <div class="form-group">
+            <label>Função (Apenas para organização)</label>
+            <input type="text" id="formTotemFuncao" placeholder="Ex: Auxiliar de Base">
+        </div>
+        <button class="btn-bloco" onclick="salvarPessoaTotem()">Salvar</button>
     </div>
 </div>
 
-<!-- Modal Empresa SaaS (mantido intacto) -->
+<!-- MODAL: NOVA EMPRESA (SAAS) -->
 <div id="modalEmpresa" class="modal">
     <div class="modal-conteudo">
         <div class="modal-header"><h3 style="color:#10B981;">Registar Nova Empresa</h3><button class="fechar-modal" onclick="fecharModal('modalEmpresa')">×</button></div>
-        <div class="form-group"><label>Nome da Empresa (Cliente)</label><input type="text" id="regEmpresa"></div>
-        <div class="form-group"><label>Nome do Responsável</label><input type="text" id="regNome"></div>
-        <div class="form-group"><label>Login de Acesso</label><input type="text" id="regUsuario"></div>
-        <div class="form-group"><label>Palavra-passe Inicial</label><input type="password" id="regSenha"></div>
+        <div class="form-group"><label>Nome da Empresa (Cliente)</label><input type="text" id="regEmpresa" placeholder="Ex: Transportes Silva"></div>
+        <div class="form-group"><label>Nome do Responsável</label><input type="text" id="regNome" placeholder="Ex: Carlos Silva"></div>
+        <div class="form-group"><label>Login de Acesso</label><input type="text" id="regUsuario" placeholder="Ex: carlos.admin"></div>
+        <div class="form-group"><label>Palavra-passe Inicial</label><input type="password" id="regSenha" placeholder="Digite uma senha provisória"></div>
         <button class="btn-bloco" style="background:#10B981;" onclick="salvarNovaEmpresa()">Criar Conta Isolada</button>
     </div>
 </div>
 
+<!-- MODAL: TÉCNICO -->
+<div id="modalTecnico" class="modal">
+    <div class="modal-conteudo">
+        <div class="modal-header"><h3 id="modalTituloTecnico">Adicionar Técnico</h3><button class="fechar-modal" onclick="fecharModal('modalTecnico')">×</button></div>
+        <input type="hidden" id="tecnicoId">
+        <div class="form-group"><label>Nome Completo</label><input type="text" id="formNome" placeholder="Ex: João Santos"></div>
+        <div class="form-grid"><div class="form-group"><label>Status</label><select id="formStatus"><option value="Ativo">Ativo</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastado</option><option value="Desligado">Desligado</option></select></div><div class="form-group"><label>Telefone</label><input type="text" id="formTelefone" placeholder="(19) 99999-1111"></div></div>
+        <div class="form-group"><label>E-mail</label><input type="email" id="formEmail" placeholder="joao@neri.com"></div>
+        <div class="form-grid"><div class="form-group"><label>Veículo</label><input type="text" id="formVeiculo" placeholder="Ex: Fiat Strada"></div><div class="form-group"><label>Placa</label><input type="text" id="formPlaca" placeholder="Ex: ABC1D23"></div></div>
+        <button class="btn-bloco" onclick="salvarTecnico()">Gravar Alterações</button>
+    </div>
+</div>
+
+<!-- MODAL: USUÁRIO -->
+<div id="modalUsuario" class="modal">
+    <div class="modal-conteudo">
+        <div class="modal-header"><h3 id="modalTituloUsuario">Adicionar Usuário</h3><button class="fechar-modal" onclick="fecharModal('modalUsuario')">×</button></div>
+        <input type="hidden" id="usuarioEditId">
+        <div class="form-group"><label>Nome Completo</label><input type="text" id="cadNome"></div>
+        <div class="form-group"><label>Login (Usuário)</label><input type="text" id="cadUsuario"></div>
+        <div class="form-group"><label id="lblSenha">Senha de Acesso</label><input type="password" id="cadSenha"></div>
+        <div class="form-group">
+            <label>Nível de Permissão</label>
+            <select id="cadTipo">
+                <option value="simples">Acesso Simples (Lançamentos)</option>
+                <option value="estoque">Estoque (Almoxarifado)</option>
+                <option value="tecnico">Técnico (App Rota)</option>
+                <option value="admin">Administrador (Relatórios)</option>
+                <option value="master">Master (Controle Total)</option>
+                <option value="totem">Totem (Entrada)</option>
+            </select>
+        </div>
+        <button class="btn-bloco" style="background:#10B981;" onclick="salvarUsuario()">Salvar Usuário</button>
+    </div>
+</div>
+
 <script>
+// ==============================================================
+// SCRIPT INTEGRADO: JUNTAMOS O TECNICOS.JS AQUI PARA FICAR TUDO NUM ARQUIVO
+// ==============================================================
 const token = localStorage.getItem("token");
-let todosColaboradores = []; // Guarda a lista unificada de todo mundo
+let cacheTecnicos = [];
+let cacheTotem = [];
+
+// Um avatar padrão embutido no código, assim nunca tem imagem quebrada!
 const AVATAR_PADRAO = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394A3B8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
 
 if (!token) window.location.replace("/login.html");
@@ -246,7 +240,8 @@ function obterPayloadDoToken() {
     try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        return JSON.parse(decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        return JSON.parse(jsonPayload);
     } catch (e) { return null; }
 }
 
@@ -254,27 +249,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     const payload = obterPayloadDoToken();
     const tipoReal = payload ? payload.tipo : null;
     const isSuperAdminDisfarcado = payload ? payload.superadmin_original : false;
+    const usuarioTipo = localStorage.getItem("usuarioTipo");
     
-    // Mostra as abas para Master/Admin
-    if (tipoReal === "master" || tipoReal === "superadmin" || tipoReal === "admin" || isSuperAdminDisfarcado) {
+    if (usuarioTipo === "master" || tipoReal === "superadmin" || isSuperAdminDisfarcado) {
         document.getElementById("btnTabUsuarios").style.display = "flex";
-        document.querySelectorAll('.btn-novo').forEach(b => b.style.display = 'block');
     }
 
     if (tipoReal === "superadmin") {
         document.getElementById("btnTabEmpresas").style.display = "flex";
-        if (typeof carregarEmpresas === 'function') await carregarEmpresas();
+        await carregarEmpresas();
     }
 
-    // Apenas Master/Superadmin podem ver as opções "Admin" e "Master" no dropdown de criação
-    if (tipoReal !== "master" && tipoReal !== "superadmin") {
-        const optAdmin = document.getElementById("optAdmin");
-        const optMaster = document.getElementById("optMaster");
-        if (optAdmin) optAdmin.remove();
-        if (optMaster) optMaster.remove();
+    if (isSuperAdminDisfarcado) {
+        const menus = document.querySelector('.menu');
+        if(menus) {
+            menus.innerHTML += `<hr><button onclick="voltarSuperAdmin()" style="background:#EF4444; color:white; border:1px solid #B91C1C; font-weight:bold;">🔙 Voltar ao Painel Global</button>`;
+        }
     }
 
-    await carregarColaboradores();
+    await carregarTecnicos();
+    await carregarUsuarios();
+    await carregarEquipeTotem();
+
+    const buscaNome = document.getElementById("buscaNome");
+    const filtroStatus = document.getElementById("filtroStatus");
+    if(buscaNome) buscaNome.addEventListener("input", filtrarTabela);
+    if(filtroStatus) filtroStatus.addEventListener("change", filtrarTabela);
 });
 
 function mudarAba(abaSelecionada) {
@@ -287,57 +287,121 @@ function mudarAba(abaSelecionada) {
     });
 }
 
-function toggleSecao(id, mostrar) {
-    document.getElementById(id).style.display = mostrar ? 'block' : 'none';
-}
-
 function fecharModal(idModal) { document.getElementById(idModal).classList.remove("ativo"); }
 
 // ==========================================
-// CORE: LÓGICA UNIFICADA
+// MODO SAAS / SUPERADMIN
 // ==========================================
-async function carregarColaboradores() {
+async function acessarEmpresa(id, nomeEmpresa) {
     try {
-        const res = await fetch("/api/colaboradores", { headers: { "Authorization": `Bearer ${token}` } });
+        const res = await fetch(`/api/acessar-empresa/${id}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        const dados = await res.json();
+        if (res.ok) {
+            localStorage.setItem("token", dados.token);
+            window.location.replace(`/index.html?token=${dados.token}`);
+        } else alert(dados.erro || "Erro");
+    } catch(e) { alert("Erro de conexão."); }
+}
+
+async function voltarSuperAdmin() {
+    if(!confirm("Deseja voltar à visão global?")) return;
+    try {
+        const res = await fetch(`/api/voltar-admin`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        const dados = await res.json();
+        if (res.ok) { localStorage.setItem("token", dados.token); window.location.replace(`/tecnicos.html?token=${dados.token}`); }
+    } catch(e) {}
+}
+
+async function carregarEmpresas() {
+    try {
+        const res = await fetch("/api/empresas", { headers: { "Authorization": `Bearer ${token}` } });
+        const empresas = await res.json();
+        const corpo = document.getElementById("corpoTabelaEmpresas");
+        corpo.innerHTML = "";
+        empresas.forEach(emp => {
+            const dataReg = emp.criadoEm ? new Date(emp.criadoEm).toLocaleDateString("pt-BR") : "-";
+            const statusText = emp.ativo !== false ? "Ativo" : "Bloqueado";
+            const badgeClass = emp.ativo !== false ? "badge-ativo" : "badge-desligado";
+            const btnStatusTexto = emp.ativo !== false ? "Bloquear" : "Desbloquear";
+            const novoStatus = emp.ativo !== false ? false : true;
+
+            corpo.innerHTML += `
+                <tr>
+                    <td><strong>${emp.empresaNome || 'Desconhecida'}</strong></td>
+                    <td>${emp.nome}</td>
+                    <td><span style="color:#94A3B8;">${emp.usuario}</span></td>
+                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
+                    <td>${dataReg}</td>
+                    <td style="display:flex; gap: 5px;">
+                        <button class="btn-mini" style="background:#10B981; color:white;" onclick="acessarEmpresa('${emp._id}', '${emp.empresaNome}')">👁️ Acessar Dashboard</button>
+                        <button class="btn-mini" style="background: rgba(245, 158, 11, 0.2); color: #F59E0B;" onclick="alternarStatusEmpresa('${emp._id}', ${novoStatus})">${btnStatusTexto}</button>
+                        <button class="btn-mini btn-excluir" onclick="excluirEmpresa('${emp._id}', '${emp.empresaNome}')">Excluir</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (err) {}
+}
+
+async function alternarStatusEmpresa(id, novoStatus) {
+    if(!confirm(`Deseja alterar o status desta empresa?`)) return;
+    try {
+        const res = await fetch(`/api/empresas/${id}/status`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ ativo: novoStatus }) });
+        if(res.ok) await carregarEmpresas();
+    } catch(err) {}
+}
+
+async function excluirEmpresa(id, nome) {
+    if(!confirm(`⚠️ Deseja EXCLUIR a empresa '${nome}'?`)) return;
+    try {
+        const res = await fetch(`/api/empresas/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if(res.ok) await carregarEmpresas();
+    } catch(err) {}
+}
+
+function abrirModalEmpresa() {
+    document.getElementById("regEmpresa").value = ""; document.getElementById("regNome").value = "";
+    document.getElementById("regUsuario").value = ""; document.getElementById("regSenha").value = "";
+    document.getElementById("modalEmpresa").classList.add("ativo");
+}
+
+async function salvarNovaEmpresa() {
+    const empresa = document.getElementById("regEmpresa").value.trim(); const nome = document.getElementById("regNome").value.trim();
+    const usuario = document.getElementById("regUsuario").value.trim(); const senha = document.getElementById("regSenha").value;
+    if (!empresa || !nome || !usuario || !senha) return alert("Preencha todos os campos.");
+    try {
+        const res = await fetch("/nova-empresa", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ empresa, nome, usuario, senha }) });
+        if (!res.ok) return alert("Falha.");
+        alert(`Cliente ${empresa} criado!`); fecharModal('modalEmpresa'); await carregarEmpresas();
+    } catch (err) {}
+}
+
+// ==========================================
+// TÉCNICOS DASHBOARD
+// ==========================================
+async function carregarTecnicos() {
+    try {
+        const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
         if (!res.ok) return;
-        todosColaboradores = await res.json();
-        filtrarDados(); // Preenche as 3 tabelas
-    } catch (err) { console.log("Erro ao carregar colaboradores", err); }
+        cacheTecnicos = await res.json();
+        atualizarCardsIndicadores();
+        renderizarTabela(cacheTecnicos);
+    } catch (err) {}
 }
 
-function filtrarDados() {
-    const termo = (document.getElementById("buscaNome")?.value || "").toLowerCase().trim();
-    const statusSel = document.getElementById("filtroStatus")?.value || "TODOS";
-
-    // Filtra geral baseado na busca da aba de frota
-    const listaFiltrada = todosColaboradores.filter(c => {
-        const status = (c.dadosFrota && c.dadosFrota.status) ? c.dadosFrota.status : "Ativo";
-        const bateNome = c.nome.toLowerCase().includes(termo);
-        const bateStatus = (statusSel === "TODOS" || status === statusSel);
-        return bateNome && bateStatus;
-    });
-
-    renderizarTabelaFrota(listaFiltrada);
-    renderizarTabelaUsuarios(todosColaboradores); // Aba usuários não usa o filtro de status
-    renderizarTabelaTotem(todosColaboradores);    // Aba totem não usa o filtro de status
+function atualizarCardsIndicadores() {
+    if(document.getElementById("cardAtivos")) document.getElementById("cardAtivos").innerText = cacheTecnicos.filter(t => t.status === "Ativo" || !t.status).length;
+    if(document.getElementById("cardFerias")) document.getElementById("cardFerias").innerText = cacheTecnicos.filter(t => t.status === "Em Férias").length;
+    if(document.getElementById("cardAfastados")) document.getElementById("cardAfastados").innerText = cacheTecnicos.filter(t => t.status === "Afastado").length;
+    if(document.getElementById("cardDesligados")) document.getElementById("cardDesligados").innerText = cacheTecnicos.filter(t => t.status === "Desligado").length;
 }
 
-function renderizarTabelaFrota(lista) {
+function renderizarTabela(lista) {
     const corpo = document.getElementById("corpoTabelaTecnicos");
+    if(!corpo) return;
     corpo.innerHTML = "";
-    
-    // Filtra apenas quem tem a flag de Frota
-    const motoristas = lista.filter(c => c.flags && c.flags.exibeDashboard);
-    
-    let ativos = 0, ferias = 0, afastados = 0, desligados = 0;
-
-    motoristas.forEach(t => {
-        const statusReal = t.dadosFrota?.status || "Ativo";
-        if (statusReal === "Ativo") ativos++;
-        else if (statusReal === "Em Férias") ferias++;
-        else if (statusReal === "Afastado") afastados++;
-        else desligados++;
-
+    lista.forEach(t => {
+        const statusReal = t.status || "Ativo";
         let classeBadge = "badge-ativo";
         if (statusReal === "Em Férias") classeBadge = "badge-ferias";
         if (statusReal === "Afastado") classeBadge = "badge-afastado";
@@ -347,196 +411,177 @@ function renderizarTabelaFrota(lista) {
             <tr>
                 <td style="padding: 10px;"><strong>${t.nome}</strong></td>
                 <td style="padding: 10px;"><span class="badge ${classeBadge}">${statusReal}</span></td>
-                <td style="padding: 10px;">${t.dadosFrota?.telefone || "-"}</td>
-                <td style="padding: 10px;">${t.dadosFrota?.veiculo || "-"}</td>
-                <td style="padding: 10px;">${t.dadosFrota?.placa || "-"}</td>
+                <td style="padding: 10px;">${t.telefone || "-"}</td>
+                <td style="padding: 10px;">${t.email || "-"}</td>
+                <td style="padding: 10px;">${t.veiculo || "-"}</td>
                 <td style="padding: 10px;">
-                    <button class="btn-mini btn-editar" onclick="abrirModalUnificado('${t._id}')">Gerenciar</button>
-                </td>
-            </tr>
-        `;
-    });
-
-    document.getElementById("cardAtivos").innerText = ativos;
-    document.getElementById("cardFerias").innerText = ferias;
-    document.getElementById("cardAfastados").innerText = afastados;
-    document.getElementById("cardDesligados").innerText = desligados;
-}
-
-function renderizarTabelaUsuarios(lista) {
-    const corpo = document.getElementById("corpoTabelaUsuarios");
-    corpo.innerHTML = "";
-
-    // Filtra apenas quem tem acesso ao sistema web
-    const usuarios = lista.filter(c => c.tipo && c.tipo !== "nenhum");
-
-    usuarios.forEach(u => {
-        let badge = `<span class="badge badge-nivel">Simples</span>`;
-        if (u.tipo === "master") badge = `<span class="badge badge-master">Master</span>`;
-        else if (u.tipo === "admin") badge = `<span class="badge badge-admin">Admin</span>`;
-        else if (u.tipo === "estoque") badge = `<span class="badge badge-ativo">Estoque</span>`;
-        else if (u.tipo === "tecnico") badge = `<span class="badge badge-ferias">Visualização</span>`;
-        else if (u.tipo === "superadmin") badge = `<span class="badge" style="background:rgba(139, 92, 246, 0.15); color:#8B5CF6;">Super Admin</span>`;
-
-        corpo.innerHTML += `
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 15px;"><strong>${u.nome}</strong></td>
-                <td>${u.usuario || "-"}</td>
-                <td>${badge}</td>
-                <td>
-                    ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="abrirModalUnificado('${u._id}')">Gerenciar</button> <button class="btn-mini btn-excluir" onclick="deletarColaborador('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
+                    <button class="btn-mini btn-editar" onclick="prepararEdicaoTecnico('${t._id}')">Editar</button>
+                    <button class="btn-mini btn-excluir" onclick="deletarTecnico('${t._id}')">Excluir</button>
                 </td>
             </tr>
         `;
     });
 }
 
-function renderizarTabelaTotem(lista) {
-    const corpo = document.getElementById("corpoTabelaTotem");
-    corpo.innerHTML = "";
-
-    // Filtra apenas quem tem flag de Totem
-    const equipaTotem = lista.filter(c => c.flags && c.flags.exibeTotem);
-
-    equipaTotem.forEach(p => {
-        const imgSrc = p.dadosTotem?.fotoBase64 || AVATAR_PADRAO;
-        corpo.innerHTML += `
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 15px; color: #F8FAFC; display: flex; align-items: center; gap: 10px;">
-                    <img src="${imgSrc}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
-                    <strong>${p.nome}</strong>
-                </td>
-                <td style="padding: 15px; color: #94A3B8;">${p.dadosTotem?.funcao || "Base"}</td>
-                <td style="padding: 15px; display:flex; gap: 8px;">
-                    <button class="btn-mini btn-editar" onclick="abrirModalUnificado('${p._id}')">Gerenciar</button>
-                    <button class="btn-mini" style="background:#8B5CF6; border:1px solid #7C3AED; color:white;" onclick="imprimirCracha('${p.nome}', '${p.dadosTotem?.funcao || "Base"}')">🖨️ Crachá</button>
-                </td>
-            </tr>
-        `;
+function filtrarTabela() {
+    const termo = document.getElementById("buscaNome").value.toLowerCase().trim();
+    const statusSel = document.getElementById("filtroStatus").value;
+    const filtrada = cacheTecnicos.filter(t => {
+        const s = t.status || "Ativo";
+        return t.nome.toLowerCase().includes(termo) && (statusSel === "TODOS" || s === statusSel);
     });
+    renderizarTabela(filtrada);
 }
 
-// ==========================================
-// FUNÇÕES DO MODAL UNIFICADO
-// ==========================================
-function abrirModalUnificado(id = null) {
-    const payload = obterPayloadDoToken();
-    if (!["admin", "master", "superadmin"].includes(payload.tipo) && !payload.superadmin_original) {
-        return alert("Você não tem permissão para gerenciar colaboradores.");
-    }
-
-    // Resetar modal
-    document.getElementById("uniId").value = "";
-    document.getElementById("uniNome").value = "";
-    document.getElementById("uniLogin").value = "";
-    document.getElementById("uniLogin").disabled = false;
-    document.getElementById("uniSenha").value = "";
-    document.getElementById("uniNivel").value = "nenhum";
-    
-    document.getElementById("flagApp").checked = false;
-    document.getElementById("flagDashboard").checked = false;
-    document.getElementById("flagTotem").checked = false;
-    
-    document.getElementById("uniStatus").value = "Ativo";
-    document.getElementById("uniTelefone").value = "";
-    document.getElementById("uniVeiculo").value = "";
-    document.getElementById("uniPlaca").value = "";
-    
-    document.getElementById("uniFuncao").value = "";
-    document.getElementById("uniFotoBase64").value = "";
-    document.getElementById("previewFotoTotem").src = AVATAR_PADRAO;
-
-    toggleSecao('secaoFrota', false);
-    toggleSecao('secaoTotem', false);
-
-    // Se passou ID, preenche (Edição)
-    if (id) {
-        const colab = todosColaboradores.find(c => c._id === id);
-        if (colab) {
-            document.getElementById("uniId").value = colab._id;
-            document.getElementById("uniNome").value = colab.nome;
-            document.getElementById("uniLogin").value = colab.usuario || "";
-            if (colab.usuario) document.getElementById("uniLogin").disabled = true;
-            document.getElementById("uniNivel").value = colab.tipo || "nenhum";
-
-            if (colab.flags) {
-                document.getElementById("flagApp").checked = colab.flags.acessaAppTecnico || false;
-                document.getElementById("flagDashboard").checked = colab.flags.exibeDashboard || false;
-                document.getElementById("flagTotem").checked = colab.flags.exibeTotem || false;
-                toggleSecao('secaoFrota', colab.flags.exibeDashboard);
-                toggleSecao('secaoTotem', colab.flags.exibeTotem);
-            }
-
-            if (colab.dadosFrota) {
-                document.getElementById("uniStatus").value = colab.dadosFrota.status || "Ativo";
-                document.getElementById("uniTelefone").value = colab.dadosFrota.telefone || "";
-                document.getElementById("uniVeiculo").value = colab.dadosFrota.veiculo || "";
-                document.getElementById("uniPlaca").value = colab.dadosFrota.placa || "";
-            }
-
-            if (colab.dadosTotem) {
-                document.getElementById("uniFuncao").value = colab.dadosTotem.funcao || "";
-                document.getElementById("uniFotoBase64").value = colab.dadosTotem.fotoBase64 || "";
-                document.getElementById("previewFotoTotem").src = colab.dadosTotem.fotoBase64 || AVATAR_PADRAO;
-            }
-        }
-    }
-
-    document.getElementById("modalUnificado").classList.add("ativo");
+function abrirModalTecnico() {
+    document.getElementById("modalTituloTecnico").innerText = "Adicionar Novo Técnico";
+    document.getElementById("tecnicoId").value = ""; document.getElementById("formNome").value = "";
+    document.getElementById("formStatus").value = "Ativo"; document.getElementById("formTelefone").value = "";
+    document.getElementById("formEmail").value = ""; document.getElementById("formVeiculo").value = "";
+    document.getElementById("formPlaca").value = ""; document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
-async function salvarColaboradorUnificado() {
-    const id = document.getElementById("uniId").value;
-    
-    const dados = {
-        nome: document.getElementById("uniNome").value.trim(),
-        usuario: document.getElementById("uniLogin").value.trim().toLowerCase(), // "usuario" é o nome no backend
-        senha: document.getElementById("uniSenha").value,
-        tipo: document.getElementById("uniNivel").value,
-        flags: {
-            acessaAppTecnico: document.getElementById("flagApp").checked,
-            exibeDashboard: document.getElementById("flagDashboard").checked,
-            exibeTotem: document.getElementById("flagTotem").checked
-        },
-        dadosFrota: {
-            status: document.getElementById("uniStatus").value,
-            telefone: document.getElementById("uniTelefone").value.trim(),
-            veiculo: document.getElementById("uniVeiculo").value.trim(),
-            placa: document.getElementById("uniPlaca").value.trim()
-        },
-        dadosTotem: {
-            funcao: document.getElementById("uniFuncao").value.trim(),
-            fotoBase64: document.getElementById("uniFotoBase64").value
-        }
+function prepararEdicaoTecnico(id) {
+    const t = cacheTecnicos.find(item => item._id === id);
+    if (!t) return;
+    document.getElementById("modalTituloTecnico").innerText = `Editar: ${t.nome}`;
+    document.getElementById("tecnicoId").value = t._id; document.getElementById("formNome").value = t.nome;
+    document.getElementById("formStatus").value = t.status || "Ativo"; document.getElementById("formTelefone").value = t.telefone || "";
+    document.getElementById("formEmail").value = t.email || ""; document.getElementById("formVeiculo").value = t.veiculo || "";
+    document.getElementById("formPlaca").value = t.placa || ""; document.getElementById("modalTecnico").classList.add("ativo"); 
+}
+
+async function salvarTecnico() {
+    const id = document.getElementById("tecnicoId").value;
+    const payload = {
+        nome: document.getElementById("formNome").value.trim(), status: document.getElementById("formStatus").value,
+        telefone: document.getElementById("formTelefone").value.trim(), email: document.getElementById("formEmail").value.trim(),
+        veiculo: document.getElementById("formVeiculo").value.trim(), placa: document.getElementById("formPlaca").value.trim()
     };
-
-    if (!dados.nome) return alert("O Nome é obrigatório.");
-    if (!id && dados.tipo !== "nenhum" && !dados.usuario) return alert("Para ter acesso web, o Login é obrigatório.");
-
+    if (!payload.nome) return alert("O Nome é obrigatório.");
     try {
-        const url = id ? `/api/colaboradores/${id}` : "/api/colaboradores";
+        const url = id ? `/api/tecnicos-dashboard/${id}` : "/api/tecnicos-dashboard";
         const metodo = id ? "PUT" : "POST";
-        
-        const res = await fetch(url, { 
-            method: metodo, 
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
-            body: JSON.stringify(dados) 
-        });
-
-        const respData = await res.json();
-        if (!res.ok) return alert(respData.erro || "Erro ao salvar.");
-        
-        fecharModal('modalUnificado'); 
-        await carregarColaboradores();
-    } catch (err) { alert("Erro de conexão."); }
+        const res = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify(payload) });
+        if (!res.ok) return alert("Erro.");
+        fecharModal('modalTecnico'); await carregarTecnicos();
+    } catch (err) {}
 }
 
-async function deletarColaborador(id) {
-    if (!confirm("⚠️ Atenção: Deseja excluir este colaborador permanentemente? Ele perderá acesso ao App, Totem e Dashboard.")) return;
+async function deletarTecnico(id) {
+    if (!confirm("Remover este técnico permanentemente?")) return;
     try {
-        const res = await fetch(`/api/colaboradores/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
-        if (res.ok) await carregarColaboradores();
-    } catch (err) { alert("Erro ao excluir."); }
+        const res = await fetch(`/api/tecnicos-dashboard/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if (res.ok) await carregarTecnicos();
+    } catch (err) {}
+}
+
+// ==========================================
+// USUÁRIOS
+// ==========================================
+async function carregarUsuarios() {
+    const corpo = document.getElementById("corpoTabelaUsuarios");
+    if(!corpo) return;
+    try {
+        const res = await fetch("/api/usuarios", { headers: { "Authorization": `Bearer ${token}` } });
+        const usuarios = await res.json();
+        corpo.innerHTML = "";
+        usuarios.forEach(u => {
+            let badge = `<span class="badge" style="background:rgba(148,163,184,0.15); color:#94A3B8;">Simples</span>`;
+            if (u.tipo === "master") badge = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#FBBF24;">Master</span>`;
+            else if (u.tipo === "admin") badge = `<span class="badge" style="background:rgba(96,165,250,0.15); color:#60A5FA;">Admin</span>`;
+            else if (u.tipo === "estoque") badge = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34D399;">Estoque</span>`;
+            else if (u.tipo === "tecnico") badge = `<span class="badge" style="background:rgba(6, 182, 212, 0.15); color:#22D3EE;">Técnico</span>`;
+            else if (u.tipo === "totem") badge = `<span class="badge" style="background:rgba(236, 72, 153, 0.15); color:#F472B6;">Totem</span>`;
+            else if (u.tipo === "superadmin") badge = `<span class="badge" style="background:rgba(139, 92, 246, 0.15); color:#8B5CF6;">Super Admin</span>`;
+
+            corpo.innerHTML += `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 15px;"><strong>${u.nome}</strong></td>
+                    <td>${u.usuario}</td>
+                    <td>${badge}</td>
+                    <td>
+                        ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}', '${u.nome}', '${u.usuario}', '${u.tipo}')">Editar</button> <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (err) {}
+}
+
+function abrirModalUsuario() {
+    document.getElementById("modalTituloUsuario").innerText = "Novo Usuário";
+    document.getElementById("usuarioEditId").value = ""; document.getElementById("cadNome").value = "";
+    document.getElementById("cadUsuario").value = ""; document.getElementById("cadUsuario").disabled = false; 
+    document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = "simples";
+    document.getElementById("modalUsuario").classList.add("ativo"); 
+}
+
+function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
+    document.getElementById("modalTituloUsuario").innerText = `Editar: ${usuario}`;
+    document.getElementById("usuarioEditId").value = id; document.getElementById("cadNome").value = nome;
+    document.getElementById("cadUsuario").value = usuario; document.getElementById("cadUsuario").disabled = true; 
+    document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = tipoReal;
+    document.getElementById("modalUsuario").classList.add("ativo");
+}
+
+async function salvarUsuario() {
+    const id = document.getElementById("usuarioEditId").value;
+    const nome = document.getElementById("cadNome").value.trim();
+    const usuario = document.getElementById("cadUsuario").value.trim();
+    const senha = document.getElementById("cadSenha").value;
+    const tipo = document.getElementById("cadTipo").value;
+    if (!nome || !usuario) return alert("Preencha todos os campos obrigatórios.");
+    try {
+        let res;
+        if (id) res = await fetch(`/api/usuarios/${id}`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, tipo, senha }) });
+        else res = await fetch("/cadastro", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, usuario, senha, tipo }) });
+        if (!res.ok) return alert("Erro.");
+        fecharModal('modalUsuario'); await carregarUsuarios();
+    } catch (err) {}
+}
+
+async function deletarUsuario(id) {
+    if (!confirm("Remover este usuário?")) return;
+    try {
+        const res = await fetch(`/api/usuarios/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if (res.ok) await carregarUsuarios();
+    } catch (err) {}
+}
+
+// ==========================================
+// EQUIPA TOTEM (FOTO E CRACHÁS)
+// ==========================================
+async function carregarEquipeTotem() {
+    const corpo = document.getElementById("corpoTabelaTotem");
+    if(!corpo) return;
+    corpo.innerHTML = `<tr><td colspan="3" style="text-align:center;">Carregando...</td></tr>`;
+    try {
+        const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
+        cacheTotem = await res.json(); // GUARDA EM CACHE
+        corpo.innerHTML = "";
+        
+        cacheTotem.forEach((p, index) => {
+            // Usa o avatar padrão caso o cara não tenha foto (adeus imagem quebrada!)
+            const imgSrc = p.foto ? p.foto : AVATAR_PADRAO;
+            
+            corpo.innerHTML += `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 15px; color: #F8FAFC; display: flex; align-items: center; gap: 10px;">
+                        <img src="${imgSrc}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                        <strong>${p.nome}</strong>
+                    </td>
+                    <td style="padding: 15px; color: #94A3B8;">${p.funcao || "Base"}</td>
+                    <td style="padding: 15px; display:flex; gap: 8px;">
+                        <!-- Passamos apenas o index! -->
+                        <button class="btn-mini btn-editar" onclick="prepararEdicaoTotem(${index})">Editar</button>
+                        <button class="btn-mini btn-excluir" onclick="deletarPessoaTotem('${p._id}')">Excluir</button>
+                        <button class="btn-mini" style="background:#8B5CF6; border:1px solid #7C3AED; color:white;" onclick="imprimirCracha('${p.nome}', '${p.funcao || "Base"}')">🖨️ Crachá</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (err) { corpo.innerHTML = `<tr><td colspan="3" style="color:red; text-align:center;">Erro ao carregar equipa.</td></tr>`; }
 }
 
 function comprimirFotoMagicamente(event) {
@@ -560,23 +605,94 @@ function comprimirFotoMagicamente(event) {
             const base64Leve = canvas.toDataURL('image/jpeg', 0.7);
             
             document.getElementById('previewFotoTotem').src = base64Leve;
-            document.getElementById('uniFotoBase64').value = base64Leve;
+            document.getElementById('totemFotoBase64').value = base64Leve;
         };
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
 }
 
+function abrirModalTotem() {
+    document.getElementById("modalTituloTotem").innerText = "Cadastrar Pessoa";
+    document.getElementById("totemId").value = ""; 
+    document.getElementById("formTotemNome").value = "";
+    document.getElementById("formTotemFuncao").value = ""; 
+    document.getElementById("totemFotoBase64").value = ""; 
+    document.getElementById("previewFotoTotem").src = AVATAR_PADRAO; 
+    document.getElementById("modalTotem").classList.add("ativo");
+}
+
+function prepararEdicaoTotem(index) {
+    const p = cacheTotem[index];
+    document.getElementById("modalTituloTotem").innerText = "Editar Pessoa";
+    document.getElementById("totemId").value = p._id; 
+    document.getElementById("formTotemNome").value = p.nome;
+    document.getElementById("formTotemFuncao").value = p.funcao || '';
+    
+    document.getElementById("totemFotoBase64").value = p.foto || "";
+    document.getElementById("previewFotoTotem").src = p.foto ? p.foto : AVATAR_PADRAO;
+    
+    document.getElementById("modalTotem").classList.add("ativo");
+}
+
+async function salvarPessoaTotem() {
+    const id = document.getElementById("totemId").value;
+    const nome = document.getElementById("formTotemNome").value.trim();
+    const funcao = document.getElementById("formTotemFuncao").value.trim();
+    const fotoBase64 = document.getElementById("totemFotoBase64").value; 
+
+    if (!nome) return alert("O Nome é obrigatório.");
+    try {
+        const url = id ? `/api/equipe-totem/${id}` : "/api/equipe-totem";
+        const metodo = id ? "PUT" : "POST";
+        
+        const payload = JSON.stringify({ nome, funcao, foto: fotoBase64 });
+
+        const res = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: payload });
+        if (!res.ok) return alert("Erro no servidor.");
+        
+        fecharModal('modalTotem'); 
+        await carregarEquipeTotem();
+    } catch (err) { alert("Erro de conexão."); }
+}
+
+async function deletarPessoaTotem(id) {
+    if (!confirm("Remover esta pessoa?")) return;
+    try {
+        const res = await fetch(`/api/equipe-totem/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+        if (res.ok) await carregarEquipeTotem();
+    } catch (err) {}
+}
+
 function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
     const janelaCracha = window.open('', '', 'width=450,height=350');
     janelaCracha.document.write(`
-        <html><head><title>Crachá - ${nomePessoa}</title>
+        <html>
+        <head>
+            <title>Crachá - ${nomePessoa}</title>
             <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
-            <style>body { text-align: center; font-family: 'Segoe UI', Arial, sans-serif; padding-top: 20px; background: white; } .cartao { border: 2px solid #1E293B; padding: 25px; display: inline-block; border-radius: 12px; width: 300px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); } .logo-texto { font-size: 20px; font-weight: 900; color: #1E293B; margin: 0 0 15px 0; } .cargo { margin-top: 15px; font-weight: bold; color: #3B82F6; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; } #barcode { max-width: 100%; height: auto; }</style>
-        </head><body>
-            <div class="cartao"><div class="logo-texto">NERI FROTA</div><svg id="barcode"></svg><div class="cargo">${funcao}</div></div>
-            <script>window.onload = function() { JsBarcode("#barcode", "${nomePessoa}", { format: "CODE128", width: 1.5, height: 55, displayValue: true, fontSize: 14, fontOptions: "bold" }); setTimeout(() => { window.print(); window.close(); }, 500); }<\/script>
-        </body></html>
+            <style>
+                body { text-align: center; font-family: 'Segoe UI', Arial, sans-serif; padding-top: 20px; background: white; }
+                .cartao { border: 2px solid #1E293B; padding: 25px; display: inline-block; border-radius: 12px; width: 300px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); box-sizing: border-box; }
+                .logo-texto { font-size: 20px; font-weight: 900; color: #1E293B; margin: 0 0 15px 0; letter-spacing: 1px; }
+                .cargo { margin-top: 15px; font-weight: bold; color: #3B82F6; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; }
+                #barcode { max-width: 100%; height: auto; }
+            </style>
+        </head>
+        <body>
+            <div class="cartao">
+                <div class="logo-texto">OSASCO SP</div>
+                <svg id="barcode"></svg>
+                <div class="cargo">${funcao}</div>
+            </div>
+            <script>
+                window.onload = function() {
+                    JsBarcode("#barcode", "${nomePessoa}", { format: "CODE128", width: 1.5, height: 55, displayValue: true, fontSize: 14, fontOptions: "bold", textMargin: 8 });
+                    setTimeout(() => { window.print(); window.close(); }, 500);
+                }
+            <\/script>
+        </body>
+        </html>
     `);
     janelaCracha.document.close();
 }
