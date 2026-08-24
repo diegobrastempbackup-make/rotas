@@ -92,6 +92,19 @@
     </style>
     <script>
         function navegarSeguro(rota) { const token = localStorage.getItem("token"); window.location.href = `${rota}?token=${token}`; }
+        
+        // Função para minimizar/expandir o painel de itinerário
+        function togglePainelItinerario() {
+            const conteudo = document.getElementById('conteudoPainelItinerario');
+            const btn = document.getElementById('btnToggleItinerario');
+            if (conteudo.style.display === 'none') {
+                conteudo.style.display = 'block';
+                btn.innerText = '➖';
+            } else {
+                conteudo.style.display = 'none';
+                btn.innerText = '➕';
+            }
+        }
     </script>
 </head>
 <body>
@@ -177,18 +190,23 @@
                 <div id="mapa"></div>
                 
                 <div id="painelItinerario">
-                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; display:flex; justify-content:space-between;">
+                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; display:flex; justify-content:space-between; align-items:center;">
                         <span id="tituloPainelLateral">🛠️ Itinerário</span>
-                        <span id="txtKMTarefa" style="color:#10B981; font-size:12px;">-- km</span>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span id="txtKMTarefa" style="color:#10B981; font-size:12px;">-- km</span>
+                            <button id="btnToggleItinerario" onclick="togglePainelItinerario()" style="background: rgba(255,255,255,0.1); border: none; color: white; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 12px; transition: 0.2s;" title="Ocultar/Mostrar Lista">➖</button>
+                        </div>
                     </h3>
-                    <div class="legenda-radar">
-                        <div><span class="dot" style="background:#64748B;"></span>Pendente</div>
-                        <div><span class="dot" style="background:#FACC15;"></span>Em Trânsito</div>
-                        <div><span class="dot" style="background:#F97316;"></span>No Local</div>
-                        <div><span class="dot" style="background:#10B981;"></span>Sucesso</div>
-                        <div><span class="dot" style="background:#EF4444;"></span>Insucesso</div>
+                    <div id="conteudoPainelItinerario">
+                        <div class="legenda-radar">
+                            <div><span class="dot" style="background:#64748B;"></span>Pendente</div>
+                            <div><span class="dot" style="background:#FACC15;"></span>Em Trânsito</div>
+                            <div><span class="dot" style="background:#F97316;"></span>No Local</div>
+                            <div><span class="dot" style="background:#10B981;"></span>Sucesso</div>
+                            <div><span class="dot" style="background:#EF4444;"></span>Insucesso</div>
+                        </div>
+                        <div id="listaItinerarioUI" style="margin-top: 15px;"></div>
                     </div>
-                    <div id="listaItinerarioUI" style="margin-top: 15px;"></div>
                 </div>
 
                 <div id="painelPlayback">
@@ -571,7 +589,14 @@
             rotaAtiva = [...rotaManha, ...rotaTarde];
         }
         
-        configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); 
+        configurarSliderInicio(); 
+        
+        // Garante que o painel e o conteúdo da lista estejam visíveis ao abrir um novo técnico
+        document.getElementById("painelItinerario").style.display = "block"; 
+        document.getElementById("conteudoPainelItinerario").style.display = "block";
+        if(document.getElementById("btnToggleItinerario")) document.getElementById("btnToggleItinerario").innerText = "➖";
+
+        atualizarTela(true); 
     }
 
     async function editarEnderecoGalpao() {
@@ -902,7 +927,18 @@
     };
 
     function configurarSliderInicio() { const slider = document.getElementById("sliderPlayback"); slider.max = rotaAtiva.length * 10; slider.value = rotaAtiva.length * 10; }
-    function ativarVisaoGlobal() { modoVisaoGlobal = true; document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); tecnicoAtivo = ""; atualizarTela(true); if (dataAtiva) iniciarAutoRefresh(); }
+    
+    function ativarVisaoGlobal() { 
+        modoVisaoGlobal = true; 
+        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); 
+        tecnicoAtivo = ""; 
+        
+        document.getElementById("conteudoPainelItinerario").style.display = "block";
+        if(document.getElementById("btnToggleItinerario")) document.getElementById("btnToggleItinerario").innerText = "➖";
+
+        atualizarTela(true); 
+        if (dataAtiva) iniciarAutoRefresh(); 
+    }
 
     let itemArrastadoIndice = null;
     function iniciarArraste(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
@@ -970,7 +1006,14 @@
     function carregarRotaHistorica(idx, clickManual) {
         if(clickManual) { document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo'); }
         const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...roteiro.itinerario]; modoVisaoGlobal = false; 
-        configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); if (clickManual && dataAtiva) iniciarAutoRefresh();
+        configurarSliderInicio(); 
+        
+        document.getElementById("painelItinerario").style.display = "block"; 
+        document.getElementById("conteudoPainelItinerario").style.display = "block";
+        if(document.getElementById("btnToggleItinerario")) document.getElementById("btnToggleItinerario").innerText = "➖";
+
+        atualizarTela(true); 
+        if (clickManual && dataAtiva) iniciarAutoRefresh();
     }
 
     async function deletarRotaHistorica(id, event) { event.stopPropagation(); if(!confirm("⚠️ Apagar rota permanentemente?")) return; try { const res = await fetch(`/api/rotas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if(res.ok) buscarHistorico(); } catch(e){} }
@@ -1051,8 +1094,30 @@
             }
 
             let dadosExcel = [];
+            let qtdSucesso = 0;
+            let qtdInsucesso = 0;
+            let qtdPendente = 0;
+            let kmTotalEstimado = 0;
+
             rotas.forEach(roteiro => { 
+                let latAtual = configGalpao.lat;
+                let lonAtual = configGalpao.lon;
+
                 roteiro.itinerario.forEach((item, idx) => { 
+                    
+                    // Contadores de Status
+                    let st = (item.status || 'pendente').toLowerCase();
+                    if (st === 'sucesso') qtdSucesso++;
+                    else if (st === 'insucesso') qtdInsucesso++;
+                    else if (st === 'pendente' || st === 'deslocamento' || st === 'chegada') qtdPendente++;
+
+                    // Soma de KM Estimado (Linha reta * 1.3 como margem de rua)
+                    if (item.lat && item.lon && !item.precisaCorrecao) {
+                        kmTotalEstimado += (calcularDistancia(latAtual, lonAtual, item.lat, item.lon) * 1.3);
+                        latAtual = item.lat;
+                        lonAtual = item.lon;
+                    }
+
                     dadosExcel.push({ 
                         "Data da Rota": roteiro.data, 
                         "Técnico": roteiro.tecnico, 
@@ -1070,6 +1135,14 @@
                     }); 
                 }); 
             });
+
+            // Inserir os dados de resumo no final da planilha
+            dadosExcel.push({}); // Linha em branco
+            dadosExcel.push({ "Data da Rota": "--- RESUMO DO FILTRO ---" });
+            dadosExcel.push({ "Data da Rota": "Total de Sucesso:", "Técnico": qtdSucesso });
+            dadosExcel.push({ "Data da Rota": "Total de Insucesso:", "Técnico": qtdInsucesso });
+            dadosExcel.push({ "Data da Rota": "Total Pendente:", "Técnico": qtdPendente });
+            dadosExcel.push({ "Data da Rota": "KM Total Rodado (Estimado):", "Técnico": kmTotalEstimado.toFixed(1) + " KM" });
 
             const worksheet = XLSX.utils.json_to_sheet(dadosExcel); 
             const workbook = XLSX.utils.book_new(); 
