@@ -281,6 +281,43 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
         res.status(500).json({ erro: "Erro ao atualizar status." });
     }
 });
+// ==========================================
+// RELATÓRIO MENSAL DO TÉCNICO
+// ==========================================
+app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
+    try {
+        const { tecnico, mesAno } = req.query; // Ex: "08/2026"
+        
+        // Busca todas as rotas deste técnico que terminam com o mês/ano atual
+        const regexData = new RegExp(`/${mesAno}$`); 
+        
+        const rotas = await db.collection("planejamento_rotas").find({
+            tecnico: new RegExp(`^${tecnico}$`, 'i'),
+            cliente_id: req.usuario.cliente_id,
+            data: regexData
+        }).toArray();
+
+        let total = 0;
+        let sucesso = 0;
+        let insucesso = 0;
+
+        // Varre os dias e as OSs para contar tudo
+        rotas.forEach(rota => {
+            if (rota.itinerario) {
+                rota.itinerario.forEach(os => {
+                    // Ignora paradas que não são de atendimento (se houver regras específicas, pode ajustar aqui)
+                    total++;
+                    if (os.status === 'sucesso') sucesso++;
+                    else if (os.status === 'insucesso') insucesso++;
+                });
+            }
+        });
+
+        res.json({ total, sucesso, insucesso });
+    } catch (e) {
+        res.status(500).json({ erro: "Erro ao gerar relatório" });
+    }
+});
 
 // 5. NOVA ROTA: RECEBER RASTREAMENTO EM TEMPO REAL (MIGALHAS GPS)
 app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {

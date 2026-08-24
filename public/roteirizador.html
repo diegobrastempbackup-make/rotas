@@ -29,7 +29,7 @@
         .caixa-busca h3 { margin: 0 0 10px 0; color: #60A5FA; font-size: 14px; }
         .caixa-busca input { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; }
         .caixa-busca button { width: 100%; padding: 10px; background: #3B82F6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-relatorio { background: #10B981 !important; margin-top: 10px; transition: 0.2s; }
+        .btn-relatorio { background: #10B981 !important; transition: 0.2s; margin-bottom: 5px; }
         .btn-relatorio:hover { background: #059669 !important; }
         .btn-global { background: #8B5CF6 !important; margin-top: 10px; border: 1px solid #7C3AED !important; transition: 0.2s; }
         .btn-global:hover { background: #7C3AED !important; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.4); }
@@ -136,12 +136,20 @@
         <div id="painelRotas">
             <div class="painel-esquerdo">
                 <div class="caixa-busca">
-                    <h3>🔍 Radar e Relatórios</h3>
+                    <h3>🔍 Radar ao Vivo</h3>
                     <input type="date" id="buscaData" title="Pesquisar roteiro por Data">
                     <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS">
                     <button onclick="buscarHistorico()">1. Buscar Planejamento</button>
                     <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
-                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
+                    
+                    <hr style="border: 1px solid rgba(255,255,255,0.05); margin: 15px 0;">
+                    
+                    <h3 style="margin: 0 0 10px 0; color: #10B981; font-size: 14px;">📊 Extrair Relatório Excel</h3>
+                    <select id="tecnicoRelatorio" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; outline: none;">
+                        <option value="TODOS">Geral (Toda a Equipe)</option>
+                    </select>
+                    <input type="month" id="mesRelatorio" title="Mês do Relatório" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box;">
+                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio" style="width:100%;">📥 3. Baixar Relatório (Excel)</button>
                 </div>
 
                 <div class="lista-tecnicos" style="flex-grow: 1;">
@@ -256,6 +264,18 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
         await carregarBaseOficial(); // Sincroniza a base com o painel de Fila
+        
+        // Carrega usuários para o painel de exportar relatório Excel
+        try {
+            const res = await fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) {
+                let users = await res.json();
+                let selectRelatorio = document.getElementById("tecnicoRelatorio");
+                users.forEach(u => {
+                    if (u.nome) { selectRelatorio.innerHTML += `<option value="${u.nome}">${u.nome}</option>`; }
+                });
+            }
+        } catch(e) {}
 
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
@@ -471,7 +491,7 @@
         let textoCompleto = `${ruaOriginal} ${detalhesOriginal}`;
         let cidade = cliente.cidade || "São Paulo";
 
-        // 1. SE FOR RODOVIA OU CONTER KM: Mantém a regra original para estradas
+        // 1. SE FOR RODOVIA OU CONTER KM: Ignora CEP e busca na rodovia/km
         if (ehRodoviaOuKm(textoCompleto)) {
             let termoLimpo = expandirAbreviacoes(textoCompleto);
             try {
@@ -493,7 +513,19 @@
             } catch(e) {}
         }
 
-        // 2. PARÂMETRO 1: Tenta buscar pelo ENDEREÇO URBANO primeiro
+        // 2. PARÂMETRO PRINCIPAL: Tenta CEP primeiro (Garante exatidão em áreas urbanas)
+        let cepBusca = (cliente.cep || "").replace(/\D/g, '');
+        if (cepBusca.length === 8) {
+            try {
+                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d && d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
+                }
+            } catch(e) {}
+        }
+
+        // 3. FALLBACK: Tenta buscar pelo Endereço Urbano se o CEP falhar
         let ruaExpandida = expandirAbreviacoes(ruaOriginal);
         let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
         
@@ -514,18 +546,6 @@
                 if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
             }
         } catch(e) {}
-
-        // 3. PARÂMETRO 2 (FALLBACK): Se o endereço não retornar dados, busca pelo CEP
-        let cepBusca = (cliente.cep || "").replace(/\D/g, '');
-        if (cepBusca.length === 8) {
-            try {
-                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
-                if (r.ok) {
-                    let d = await r.json();
-                    if (d && d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) };
-                }
-            } catch(e) {}
-        }
 
         return null; 
     }
@@ -985,19 +1005,82 @@
     }
 
     async function exportarRelatorioExcel() {
-        const dataInput = document.getElementById("buscaData").value; let url = '/api/rotas'; let nomeArquivo = 'Telemetria_Equipe_Geral.xlsx';
-        if (dataInput) { const p = dataInput.split('-'); const dFormatada = `${p[2]}/${p[1]}/${p[0]}`; url += `?data=${encodeURIComponent(dFormatada)}`; nomeArquivo = `Telemetria_Equipe_${p[2]}_${p[1]}_${p[0]}.xlsx`; } 
-        else { if(!confirm("Baixar o histórico de TODAS as rotas de sempre?")) return; }
-        const toast = document.createElement("div"); toast.innerText = `A gerar relatório Excel...`; toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; document.getElementById("mapaArea").appendChild(toast);
+        const mesInput = document.getElementById("mesRelatorio").value; 
+        const tecnicoSelecionado = document.getElementById("tecnicoRelatorio").value;
+
+        let url = '/api/rotas';
+        let nomeArquivo = 'Telemetria_Equipe.xlsx';
+        
+        const toast = document.createElement("div"); 
+        toast.innerText = `A gerar relatório Excel...`; 
+        toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; 
+        document.getElementById("mapaArea").appendChild(toast);
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-            let rotas = await res.json(); if(rotas.length === 0) { toast.remove(); return alert("❌ Sem rotas."); }
-            if (tecnicoAtivo && !modoVisaoGlobal) { if (confirm(`Baixar APENAS de ${tecnicoAtivo}?\nCancel para Toda a Equipe.`)) { rotas = rotas.filter(r => r.tecnico === tecnicoAtivo); nomeArquivo = `Telemetria_${tecnicoAtivo.split(' ')[0]}_${dataInput ? dataInput : 'Geral'}.xlsx`; } }
+            let rotas = await res.json(); 
+            
+            if(rotas.length === 0) { 
+                toast.remove(); 
+                return alert("❌ Sem rotas registradas no banco de dados."); 
+            }
+
+            // Filtragem de Mês
+            if (mesInput) { 
+                const [anoStr, mesStr] = mesInput.split('-'); 
+                rotas = rotas.filter(r => {
+                    if (!r.data) return false;
+                    const partesData = r.data.split('/');
+                    return (partesData[1] === mesStr && partesData[2] === anoStr);
+                });
+                nomeArquivo = `Telemetria_${tecnicoSelecionado === 'TODOS' ? 'Geral' : tecnicoSelecionado.split(' ')[0]}_${mesStr}_${anoStr}.xlsx`;
+            } else {
+                if(!confirm("Nenhum mês foi selecionado.\nDeseja prosseguir e baixar o histórico GERAL de TODAS as datas de sempre?")) {
+                    toast.remove(); return;
+                }
+                nomeArquivo = `Telemetria_${tecnicoSelecionado === 'TODOS' ? 'Geral' : tecnicoSelecionado.split(' ')[0]}_Completo.xlsx`;
+            }
+
+            // Filtragem de Técnico
+            if (tecnicoSelecionado !== "TODOS") {
+                rotas = rotas.filter(r => r.tecnico === tecnicoSelecionado);
+            }
+
+            if(rotas.length === 0) {
+                toast.remove(); return alert("❌ Nenhuma rota encontrada para os filtros selecionados (Mês / Técnico).");
+            }
+
             let dadosExcel = [];
-            rotas.forEach(roteiro => { roteiro.itinerario.forEach((item, idx) => { dadosExcel.push({ "Data da Rota": roteiro.data, "Técnico": roteiro.tecnico, "Sequência": idx + 1, "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", "Código OS": item.codigo, "Cliente": item.cliente, "Serviço": item.servico || "-", "Desfecho": (item.status || 'pendente').toUpperCase(), "Hora Saída": item.horaSaida || "-", "Hora Chegada": item.horaChegada || "-", "Hora Fim": item.horaFinal || "-", "Trânsito (Min)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada), "Serviço (Min)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal) }); }); });
-            const worksheet = XLSX.utils.json_to_sheet(dadosExcel); const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria"); XLSX.writeFile(workbook, nomeArquivo); toast.remove(); alert("✅ Relatório extraído!");
-        } catch(e) { if(toast) toast.remove(); alert("❌ Erro."); }
+            rotas.forEach(roteiro => { 
+                roteiro.itinerario.forEach((item, idx) => { 
+                    dadosExcel.push({ 
+                        "Data da Rota": roteiro.data, 
+                        "Técnico": roteiro.tecnico, 
+                        "Sequência": idx + 1, 
+                        "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", 
+                        "Código OS": item.codigo, 
+                        "Cliente": item.cliente, 
+                        "Serviço": item.servico || "-", 
+                        "Desfecho": (item.status || 'pendente').toUpperCase(), 
+                        "Hora Saída": item.horaSaida || "-", 
+                        "Hora Chegada": item.horaChegada || "-", 
+                        "Hora Fim": item.horaFinal || "-", 
+                        "Trânsito (Min)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada), 
+                        "Serviço (Min)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal) 
+                    }); 
+                }); 
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(dadosExcel); 
+            const workbook = XLSX.utils.book_new(); 
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria"); 
+            XLSX.writeFile(workbook, nomeArquivo); 
+            toast.remove(); 
+            alert("✅ Relatório extraído com sucesso!");
+        } catch(e) { 
+            if(toast) toast.remove(); 
+            alert("❌ Erro ao exportar o relatório. Verifique a conexão com o servidor."); 
+        }
     }
 
     let ordensNaoAlocadas = JSON.parse(localStorage.getItem("ordensNaoAlocadas") || "[]");
