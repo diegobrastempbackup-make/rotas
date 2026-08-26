@@ -509,7 +509,7 @@
         let textoCompleto = `${ruaOriginal} ${detalhesOriginal}`;
         let cidade = cliente.cidade || "São Paulo";
 
-        // 1. SE FOR RODOVIA OU CONTER KM: Ignora CEP e busca na rodovia/km
+        // 1. SE FOR RODOVIA OU CONTER KM: Busca focada na rodovia
         if (ehRodoviaOuKm(textoCompleto)) {
             let termoLimpo = expandirAbreviacoes(textoCompleto);
             try {
@@ -531,7 +531,30 @@
             } catch(e) {}
         }
 
-        // 2. PARÂMETRO PRINCIPAL: Tenta CEP primeiro (Garante exatidão em áreas urbanas)
+        let ruaExpandida = expandirAbreviacoes(ruaOriginal);
+        let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
+
+        // 2. PRIORIDADE 1: Endereço completo (Rua + Número/Detalhes)
+        try {
+            let query = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            if (r.ok) {
+                let d = await r.json();
+                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            }
+        } catch(e) {}
+
+        // 3. PRIORIDADE 2: Apenas a Rua e Cidade (caso o número/detalhe confunda a busca)
+        try {
+            let query = `${ruaExpandida}, ${cidade}, Brasil`.trim();
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            if (r.ok) {
+                let d = await r.json();
+                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            }
+        } catch(e) {}
+
+        // 4. FALLBACK: CEP (Se tudo falhar, usa o CEP para colocar na rua certa)
         let cepBusca = (cliente.cep || "").replace(/\D/g, '');
         if (cepBusca.length === 8) {
             try {
@@ -542,28 +565,6 @@
                 }
             } catch(e) {}
         }
-
-        // 3. FALLBACK: Tenta buscar pelo Endereço Urbano se o CEP falhar
-        let ruaExpandida = expandirAbreviacoes(ruaOriginal);
-        let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
-        
-        try {
-            let query = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) {
-                let d = await r.json();
-                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-            }
-        } catch(e) {}
-
-        try {
-            let query = `${ruaExpandida}, ${cidade}, Brasil`.trim();
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) {
-                let d = await r.json();
-                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-            }
-        } catch(e) {}
 
         return null; 
     }
