@@ -259,52 +259,77 @@ function exportarPDF() {
     let yTabela = 50; doc.setFillColor(30, 41, 59); doc.rect(10, yTabela - 5, 190, 8, "F");
     doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
     
-    // NOVOS CABEÇALHOS DO PDF COM OBSERVAÇÃO
-    doc.text("DATA", 13, yTabela); 
+    // Alinhamentos reajustados para dar mais espaço à observação
+    doc.text("DATA", 12, yTabela); 
     if (tecnicoAtual === "TODOS") { 
-        doc.text("VEÍCULO/TÉCNICO", 35, yTabela); 
-        doc.text("KM", 75, yTabela); 
+        doc.text("VEÍCULO/TÉCNICO", 32, yTabela); 
+        doc.text("KM", 72, yTabela); 
     } else { 
-        doc.text("KM REGISTRADO", 45, yTabela); 
+        doc.text("KM REGISTRADO", 40, yTabela); 
     }
-    doc.text("LITROS", 95, yTabela); 
-    doc.text("VALOR (R$)", 115, yTabela); 
-    doc.text("OBSERVAÇÃO", 140, yTabela); 
-    doc.text("MÉDIA (KM/L)", 175, yTabela);
+    doc.text("LITROS", 90, yTabela); 
+    doc.text("VALOR (R$)", 110, yTabela); 
+    doc.text("OBSERVAÇÃO", 132, yTabela); 
+    doc.text("MÉDIA", 180, yTabela);
   }
+  
   desenharCabecalho();
 
   let y = 58; let totalKm = 0; let totalLitros = 0; let totalValor = 0;
-  function verificarPagina() { if (y > 270) { doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.text(`Página ${paginaAtual}`, 190, 287); doc.addPage(); paginaAtual++; desenharCabecalho(); y = 58; } }
 
   dadosFiltrados.forEach((d, indice) => {
     const km = Number(d.km) || 0; const litros = Number(d.litros) || 0; const valor = Number(d.valor) || 0;
     totalKm += km; totalLitros += litros; totalValor += valor;
-    doc.setFillColor(indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248); doc.rect(10, y - 5, 190, 8, "F"); doc.setDrawColor(241, 245, 249); doc.rect(10, y - 5, 190, 8, "S");
+
+    // LÓGICA NOVA PARA QUEBRAR O TEXTO E AUMENTAR A ALTURA DA TABELA SE NECESSÁRIO
+    doc.setFontSize(7.5); // Fonte menor para a observação
+    const textoObs = String(d.obs || "-");
+    const linhasObs = doc.splitTextToSize(textoObs, 45); // Quebra em várias linhas se passar de 45mm de largura
+    const alturaLinha = Math.max(8, (linhasObs.length * 4) + 2); // Calcula a altura do bloco da tabela
+    doc.setFontSize(9); // Volta para a fonte normal das outras colunas
+
+    // Verifica se precisa mudar de página baseado na altura dinâmica calculada
+    if (y + alturaLinha > 275) { 
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.text(`Página ${paginaAtual}`, 190, 287); 
+        doc.addPage(); 
+        paginaAtual++; 
+        desenharCabecalho(); 
+        y = 58; 
+    }
+
+    doc.setFillColor(indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248); 
+    
+    // Desenha o fundo da linha e a borda usando a altura dinâmica calculada
+    doc.rect(10, y - 5, 190, alturaLinha, "F"); 
+    doc.setDrawColor(241, 245, 249); 
+    doc.rect(10, y - 5, 190, alturaLinha, "S");
+    
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(15, 23, 42);
     let dataFormatada = String(d.data).split("T")[0]; if (dataFormatada.includes("-")) { const partes = dataFormatada.split("-"); dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`; }
     
-    // NOVOS VALORES NO PDF
-    doc.text(dataFormatada, 13, y); 
+    doc.text(dataFormatada, 12, y); 
     if (tecnicoAtual === "TODOS") { 
-        doc.text(String(d.tecnico || "-").substring(0, 15), 35, y); 
-        doc.text(km.toLocaleString("pt-BR"), 75, y); 
+        doc.text(String(d.tecnico || "-").substring(0, 15), 32, y); 
+        doc.text(km.toLocaleString("pt-BR"), 72, y); 
     } else { 
-        doc.text(km.toLocaleString("pt-BR"), 45, y); 
+        doc.text(km.toLocaleString("pt-BR"), 40, y); 
     }
-    doc.text(litros.toFixed(2), 95, y); 
-    doc.text(valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 115, y);
+    doc.text(litros.toFixed(2), 90, y); 
+    doc.text(valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 110, y);
     
-    const textoObs = String(d.obs || "-").substring(0, 15);
-    doc.text(textoObs, 140, y);
+    // Imprime o array de observação (o jsPDF trata automaticamente se for múltiplas linhas)
+    doc.setFontSize(7.5);
+    doc.text(linhasObs, 132, y);
+    doc.setFontSize(9);
     
     const media = litros > 0 ? km / litros : 0; 
-    doc.text(media > 0 ? `${media.toFixed(2)} km/l` : "-", 175, y);
+    doc.text(media > 0 ? `${media.toFixed(2)} km/l` : "-", 180, y);
 
-    y += 8; verificarPagina();
+    y += alturaLinha; // Soma o 'y' para a próxima linha baseando-se na altura flexível
   });
 
-  if (y > 240) { y += 5; verificarPagina(); } else { y += 5; }
+  // Funções de rodapé continuam inalteradas...
+  if (y > 240) { y += 5; doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.text(`Página ${paginaAtual}`, 190, 287); doc.addPage(); paginaAtual++; desenharCabecalho(); y = 58; } else { y += 5; }
   doc.setFillColor(241, 245, 249); doc.setDrawColor(203, 213, 225); doc.roundedRect(10, y, 190, 32, 2, 2, "FD");
   doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.text("RESUMO ACUMULADO DO PERÍODO", 15, y + 8);
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.text(`DISTÂNCIA TOTAL PERCORRIDA: ${totalKm.toLocaleString("pt-BR")} KM`, 15, y + 17); doc.text(`TOTAL DE COMBUSTÍVEL: ${totalLitros.toFixed(2)} LITROS`, 15, y + 24);
