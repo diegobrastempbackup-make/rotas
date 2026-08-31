@@ -258,8 +258,19 @@ function exportarPDF() {
     doc.text(textoFiltro, 48, 23); doc.text(mesSelecionado ? `Competência: ${verificarMesAnoExtenso(mesSelecionado).toUpperCase()}` : "Período: Total Acumulado", 48, 29); doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}`, 48, 35);
     let yTabela = 50; doc.setFillColor(30, 41, 59); doc.rect(10, yTabela - 5, 190, 8, "F");
     doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-    doc.text("DATA", 13, yTabela); if (tecnicoAtual === "TODOS") { doc.text("VEÍCULO / TÉCNICO", 40, yTabela); doc.text("KM REGISTRADO", 90, yTabela); } else { doc.text("KM REGISTRADO", 55, yTabela); }
-    doc.text("LITROS", 125, yTabela); doc.text("VALOR (R$)", 153, yTabela); doc.text("MÉDIA (KM/L)", 178, yTabela);
+    
+    // NOVOS CABEÇALHOS DO PDF COM OBSERVAÇÃO
+    doc.text("DATA", 13, yTabela); 
+    if (tecnicoAtual === "TODOS") { 
+        doc.text("VEÍCULO/TÉCNICO", 35, yTabela); 
+        doc.text("KM", 75, yTabela); 
+    } else { 
+        doc.text("KM REGISTRADO", 45, yTabela); 
+    }
+    doc.text("LITROS", 95, yTabela); 
+    doc.text("VALOR (R$)", 115, yTabela); 
+    doc.text("OBSERVAÇÃO", 140, yTabela); 
+    doc.text("MÉDIA (KM/L)", 175, yTabela);
   }
   desenharCabecalho();
 
@@ -272,9 +283,24 @@ function exportarPDF() {
     doc.setFillColor(indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248, indice % 2 === 0 ? 255 : 248); doc.rect(10, y - 5, 190, 8, "F"); doc.setDrawColor(241, 245, 249); doc.rect(10, y - 5, 190, 8, "S");
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(15, 23, 42);
     let dataFormatada = String(d.data).split("T")[0]; if (dataFormatada.includes("-")) { const partes = dataFormatada.split("-"); dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`; }
-    doc.text(dataFormatada, 13, y); if (tecnicoAtual === "TODOS") { doc.text(String(d.tecnico || "-"), 40, y); doc.text(km.toLocaleString("pt-BR"), 90, y); } else { doc.text(km.toLocaleString("pt-BR"), 55, y); }
-    doc.text(litros.toFixed(2), 125, y); doc.text(valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 153, y);
-    const media = litros > 0 ? km / litros : 0; doc.text(media > 0 ? `${media.toFixed(2)} km/l` : "-", 178, y);
+    
+    // NOVOS VALORES NO PDF
+    doc.text(dataFormatada, 13, y); 
+    if (tecnicoAtual === "TODOS") { 
+        doc.text(String(d.tecnico || "-").substring(0, 15), 35, y); 
+        doc.text(km.toLocaleString("pt-BR"), 75, y); 
+    } else { 
+        doc.text(km.toLocaleString("pt-BR"), 45, y); 
+    }
+    doc.text(litros.toFixed(2), 95, y); 
+    doc.text(valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 115, y);
+    
+    const textoObs = String(d.obs || "-").substring(0, 15);
+    doc.text(textoObs, 140, y);
+    
+    const media = litros > 0 ? km / litros : 0; 
+    doc.text(media > 0 ? `${media.toFixed(2)} km/l` : "-", 175, y);
+
     y += 8; verificarPagina();
   });
 

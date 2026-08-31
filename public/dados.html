@@ -309,6 +309,7 @@ function criar(){
             <th>Abast Atual</th>
             <th>Litros</th>
             <th>Valor</th>
+            <th>Observação</th>
             <th></th>
           </tr>
         </thead>
@@ -352,6 +353,9 @@ function linha(d = {}) {
     </td>
     <td>
       <input value="${d.valor || ''}">
+    </td>
+    <td>
+      <input value="${d.obs || ''}" placeholder="Ex: Veículo reserva"> 
     </td>
     <td>
       <button data-id="${idRegistro}" onclick="remover(this)">🗑️</button>
@@ -458,7 +462,7 @@ async function salvar(){
     const linhas = document.querySelectorAll(`[data-tecnico="${nome}"] tr`);
     linhas.forEach(l=>{
       const i = l.querySelectorAll("input");
-      if (i.length < 9) return; 
+      if (i.length < 10) return; 
       
       const data = i[0].value;
       if(!data.startsWith(mesAtual)) return;
@@ -474,7 +478,8 @@ async function salvar(){
         abastAnt: i[5].value || "",
         abastAtual: i[6].value || "",
         litros: Number(i[7].value) || 0,
-        valor: parseFloat(String(i[8].value).replace(",", ".")) || 0
+        valor: parseFloat(String(i[8].value).replace(",", ".")) || 0,
+        obs: i[9].value || ""
       };
 
       dados.push(registro);
