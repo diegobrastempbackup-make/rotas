@@ -247,6 +247,7 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
+    // Configuração unificada do Galpão
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
 
     async function carregarBaseOficial() {
@@ -285,6 +286,7 @@
     let modoVisaoGlobal = false; 
     let osDestacada = ""; // Variável Global que guarda o código pesquisado
 
+    // Limpa Mês se preencher Dia e Vice-Versa para evitar confusão no UI
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
 
@@ -621,6 +623,10 @@
                     else if (cliente.status === 'sucesso') { corPino = "#10B981"; jaIniciou = true; } 
                     else if (cliente.status === 'insucesso') { corPino = "#EF4444"; jaIniciou = true; } 
 
+                    let hSaida = cliente.horaSaida || "--:--";
+                    let hChegada = cliente.horaChegada || "--:--";
+                    let hFinal = cliente.horaFinal || "--:--";
+
                     if (cliente.rastroReal && cliente.rastroReal.length > 0) {
                         let ultimaMigalha = cliente.rastroReal[cliente.rastroReal.length - 1];
                         if (ultimaMigalha && ultimaMigalha.lat && ultimaMigalha.lon) {
@@ -643,10 +649,22 @@
                         iconSize: [22, 22] 
                     });
                     
+                    let popupContent = `
+                        <div style="color:#1E293B; font-size:12px;">
+                            <b>${roteiro.tecnico}</b><br>
+                            OS: ${cliente.codigo}<br>
+                            Status: <b>${cliente.status.toUpperCase()}</b>
+                            <hr style="margin:5px 0; border:0; border-top:1px solid #CBD5E1;">
+                            🚗 Saída: ${hSaida}<br>
+                            📍 Chegada: ${hChegada}<br>
+                            🏁 Fim: ${hFinal}
+                        </div>
+                    `;
+
                     let marker = L.marker([latClienteFixo, lonClienteFixo], {
                         icon: miniIcon, 
                         zIndexOffset: isDestacada ? 1000 : 0
-                    }).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
+                    }).bindPopup(popupContent).addTo(layerGrupo);
 
                     if (isDestacada) { marcadorDestacado = marker; }
                 });
@@ -693,6 +711,10 @@
 
             coordOSRM.push(`${lonClienteFixo},${latClienteFixo}`);
             
+            let hSaida = cliente.horaSaida || "--:--"; 
+            let hChegada = cliente.horaChegada || "--:--"; 
+            let hFinal = cliente.horaFinal || "--:--";
+
             // Verifica se esta é a O.S. pesquisada
             let isDestacada = (osDestacada && String(cliente.codigo).toUpperCase().includes(osDestacada.toUpperCase()));
             let extraShadow = isDestacada ? 'box-shadow: 0 0 0 3px white, 0 0 15px 6px #FACC15; transform: scale(1.4);' : 'box-shadow: 0 3px 6px rgba(0,0,0,0.5);';
@@ -704,15 +726,26 @@
                 iconAnchor: [13, 13] 
             });
             
+            let popupContent = `
+                <div style="color:#1E293B; font-size:13px;">
+                    <b>Parada #${seq}</b><br>
+                    OS: ${cliente.codigo}<br>
+                    Status: <b>${cliente.status.toUpperCase()}</b>
+                    <hr style="margin:5px 0; border:0; border-top:1px solid #CBD5E1;">
+                    🚗 Saída: ${hSaida}<br>
+                    📍 Chegada: ${hChegada}<br>
+                    🏁 Fim: ${hFinal}
+                </div>
+            `;
+
             let marker = L.marker([latClienteFixo, lonClienteFixo], {
                 icon: customIcon,
                 zIndexOffset: isDestacada ? 1000 : 0
-            }).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
+            }).bindPopup(popupContent).addTo(layerGrupo);
             
             if (isDestacada) { marcadorDestacado = marker; }
 
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
-            let hSaida = cliente.horaSaida || "-"; let hChegada = cliente.horaChegada || "-"; let hFinal = cliente.horaFinal || "-";
 
             let telemetriaHTML = `<div class="card-telemetria"><span class="time-stamp" title="Deslocamento">🚗 ${hSaida}</span><span class="time-stamp" title="Chegada">📍 ${hChegada}</span><span class="time-stamp" title="Finalização">🏁 ${hFinal}</span></div>`;
             
@@ -957,6 +990,7 @@
             url += `data=${encodeURIComponent(dFormatada)}&`; 
         } else if (dataMes) {
             const p = dataMes.split('-'); mesAnoFilter = `${p[1]}/${p[0]}`; dataAtiva = null; 
+            // Não envia a data para a URL. Puxa tudo e filtra localmente para não dar Erro 500 na API
         }
         
         if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`; 
@@ -968,6 +1002,7 @@
             
             let rotasEncontradas = await res.json();
             
+            // Filtro local para o mês
             if (dataMes && !dataDia) {
                 rotasEncontradas = rotasEncontradas.filter(r => r.data && r.data.endsWith(mesAnoFilter));
             }
@@ -1041,6 +1076,9 @@
         } catch(e) { return "-"; }
     }
 
+    // ===============================================
+    // EXTRAÇÃO DE RELATÓRIOS EXCEL (DIA OU MENSAL)
+    // ===============================================
     async function exportarRelatorioExcel() {
         let dataDia = document.getElementById("buscaData").value;
         let dataMes = document.getElementById("buscaMes").value;
