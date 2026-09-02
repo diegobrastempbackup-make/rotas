@@ -113,7 +113,7 @@
         <div class="header-painel">
             <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
             <div>
-                <h1>Torre de Controle Logístico</h1>
+                <h1>Roteirizador</h1>
                 <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
             </div>
         </div>
@@ -145,13 +145,13 @@
                     
                     <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Técnico (Filtro para Relatórios):</label>
                     <select id="buscaTecnicoRelatorio">
-                        <option value="TODOS">Geral (Todos os Técnicos)</option>
+                        <option value="TODOS">Geral / Individual</option>
                     </select>
 
                     <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS" style="margin-top:5px;">
-                    <button onclick="buscarHistorico()">1. Buscar Planejamento (Mapas)</button>
-                    <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
-                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
+                    <button onclick="buscarHistorico()">1. Buscar Planejamento</button>
+                    <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Frota Completa</button>
+                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório</button>
                 </div>
 
                 <div class="lista-tecnicos" style="flex-grow: 1;">
@@ -598,7 +598,7 @@
             document.getElementById("painelItinerario").style.display = "block";
             document.getElementById("tituloPainelLateral").innerText = "🌍 Frota Global";
             document.getElementById("txtKMTarefa").innerText = "Tempo Real";
-            document.getElementById("listaItinerarioUI").innerHTML = "<div style='color:#94A3B8; padding:10px; text-align:center; line-height: 1.5;'>Modo Torre de Controle Ativado.<br><br>Os carrinhos acompanham a posição atual de cada técnico no terreno.</div>";
+            document.getElementById("listaItinerarioUI").innerHTML = "<div style='color:#94A3B8; padding:10px; text-align:center; line-height: 1.5;'>Modo Torre de Controle Ativado.<br><br>Acompanhe a posição atual de cada técnico em campo.</div>";
 
             let listaTotal = visualizandoHistorico ? window.historicoRotasMemoria : Object.keys(dadosGlobaisRotas).map(k => ({ tecnico: k, itinerario: [...dadosGlobaisRotas[k].manha, ...dadosGlobaisRotas[k].tarde] }));
 
