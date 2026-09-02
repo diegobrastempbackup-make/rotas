@@ -113,7 +113,7 @@
         <div class="header-painel">
             <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
             <div>
-                <h1>Roteirizador</h1>
+                <h1>Torre de Controle Logístico</h1>
                 <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
             </div>
         </div>
@@ -145,13 +145,13 @@
                     
                     <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Técnico (Filtro para Relatórios):</label>
                     <select id="buscaTecnicoRelatorio">
-                        <option value="TODOS">Geral / Individual</option>
+                        <option value="TODOS">Geral (Todos os Técnicos)</option>
                     </select>
 
                     <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS" style="margin-top:5px;">
-                    <button onclick="buscarHistorico()">1. Buscar Planejamento</button>
-                    <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Frota Completa</button>
-                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório</button>
+                    <button onclick="buscarHistorico()">1. Buscar Planejamento (Mapas)</button>
+                    <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
+                    <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
                 </div>
 
                 <div class="lista-tecnicos" style="flex-grow: 1;">
@@ -247,7 +247,6 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
-    // Configuração unificada do Galpão
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
 
     async function carregarBaseOficial() {
@@ -284,8 +283,8 @@
     let autoRefreshInterval = null;
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
+    let osDestacada = ""; // Variável Global que guarda o código pesquisado
 
-    // Limpa Mês se preencher Dia e Vice-Versa para evitar confusão no UI
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
 
@@ -585,6 +584,8 @@
     async function atualizarTela(recentrarMapa = true) {
         if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
+        
+        let marcadorDestacado = null; // Variável para controlar o pino que será focado
 
         const iconeGalpao = L.divIcon({ 
             className: 'custom-pin', 
@@ -598,7 +599,7 @@
             document.getElementById("painelItinerario").style.display = "block";
             document.getElementById("tituloPainelLateral").innerText = "🌍 Frota Global";
             document.getElementById("txtKMTarefa").innerText = "Tempo Real";
-            document.getElementById("listaItinerarioUI").innerHTML = "<div style='color:#94A3B8; padding:10px; text-align:center; line-height: 1.5;'>Modo Torre de Controle Ativado.<br><br>Acompanhe a posição atual de cada técnico em campo.</div>";
+            document.getElementById("listaItinerarioUI").innerHTML = "<div style='color:#94A3B8; padding:10px; text-align:center; line-height: 1.5;'>Modo Torre de Controle Ativado.<br><br>Os carrinhos acompanham a posição atual de cada técnico no terreno.</div>";
 
             let listaTotal = visualizandoHistorico ? window.historicoRotasMemoria : Object.keys(dadosGlobaisRotas).map(k => ({ tecnico: k, itinerario: [...dadosGlobaisRotas[k].manha, ...dadosGlobaisRotas[k].tarde] }));
 
@@ -632,8 +633,22 @@
                         }
                     }
 
-                    const miniIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.6);"></div>`, iconSize: [22, 22] });
-                    L.marker([latClienteFixo, lonClienteFixo], {icon: miniIcon}).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
+                    // Verifica se esta é a O.S. pesquisada
+                    let isDestacada = (osDestacada && String(cliente.codigo).toUpperCase().includes(osDestacada.toUpperCase()));
+                    let extraShadow = isDestacada ? 'box-shadow: 0 0 0 3px white, 0 0 15px 6px #FACC15; transform: scale(1.6);' : 'box-shadow: 0 3px 8px rgba(0,0,0,0.6);';
+
+                    const miniIcon = L.divIcon({ 
+                        className: 'custom-pin', 
+                        html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white; transition: all 0.3s; ${extraShadow}"></div>`, 
+                        iconSize: [22, 22] 
+                    });
+                    
+                    let marker = L.marker([latClienteFixo, lonClienteFixo], {
+                        icon: miniIcon, 
+                        zIndexOffset: isDestacada ? 1000 : 0
+                    }).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status}`).addTo(layerGrupo);
+
+                    if (isDestacada) { marcadorDestacado = marker; }
                 });
 
                 if (jaIniciou) {
@@ -642,7 +657,15 @@
                 }
             });
 
-            if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+            // Se achou o pino pesquisado, abre o popup e centraliza; senão, mostra tudo.
+            if (marcadorDestacado) {
+                setTimeout(() => {
+                    mapa.setView(marcadorDestacado.getLatLng(), 15);
+                    marcadorDestacado.openPopup();
+                }, 300);
+            } else if(recentrarMapa) {
+                mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+            }
             return; 
         }
 
@@ -670,9 +693,24 @@
 
             coordOSRM.push(`${lonClienteFixo},${latClienteFixo}`);
             
-            const customIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5); font-size: 13px;">${seq}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-            L.marker([latClienteFixo, lonClienteFixo], {icon: customIcon}).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
+            // Verifica se esta é a O.S. pesquisada
+            let isDestacada = (osDestacada && String(cliente.codigo).toUpperCase().includes(osDestacada.toUpperCase()));
+            let extraShadow = isDestacada ? 'box-shadow: 0 0 0 3px white, 0 0 15px 6px #FACC15; transform: scale(1.4);' : 'box-shadow: 0 3px 6px rgba(0,0,0,0.5);';
+
+            const customIcon = L.divIcon({ 
+                className: 'custom-pin', 
+                html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; transition: all 0.3s; font-size: 13px; ${extraShadow}">${seq}</div>`, 
+                iconSize: [26, 26], 
+                iconAnchor: [13, 13] 
+            });
             
+            let marker = L.marker([latClienteFixo, lonClienteFixo], {
+                icon: customIcon,
+                zIndexOffset: isDestacada ? 1000 : 0
+            }).bindPopup(`<div style="font-size:13px; color:#1E293B;"><b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${cliente.status.toUpperCase()}</div>`).addTo(layerGrupo);
+            
+            if (isDestacada) { marcadorDestacado = marker; }
+
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
             let hSaida = cliente.horaSaida || "-"; let hChegada = cliente.horaChegada || "-"; let hFinal = cliente.horaFinal || "-";
 
@@ -746,7 +784,16 @@
         });
 
         if (rastroTotalCoordenadas.length > 0) { L.polyline(rastroTotalCoordenadas, { color: '#EF4444', weight: 5, opacity: 0.9, zIndexOffset: 500 }).addTo(layerGrupo); }
-        if(recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+        
+        // Finalização: abre popup se achou o pin pesquisado, ou então foca o mapa todo
+        if (marcadorDestacado) {
+            setTimeout(() => {
+                mapa.setView(marcadorDestacado.getLatLng(), 15);
+                marcadorDestacado.openPopup();
+            }, 300);
+        } else if(recentrarMapa) {
+            mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+        }
     }
 
     async function editarEnderecoManual(codigo, ruaAtual, event) {
@@ -896,6 +943,9 @@
         let dataMes = document.getElementById("buscaMes").value;
         const codigoBusca = document.getElementById("buscaCodigo").value.trim();
         
+        // Define a variável global para destacar a OS no mapa
+        osDestacada = codigoBusca;
+
         if (!dataDia && !dataMes && !codigoBusca) return alert("⚠️ Preencha Data (Dia ou Mês) ou Código.");
         
         let dFormatada = ""; 
@@ -907,7 +957,6 @@
             url += `data=${encodeURIComponent(dFormatada)}&`; 
         } else if (dataMes) {
             const p = dataMes.split('-'); mesAnoFilter = `${p[1]}/${p[0]}`; dataAtiva = null; 
-            // Não envia a data para a URL. Puxa tudo e filtra localmente para não dar Erro 500 na API
         }
         
         if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`; 
@@ -919,7 +968,6 @@
             
             let rotasEncontradas = await res.json();
             
-            // Filtro local para o mês
             if (dataMes && !dataDia) {
                 rotasEncontradas = rotasEncontradas.filter(r => r.data && r.data.endsWith(mesAnoFilter));
             }
@@ -993,9 +1041,6 @@
         } catch(e) { return "-"; }
     }
 
-    // ===============================================
-    // EXTRAÇÃO DE RELATÓRIOS EXCEL (DIA OU MENSAL)
-    // ===============================================
     async function exportarRelatorioExcel() {
         let dataDia = document.getElementById("buscaData").value;
         let dataMes = document.getElementById("buscaMes").value;
