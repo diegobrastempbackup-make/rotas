@@ -134,7 +134,11 @@
 
     async function carregarCatalogo() {
         const res = await fetch('/api/pecas/catalogo', { headers: { 'Authorization': `Bearer ${token}` }});
-        const pecas = await res.json();
+        let pecas = await res.json();
+        
+        // ORDENA O CATÁLOGO ALFABETICAMENTE PELO NOME DA PEÇA
+        pecas.sort((a, b) => a.nome.localeCompare(b.nome));
+
         const tbody = document.querySelector("#tabelaCatalogo tbody");
         tbody.innerHTML = "";
         pecas.forEach(p => {
