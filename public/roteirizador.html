@@ -985,7 +985,10 @@
         
         if (!dataDia && !dataMes) return alert("Selecione um Dia Específico ou um Mês para extrair o relatório.");
         
-        const toast = document.createElement("div"); toast.innerText = `A gerar relatório Excel...`; toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; document.getElementById("mapaArea").appendChild(toast);
+        const toast = document.createElement("div"); 
+        toast.innerText = `A gerar relatório Excel...`; 
+        toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; 
+        document.getElementById("mapaArea").appendChild(toast);
 
         try {
             const res = await fetch('/api/rotas', { headers: { 'Authorization': `Bearer ${token}` } });
@@ -1006,56 +1009,67 @@
                 nomeArquivo = `Telemetria_Mensal_${p[1]}_${p[0]}`;
             }
 
-            if(rotasFiltradas.length === 0) { toast.remove(); return alert("❌ Sem rotas para este período."); }
+            if(rotasFiltradas.length === 0) { 
+                toast.remove(); 
+                return alert("❌ Sem rotas para este período."); 
+            }
 
             if (tecnicoSelecionado !== "TODOS") { 
                 rotasFiltradas = rotasFiltradas.filter(r => r.tecnico === tecnicoSelecionado); 
-                if(rotasFiltradas.length === 0) { toast.remove(); return alert(`❌ Sem rotas para o técnico ${tecnicoSelecionado} neste período.`); }
+                if(rotasFiltradas.length === 0) { 
+                    toast.remove(); 
+                    return alert(`❌ Sem rotas para o técnico ${tecnicoSelecionado} neste período.`); 
+                }
                 nomeArquivo = `Telemetria_${tecnicoSelecionado.split(' ')[0]}_${nomeArquivo}`; 
             } else {
                 nomeArquivo = `Telemetria_Equipe_${nomeArquivo}`;
             }
 
             let dadosExcel = [];
-            let resumoMap = {}; // Variável para acumular os dados do Resumo
+            let resumoMap = {}; 
 
             rotasFiltradas.forEach(roteiro => { 
                 
-                // Calcula o KM total estimado dessa rota específica
-                let kmRota = parseFloat(calcularKMFatiado(roteiro.itinerario));
+                // Calcula o KM total estimado dessa rota específica com verificação de erro
+                let kmRota = 0;
+                if(roteiro.itinerario && roteiro.itinerario.length > 0){
+                    kmRota = parseFloat(calcularKMFatiado(roteiro.itinerario)) || 0;
+                }
 
                 if (!resumoMap[roteiro.tecnico]) {
                     resumoMap[roteiro.tecnico] = { km: 0, os: 0, sucesso: 0, insucesso: 0, transito: 0, servico: 0 };
                 }
                 resumoMap[roteiro.tecnico].km += kmRota;
 
-                roteiro.itinerario.forEach((item, idx) => { 
-                    
-                    let transito = calcularDiferencaMinutos(item.horaSaida, item.horaChegada);
-                    let servico = calcularDiferencaMinutos(item.horaChegada, item.horaFinal);
+                if(roteiro.itinerario && roteiro.itinerario.length > 0){
+                    roteiro.itinerario.forEach((item, idx) => { 
+                        
+                        let transito = calcularDiferencaMinutos(item.horaSaida, item.horaChegada);
+                        let servico = calcularDiferencaMinutos(item.horaChegada, item.horaFinal);
 
-                    resumoMap[roteiro.tecnico].os++;
-                    if (item.status === 'sucesso') resumoMap[roteiro.tecnico].sucesso++;
-                    if (item.status === 'insucesso') resumoMap[roteiro.tecnico].insucesso++;
-                    if (transito !== "-") resumoMap[roteiro.tecnico].transito += transito;
-                    if (servico !== "-") resumoMap[roteiro.tecnico].servico += servico;
+                        resumoMap[roteiro.tecnico].os++;
+                        if (item.status === 'sucesso') resumoMap[roteiro.tecnico].sucesso++;
+                        if (item.status === 'insucesso') resumoMap[roteiro.tecnico].insucesso++;
+                        if (transito !== "-") resumoMap[roteiro.tecnico].transito += Number(transito);
+                        if (servico !== "-") resumoMap[roteiro.tecnico].servico += Number(servico);
 
-                    dadosExcel.push({ 
-                        "Data da Rota": roteiro.data, 
-                        "Técnico": roteiro.tecnico, 
-                        "Sequência": idx + 1, 
-                        "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", 
-                        "Código OS": item.codigo, 
-                        "Cliente": item.cliente, 
-                        "Serviço": item.servico || "-", 
-                        "Desfecho": (item.status || 'pendente').toUpperCase(), 
-                        "Hora Saída": item.horaSaida || "-", 
-                        "Hora Chegada": item.horaChegada || "-", 
-                        "Hora Fim": item.horaFinal || "-", 
-                        "Trânsito (Min)": transito, 
-                        "Serviço (Min)": servico 
+                        dadosExcel.push({ 
+                            "Data da Rota": roteiro.data, 
+                            "Técnico": roteiro.tecnico, 
+                            "Sequência": idx + 1, 
+                            "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", 
+                            "Código OS": item.codigo, 
+                            "Cliente": item.cliente, 
+                            "Serviço": item.servico || "-", 
+                            "Desfecho": (item.status || 'pendente').toUpperCase(), 
+                            "Hora Saída": item.horaSaida || "-", 
+                            "Hora Chegada": item.horaChegada || "-", 
+                            "Hora Fim": item.horaFinal || "-", 
+                            "Trânsito (Min)": transito, 
+                            "Serviço (Min)": servico 
+                        }); 
                     }); 
-                }); 
+                }
             });
 
             // Monta a Aba de Resumo
@@ -1076,19 +1090,37 @@
                 });
             }
 
-            const workbook = XLSX.utils.book_new(); 
-            
-            // Cria Aba 1: Detalhado
-            const worksheetDetalhes = XLSX.utils.json_to_sheet(dadosExcel); 
-            XLSX.utils.book_append_sheet(workbook, worksheetDetalhes, "Detalhado"); 
+            // Geração do ficheiro Excel com tratamento rigoroso
+            try {
+                // Cria uma folha a partir do JSON de detalhes
+                const worksheetDetalhes = XLSX.utils.json_to_sheet(dadosExcel); 
+                
+                // Cria uma folha a partir do JSON de resumo
+                const worksheetResumo = XLSX.utils.json_to_sheet(dadosResumo); 
+                
+                // Cria um novo livro (workbook)
+                const workbook = XLSX.utils.book_new(); 
+                
+                // Adiciona as folhas ao livro
+                XLSX.utils.book_append_sheet(workbook, worksheetDetalhes, "Detalhado"); 
+                XLSX.utils.book_append_sheet(workbook, worksheetResumo, "Resumo Mensal");
 
-            // Cria Aba 2: Resumo Gerencial
-            const worksheetResumo = XLSX.utils.json_to_sheet(dadosResumo); 
-            XLSX.utils.book_append_sheet(workbook, worksheetResumo, "Resumo Mensal");
+                // Escreve e descarrega o ficheiro
+                XLSX.writeFile(workbook, nomeArquivo + ".xlsx"); 
+                
+                toast.remove(); 
+                alert("✅ Relatório extraído com sucesso!");
+            } catch (xlsxError) {
+                console.error("Erro na biblioteca XLSX:", xlsxError);
+                toast.remove();
+                alert("❌ Ocorreu um erro interno ao gerar o ficheiro Excel.");
+            }
 
-            XLSX.writeFile(workbook, nomeArquivo + ".xlsx"); 
-            toast.remove(); alert("✅ Relatório extraído com sucesso!");
-        } catch(e) { if(toast) toast.remove(); alert("❌ Erro ao extrair relatório."); }
+        } catch(e) { 
+            console.error(e);
+            if(toast) toast.remove(); 
+            alert("❌ Erro ao extrair relatório da base de dados."); 
+        }
     }
 
     let ordensNaoAlocadas = JSON.parse(localStorage.getItem("ordensNaoAlocadas") || "[]");
