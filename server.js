@@ -300,8 +300,7 @@ app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
         let total = 0;
         let sucesso = 0;
         let insucesso = 0;
-
-        // Varre os dias e as OSs para contar tudo
+// INICIALIZAÇÃO E LIGAÇÃO À BA        // Varre os dias e as OSs para contar tudo
         rotas.forEach(rota => {
             if (rota.itinerario) {
                 rota.itinerario.forEach(os => {
@@ -426,39 +425,20 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => { try { await d
 app.use(express.static(__dirname + "/public", { index: false }));
 
 // INICIALIZAÇÃO E LIGAÇÃO À BASE DE DADOS
-async function iniciarSistema() {
-  try {
+async function conectarBanco() {
+  if (!db) {
     console.log("🔄 A ligar à base de dados...");
-    await client.connect(); db = client.db("rotas"); console.log("✅ Conexão estabelecida!");
-    
-    const defaultClienteId = "neri_matriz_01";
-    for (let col of ["usuarios", "tecnicos", "tecnicos_dashboard", "estoque", "historico_estoque", "registros", "planejamento_rotas"]) {
-      await db.collection(col).updateMany({ cliente_id: { $exists: false } }, { $set: { cliente_id: defaultClienteId } });
-    }
-
-    const superAdmin = await db.collection("usuarios").findOne({ tipo: "superadmin" });
-    if (!superAdmin) {
-      const senhaHash = await bcrypt.hash("neri2026", 10);
-      await db.collection("usuarios").insertOne({
-        cliente_id: "GLOBAL_SYSTEM", empresaNome: "NERI PLATAFORMA", nome: "Diego Neri (Super Admin)",
-        usuario: "neri.admin", senha: senhaHash, tipo: "superadmin", ativo: true, criadoEm: new Date()
-      });
-      console.log("👑 Conta Super Admin Criada: neri.admin / neri2026");
-    }
-
-    // LOOP ANTI-HIBERNAÇÃO
-    setInterval(() => {
-      // [CORREÇÃO] Agora puxa da variável raiz correta e adiciona o /ping no request
-      https.get(`${URL_DO_SEU_SISTEMA}/ping`, (resp) => {
-        console.log(`⏱️ [${new Date().toLocaleTimeString()}] Ping automático enviado. Render mantido acordado!`);
-      }).on("error", (err) => {
-        console.log("⚠️ Falha no ping automático:", err.message);
-      });
-    }, 14 * 60 * 1000); 
-
-    app.listen(PORT, () => console.log(`🚀 Motor SaaS NERI 2.0 a correr na porta ${PORT}`));
-  } catch (err) { console.error("❌ Erro:", err); process.exit(1); }
+    await client.connect(); 
+    db = client.db("rotas"); 
+    console.log("✅ Conexão estabelecida!");
+  }
 }
+
+// Exporta o app para a Vercel gerenciar as rotas sem precisar do app.listen()
+module.exports = async (req, res) => {
+  await conectarBanco();
+  return app(req, res);
+};
 
 // ==========================================
 // FASE 5: SISTEMA DE FILA, TOTEM E CRACHÁS
@@ -808,5 +788,4 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao excluir solicitação"}); }
 });
 
-iniciarSistema();
 

@@ -27,7 +27,7 @@
         .painel-esquerdo { width: 350px; display: flex; flex-direction: column; gap: 15px; }
         .caixa-busca { background: #1E293B; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
         .caixa-busca h3 { margin: 0 0 10px 0; color: #60A5FA; font-size: 14px; }
-        .caixa-busca input { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; }
+        .caixa-busca input, .caixa-busca select { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; outline: none; }
         .caixa-busca button { width: 100%; padding: 10px; background: #3B82F6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn-relatorio { background: #10B981 !important; margin-top: 10px; transition: 0.2s; }
         .btn-relatorio:hover { background: #059669 !important; }
@@ -137,8 +137,13 @@
             <div class="painel-esquerdo">
                 <div class="caixa-busca">
                     <h3>🔍 Radar e Relatórios</h3>
+                    <label style="font-size:11px; color:#94A3B8;">Pesquisar roteiro por Dia Específico:</label>
                     <input type="date" id="buscaData" title="Pesquisar roteiro por Data">
-                    <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS">
+                    
+                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Ou Extrato Mensal (Para Relatórios):</label>
+                    <input type="month" id="buscaMes" title="Filtrar por Mês">
+                    
+                    <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS" style="margin-top:5px;">
                     <button onclick="buscarHistorico()">1. Buscar Planejamento</button>
                     <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
                     <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
@@ -261,6 +266,10 @@
     let autoRefreshInterval = null;
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
+
+    // Limpa Mês se preencher Dia e Vice-Versa
+    document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
+    document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
 
     document.addEventListener("DOMContentLoaded", async () => {
         await carregarBaseOficial(); 
@@ -785,9 +794,6 @@
         if (tecnicoAtivo === novoNome) atualizarTela(false);
     };
 
-    // ===============================================
-    // CRIAR ROTEIRO A PARTIR DA FILA DE ESPERA
-    // ===============================================
     window.abrirModalNovaRotaFila = async function() {
         if (ordensNaoAlocadas.length === 0) return alert("A fila de espera está vazia! Adicione novas OS manualmente primeiro.");
         const select = document.getElementById('selectTecnicoNovaRota');
@@ -859,22 +865,36 @@
     window.historicoRotasMemoria = [];
 
     async function buscarHistorico() {
-        let dataInput = document.getElementById("buscaData").value; const codigoBusca = document.getElementById("buscaCodigo").value.trim();
-        if (!dataInput && !codigoBusca) return alert("⚠️ Preencha Data ou Código.");
-        let dFormatada = ""; if (dataInput) { const p = dataInput.split('-'); dFormatada = `${p[2]}/${p[1]}/${p[0]}`; dataAtiva = dFormatada; }
-        let url = '/api/rotas?'; if (dFormatada) url += `data=${encodeURIComponent(dFormatada)}&`; if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`; url += `_=${new Date().getTime()}`;
+        let dataDia = document.getElementById("buscaData").value;
+        let dataMes = document.getElementById("buscaMes").value;
+        const codigoBusca = document.getElementById("buscaCodigo").value.trim();
+        
+        if (!dataDia && !dataMes && !codigoBusca) return alert("⚠️ Preencha Data (Dia ou Mês) ou Código.");
+        
+        let dFormatada = ""; 
+        if (dataDia) {
+            const p = dataDia.split('-'); dFormatada = `${p[2]}/${p[1]}/${p[0]}`; dataAtiva = dFormatada;
+        } else if (dataMes) {
+            const p = dataMes.split('-'); dFormatada = `${p[1]}/${p[0]}`; dataAtiva = null; 
+        }
+        
+        let url = '/api/rotas?'; 
+        if (dFormatada) url += `data=${encodeURIComponent(dFormatada)}&`; 
+        if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`; 
+        url += `_=${new Date().getTime()}`;
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
             const rotasEncontradas = await res.json();
-            if (rotasEncontradas.length === 0) return alert("❌ Nenhum roteiro encontrado.");
+            if (rotasEncontradas.length === 0) return alert("❌ Nenhum roteiro encontrado para este período.");
+            
             visualizandoHistorico = true; window.historicoRotasMemoria = rotasEncontradas;
             
             if (layerGrupo) { mapa.removeLayer(layerGrupo); }
             document.getElementById("painelPlayback").style.display = "none"; document.getElementById("painelItinerario").style.display = "none";
             
             const divLista = document.getElementById("listaTecnicosUI");
-            divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando: ${rotasEncontradas[0].data}</h4>`;
+            divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando Histórico</h4>`;
             
             rotasEncontradas.forEach((roteiro, idx) => {
                 let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
@@ -885,7 +905,7 @@
                     <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">
                         <div style="flex-grow: 1; cursor: pointer;" onclick="carregarRotaHistorica(${idx}, true)">
                             <div class="tecnico-nome" style="display:flex; align-items:center; gap:8px;">
-                                ${roteiro.tecnico}
+                                ${roteiro.tecnico} (${roteiro.data})
                                 <button onclick="abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir para outro Técnico">🔄</button>
                             </div>
                             <div class="tecnico-stats" style="color:#10B981; font-weight:bold;">Progresso: ${perc}%</div>
@@ -936,19 +956,55 @@
     }
 
     async function exportarRelatorioExcel() {
-        const dataInput = document.getElementById("buscaData").value; let url = '/api/rotas'; let nomeArquivo = 'Telemetria_Equipe_Geral.xlsx';
-        if (dataInput) { const p = dataInput.split('-'); const dFormatada = `${p[2]}/${p[1]}/${p[0]}`; url += `?data=${encodeURIComponent(dFormatada)}`; nomeArquivo = `Telemetria_Equipe_${p[2]}_${p[1]}_${p[0]}.xlsx`; } 
-        else { if(!confirm("Baixar o histórico de TODAS as rotas de sempre?")) return; }
+        let dataDia = document.getElementById("buscaData").value;
+        let dataMes = document.getElementById("buscaMes").value;
+        
+        let url = '/api/rotas'; 
+        let nomeArquivo = 'Telemetria_Geral.xlsx';
+        
+        if (dataDia) { 
+            const p = dataDia.split('-'); 
+            const dFormatada = `${p[2]}/${p[1]}/${p[0]}`; 
+            url += `?data=${encodeURIComponent(dFormatada)}`; 
+            nomeArquivo = `Telemetria_${p[2]}_${p[1]}_${p[0]}.xlsx`; 
+        } else if (dataMes) {
+            const p = dataMes.split('-'); 
+            const dFormatada = `${p[1]}/${p[0]}`; 
+            url += `?data=${encodeURIComponent(dFormatada)}`; 
+            nomeArquivo = `Telemetria_Mensal_${p[1]}_${p[0]}.xlsx`; 
+        } else { 
+            if(!confirm("Baixar o histórico de TODAS as rotas de sempre? Isso pode demorar.")) return; 
+        }
+        
         const toast = document.createElement("div"); toast.innerText = `A gerar relatório Excel...`; toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; document.getElementById("mapaArea").appendChild(toast);
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-            let rotas = await res.json(); if(rotas.length === 0) { toast.remove(); return alert("❌ Sem rotas."); }
-            if (tecnicoAtivo && !modoVisaoGlobal) { if (confirm(`Baixar APENAS de ${tecnicoAtivo}?\nCancel para Toda a Equipe.`)) { rotas = rotas.filter(r => r.tecnico === tecnicoAtivo); nomeArquivo = `Telemetria_${tecnicoAtivo.split(' ')[0]}_${dataInput ? dataInput : 'Geral'}.xlsx`; } }
+            let rotas = await res.json(); 
+            if(rotas.length === 0) { toast.remove(); return alert("❌ Sem rotas para este período."); }
+            
+            if (tecnicoAtivo) { 
+                if (confirm(`Baixar relatório APENAS do técnico ${tecnicoAtivo}?\n\nClique OK para extrair só dele.\nClique Cancelar para extrair da Equipa Inteira no período selecionado.`)) { 
+                    rotas = rotas.filter(r => r.tecnico === tecnicoAtivo); 
+                    nomeArquivo = `Telemetria_${tecnicoAtivo.split(' ')[0]}_${dataMes ? dataMes : dataDia}.xlsx`; 
+                } 
+            }
+            
             let dadosExcel = [];
-            rotas.forEach(roteiro => { roteiro.itinerario.forEach((item, idx) => { dadosExcel.push({ "Data da Rota": roteiro.data, "Técnico": roteiro.tecnico, "Sequência": idx + 1, "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", "Código OS": item.codigo, "Cliente": item.cliente, "Serviço": item.servico || "-", "Desfecho": (item.status || 'pendente').toUpperCase(), "Hora Saída": item.horaSaida || "-", "Hora Chegada": item.horaChegada || "-", "Hora Fim": item.horaFinal || "-", "Trânsito (Min)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada), "Serviço (Min)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal) }); }); });
-            const worksheet = XLSX.utils.json_to_sheet(dadosExcel); const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria"); XLSX.writeFile(workbook, nomeArquivo); toast.remove(); alert("✅ Relatório extraído!");
-        } catch(e) { if(toast) toast.remove(); alert("❌ Erro."); }
+            rotas.forEach(roteiro => { 
+                roteiro.itinerario.forEach((item, idx) => { 
+                    dadosExcel.push({ 
+                        "Data da Rota": roteiro.data, "Técnico": roteiro.tecnico, "Sequência": idx + 1, "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", "Código OS": item.codigo, "Cliente": item.cliente, "Serviço": item.servico || "-", "Desfecho": (item.status || 'pendente').toUpperCase(), "Hora Saída": item.horaSaida || "-", "Hora Chegada": item.horaChegada || "-", "Hora Fim": item.horaFinal || "-", "Trânsito (Min)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada), "Serviço (Min)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal) 
+                    }); 
+                }); 
+            });
+            
+            const worksheet = XLSX.utils.json_to_sheet(dadosExcel); 
+            const workbook = XLSX.utils.book_new(); 
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria"); 
+            XLSX.writeFile(workbook, nomeArquivo); 
+            toast.remove(); alert("✅ Relatório extraído com sucesso!");
+        } catch(e) { if(toast) toast.remove(); alert("❌ Erro ao extrair relatório."); }
     }
 
     let ordensNaoAlocadas = JSON.parse(localStorage.getItem("ordensNaoAlocadas") || "[]");
