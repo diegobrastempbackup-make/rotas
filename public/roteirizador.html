@@ -140,11 +140,16 @@
                     <label style="font-size:11px; color:#94A3B8;">Pesquisar roteiro por Dia Específico:</label>
                     <input type="date" id="buscaData" title="Pesquisar roteiro por Data">
                     
-                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Ou Extrato Mensal (Para Relatórios):</label>
+                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Ou Extrato Mensal:</label>
                     <input type="month" id="buscaMes" title="Filtrar por Mês">
                     
+                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Técnico (Filtro para Relatórios):</label>
+                    <select id="buscaTecnicoRelatorio">
+                        <option value="TODOS">Geral (Todos os Técnicos)</option>
+                    </select>
+
                     <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS" style="margin-top:5px;">
-                    <button onclick="buscarHistorico()">1. Buscar Planejamento</button>
+                    <button onclick="buscarHistorico()">1. Buscar Planejamento (Mapas)</button>
                     <button onclick="ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
                     <button onclick="exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
                 </div>
@@ -242,6 +247,7 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
+    // Configuração unificada do Galpão
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
 
     async function carregarBaseOficial() {
@@ -257,6 +263,18 @@
         }
     }
 
+    async function carregarTecnicosParaDropdown() {
+        let tecnicos = new Set();
+        try {
+            let res = await fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) { let users = await res.json(); users.forEach(u => { if(u.nome) tecnicos.add(u.nome.toUpperCase()); }); }
+        } catch(e) {}
+        
+        const select = document.getElementById('buscaTecnicoRelatorio');
+        select.innerHTML = '<option value="TODOS">Geral (Todos os Técnicos)</option>';
+        Array.from(tecnicos).sort().forEach(t => { select.innerHTML += `<option value="${t}">${t}</option>`; });
+    }
+
     let mapa = null;
     let layerGrupo = null; 
     let dadosGlobaisRotas = {}; 
@@ -267,12 +285,14 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
 
-    // Limpa Mês se preencher Dia e Vice-Versa
+    // Limpa Mês se preencher Dia e Vice-Versa para evitar confusão no UI
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
 
     document.addEventListener("DOMContentLoaded", async () => {
         await carregarBaseOficial(); 
+        await carregarTecnicosParaDropdown(); // Carrega lista no carregamento da tela
+
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
         
@@ -955,54 +975,60 @@
         } catch(e) { return "-"; }
     }
 
+    // ===============================================
+    // EXTRAÇÃO DE RELATÓRIOS EXCEL (DIA OU MENSAL)
+    // ===============================================
     async function exportarRelatorioExcel() {
         let dataDia = document.getElementById("buscaData").value;
         let dataMes = document.getElementById("buscaMes").value;
+        let tecnicoSelecionado = document.getElementById("buscaTecnicoRelatorio").value;
         
-        let url = '/api/rotas'; 
-        let nomeArquivo = 'Telemetria_Geral.xlsx';
-        
-        if (dataDia) { 
-            const p = dataDia.split('-'); 
-            const dFormatada = `${p[2]}/${p[1]}/${p[0]}`; 
-            url += `?data=${encodeURIComponent(dFormatada)}`; 
-            nomeArquivo = `Telemetria_${p[2]}_${p[1]}_${p[0]}.xlsx`; 
-        } else if (dataMes) {
-            const p = dataMes.split('-'); 
-            const dFormatada = `${p[1]}/${p[0]}`; 
-            url += `?data=${encodeURIComponent(dFormatada)}`; 
-            nomeArquivo = `Telemetria_Mensal_${p[1]}_${p[0]}.xlsx`; 
-        } else { 
-            if(!confirm("Baixar o histórico de TODAS as rotas de sempre? Isso pode demorar.")) return; 
-        }
+        if (!dataDia && !dataMes) return alert("Selecione um Dia Específico ou um Mês para extrair o relatório.");
         
         const toast = document.createElement("div"); toast.innerText = `A gerar relatório Excel...`; toast.style = "position:absolute; top:20px; right:20px; background:#10B981; color:white; padding:10px 20px; border-radius:8px; z-index:1000; font-weight:bold;"; document.getElementById("mapaArea").appendChild(toast);
 
         try {
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await fetch('/api/rotas', { headers: { 'Authorization': `Bearer ${token}` } });
             let rotas = await res.json(); 
-            if(rotas.length === 0) { toast.remove(); return alert("❌ Sem rotas para este período."); }
-            
-            if (tecnicoAtivo) { 
-                if (confirm(`Baixar relatório APENAS do técnico ${tecnicoAtivo}?\n\nClique OK para extrair só dele.\nClique Cancelar para extrair da Equipa Inteira no período selecionado.`)) { 
-                    rotas = rotas.filter(r => r.tecnico === tecnicoAtivo); 
-                    nomeArquivo = `Telemetria_${tecnicoAtivo.split(' ')[0]}_${dataMes ? dataMes : dataDia}.xlsx`; 
-                } 
+
+            let rotasFiltradas = [];
+            let nomeArquivo = "";
+
+            if (dataDia) {
+                const p = dataDia.split('-'); 
+                const dFormatada = `${p[2]}/${p[1]}/${p[0]}`; 
+                rotasFiltradas = rotas.filter(r => r.data === dFormatada);
+                nomeArquivo = `Telemetria_${p[2]}_${p[1]}_${p[0]}`;
+            } else if (dataMes) {
+                const p = dataMes.split('-'); 
+                const mesAno = `${p[1]}/${p[0]}`; 
+                rotasFiltradas = rotas.filter(r => r.data && r.data.endsWith(mesAno));
+                nomeArquivo = `Telemetria_Mensal_${p[1]}_${p[0]}`;
             }
-            
+
+            if(rotasFiltradas.length === 0) { toast.remove(); return alert("❌ Sem rotas para este período."); }
+
+            if (tecnicoSelecionado !== "TODOS") { 
+                rotasFiltradas = rotasFiltradas.filter(r => r.tecnico === tecnicoSelecionado); 
+                if(rotasFiltradas.length === 0) { toast.remove(); return alert(`❌ Sem rotas para o técnico ${tecnicoSelecionado} neste período.`); }
+                nomeArquivo = `Telemetria_${tecnicoSelecionado.split(' ')[0]}_${nomeArquivo}`; 
+            } else {
+                nomeArquivo = `Telemetria_Equipe_${nomeArquivo}`;
+            }
+
             let dadosExcel = [];
-            rotas.forEach(roteiro => { 
+            rotasFiltradas.forEach(roteiro => { 
                 roteiro.itinerario.forEach((item, idx) => { 
                     dadosExcel.push({ 
                         "Data da Rota": roteiro.data, "Técnico": roteiro.tecnico, "Sequência": idx + 1, "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", "Código OS": item.codigo, "Cliente": item.cliente, "Serviço": item.servico || "-", "Desfecho": (item.status || 'pendente').toUpperCase(), "Hora Saída": item.horaSaida || "-", "Hora Chegada": item.horaChegada || "-", "Hora Fim": item.horaFinal || "-", "Trânsito (Min)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada), "Serviço (Min)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal) 
                     }); 
                 }); 
             });
-            
+
             const worksheet = XLSX.utils.json_to_sheet(dadosExcel); 
             const workbook = XLSX.utils.book_new(); 
             XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria"); 
-            XLSX.writeFile(workbook, nomeArquivo); 
+            XLSX.writeFile(workbook, nomeArquivo + ".xlsx"); 
             toast.remove(); alert("✅ Relatório extraído com sucesso!");
         } catch(e) { if(toast) toast.remove(); alert("❌ Erro ao extrair relatório."); }
     }
