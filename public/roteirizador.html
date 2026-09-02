@@ -1017,17 +1017,75 @@
             }
 
             let dadosExcel = [];
+            let resumoMap = {}; // Variável para acumular os dados do Resumo
+
             rotasFiltradas.forEach(roteiro => { 
+                
+                // Calcula o KM total estimado dessa rota específica
+                let kmRota = parseFloat(calcularKMFatiado(roteiro.itinerario));
+
+                if (!resumoMap[roteiro.tecnico]) {
+                    resumoMap[roteiro.tecnico] = { km: 0, os: 0, sucesso: 0, insucesso: 0, transito: 0, servico: 0 };
+                }
+                resumoMap[roteiro.tecnico].km += kmRota;
+
                 roteiro.itinerario.forEach((item, idx) => { 
+                    
+                    let transito = calcularDiferencaMinutos(item.horaSaida, item.horaChegada);
+                    let servico = calcularDiferencaMinutos(item.horaChegada, item.horaFinal);
+
+                    resumoMap[roteiro.tecnico].os++;
+                    if (item.status === 'sucesso') resumoMap[roteiro.tecnico].sucesso++;
+                    if (item.status === 'insucesso') resumoMap[roteiro.tecnico].insucesso++;
+                    if (transito !== "-") resumoMap[roteiro.tecnico].transito += transito;
+                    if (servico !== "-") resumoMap[roteiro.tecnico].servico += servico;
+
                     dadosExcel.push({ 
-                        "Data da Rota": roteiro.data, "Técnico": roteiro.tecnico, "Sequência": idx + 1, "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", "Código OS": item.codigo, "Cliente": item.cliente, "Serviço": item.servico || "-", "Desfecho": (item.status || 'pendente').toUpperCase(), "Hora Saída": item.horaSaida || "-", "Hora Chegada": item.horaChegada || "-", "Hora Fim": item.horaFinal || "-", "Trânsito (Min)": calcularDiferencaMinutos(item.horaSaida, item.horaChegada), "Serviço (Min)": calcularDiferencaMinutos(item.horaChegada, item.horaFinal) 
+                        "Data da Rota": roteiro.data, 
+                        "Técnico": roteiro.tecnico, 
+                        "Sequência": idx + 1, 
+                        "Turno": item.periodo === 'MANHA' ? "Manhã" : "Tarde", 
+                        "Código OS": item.codigo, 
+                        "Cliente": item.cliente, 
+                        "Serviço": item.servico || "-", 
+                        "Desfecho": (item.status || 'pendente').toUpperCase(), 
+                        "Hora Saída": item.horaSaida || "-", 
+                        "Hora Chegada": item.horaChegada || "-", 
+                        "Hora Fim": item.horaFinal || "-", 
+                        "Trânsito (Min)": transito, 
+                        "Serviço (Min)": servico 
                     }); 
                 }); 
             });
 
-            const worksheet = XLSX.utils.json_to_sheet(dadosExcel); 
+            // Monta a Aba de Resumo
+            let dadosResumo = [];
+            for (let t in resumoMap) {
+                let r = resumoMap[t];
+                let taxa = r.os > 0 ? Math.round((r.sucesso / r.os) * 100) : 0;
+                
+                dadosResumo.push({
+                    "Técnico": t,
+                    "Total Estimado (KM)": r.km.toFixed(1),
+                    "Total de OS Alocadas": r.os,
+                    "OS c/ Sucesso": r.sucesso,
+                    "OS c/ Insucesso": r.insucesso,
+                    "Taxa de Sucesso (%)": `${taxa}%`,
+                    "Tempo em Trânsito (Horas)": (r.transito / 60).toFixed(1),
+                    "Tempo em Serviço (Horas)": (r.servico / 60).toFixed(1)
+                });
+            }
+
             const workbook = XLSX.utils.book_new(); 
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetria"); 
+            
+            // Cria Aba 1: Detalhado
+            const worksheetDetalhes = XLSX.utils.json_to_sheet(dadosExcel); 
+            XLSX.utils.book_append_sheet(workbook, worksheetDetalhes, "Detalhado"); 
+
+            // Cria Aba 2: Resumo Gerencial
+            const worksheetResumo = XLSX.utils.json_to_sheet(dadosResumo); 
+            XLSX.utils.book_append_sheet(workbook, worksheetResumo, "Resumo Mensal");
+
             XLSX.writeFile(workbook, nomeArquivo + ".xlsx"); 
             toast.remove(); alert("✅ Relatório extraído com sucesso!");
         } catch(e) { if(toast) toast.remove(); alert("❌ Erro ao extrair relatório."); }
