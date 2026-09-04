@@ -864,39 +864,50 @@
         event.stopPropagation(); 
         let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
         if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
-        const originalBtn = event.target; originalBtn.innerText = "⏳"; originalBtn.disabled = true;
+        
+        // Acha exatamente o item na lista ativa pelo código único da OS
+        let itemLocal = rotaAtiva.find(p => String(p.codigo).trim() === String(codigo).trim());
+        if (!itemLocal) {
+            return alert("❌ Erro: Não foi possível localizar esta OS na lista ativa.");
+        }
+
+        const originalBtn = event.target; 
+        let textoOriginalBtn = originalBtn.innerText;
+        originalBtn.innerText = "⏳"; 
+        originalBtn.disabled = true;
 
         try {
             let crds = null;
 
-            // Verifica se o utilizador colou coordenadas diretas do Google Maps (ex: -23.5, -46.5)
+            // Verifica se o usuário colou coordenadas diretas do Google Maps (ex: -23.5, -46.5)
             let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
             let matchCoord = novoInput.trim().match(coordRegex);
 
             if (matchCoord) {
                 crds = { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
             } else {
-                // Se for texto normal, tenta a geocodificação habitual
+                // Se for texto normal, tenta a geocodificação
                 let geoData = { rua: novoInput, cidade: "São Paulo", cep: "" }; 
                 crds = await obterCoordenadasSilenciosa(geoData);
             }
 
             if (!crds) {
-                originalBtn.innerText = "✏️"; originalBtn.disabled = false;
-                return alert("❌ Não conseguimos localizar este endereço nem as coordenadas. Verifique se digitou corretamente.");
+                originalBtn.innerText = textoOriginalBtn; 
+                originalBtn.disabled = false;
+                return alert("❌ Não conseguimos converter esse endereço em GPS. O endereço anterior foi mantido para evitar erros na rota.");
             }
             
-            let itemLocal = rotaAtiva.find(p => p.codigo === codigo || String(p.codigo) === String(codigo));
-            if (itemLocal) { 
-                itemLocal.rua = novoInput; 
-                itemLocal.lat = crds.lat; 
-                itemLocal.lon = crds.lon; 
-                itemLocal.precisaCorrecao = false; 
-            }
+            // Atualiza estritamente os dados desta OS sem afetar as outras
+            itemLocal.rua = novoInput; 
+            itemLocal.lat = crds.lat; 
+            itemLocal.lon = crds.lon; 
+            itemLocal.precisaCorrecao = false; 
+
             sincronizarMemoriaGlobal(); 
             atualizarTela(true);
             alert("✅ Endereço e posição GPS atualizados com sucesso!");
         } catch (e) { 
+            console.error(e);
             alert("❌ Ocorreu um erro ao atualizar o endereço."); 
         } finally { 
             originalBtn.innerText = "✏️"; 
@@ -906,7 +917,7 @@
 
     function sincronizarMemoriaGlobal() {
         if (visualizandoHistorico) {
-            // No modo histórico, actualiza o itinerario na memória global e envia imediatamente um PUT/POST para o banco
+            // Sincroniza perfeitamente no array global do histórico do técnico ativo
             let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
             if (rotaHist) {
                 rotaHist.itinerario = [...rotaAtiva];
@@ -919,7 +930,7 @@
                 }
             }
         } else {
-            // No modo planeamento local (não salvo)
+            // No modo planejamento local (não salvo)
             if (tecnicoAtivo && dadosGlobaisRotas[tecnicoAtivo]) {
                 dadosGlobaisRotas[tecnicoAtivo].manha = rotaAtiva.filter(o => o.periodo === 'MANHA');
                 dadosGlobaisRotas[tecnicoAtivo].tarde = rotaAtiva.filter(o => o.periodo === 'TARDE' || o.periodo !== 'MANHA');
