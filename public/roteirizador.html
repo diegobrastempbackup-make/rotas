@@ -508,45 +508,75 @@
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
-        let textoCompleto = `${ruaOriginal} ${detalhesOriginal}`;
         let cidade = cliente.cidade || "São Paulo";
-
-        if (ehRodoviaOuKm(textoCompleto)) {
-            let termoLimpo = expandirAbreviacoes(textoCompleto);
-            try {
-                let query = `${termoLimpo}, ${cidade}, Brasil`;
-                let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-                if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
-            } catch(e) {}
-            try {
-                let query = `${termoLimpo}, São Paulo, Brasil`;
-                let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-                if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
-            } catch(e) {}
-        }
-
-        let ruaExpandida = expandirAbreviacoes(ruaOriginal);
-        let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
-        
-        try {
-            let query = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
-        } catch(e) {}
-
-        try {
-            let query = `${ruaExpandida}, ${cidade}, Brasil`.trim();
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
-        } catch(e) {}
-
         let cepBusca = (cliente.cep || "").replace(/\D/g, '');
+
+        let ruaLimpa = expandirAbreviacoes(ruaOriginal)
+            .replace(/apto.*|bloco.*|casa.*|fundos.*|sala.*/gi, "") // Remove complementos que confundem o GPS
+            .trim();
+
+        // 1. TENTATIVA COM O VIACEP (Se houver CEP válido, pegamos a rua oficial dos Correios)
         if (cepBusca.length === 8) {
             try {
-                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
-                if (r.ok) { let d = await r.json(); if (d && d.lat) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) }; }
+                let resCep = await fetch(`https://viacep.com.br/ws/${cepBusca}/json/`);
+                if (resCep.ok) {
+                    let dadosCep = await resCep.json();
+                    if (!dadosCep.erro) {
+                        let ruaOficial = dadosCep.logradouro;
+                        let bairroOficial = dadosCep.bairro;
+                        let cidadeOficial = dadosCep.localidade;
+
+                        // Tenta buscar a rua oficial dos Correios + número/detalhes
+                        let queryViaCep = `${ruaOficial}, ${detalhesOriginal}, ${bairroOficial}, ${cidadeOficial}, Brasil`;
+                        let rGeo = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryViaCep)}`);
+                        if (rGeo.ok) {
+                            let dGeo = await rGeo.json();
+                            if (dGeo && dGeo.length > 0) return { lat: parseFloat(dGeo[0].lat), lon: parseFloat(dGeo[0].lon) };
+                        }
+
+                        // Segunda tentativa apenas com a rua oficial dos Correios
+                        let queryRuaApenas = `${ruaOficial}, ${cidadeOficial}, Brasil`;
+                        let rGeo2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryRuaApenas)}`);
+                        if (rGeo2.ok) {
+                            let dGeo2 = await rGeo2.json();
+                            if (dGeo2 && dGeo2.length > 0) return { lat: parseFloat(dGeo2[0].lat), lon: parseFloat(dGeo2[0].lon) };
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // 2. TENTATIVA DIRETA (Caso o CEP falhe ou não exista, usa o texto limpo da planilha)
+        if (ehRodoviaOuKm(ruaLimpa)) {
+            try {
+                let query = `${ruaLimpa}, ${cidade}, Brasil`;
+                let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+                }
             } catch(e) {}
         }
+
+        // 3. FALLBACK URBANO COM O TEXTO DA RUA
+        try {
+            let query = `${ruaLimpa} ${detalhesOriginal}, ${cidade}, Brasil`.trim();
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            if (r.ok) {
+                let d = await r.json();
+                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            }
+        } catch(e) {}
+
+        try {
+            let query = `${ruaLimpa}, ${cidade}, Brasil`.trim();
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            if (r.ok) {
+                let d = await r.json();
+                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            }
+        } catch(e) {}
+
         return null; 
     }
 
