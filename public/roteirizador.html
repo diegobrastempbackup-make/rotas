@@ -284,9 +284,8 @@
     let autoRefreshInterval = null;
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
-    let osDestacada = ""; // Variável Global que guarda o código pesquisado
+    let osDestacada = ""; 
 
-    // Limpa Mês se preencher Dia e Vice-Versa para evitar confusão no UI
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
 
@@ -366,6 +365,85 @@
         reader.readAsArrayBuffer(file);
     }
 
+    function expandirAbreviacoes(texto) {
+        if (!texto) return "";
+        let t = texto;
+        t = t.replace(/\bR\.\s*/gi, "Rua ");
+        t = t.replace(/\bAv\.\s*/gi, "Avenida ");
+        t = t.replace(/\bAl\.\s*/gi, "Alameda ");
+        t = t.replace(/\bPça\.?\s*/gi, "Praça ");
+        t = t.replace(/\bPca\.?\s*/gi, "Praça ");
+        t = t.replace(/\bTr\.?\s*/gi, "Travessa ");
+        t = t.replace(/\bRod\.?\s*/gi, "Rodovia ");
+        t = t.replace(/\bEst\.?\s*/gi, "Estrada ");
+        t = t.replace(/\bVl\.?\s*/gi, "Vila ");
+        t = t.replace(/\bJd\.?\s*/gi, "Jardim ");
+        return t;
+    }
+
+    // ==========================================
+    // NOVA INTELIGÊNCIA DE GEOCODIFICAÇÃO (RÁPIDA)
+    // ==========================================
+    async function obterCoordenadasSilenciosa(cliente) {
+        let ruaOriginal = cliente.rua || cliente.endereco || "";
+        let cidade = cliente.cidade || "São Paulo";
+
+        // 1. Se colou coordenadas diretas (Manual)
+        let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+        let matchCoord = String(ruaOriginal).trim().match(coordRegex);
+        if (matchCoord) {
+            return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
+        }
+
+        // 2. Extrai CEP para o ViaCEP
+        let cepMatch = ruaOriginal.match(/\b\d{5}-?\d{3}\b/);
+        let cepBusca = (cliente.cep || (cepMatch ? cepMatch[0] : "")).replace(/\D/g, '');
+
+        // 3. Limpeza Extrema para o Satélite (Removemos o número da casa para ele achar rápido!)
+        let ruaLimpa = expandirAbreviacoes(ruaOriginal)
+            .replace(/\b\d{5}-?\d{3}\b/g, "") // Tira o CEP
+            .replace(/-?\s*\b(SP|RJ|MG|RS|PR|SC|GO|BA|PE|CE|PA|RN|MA|PB|AL|SE|PI|ES|AM|MT|TO|AC|RO|RR|AP|DF)\b/gi, "") // Tira UF
+            .replace(/apto.*|bloco.*|casa.*|fundos.*|sala.*/gi, ""); // Tira complementos
+
+        // Tira tudo depois da vírgula (que é onde costuma ficar o número no Brasil)
+        ruaLimpa = ruaLimpa.split('-')[0].split(',')[0].trim();
+        // Se a pessoa escreveu sem vírgula (ex: Rua X 123), removemos os últimos números isolados da frase
+        ruaLimpa = ruaLimpa.replace(/\s\d+$/, "").trim();
+
+        // TENTATIVA 1: VIACEP (Oficial e Rápido)
+        if (cepBusca.length === 8) {
+            try {
+                let resCep = await fetch(`https://viacep.com.br/ws/${cepBusca}/json/`);
+                if (resCep.ok) {
+                    let dadosCep = await resCep.json();
+                    if (!dadosCep.erro && dadosCep.logradouro) {
+                        let ruaOficial = dadosCep.logradouro;
+                        let cidadeOficial = dadosCep.localidade;
+                        // Busca no Nominatim a rua oficial LIMPA (sem número da porta)
+                        let queryViaCep = `${ruaOficial}, ${cidadeOficial}, Brasil`;
+                        let rGeo = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryViaCep)}`);
+                        if (rGeo.ok) {
+                            let dGeo = await rGeo.json();
+                            if (dGeo && dGeo.length > 0) return { lat: parseFloat(dGeo[0].lat), lon: parseFloat(dGeo[0].lon) };
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // TENTATIVA 2: RUA LIMPA DA PLANILHA (Se o CEP falhar)
+        try {
+            let queryLimpa = `${ruaLimpa}, ${cidade}, Brasil`;
+            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryLimpa)}`);
+            if (r.ok) {
+                let d = await r.json();
+                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
+            }
+        } catch(e) {}
+
+        return null; // Retorna null apenas se a rua realmente não existir no mapa
+    }
+
     async function agruparEGeocodificar(linhas) {
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("loadingUpload").style.display = "block";
@@ -430,14 +508,25 @@
                 lbl.innerText = `${concluidos} de ${totalOS} locais únicos convertidos em GPS...`;
 
                 let crds = await obterCoordenadasSilenciosa(ordem);
-                ordem.lat = crds ? crds.lat : configGalpao.lat;
-                ordem.lon = crds ? crds.lon : configGalpao.lon;
-                ordem.precisaCorrecao = !crds;
+                
+                if (crds) {
+                    ordem.lat = crds.lat;
+                    ordem.lon = crds.lon;
+                    ordem.precisaCorrecao = false;
+                } else {
+                    // SE FALHAR: Aplica um pequeno desvio aleatório para os pinos não ficarem ocultos uns debaixo dos outros na Base
+                    let offsetLat = (Math.random() - 0.5) * 0.006; 
+                    let offsetLon = (Math.random() - 0.5) * 0.006;
+                    ordem.lat = configGalpao.lat + offsetLat;
+                    ordem.lon = configGalpao.lon + offsetLon;
+                    ordem.precisaCorrecao = true;
+                }
 
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
                 else dadosGlobaisRotas[tecnico].tarde.push(ordem);
 
-                await new Promise(r => setTimeout(r, 1000));
+                // REDUZIDO o tempo de espera: O carregamento será mais de 2x mais rápido agora!
+                await new Promise(r => setTimeout(r, 300));
             }
         }
 
@@ -481,104 +570,6 @@
             let px = naoVisitados.splice(idx, 1)[0]; rotaOrdenada.push(px); atualLat = px.lat; atualLon = px.lon;
         }
         return rotaOrdenada;
-    }
-
-    function expandirAbreviacoes(texto) {
-        if (!texto) return "";
-        let t = texto;
-        t = t.replace(/\bR\.\s*/gi, "Rua ");
-        t = t.replace(/\bAv\.\s*/gi, "Avenida ");
-        t = t.replace(/\bAl\.\s*/gi, "Alameda ");
-        t = t.replace(/\bPça\.?\s*/gi, "Praça ");
-        t = t.replace(/\bPca\.?\s*/gi, "Praça ");
-        t = t.replace(/\bTr\.?\s*/gi, "Travessa ");
-        t = t.replace(/\bRod\.?\s*/gi, "Rodovia ");
-        t = t.replace(/\bEst\.?\s*/gi, "Estrada ");
-        t = t.replace(/\bVl\.?\s*/gi, "Vila ");
-        t = t.replace(/\bJd\.?\s*/gi, "Jardim ");
-        return t;
-    }
-
-    function ehRodoviaOuKm(texto) {
-        if (!texto) return false;
-        let t = texto.toUpperCase();
-        return t.includes("KM") || t.includes("RODOVIA") || t.includes("ROD") || t.includes("ESTRADA") || t.includes("SP-") || t.includes("BR-");
-    }
-
-    async function obterCoordenadasSilenciosa(cliente) {
-        let ruaOriginal = cliente.rua || cliente.endereco || "";
-        let detalhesOriginal = cliente.detalhes || "";
-        let cidade = cliente.cidade || "São Paulo";
-
-        // 1. Inteligência para extrair o CEP se o utilizador colar o endereço completo numa só linha
-        let cepMatch = ruaOriginal.match(/\b\d{5}-?\d{3}\b/);
-        let cepBusca = (cliente.cep || (cepMatch ? cepMatch[0] : "")).replace(/\D/g, '');
-
-        // 2. Tenta extrair o número da casa (procura número após a vírgula ou o primeiro número grande)
-        let numeroMatch = ruaOriginal.match(/,\s*(\d+)/) || ruaOriginal.match(/\b\d+\b/);
-        let numeroCasa = numeroMatch ? (numeroMatch[1] || numeroMatch[0]) : "";
-
-        // 3. Limpeza radical da string para não confundir o satélite (Nominatim)
-        let ruaLimpa = expandirAbreviacoes(ruaOriginal)
-            .replace(/\b\d{5}-?\d{3}\b/g, "") // Tira o CEP do meio do texto
-            .replace(/-?\s*\b(SP|RJ|MG|RS|PR|SC|GO|BA|PE|CE|PA|RN|MA|PB|AL|SE|PI|ES|AM|MT|TO|AC|RO|RR|AP|DF)\b/gi, "") // Tira sigla do estado
-            .replace(/apto.*|bloco.*|casa.*|fundos.*|sala.*/gi, "") // Tira complementos
-            .split('-')[0] // Isola a rua do bairro (ex: Rua X, 10 - Bairro -> vira "Rua X, 10")
-            .replace(/,\s*$/, "") // Tira vírgula sobrando no fim
-            .trim();
-
-        // TENTATIVA 1: COM O VIACEP (Oficial dos Correios)
-        if (cepBusca.length === 8) {
-            try {
-                let resCep = await fetch(`https://viacep.com.br/ws/${cepBusca}/json/`);
-                if (resCep.ok) {
-                    let dadosCep = await resCep.json();
-                    if (!dadosCep.erro) {
-                        let ruaOficial = dadosCep.logradouro;
-                        let cidadeOficial = dadosCep.localidade;
-
-                        // Tenta achar Rua Oficial + Número exato
-                        let queryViaCepNum = `${ruaOficial}, ${numeroCasa}, ${cidadeOficial}, Brasil`.trim();
-                        let rGeo = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryViaCepNum)}`);
-                        if (rGeo.ok) {
-                            let dGeo = await rGeo.json();
-                            if (dGeo && dGeo.length > 0) return { lat: parseFloat(dGeo[0].lat), lon: parseFloat(dGeo[0].lon) };
-                        }
-
-                        // Fallback: Se não achar o número, foca no meio da rua oficial
-                        let queryRuaApenas = `${ruaOficial}, ${cidadeOficial}, Brasil`;
-                        let rGeo2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryRuaApenas)}`);
-                        if (rGeo2.ok) {
-                            let dGeo2 = await rGeo2.json();
-                            if (dGeo2 && dGeo2.length > 0) return { lat: parseFloat(dGeo2[0].lat), lon: parseFloat(dGeo2[0].lon) };
-                        }
-                    }
-                }
-            } catch (e) {}
-        }
-
-        // TENTATIVA 2: COM A RUA LIMPA (Se o CEP não funcionar)
-        try {
-            let queryLimpa = `${ruaLimpa}, ${cidade}, Brasil`.replace(/,\s*,/g, ",");
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryLimpa)}`);
-            if (r.ok) {
-                let d = await r.json();
-                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-            }
-        } catch(e) {}
-
-        // TENTATIVA 3: ÚLTIMO FALLBACK (Tentar achar só a rua, arrancando os números)
-        let ruaSemNumero = ruaLimpa.replace(/,\s*\d+/g, "").replace(/\b\d+\b/g, "").trim();
-        try {
-            let querySNum = `${ruaSemNumero}, ${cidade}, Brasil`;
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(querySNum)}`);
-            if (r.ok) {
-                let d = await r.json();
-                if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-            }
-        } catch(e) {}
-
-        return null; // Falhou todas as tentativas
     }
 
     async function iniciarCalculoTecnico(nome) {
@@ -860,7 +851,7 @@
         }
     }
 
-   async function editarEnderecoManual(codigo, ruaAtual, event) {
+    async function editarEnderecoManual(codigo, ruaAtual, event) {
         event.stopPropagation(); 
         let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
         if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
@@ -877,27 +868,15 @@
         originalBtn.disabled = true;
 
         try {
-            let crds = null;
-
-            // Verifica se o usuário colou coordenadas diretas do Google Maps (ex: -23.5, -46.5)
-            let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
-            let matchCoord = novoInput.trim().match(coordRegex);
-
-            if (matchCoord) {
-                crds = { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
-            } else {
-                // Se for texto normal, tenta a geocodificação
-                let geoData = { rua: novoInput, cidade: "São Paulo", cep: "" }; 
-                crds = await obterCoordenadasSilenciosa(geoData);
-            }
+            let crds = await obterCoordenadasSilenciosa({ rua: novoInput, cidade: "São Paulo" });
 
             if (!crds) {
                 originalBtn.innerText = textoOriginalBtn; 
                 originalBtn.disabled = false;
-                return alert("❌ Não conseguimos converter esse endereço em GPS. O endereço anterior foi mantido para evitar erros na rota.");
+                return alert("❌ Não conseguimos converter esse endereço em GPS. A localização anterior foi preservada intacta.");
             }
             
-            // Atualiza estritamente os dados desta OS sem afetar as outras
+            // Atualiza com segurança mantendo os dados corretos
             itemLocal.rua = novoInput; 
             itemLocal.lat = crds.lat; 
             itemLocal.lon = crds.lon; 
