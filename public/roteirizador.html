@@ -860,21 +860,48 @@
         }
     }
 
-    async function editarEnderecoManual(codigo, ruaAtual, event) {
+   async function editarEnderecoManual(codigo, ruaAtual, event) {
         event.stopPropagation(); 
-        let novoEndereco = prompt("✏️ Edite o endereço desta OS:", ruaAtual);
-        if (!novoEndereco || novoEndereco.trim() === "" || novoEndereco === ruaAtual) return;
+        let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
+        if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
         const originalBtn = event.target; originalBtn.innerText = "⏳"; originalBtn.disabled = true;
 
         try {
-            let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" }; 
-            let crds = await obterCoordenadasSilenciosa(geoData);
-            if (!crds) return alert("❌ Não conseguimos converter esse endereço em GPS. Verifique a grafia.");
+            let crds = null;
+
+            // Verifica se o utilizador colou coordenadas diretas do Google Maps (ex: -23.5, -46.5)
+            let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+            let matchCoord = novoInput.trim().match(coordRegex);
+
+            if (matchCoord) {
+                crds = { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
+            } else {
+                // Se for texto normal, tenta a geocodificação habitual
+                let geoData = { rua: novoInput, cidade: "São Paulo", cep: "" }; 
+                crds = await obterCoordenadasSilenciosa(geoData);
+            }
+
+            if (!crds) {
+                originalBtn.innerText = "✏️"; originalBtn.disabled = false;
+                return alert("❌ Não conseguimos localizar este endereço nem as coordenadas. Verifique se digitou corretamente.");
+            }
             
             let itemLocal = rotaAtiva.find(p => p.codigo === codigo || String(p.codigo) === String(codigo));
-            if (itemLocal) { itemLocal.rua = novoEndereco; itemLocal.lat = crds.lat; itemLocal.lon = crds.lon; itemLocal.precisaCorrecao = false; }
-            sincronizarMemoriaGlobal(); atualizarTela(true);
-        } catch (e) { alert("❌ Ocorreu um erro ao atualizar o endereço."); } finally { originalBtn.innerText = "✏️"; originalBtn.disabled = false; }
+            if (itemLocal) { 
+                itemLocal.rua = novoInput; 
+                itemLocal.lat = crds.lat; 
+                itemLocal.lon = crds.lon; 
+                itemLocal.precisaCorrecao = false; 
+            }
+            sincronizarMemoriaGlobal(); 
+            atualizarTela(true);
+            alert("✅ Endereço e posição GPS atualizados com sucesso!");
+        } catch (e) { 
+            alert("❌ Ocorreu um erro ao atualizar o endereço."); 
+        } finally { 
+            originalBtn.innerText = "✏️"; 
+            originalBtn.disabled = false; 
+        }
     }
 
     function sincronizarMemoriaGlobal() {
