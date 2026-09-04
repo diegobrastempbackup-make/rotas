@@ -190,6 +190,7 @@
                         <div><span class="dot" style="background:#F97316;"></span>No Local</div>
                         <div><span class="dot" style="background:#10B981;"></span>Sucesso</div>
                         <div><span class="dot" style="background:#EF4444;"></span>Insucesso</div>
+                        <div><span class="dot" style="background:#E11D48;"></span>Impreciso ⚠️</div>
                     </div>
                     <div id="listaItinerarioUI" style="margin-top: 15px;"></div>
                 </div>
@@ -247,7 +248,6 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
-    // Configuração unificada do Galpão
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
 
     async function carregarBaseOficial() {
@@ -365,7 +365,6 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // Função de expansão de abreviaturas melhorada
     function expandirAbreviacoes(texto) {
         if (!texto) return "";
         let t = texto;
@@ -400,21 +399,18 @@
         return t.includes("KM") || t.includes("RODOVIA") || t.includes("ROD") || t.includes("ESTRADA") || t.includes("SP-") || t.includes("BR-");
     }
 
-    // GEOCODIFICAÇÃO RESTAURADA DA V1 + CORREÇÕES EXCEL
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
         let textoCompleto = `${ruaOriginal} ${detalhesOriginal}`;
         let cidade = cliente.cidade || "São Paulo";
 
-        // 1. Coordenada Manual (Google Maps)
         let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
         let matchCoord = String(ruaOriginal).trim().match(coordRegex);
         if (matchCoord) {
             return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
         }
 
-        // 2. Extrai e Corrige o CEP (Bug do Excel .0)
         let cepStr = String(cliente.cep || "");
         if (cepStr.includes('.')) cepStr = cepStr.split('.')[0];
         let cepMatch = ruaOriginal.match(/\b\d{5}-?\d{3}\b/);
@@ -424,7 +420,6 @@
         let ruaExpandida = expandirAbreviacoes(ruaOriginal);
         let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
 
-        // 3. TENTATIVA 1: Endereço Expandido com Nominatim
         if (ehRodoviaOuKm(textoCompleto)) {
             let termoLimpo = expandirAbreviacoes(textoCompleto);
             try {
@@ -440,15 +435,12 @@
         } catch(e) {}
 
         try {
-            // Tenta só a rua com número, removendo bairro após traço
             let ruaSimples = ruaExpandida.split('-')[0].trim();
             let query = `${ruaSimples}, ${cidade}, Brasil`.trim();
             let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
             if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
         } catch(e) {}
 
-        // 4. TENTATIVA 2: A MÁGICA DA V1 (AwesomeAPI com Lat/Lon via CEP)
-        // Isso garante que se o nome da rua estiver muito estranho, ele pega a coordenada pelo CEP.
         if (cepBusca.length === 8) {
             try {
                 let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
@@ -477,7 +469,6 @@
             const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
             const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
             
-            // CEP CORRIGIDO (Removendo .0)
             let cepOriginal = String(buscarValorNaLinha(linha, ["CEP"]));
             if (cepOriginal.includes('.')) cepOriginal = cepOriginal.split('.')[0];
             let cepLimpo = cepOriginal.replace(/\D/g, '').trim(); 
@@ -532,7 +523,8 @@
                 if (crds) {
                     ordem.lat = crds.lat;
                     ordem.lon = crds.lon;
-                    ordem.precisaCorrecao = false;
+                    // Se for rodovia, marca como impreciso (vermelho) para forçar revisão manual
+                    ordem.precisaCorrecao = ehRodoviaOuKm(ordem.rua) ? true : false;
                 } else {
                     let offsetLat = (Math.random() - 0.5) * 0.006; 
                     let offsetLon = (Math.random() - 0.5) * 0.006;
@@ -657,7 +649,7 @@
                     let latClienteFixo = cliente.lat;
                     let lonClienteFixo = cliente.lon;
 
-                    if (cliente.precisaCorrecao) { corPino = "#000000"; } 
+                    if (cliente.precisaCorrecao) { corPino = "#E11D48"; } 
                     else if (cliente.status === 'deslocamento') { corPino = "#FACC15"; jaIniciou = true; } 
                     else if (cliente.status === 'chegada') { corPino = "#F97316"; jaIniciou = true; } 
                     else if (cliente.status === 'sucesso') { corPino = "#10B981"; jaIniciou = true; } 
@@ -688,8 +680,11 @@
                         iconSize: [22, 22] 
                     });
                     
+                    let avisoImpreciso = cliente.precisaCorrecao ? `<div style="color:#E11D48; font-weight:bold; margin-bottom:5px;">⚠️ Endereço Impreciso (Edite)</div>` : ``;
+
                     let popupContent = `
                         <div style="color:#1E293B; font-size:12px;">
+                            ${avisoImpreciso}
                             <b>${roteiro.tecnico}</b><br>
                             OS: ${cliente.codigo}<br>
                             Status: <b>${cliente.status.toUpperCase()}</b>
@@ -741,7 +736,7 @@
             let latClienteFixo = cliente.lat;
             let lonClienteFixo = cliente.lon;
 
-            if (cliente.precisaCorrecao) corPino = "#000000"; 
+            if (cliente.precisaCorrecao) corPino = "#E11D48"; 
             else if (cliente.status === 'deslocamento') corPino = "#FACC15"; 
             else if (cliente.status === 'chegada') corPino = "#F97316"; 
             else if (cliente.status === 'sucesso') corPino = "#10B981"; 
@@ -763,8 +758,11 @@
                 iconAnchor: [13, 13] 
             });
             
+            let avisoImpreciso = cliente.precisaCorrecao ? `<div style="color:#E11D48; font-weight:bold; margin-bottom:5px;">⚠️ Endereço Impreciso (Edite)</div>` : ``;
+
             let popupContent = `
                 <div style="color:#1E293B; font-size:13px;">
+                    ${avisoImpreciso}
                     <b>Parada #${seq}</b><br>
                     OS: ${cliente.codigo}<br>
                     Status: <b>${cliente.status.toUpperCase()}</b>
@@ -800,7 +798,7 @@
                         <div class="drag-handle" style="cursor: grab;">☰</div>
                         <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
                         <div class="itinerario-info">
-                            <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${cliente.codigo} ${badgeHTML}</div>
+                            <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${cliente.codigo} ${badgeHTML} ${cliente.precisaCorrecao ? '<span title="Endereço Impreciso" style="color:#E11D48; margin-left:4px;">⚠️</span>' : ''}</div>
                             <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
                         </div>
                         <div style="display: flex;">
@@ -881,7 +879,18 @@
         originalBtn.disabled = true;
 
         try {
-            let crds = await obterCoordenadasSilenciosa({ rua: novoInput, cidade: "São Paulo" });
+            let crds = null;
+            let isCoordenadaExata = false;
+
+            let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+            let matchCoord = novoInput.trim().match(coordRegex);
+
+            if (matchCoord) {
+                crds = { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
+                isCoordenadaExata = true;
+            } else {
+                crds = await obterCoordenadasSilenciosa({ rua: novoInput, cidade: "São Paulo", cep: itemLocal.cep });
+            }
 
             if (!crds) {
                 originalBtn.innerText = textoOriginalBtn; 
@@ -892,7 +901,9 @@
             itemLocal.rua = novoInput; 
             itemLocal.lat = crds.lat; 
             itemLocal.lon = crds.lon; 
-            itemLocal.precisaCorrecao = false; 
+            
+            // Se foi coordenada manual exata, apaga o aviso vermelho. Senão, se for Rodovia, liga o alerta.
+            itemLocal.precisaCorrecao = isCoordenadaExata ? false : (ehRodoviaOuKm(novoInput) ? true : false);
 
             sincronizarMemoriaGlobal(); 
             atualizarTela(true);
@@ -1292,7 +1303,7 @@
             html += `
             <div class="itinerario-item" style="border-left-color: #F59E0B; margin-bottom: 5px; padding: 8px; cursor: default;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 12px; color: white;"><b>OS: ${ordem.codigo}</b></div>
+                    <div style="font-size: 12px; color: white;"><b>OS: ${ordem.codigo}</b> ${ordem.precisaCorrecao ? '<span title="Impreciso" style="color:#E11D48;">⚠️</span>' : ''}</div>
                     <div style="display: flex; gap: 5px;">
                         <button onclick="editarOrdemFila(${idx})" class="btn-lapis" style="padding: 2px;" title="Editar Endereço">✏️</button>
                         <button onclick="excluirOrdemFila(${idx})" class="btn-lapis" style="color:#EF4444; padding: 2px;" title="Excluir da Fila">✖</button>
@@ -1312,14 +1323,30 @@
 
         document.getElementById("listaNaoAlocadasUI").innerHTML = `<div style="color: #FACC15; font-size: 12px; text-align: center; padding: 10px;">Buscando GPS... 🛰️</div>`;
         
-        let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: "" };
-        let crds = await obterCoordenadasSilenciosa(geoData);
+        let geoData = { rua: novoEndereco, cidade: "São Paulo", cep: ordem.cep };
+        
+        let crds = null;
+        let isCoordenadaExata = false;
+        let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+        let matchCoord = novoEndereco.trim().match(coordRegex);
+
+        if (matchCoord) {
+            crds = { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
+            isCoordenadaExata = true;
+        } else {
+            crds = await obterCoordenadasSilenciosa(geoData);
+        }
+
         if (!crds) {
             alert("❌ Não conseguimos converter esse endereço em GPS. Verifique a grafia.");
             renderNaoAlocadas(); return;
         }
         
-        ordem.rua = novoEndereco; ordem.lat = crds.lat; ordem.lon = crds.lon; ordem.precisaCorrecao = false;
+        ordem.rua = novoEndereco; 
+        ordem.lat = crds.lat; 
+        ordem.lon = crds.lon; 
+        ordem.precisaCorrecao = isCoordenadaExata ? false : (ehRodoviaOuKm(novoEndereco) ? true : false);
+        
         renderNaoAlocadas();
     };
 
@@ -1353,7 +1380,9 @@
         document.getElementById("listaNaoAlocadasUI").innerHTML = `<div style="color: #FACC15; font-size: 12px; text-align: center; padding: 10px;">Buscando GPS no satélite... 🛰️</div>`;
 
         let crds = await obterCoordenadasSilenciosa(novaOrdem);
-        novaOrdem.lat = crds ? crds.lat : configGalpao.lat; novaOrdem.lon = crds ? crds.lon : configGalpao.lon; novaOrdem.precisaCorrecao = !crds;
+        novaOrdem.lat = crds ? crds.lat : configGalpao.lat; 
+        novaOrdem.lon = crds ? crds.lon : configGalpao.lon; 
+        novaOrdem.precisaCorrecao = crds ? (ehRodoviaOuKm(novaOrdem.rua) ? true : false) : true;
 
         if(!crds) alert("⚠️ Endereço não encontrado com exatidão pelo GPS, ele foi jogado provisoriamente na Base. Edite depois se necessário.");
         ordensNaoAlocadas.push(novaOrdem); renderNaoAlocadas(); alert("✅ Ordem Manual criada! Ela está na 'Fila de Espera' e pode ser alocada a qualquer técnico.");
