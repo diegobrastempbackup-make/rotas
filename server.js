@@ -11,7 +11,6 @@ const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 // =====================================================================
-// [CORREÇÃO] Removido o "/login.html" do final para o ping funcionar corretamente
 const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com"; 
 // =====================================================================
 
@@ -23,7 +22,7 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// [CORREÇÃO] Middleware de segurança para evitar crash se a requisição chegar antes da conexão do DB
+// Middleware de segurança para evitar crash se a requisição chegar antes da conexão do DB
 app.use((req, res, next) => {
   if (!db) return res.status(503).json({ erro: "Banco de dados inicializando. Tente novamente em instantes." });
   next();
@@ -142,7 +141,6 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
     
-    // [CORREÇÃO] Permite que o Superadmin passe o cliente_id alvo pelo body, evitando cadastrar na tenant "GLOBAL_SYSTEM"
     const { nome, usuario, senha, tipo, cliente_id } = req.body; 
     
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
@@ -150,7 +148,6 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
     
     const senhaHash = await bcrypt.hash(senha, 10);
     
-    // [CORREÇÃO] Validação do tenant para o novo usuário
     const tenantId = (req.usuario.tipo === "superadmin" && cliente_id) ? cliente_id : req.usuario.cliente_id;
 
     await db.collection("usuarios").insertOne({ cliente_id: tenantId, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date() });
@@ -185,7 +182,6 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 // NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE
 // =====================================================================
 
-// 1. GUARDAR ROTA
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, tecnico, itinerario } = req.body;
@@ -210,7 +206,6 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
   }
 });
 
-// 2. PESQUISAR ROTA (Suporta OS Agrupadas)
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
@@ -229,7 +224,6 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
   }
 });
 
-// 3. EXCLUIR ROTA
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   try {
       const resultado = await db.collection("planejamento_rotas").deleteOne({
@@ -243,7 +237,6 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   }
 });
 
-// 4. ATUALIZAR STATUS DA PARAGEM (TELEMETRIA EM TEMPO REAL)
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
@@ -257,18 +250,15 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
 
         let atualizacao = { "itinerario.$.status": novoStatus };
 
-        // Grava a hora exata da alteração do status
         if (campoTempo && valorTempo) {
             atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         }
 
-        // NOVO: Se o app enviou a localização real no clique, grava na paragem!
         if (latitude !== undefined && longitude !== undefined) {
             atualizacao["itinerario.$.latCheckin"] = latitude;
             atualizacao["itinerario.$.lonCheckin"] = longitude;
         }
 
-        // Registra motivo de insucesso, caso exista
         if (motivo) {
             atualizacao["itinerario.$.motivoInsucesso"] = motivo;
         }
@@ -281,14 +271,10 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
         res.status(500).json({ erro: "Erro ao atualizar status." });
     }
 });
-// ==========================================
-// RELATÓRIO MENSAL DO TÉCNICO
-// ==========================================
+
 app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
     try {
-        const { tecnico, mesAno } = req.query; // Ex: "08/2026"
-        
-        // Busca todas as rotas deste técnico que terminam com o mês/ano atual
+        const { tecnico, mesAno } = req.query; 
         const regexData = new RegExp(`/${mesAno}$`); 
         
         const rotas = await db.collection("planejamento_rotas").find({
@@ -300,11 +286,9 @@ app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
         let total = 0;
         let sucesso = 0;
         let insucesso = 0;
-// INICIALIZAÇÃO E LIGAÇÃO À BA        // Varre os dias e as OSs para contar tudo
         rotas.forEach(rota => {
             if (rota.itinerario) {
                 rota.itinerario.forEach(os => {
-                    // Ignora paradas que não são de atendimento (se houver regras específicas, pode ajustar aqui)
                     total++;
                     if (os.status === 'sucesso') sucesso++;
                     else if (os.status === 'insucesso') insucesso++;
@@ -318,7 +302,6 @@ app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
     }
 });
 
-// 5. NOVA ROTA: RECEBER RASTREAMENTO EM TEMPO REAL (MIGALHAS GPS)
 app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, lat, lon } = req.body;
@@ -332,7 +315,7 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
 
         let novoPonto = { lat, lon, timestamp: new Date() };
 
-        const resultado = await db.collection("planejamento_rotas").updateOne(
+        await db.collection("planejamento_rotas").updateOne(
             filterDoc, 
             { $push: { "itinerario.$.rastroReal": novoPonto } }
         );
@@ -343,7 +326,6 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     }
 });
 
-// 6. EDITAR ENDEREÇO DA PARAGEM MANUALMENTE
 app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
@@ -372,7 +354,7 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// RESTANTES MÓDULOS (Dashboard, Almoxarifado, Registros)
+// ESTOQUE, HISTÓRICO, TÉCNICOS DASHBOARD
 // =====================================================================
 app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { const { nome, status, telefone, email, veiculo, placa } = req.body; const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Técnico já registado" }); await db.collection("tecnicos_dashboard").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", telefone, email, veiculo, placa, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
@@ -387,6 +369,7 @@ app.get("/api/estoque", autenticarToken, async (req, res) => { try { res.json(aw
 app.post("/api/estoque", autenticarToken, async (req, res) => { try { await db.collection("estoque").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id, preco: Number(req.body.preco) || 0, qtd: Number(req.body.qtd) || 0, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.put("/api/estoque/:id", autenticarToken, async (req, res) => { try { await db.collection("estoque").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { ...req.body, preco: Number(req.body.preco) || 0, qtd: Number(req.body.qtd) || 0 } }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.delete("/api/estoque/:id", autenticarToken, async (req, res) => { try { await db.collection("estoque").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+
 app.get("/api/estoque/historico", autenticarToken, async (req, res) => { try { res.json(await db.collection("historico_estoque").find(getFiltroSaaS(req)).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => { try { res.json(await db.collection("historico_estoque").find({ tecnico: req.params.nome, ...getFiltroSaaS(req) }).sort({ data: -1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
@@ -404,6 +387,32 @@ app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
     res.json({ ok: true });
   } catch (erro) { res.status(500).json({ erro: "Erro" }); }
 });
+
+// =====================================================================
+// AQUI ESTÃO AS ROTAS QUE FALTAVAM PARA EDITAR/EXCLUIR O HISTÓRICO
+// =====================================================================
+app.put("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
+  try {
+    const { tipoAcao, quantidade, observacao } = req.body;
+    const resultado = await db.collection("historico_estoque").updateOne(
+      { _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) },
+      { $set: { tipoAcao, quantidade: Number(quantidade), observacao } }
+    );
+    if(resultado.matchedCount > 0) res.json({ ok: true });
+    else res.status(404).json({ erro: "Registro não encontrado." });
+  } catch (erro) { res.status(500).json({ erro: "Erro ao atualizar histórico" }); }
+});
+
+app.delete("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
+  try {
+    const resultado = await db.collection("historico_estoque").deleteOne(
+      { _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }
+    );
+    if(resultado.deletedCount > 0) res.json({ ok: true });
+    else res.status(404).json({ erro: "Registro não encontrado." });
+  } catch (erro) { res.status(500).json({ erro: "Erro ao excluir histórico" }); }
+});
+// =====================================================================
 
 app.get("/api/registros", autenticarToken, async (req, res) => { try { res.json(await db.collection("registros").find(getFiltroSaaS(req)).sort({ data: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 app.post("/registro", autenticarToken, async (req, res) => {
@@ -424,7 +433,6 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => { try { await d
 
 app.use(express.static(__dirname + "/public", { index: false }));
 
-// INICIALIZAÇÃO E LIGAÇÃO À BASE DE DADOS
 async function conectarBanco() {
   if (!db) {
     console.log("🔄 A ligar à base de dados...");
@@ -434,7 +442,6 @@ async function conectarBanco() {
   }
 }
 
-// Exporta o app para a Vercel gerenciar as rotas sem precisar do app.listen()
 module.exports = async (req, res) => {
   await conectarBanco();
   return app(req, res);
@@ -444,7 +451,6 @@ module.exports = async (req, res) => {
 // FASE 5: SISTEMA DE FILA, TOTEM E CRACHÁS
 // ==========================================
 
-// --- CRUD DA EQUIPA ISOLADA DO TOTEM ---
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
     try {
         const equipe = await db.collection("equipe_totem").find({ cliente_id: req.usuario.cliente_id }).toArray();
@@ -454,7 +460,6 @@ app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
 
 app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
     try {
-        // CORREÇÃO: Recebendo a variável 'foto'
         const { nome, funcao, foto } = req.body;
         await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao, foto });
         res.json({ok: true});
@@ -463,7 +468,6 @@ app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
 
 app.put('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
     try {
-        // CORREÇÃO: Recebendo a variável 'foto'
         const { nome, funcao, foto } = req.body;
         await db.collection("equipe_totem").updateOne(
             { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, 
@@ -483,7 +487,6 @@ app.delete('/api/equipe-totem/:id', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// --- REGRAS E FILA DO TOTEM ---
 app.get('/api/config-base', autenticarToken, async (req, res) => {
     try {
         let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
@@ -494,16 +497,12 @@ app.get('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/config-base', autenticarToken, async (req, res) => {
     try {
-        // 1. Agora o servidor recebe todos os campos enviados pelo Painel Web
         const { limiteAtraso, latBase, lonBase, raioBase } = req.body;
-        
-        // 2. Salva todos eles no banco de dados da empresa logada
         await db.collection("configuracoes").updateOne(
             { cliente_id: req.usuario.cliente_id }, 
             { $set: { limiteAtraso, latBase, lonBase, raioBase } }, 
             { upsert: true }
         );
-        
         res.json({ ok: true });
     } catch(e) { 
         res.status(500).json({erro: "Erro"}); 
@@ -512,7 +511,6 @@ app.post('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
-        // NOVO: Recebendo a "origem"
         const { codigoBarras, horaBatida, dataBatida, origem } = req.body;
         
         const pessoa = await db.collection("equipe_totem").findOne({ 
@@ -541,7 +539,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
             horaChegada: horaBatida,
             status: "Aguardando", 
             atrasado: atrasado,
-            origem: origem || "Totem", // NOVO: Salva a origem (Padrão: Totem se vier vazio)
+            origem: origem || "Totem", 
             timestamp: new Date()
         };
 
@@ -582,7 +580,6 @@ app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
 // MÓDULO: CHAMADAS AVULSAS DO COORDENADOR
 // ==========================================
 
-// 1. Recebe a chamada enviada pelo painel da doca
 app.post('/api/totem/alerta-balcao', autenticarToken, async (req, res) => {
     try {
         const { tecnico, coordenador, mensagem } = req.body;
@@ -600,7 +597,6 @@ app.post('/api/totem/alerta-balcao', autenticarToken, async (req, res) => {
     }
 });
 
-// 2. O Totem consulta essa rota de segundos em segundos para ver se há alguém chamando
 app.get('/api/totem/alertas-pendentes', autenticarToken, async (req, res) => {
     try {
         const alertas = await db.collection("alertas_totem").find({
@@ -613,7 +609,6 @@ app.get('/api/totem/alertas-pendentes', autenticarToken, async (req, res) => {
     }
 });
 
-// 3. O Totem avisa que já tocou a mensagem na tela e marca como concluído
 app.put('/api/totem/alerta-balcao/:id/concluido', autenticarToken, async (req, res) => {
     try {
         await db.collection("alertas_totem").updateOne(
@@ -691,7 +686,6 @@ app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
 // MÓDULO: GESTÃO E SOLICITAÇÃO DE PEÇAS
 // ==========================================
 
-// 1. Cadastrar nova peça no catálogo
 app.post('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     try {
         const { nome, codigo, quantidade_inicial } = req.body;
@@ -706,7 +700,6 @@ app.post('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao cadastrar peça"}); }
 });
 
-// 2. Listar todas as peças (Usado no Painel e no App)
 app.get('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     try {
         const pecas = await db.collection("catalogo_pecas").find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray();
@@ -714,14 +707,13 @@ app.get('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao listar peças"}); }
 });
 
-// 3. Excluir peça do catálogo
 app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
     try {
         await db.collection("catalogo_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
 });
-// 3.5 Editar peça do catálogo (Novo nome e novo estoque)
+
 app.put('/api/pecas/catalogo/:id/editar', autenticarToken, async (req, res) => {
     try {
         const { novo_nome, novo_estoque } = req.body;
@@ -733,7 +725,6 @@ app.put('/api/pecas/catalogo/:id/editar', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao editar peça"}); }
 });
 
-// 4. Técnico solicita uma peça (Rota para o APP)
 app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
     try {
         const { tecnico, peca_id, nome_peca, quantidade, observacao } = req.body;
@@ -750,7 +741,6 @@ app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao solicitar peça"}); }
 });
 
-// 5. Listar solicitações (com suporte a filtro por data)
 app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
     try {
         const { data } = req.query;
@@ -768,7 +758,6 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
 });
 
-// 6. Editar quantidade de uma solicitação
 app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
     try {
         const { nova_quantidade } = req.body;
@@ -780,12 +769,9 @@ app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) 
     } catch(e) { res.status(500).json({erro: "Erro ao editar solicitação"}); }
 });
 
-// 7. Excluir uma solicitação
 app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
     try {
         await db.collection("solicitacoes_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro ao excluir solicitação"}); }
 });
-
-
