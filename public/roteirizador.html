@@ -79,6 +79,7 @@
         .custom-pin { background: transparent; border: none; }
         .car-pin { background: #1E293B; color: white; border-radius: 8px; padding: 4px 8px; border: 2px solid #3B82F6; font-size: 11px; font-weight:bold; white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display:flex; align-items:center; gap:5px; transition: all 0.3s; }
 
+        /* Estilo dos Modais */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
         .modal-box { background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid #3B82F6; width: 320px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
         .modal-box h3 { margin: 0 0 10px 0; font-size: 16px; color: #60A5FA; }
@@ -283,8 +284,9 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
     let osDestacada = ""; 
-
-    // --- VARIÁVEIS SEGURAS DE EDIÇÃO E REFRESH ---
+    let rotaHistoricaAtivaId = null;
+    
+    // VARIÁVEIS DE PROTEÇÃO DO CRUD E REFRESH
     window.modoEdicaoAtivo = false;
     window.pausarRefresh = false;
 
@@ -306,6 +308,8 @@
             renderizarListaTecnicosModoNovo();
             setTimeout(() => { mapa.invalidateSize(); }, 500);
         }
+        if (typeof window.renderNaoAlocadas === "function") window.renderNaoAlocadas();
+        else setTimeout(() => { if (typeof window.renderNaoAlocadas === "function") window.renderNaoAlocadas(); }, 0);
     });
 
     function toggleMenu() {
@@ -330,6 +334,69 @@
         }
     }
     document.addEventListener('fullscreenchange', () => { setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 200); });
+
+    // FUNÇÕES ESSENCIAIS DO CONTROLE DO ROTEIRO
+    window.configurarSliderInicio = function() {
+        const slider = document.getElementById("sliderPlayback");
+        if (!slider) return;
+        slider.min = 0;
+        slider.max = 100;
+        slider.value = 100;
+    }
+
+    window.ativarVisaoGlobal = function() {
+        modoVisaoGlobal = true;
+        tecnicoAtivo = "";
+        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
+        window.atualizarTela(true);
+        if (visualizandoHistorico && dataAtiva) iniciarAutoRefresh();
+    };
+
+    window.criarOrdemManual = async function() {
+        const codigo = prompt("Digite o CÓDIGO da nova OS:");
+        if (!codigo || !codigo.trim()) return;
+
+        const rua = prompt("Digite o ENDEREÇO completo ou cole as coordenadas GPS:");
+        if (!rua || !rua.trim()) return;
+
+        const cliente = prompt("Digite o nome do CLIENTE:", "Nova Ordem") || "Nova Ordem";
+        const cidade = prompt("Digite a CIDADE:", "São Paulo") || "São Paulo";
+        const isManha = confirm("A OS é no período da MANHÃ?\nOK = Manhã | Cancelar = Tarde");
+
+        const ordem = {
+            chaveAgrupamento: `MANUAL_${Date.now()}`,
+            codigo: codigo.trim(),
+            cliente: cliente.trim(),
+            servico: "Adicionado Manualmente",
+            rua: rua.trim(),
+            detalhes: "",
+            cidade: cidade.trim(),
+            cep: "",
+            periodo: isManha ? "MANHA" : "TARDE",
+            status: "pendente"
+        };
+
+        try {
+            const crds = await obterCoordenadasSilenciosa(ordem);
+            if (crds) {
+                ordem.lat = crds.lat;
+                ordem.lon = crds.lon;
+                ordem.precisaCorrecao = false;
+            } else {
+                ordem.lat = configGalpao.lat;
+                ordem.lon = configGalpao.lon;
+                ordem.precisaCorrecao = true;
+            }
+        } catch (erro) {
+            ordem.lat = configGalpao.lat;
+            ordem.lon = configGalpao.lon;
+            ordem.precisaCorrecao = true;
+        }
+
+        ordensNaoAlocadas.push(ordem);
+        window.renderNaoAlocadas();
+        alert("✅ Nova OS adicionada à Fila de Espera!");
+    };
 
     function calcularDistancia(lat1, lon1, lat2, lon2) {
         if (typeof lat1 !== 'number' || typeof lon1 !== 'number' || typeof lat2 !== 'number' || typeof lon2 !== 'number') return 0;
@@ -362,7 +429,9 @@
     }
 
     function formatarCepComTraco(cepLimpo) {
-        if (cepLimpo.length === 8) return cepLimpo.substring(0, 5) + "-" + cepLimpo.substring(5);
+        if (cepLimpo.length === 8) {
+            return cepLimpo.substring(0, 5) + "-" + cepLimpo.substring(5);
+        }
         return cepLimpo;
     }
 
@@ -402,6 +471,7 @@
         t = t.replace(/\bEst\.?\s*/gi, "Estrada ");
         t = t.replace(/\bVl\.?\s*/gi, "Vila ");
         t = t.replace(/\bJd\.?\s*/gi, "Jardim ");
+        
         t = t.replace(/\bSto\b/gi, "Santo");
         t = t.replace(/\bSta\b/gi, "Santa");
         t = t.replace(/\bMal\b/gi, "Marechal");
@@ -738,13 +808,17 @@
             });
 
             if (marcadorDestacado) {
-                setTimeout(() => { mapa.setView(marcadorDestacado.getLatLng(), 15); marcadorDestacado.openPopup(); }, 300);
+                setTimeout(() => {
+                    mapa.setView(marcadorDestacado.getLatLng(), 15);
+                    marcadorDestacado.openPopup();
+                }, 300);
             } else if(recentrarMapa) {
                 mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
             }
             return; 
         }
 
+        // MODO INDIVIDUAL DE UM TÉCNICO
         document.getElementById("painelPlayback").style.display = "flex";
         
         let permissaoEdicao = (!visualizandoHistorico || window.modoEdicaoAtivo);
@@ -834,7 +908,7 @@
             let painelAcoesHTML = permissaoEdicao ? `
                 <div style="display: flex;">
                     <button class="btn-lapis" onclick="window.editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço ou colar GPS">✏️</button>
-                    <button class="btn-lapis" style="color:#EF4444;" onclick="window.desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Espera">✖</button>
+                    <button class="btn-lapis" style="color:#EF4444;" onclick="window.desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Fila de Espera">✖</button>
                 </div>
             ` : ``;
 
@@ -988,6 +1062,7 @@
             });
             window.ativarVisaoGlobal();
         } catch(e) { 
+            console.error("Erro real:", e); 
             alert("❌ Erro ao buscar histórico. Tente novamente."); 
         }
     }
@@ -1006,7 +1081,7 @@
                 const rotaHist = window.historicoRotasMemoria[idx];
                 let idAntigo = rotaHist._id;
                 
-                // Grava a Nova Rota
+                // Grava a Nova Rota atualizada por completo usando POST
                 const res = await fetch('/api/rotas', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
@@ -1015,7 +1090,7 @@
 
                 if (!res.ok) throw new Error("Falha no servidor ao gravar rota");
 
-                // Apaga a Antiga
+                // Apaga a Antiga para não duplicar no banco
                 if (idAntigo) {
                     await fetch(`/api/rotas/${idAntigo}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
                 }
@@ -1026,7 +1101,7 @@
                 
                 alert("✅ Rota atualizada com sucesso no banco de dados!");
                 
-                // Recarrega tudo para puxar os novos IDs
+                // Recarrega o painel lateral para puxar o ID correto que o servidor gerou
                 await window.recarregarHistoricoSilencioso();
                 if(btn) { btn.innerHTML = '✏️ Editar'; btn.style.background = '#F59E0B'; btn.disabled = false; }
                 
@@ -1051,7 +1126,7 @@
             window.carregarRotaHistorica(idx, true);
             window.modoEdicaoAtivo = true;
             window.idRotaEmEdicao = idRota;
-            window.pausarRefresh = true; 
+            window.pausarRefresh = true; // IMPEDE O REFRESH DE DESTRUIR SUAS EDIÇÕES
             
             if(btn) { btn.innerHTML = '💾 Salvar'; btn.style.background = '#10B981'; }
             window.atualizarTela(false);
@@ -1073,14 +1148,6 @@
                 window.historicoRotasMemoria = rotas.filter(r => r !== null);
             }
         } catch(e) {}
-    };
-
-    window.sincronizarMemoriaGlobal = async function() {
-        if (!visualizandoHistorico && tecnicoAtivo && dadosGlobaisRotas[tecnicoAtivo]) {
-            dadosGlobaisRotas[tecnicoAtivo].manha = rotaAtiva.filter(o => o.periodo === 'MANHA');
-            dadosGlobaisRotas[tecnicoAtivo].tarde = rotaAtiva.filter(o => o.periodo !== 'MANHA');
-            localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-        }
     };
 
     window.carregarRotaHistorica = function(idx, clickManual) {
@@ -1115,6 +1182,15 @@
     }
 
     function pararAutoRefresh() { if (autoRefreshInterval) clearInterval(autoRefreshInterval); }
+
+    function calcularDiferencaMinutos(inicio, fim) {
+        if(!inicio || !fim || inicio === "-" || fim === "-") return "-";
+        try {
+            const [h1, m1, s1] = inicio.split(':').map(Number); const [h2, m2, s2] = fim.split(':').map(Number);
+            let d1 = new Date(2000, 0, 1, h1, m1, s1 || 0); let d2 = new Date(2000, 0, 1, h2, m2, s2 || 0);
+            let diffMins = Math.floor((d2 - d1) / 60000); if(diffMins < 0) diffMins += 24 * 60; return diffMins;
+        } catch(e) { return "-"; }
+    }
 
     window.exportarRelatorioExcel = async function() {
         let dataDia = document.getElementById("buscaData").value;
@@ -1325,53 +1401,124 @@
         }
     };
 
-    window.desalocarOrdem = async function(index, event) {
+    window.desalocarOrdem = function(index, event) {
         try {
             if (event) { event.preventDefault(); event.stopPropagation(); }
+            
             let ordemRemovida = rotaAtiva.splice(index, 1)[0];
             
-            // Só joga pra fila se não estiver lá
             const jaEstaNaFila = ordensNaoAlocadas.some(o => (o.chaveAgrupamento && o.chaveAgrupamento === ordemRemovida.chaveAgrupamento));
             if (!jaEstaNaFila) ordensNaoAlocadas.push(ordemRemovida);
             
             window.renderNaoAlocadas(); 
             
-            if(!visualizandoHistorico) { await window.sincronizarMemoriaGlobal(); }
             window.configurarSliderInicio(); 
             window.atualizarTela(false);
-            if(visualizandoHistorico) alert("ℹ️ O.S. removida do roteiro e enviada para a Fila. Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no Banco de Dados.");
+            
+            if(visualizandoHistorico) alert("ℹ️ O.S. enviada para a fila! Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no Banco de Dados.");
         } catch (erro) { alert("Houve um pequeno erro, a tela recarregará."); window.location.reload(); }
     };
 
-    window.alocarParaTecnicoAtivo = async function(idxOrdemFila) {
+    window.alocarParaTecnicoAtivo = function(idxOrdemFila) {
         if (!tecnicoAtivo) return alert("⚠️ Primeiro, clique no nome de um Técnico na lista acima para selecioná-lo.");
         let ordem = ordensNaoAlocadas.splice(idxOrdemFila, 1)[0];
         rotaAtiva.push(ordem); 
         
-        if(!visualizandoHistorico) { await window.sincronizarMemoriaGlobal(); }
         window.renderNaoAlocadas(); 
         window.configurarSliderInicio(); 
         window.atualizarTela(true);
+        
         if(visualizandoHistorico) alert("ℹ️ O.S. incluída no roteiro visualmente! Clique no botão verde 'Salvar' na lista para consolidar a alteração no Banco de Dados.");
     };
 
-    window.criarOrdemManual = async function() {
-        let codigo = prompt("Digite o CÓDIGO da Nova OS:"); if (!codigo) return;
-        let rua = prompt("Digite o ENDEREÇO completo com número e bairro (ou Rodovia e KM):"); if (!rua) return;
-        let cliente = prompt("Nome do Cliente (opcional):") || "Não informado";
-        let isManha = confirm("A OS deve ser atendida no período da MANHÃ?\n(Clique OK para Manhã, CANCELAR para Tarde)");
-        
-        let novaOrdem = { chaveAgrupamento: `MANUAL_${Date.now()}`, codigo: codigo, cliente: cliente, rua: rua, cidade: "São Paulo", cep: "", periodo: isManha ? "MANHA" : "TARDE", status: 'pendente' };
-        document.getElementById("listaNaoAlocadasUI").innerHTML = `<div style="color: #FACC15; font-size: 12px; text-align: center; padding: 10px;">Buscando GPS no satélite... 🛰️</div>`;
+    window.adicionarOrdemEmRotaAtiva = async function(event) {
+        if(event) event.stopPropagation();
+        if (!tecnicoAtivo) return alert("Selecione um técnico ativo primeiro.");
+        let codigo = prompt("Digite o CÓDIGO da Nova OS para adicionar a este roteiro:"); if (!codigo) return;
+        let rua = prompt("Digite o ENDEREÇO completo (ou cole coordenadas GPS):"); if (!rua) return;
+        let isManha = confirm("A OS é no período da MANHÃ?\n(OK para Manhã, Cancelar para Tarde)");
+
+        let novaOrdem = {
+            chaveAgrupamento: `MANUAL_${Date.now()}`,
+            codigo: codigo,
+            cliente: "Adicionado Manualmente",
+            servico: "Adicionado Manualmente",
+            rua: rua,
+            detalhes: "",
+            cidade: "São Paulo",
+            cep: "",
+            periodo: isManha ? "MANHA" : "TARDE",
+            status: "pendente"
+        };
 
         let crds = await obterCoordenadasSilenciosa(novaOrdem);
-        novaOrdem.lat = crds ? crds.lat : configGalpao.lat; 
-        novaOrdem.lon = crds ? crds.lon : configGalpao.lon; 
+        novaOrdem.lat = crds ? crds.lat : configGalpao.lat;
+        novaOrdem.lon = crds ? crds.lon : configGalpao.lon;
         novaOrdem.precisaCorrecao = crds ? (ehRodoviaOuKm(novaOrdem.rua) ? true : false) : true;
 
-        if(!crds) alert("⚠️ Endereço não encontrado com exatidão pelo GPS, ele foi jogado provisoriamente na Base. Edite depois se necessário.");
-        ordensNaoAlocadas.push(novaOrdem); window.renderNaoAlocadas(); alert("✅ Ordem Manual criada! Ela está na 'Fila de Espera' e pode ser alocada a qualquer técnico.");
+        rotaAtiva.push(novaOrdem);
+        
+        window.atualizarTela(true);
+        if(visualizandoHistorico) {
+            alert("✅ Nova OS adicionada à lista! Lembre-se de clicar em '💾 Salvar' no painel do técnico para gravar.");
+        } else {
+            alert("✅ Nova OS adicionada ao planejamento!");
+        }
     };
+
+    window.editarEnderecoManual = async function(codigo, ruaAtual, event) {
+        event.stopPropagation(); 
+        let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
+        if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
+        
+        let itemLocal = rotaAtiva.find(p => String(p.codigo).trim() === String(codigo).trim());
+        if (!itemLocal) { return alert("❌ Erro: Não foi possível localizar esta OS na lista ativa."); }
+
+        const originalBtn = event.target; 
+        let textoOriginalBtn = originalBtn.innerText;
+        originalBtn.innerText = "⏳"; 
+        originalBtn.disabled = true;
+
+        try {
+            let crds = null;
+            let isCoordenadaExata = false;
+
+            let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+            let matchCoord = novoInput.trim().match(coordRegex);
+
+            if (matchCoord) {
+                crds = { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
+                isCoordenadaExata = true;
+            } else {
+                crds = await obterCoordenadasSilenciosa({ rua: novoInput, cidade: "São Paulo", cep: itemLocal.cep });
+            }
+
+            if (!crds) {
+                originalBtn.innerText = textoOriginalBtn; 
+                originalBtn.disabled = false;
+                return alert("❌ Não conseguimos converter esse endereço em GPS. A localização anterior foi preservada intacta.");
+            }
+            
+            itemLocal.rua = novoInput; 
+            itemLocal.lat = crds.lat; 
+            itemLocal.lon = crds.lon; 
+            itemLocal.precisaCorrecao = isCoordenadaExata ? false : (ehRodoviaOuKm(novoInput) ? true : false);
+
+            window.atualizarTela(true);
+            
+            if(visualizandoHistorico) {
+                alert("✅ Posição GPS atualizada na tela! Clique no botão '💾 Salvar' para enviar para o servidor.");
+            } else {
+                alert("✅ Endereço e posição GPS atualizados com sucesso!");
+            }
+        } catch (e) { 
+            console.error(e);
+            alert("❌ Ocorreu um erro ao atualizar o endereço."); 
+        } finally { 
+            originalBtn.innerText = "✏️"; 
+            originalBtn.disabled = false; 
+        }
+    }
 
     window.iniciarArraste = function(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
     window.permitirSoltar = function(e) { e.preventDefault(); }
@@ -1379,97 +1526,8 @@
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
         let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); 
-        if(!visualizandoHistorico) { await window.sincronizarMemoriaGlobal(); }
         window.atualizarTela(false);
     }
-    
-    window.configurarSliderInicio = function() { const slider = document.getElementById("sliderPlayback"); slider.max = rotaAtiva.length * 10; slider.value = rotaAtiva.length * 10; }
-    window.ativarVisaoGlobal = function() { modoVisaoGlobal = true; document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); tecnicoAtivo = ""; window.atualizarTela(true); if (dataAtiva) iniciarAutoRefresh(); }
-
-    window.abrirModalTransferencia = async function(nomeAntigo, isHistorico, event) {
-        event.stopPropagation(); transfTempData = { nomeAntigo, isHistorico };
-        document.getElementById('lblNomeAntigo').innerText = nomeAntigo;
-        const select = document.getElementById('selectNovoTecnico'); select.innerHTML = '<option value="">Aguarde, carregando técnicos...</option>';
-        document.getElementById('modalTransferencia').style.display = 'flex';
-
-        let tecnicos = new Set(); Object.keys(dadosGlobaisRotas).forEach(t => tecnicos.add(t)); window.historicoRotasMemoria.forEach(r => tecnicos.add(r.tecnico));
-        try {
-            let res = await fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } });
-            if (res.ok) { let users = await res.json(); users.forEach(u => { if(u.nome) tecnicos.add(u.nome.toUpperCase()); }); }
-        } catch(e) {}
-        select.innerHTML = '<option value="">-- Selecione o Técnico --</option>'; Array.from(tecnicos).sort().forEach(t => { if (t !== nomeAntigo) { select.innerHTML += `<option value="${t}">${t}</option>`; } });
-    };
-
-    window.fecharModalTransferencia = function() { document.getElementById('modalTransferencia').style.display = 'none'; };
-
-    window.confirmarTransferencia = async function() {
-        let novoNome = document.getElementById('selectNovoTecnico').value; if (!novoNome) return alert("Por favor, selecione um técnico na lista.");
-        let { nomeAntigo, isHistorico } = transfTempData; window.fecharModalTransferencia();
-
-        if (isHistorico) {
-            let rotaIndex = window.historicoRotasMemoria.findIndex(r => r.tecnico === nomeAntigo);
-            if (rotaIndex > -1) {
-                let roteiro = window.historicoRotasMemoria[rotaIndex]; let idBancoAntigo = roteiro._id;
-                roteiro.tecnico = novoNome; if (tecnicoAtivo === nomeAntigo) tecnicoAtivo = novoNome;
-                try {
-                    await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: roteiro.data, tecnico: novoNome, itinerario: roteiro.itinerario }) });
-                    if (idBancoAntigo) { await fetch(`/api/rotas/${idBancoAntigo}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); }
-                } catch(e) {}
-                alert(`✅ Roteiro transferido com sucesso para ${novoNome}!`); window.buscarHistorico(); 
-            }
-        } else {
-            dadosGlobaisRotas[novoNome] = dadosGlobaisRotas[nomeAntigo]; delete dadosGlobaisRotas[nomeAntigo]; localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-            if (tecnicoAtivo === nomeAntigo) tecnicoAtivo = novoNome; window.renderizarListaTecnicosModoNovo(); if (tecnicoAtivo) document.getElementById(`tecnico-${tecnicoAtivo.replace(/\s+/g, '')}`).classList.add('ativo');
-        }
-        if (tecnicoAtivo === novoNome) window.atualizarTela(false);
-    };
-
-    window.abrirModalNovaRotaFila = async function() {
-        if (ordensNaoAlocadas.length === 0) return alert("A fila de espera está vazia! Adicione novas OS manualmente primeiro.");
-        const select = document.getElementById('selectTecnicoNovaRota');
-        select.innerHTML = '<option value="">Aguarde, carregando técnicos...</option>';
-        document.getElementById('modalNovaRotaFila').style.display = 'flex';
-
-        let tecnicos = new Set();
-        Object.keys(dadosGlobaisRotas).forEach(t => tecnicos.add(t));
-        try {
-            let res = await fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } });
-            if (res.ok) { let users = await res.json(); users.forEach(u => { if(u.nome) tecnicos.add(u.nome.toUpperCase()); }); }
-        } catch(e) {}
-        select.innerHTML = '<option value="">-- Selecione o Técnico --</option>'; 
-        Array.from(tecnicos).sort().forEach(t => { select.innerHTML += `<option value="${t}">${t}</option>`; });
-    };
-
-    window.fecharModalNovaRotaFila = function() { document.getElementById('modalNovaRotaFila').style.display = 'none'; };
-
-    window.confirmarNovaRotaFila = function() {
-        let novoNome = document.getElementById('selectTecnicoNovaRota').value;
-        if (!novoNome) return alert("Por favor, selecione um técnico.");
-        if (visualizandoHistorico) {
-            alert("⚠️ MODO HISTÓRICO ATIVO: Para criar novas rotas a partir da fila, saia do modo histórico clicando em 'Limpar' no canto superior direito.");
-            return window.fecharModalNovaRotaFila();
-        }
-
-        if (!dadosGlobaisRotas[novoNome]) { dadosGlobaisRotas[novoNome] = { manha: [], tarde: [] }; }
-
-        ordensNaoAlocadas.forEach(ordem => {
-            if (ordem.periodo === 'MANHA') { dadosGlobaisRotas[novoNome].manha.push(ordem); } 
-            else { dadosGlobaisRotas[novoNome].tarde.push(ordem); }
-        });
-
-        ordensNaoAlocadas = [];
-        localStorage.setItem("ordensNaoAlocadas", "[]");
-        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-        
-        window.fecharModalNovaRotaFila();
-        window.renderNaoAlocadas();
-        window.renderizarListaTecnicosModoNovo();
-        window.iniciarCalculoTecnico(novoNome);
-        alert(`✅ Roteiro criado com sucesso para ${novoNome}!`);
-    };
-
-    window.limparRotas = function() { if(confirm("Limpar tela atual?")) { localStorage.removeItem("planilhaRotas"); window.location.reload(); } }
-
 </script>
 </body>
 </html>
