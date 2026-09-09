@@ -38,11 +38,11 @@
         .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
         .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 14px; }
         .lista-clientes { flex-grow: 1; overflow-y: auto; }
-        .tecnico-item { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .tecnico-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
         .tecnico-item:hover { background: rgba(59, 130, 246, 0.1); }
         .tecnico-item.ativo { background: rgba(59, 130, 246, 0.2); border-left: 4px solid #3B82F6; }
         .tecnico-nome { font-weight: bold; color: #E2E8F0; font-size: 13px; }
-        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 2px; }
         
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
@@ -286,7 +286,7 @@
     let modoVisaoGlobal = false; 
     let osDestacada = ""; 
     let modoEdicaoAtivo = false; 
-    let isSyncing = false; // Trava de segurança para impedir conflito com auto-refresh
+    let isSyncing = false; 
 
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
@@ -591,7 +591,7 @@
         let coordsManha = []; let coordsTarde = [];
         if (visualizandoHistorico) {
             let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === nome);
-            if (rotaHist) { rotaAtiva = [...rotaHist.itinerario]; }
+            if (rotaHist) { rotaAtiva = [...(rotaHist.itinerario || [])]; }
         } else {
             const dadosTecnico = dadosGlobaisRotas[nome];
             coordsManha = [...dadosTecnico.manha]; coordsTarde = [...dadosTecnico.tarde]; 
@@ -644,8 +644,9 @@
                 let corBordaCarro = "#64748B"; 
                 let jaIniciou = false; 
                 let maiorTempoCarroGlobal = 0; 
+                let itValido = roteiro.itinerario || [];
                 
-                roteiro.itinerario.forEach((cliente, idx) => {
+                itValido.forEach((cliente, idx) => {
                     let corPino = "#64748B"; 
                     let latClienteFixo = cliente.lat;
                     let lonClienteFixo = cliente.lon;
@@ -723,7 +724,6 @@
 
         document.getElementById("painelPlayback").style.display = "flex";
         
-        // CONTROLES DE EDIÇÃO DO ROTEIRO ATIVO
         document.getElementById("tituloPainelLateral").innerHTML = `
             <span>🛠️ Itinerário</span>
             <div style="display:flex; gap:5px; align-items:center;">
@@ -974,7 +974,7 @@
         }
     }
 
-    async function sincronizarMemoriaGlobal() {
+    window.sincronizarMemoriaGlobal = async function() {
         isSyncing = true;
         if (visualizandoHistorico) {
             let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
@@ -1084,9 +1084,9 @@
     };
 
     let itemArrastadoIndice = null;
-    function iniciarArraste(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
-    function permitirSoltar(e) { e.preventDefault(); }
-    async function soltarItem(e, indexAlvo) {
+    window.iniciarArraste = function(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
+    window.permitirSoltar = function(e) { e.preventDefault(); }
+    window.soltarItem = async function(e, indexAlvo) {
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
         let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); 
@@ -1094,9 +1094,9 @@
         atualizarTela(false);
     }
 
-    function limparRotas() { if(confirm("Limpar tela atual?")) { localStorage.removeItem("planilhaRotas"); window.location.reload(); } }
+    window.limparRotas = function() { if(confirm("Limpar tela atual?")) { localStorage.removeItem("planilhaRotas"); window.location.reload(); } }
 
-    async function salvarHistoricoBanco() {
+    window.salvarHistoricoBanco = async function() {
         if (!tecnicoAtivo || rotaAtiva.length === 0) return alert("⚠️ Selecione um técnico (Modo Individual) para salvar a rota dele.");
         const hoje = new Date(); const dBR = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth()+1).padStart(2, '0')}/${hoje.getFullYear()}`;
         let dataInput = prompt("Data (DD/MM/AAAA):", dBR); if (!dataInput) return;
@@ -1108,7 +1108,7 @@
 
     window.historicoRotasMemoria = [];
 
-    async function buscarHistorico() {
+    window.buscarHistorico = async function() {
         let dataDia = document.getElementById("buscaData").value;
         let dataMes = document.getElementById("buscaMes").value;
         const codigoBusca = document.getElementById("buscaCodigo").value.trim();
@@ -1141,7 +1141,7 @@
                 rotasEncontradas = rotasEncontradas.filter(r => r.data && r.data.endsWith(mesAnoFilter));
             }
 
-            if (rotasEncontradas.length === 0) return alert("❌ Nenhum roteiro encontrado para este período.");
+            if (!rotasEncontradas || rotasEncontradas.length === 0) return alert("❌ Nenhum roteiro encontrado para este período.");
             
             visualizandoHistorico = true; window.historicoRotasMemoria = rotasEncontradas;
             
@@ -1153,8 +1153,16 @@
             
             rotasEncontradas.forEach((roteiro, idx) => {
                 let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
-                roteiro.itinerario.forEach(c => { let st = c.status || 'pendente'; if (st === 'chegada') st = 'chegada'; if(statusCount[st] !== undefined) statusCount[st]++; else statusCount.pendente++; });
-                let concluídos = statusCount.sucesso + statusCount.insucesso; let perc = Math.round((concluídos / (roteiro.itinerario ? roteiro.itinerario.length : 1)) * 100);
+                let itinerarioValido = roteiro.itinerario || []; 
+                
+                itinerarioValido.forEach(c => { 
+                    let st = c.status || 'pendente'; 
+                    if(statusCount[st] !== undefined) statusCount[st]++; 
+                    else statusCount.pendente++; 
+                });
+                
+                let concluídos = statusCount.sucesso + statusCount.insucesso; 
+                let perc = itinerarioValido.length > 0 ? Math.round((concluídos / itinerarioValido.length) * 100) : 0;
 
                 divLista.innerHTML += `
                     <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">
@@ -1172,21 +1180,23 @@
                 `;
             });
             ativarVisaoGlobal();
-        } catch(e) { alert("❌ Erro ao buscar histórico. Tente novamente."); }
+        } catch(e) { 
+            console.error("Erro real:", e); 
+            alert("❌ Erro ao buscar histórico. Tente novamente."); 
+        }
     }
 
-    function carregarRotaHistorica(idx, clickManual) {
+    window.carregarRotaHistorica = function(idx, clickManual) {
         if(clickManual) { document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo'); }
-        const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...roteiro.itinerario]; modoVisaoGlobal = false; modoEdicaoAtivo = false; 
+        const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...(roteiro.itinerario || [])]; modoVisaoGlobal = false; modoEdicaoAtivo = false; 
         configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); if (clickManual && dataAtiva) iniciarAutoRefresh();
     }
 
-    async function deletarRotaHistorica(id, event) { event.stopPropagation(); if(!confirm("⚠️ Apagar rota permanentemente?")) return; try { const res = await fetch(`/api/rotas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if(res.ok) buscarHistorico(); } catch(e){} }
+    window.deletarRotaHistorica = async function(id, event) { event.stopPropagation(); if(!confirm("⚠️ Apagar rota permanentemente?")) return; try { const res = await fetch(`/api/rotas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if(res.ok) buscarHistorico(); } catch(e){} }
 
     function iniciarAutoRefresh() {
         pararAutoRefresh();
         autoRefreshInterval = setInterval(async () => {
-            // PAUSA O REFRESH SE ESTIVER NO MODO DE EDIÇÃO OU SALVANDO
             if (!visualizandoHistorico || !dataAtiva || modoEdicaoAtivo || isSyncing) { return; }
             try {
                 const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataAtiva)}&_=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
@@ -1196,7 +1206,7 @@
                     if (houveMudancaGlobal) { window.historicoRotasMemoria = rotasEncontradas; atualizarTela(false); }
                 } else if (tecnicoAtivo) {
                     const rotaAtualizada = rotasEncontradas.find(r => r.tecnico === tecnicoAtivo); const rotaAntiga = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
-                    if (rotaAtualizada && JSON.stringify(rotaAntiga) !== JSON.stringify(rotaAtualizada)) { window.historicoRotasMemoria = rotasEncontradas; rotaAtiva = [...rotaAtualizada.itinerario]; atualizarTela(false); }
+                    if (rotaAtualizada && JSON.stringify(rotaAntiga) !== JSON.stringify(rotaAtualizada)) { window.historicoRotasMemoria = rotasEncontradas; rotaAtiva = [...(rotaAtualizada.itinerario || [])]; atualizarTela(false); }
                 }
             } catch(e) {} 
         }, 10000); 
@@ -1207,13 +1217,13 @@
     function calcularDiferencaMinutos(inicio, fim) {
         if(!inicio || !fim || inicio === "-" || fim === "-") return "-";
         try {
-            const [h1, m1, s1] = inicio.split(':').map(Number); const [h2, m2, s2] = split(':').map(Number);
+            const [h1, m1, s1] = inicio.split(':').map(Number); const [h2, m2, s2] = fim.split(':').map(Number);
             let d1 = new Date(2000, 0, 1, h1, m1, s1 || 0); let d2 = new Date(2000, 0, 1, h2, m2, s2 || 0);
             let diffMins = Math.floor((d2 - d1) / 60000); if(diffMins < 0) diffMins += 24 * 60; return diffMins;
         } catch(e) { return "-"; }
     }
 
-    async function exportarRelatorioExcel() {
+    window.exportarRelatorioExcel = async function() {
         let dataDia = document.getElementById("buscaData").value;
         let dataMes = document.getElementById("buscaMes").value;
         let tecnicoSelecionado = document.getElementById("buscaTecnicoRelatorio").value;
@@ -1250,7 +1260,7 @@
                 rotas = rotas.filter(r => r.data && r.data.endsWith(mesAnoFilter));
             }
 
-            if(rotas.length === 0) { 
+            if(!rotas || rotas.length === 0) { 
                 toast.remove(); 
                 return alert("❌ Sem rotas para este período."); 
             }
@@ -1270,9 +1280,10 @@
             let resumoMap = {}; 
 
             rotas.forEach(roteiro => { 
+                let itValido = roteiro.itinerario || [];
                 let kmRota = 0;
-                if(roteiro.itinerario && roteiro.itinerario.length > 0){
-                    kmRota = parseFloat(calcularKMFatiado(roteiro.itinerario)) || 0;
+                if(itValido.length > 0){
+                    kmRota = parseFloat(calcularKMFatiado(itValido)) || 0;
                 }
 
                 if (!resumoMap[roteiro.tecnico]) {
@@ -1280,8 +1291,8 @@
                 }
                 resumoMap[roteiro.tecnico].km += kmRota;
 
-                if(roteiro.itinerario && roteiro.itinerario.length > 0){
-                    roteiro.itinerario.forEach((item, idx) => { 
+                if(itValido.length > 0){
+                    itValido.forEach((item, idx) => { 
                         let transito = calcularDiferencaMinutos(item.horaSaida, item.horaChegada);
                         let servico = calcularDiferencaMinutos(item.horaChegada, item.horaFinal);
 
