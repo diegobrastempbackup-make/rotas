@@ -285,8 +285,11 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
     let osDestacada = ""; 
-    let modoEdicaoAtivo = false; 
-    let isSyncing = false; 
+    
+    // VARIÁVEIS DE CONTROLE DE EDIÇÃO
+    window.modoEdicaoAtivo = false; 
+    window.idRotaEmEdicao = null;
+    window.isSyncing = false; 
 
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
@@ -586,7 +589,7 @@
     async function iniciarCalculoTecnico(nome) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
-        tecnicoAtivo = nome; modoVisaoGlobal = false; modoEdicaoAtivo = false;
+        tecnicoAtivo = nome; modoVisaoGlobal = false; window.modoEdicaoAtivo = false;
         
         let coordsManha = []; let coordsTarde = [];
         if (visualizandoHistorico) {
@@ -724,13 +727,17 @@
 
         document.getElementById("painelPlayback").style.display = "flex";
         
-        document.getElementById("tituloPainelLateral").innerHTML = `
-            <span>🛠️ Itinerário</span>
-            <div style="display:flex; gap:5px; align-items:center;">
-                <button onclick="adicionarOrdemEmRotaAtiva()" style="background:#10B981; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Adicionar nova OS a este roteiro">✚ OS</button>
-                <button onclick="alternarModoEdicaoRota()" id="btnModoEdicao" style="background:${modoEdicaoAtivo ? '#F59E0B' : '#334155'}; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Ativar modo de edição do roteiro">${modoEdicaoAtivo ? '💾 Salvar' : '✏️ Editar'}</button>
-            </div>
-        `;
+        let tituloContainer = document.getElementById("tituloPainelLateral");
+        if(visualizandoHistorico) {
+            tituloContainer.innerHTML = `<span>🛠️ Itinerário (Visualização)</span>`;
+        } else {
+            tituloContainer.innerHTML = `
+                <span>🛠️ Itinerário Local</span>
+                <div style="display:flex; gap:5px; align-items:center;">
+                    <button onclick="window.adicionarOrdemEmRotaAtiva(event)" style="background:#10B981; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Adicionar nova OS a este roteiro">✚ OS</button>
+                </div>
+            `;
+        }
 
         const slider = document.getElementById("sliderPlayback");
         let progressoSlider = parseFloat(slider.value) / parseFloat(slider.max || 10);
@@ -801,8 +808,16 @@
                 }
             }
 
-            let dragAttrs = modoEdicaoAtivo ? `draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})"` : '';
-            let dragHandleHTML = modoEdicaoAtivo ? `<div class="drag-handle" style="cursor: grab;" title="Arraste para reordenar">☰</div>` : '';
+            let permissaoEdicao = (!visualizandoHistorico || window.modoEdicaoAtivo);
+            let dragAttrs = permissaoEdicao ? `draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})"` : '';
+            let dragHandleHTML = permissaoEdicao ? `<div class="drag-handle" style="cursor: grab;" title="Arraste para reordenar">☰</div>` : '';
+
+            let painelAcoesHTML = permissaoEdicao ? `
+                <div style="display: flex;">
+                    <button class="btn-lapis" onclick="window.editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço ou colar GPS">✏️</button>
+                    <button class="btn-lapis" style="color:#EF4444;" onclick="window.desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Fila de Espera">✖</button>
+                </div>
+            ` : ``;
 
             htmlLista += `
                 <div class="itinerario-item" style="border-left-color: ${corPino};" ${dragAttrs}>
@@ -813,10 +828,7 @@
                             <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${cliente.codigo} ${badgeHTML} ${cliente.precisaCorrecao ? '<span title="Endereço Impreciso" style="color:#E11D48; margin-left:4px;">⚠️</span>' : ''}</div>
                             <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
                         </div>
-                        <div style="display: flex;">
-                            <button class="btn-lapis" onclick="editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço ou colar GPS">✏️</button>
-                            <button class="btn-lapis" style="color:#EF4444;" onclick="desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Fila de Espera">✖</button>
-                        </div>
+                        ${painelAcoesHTML}
                     </div>
                     ${telemetriaHTML}
                 </div>
@@ -875,18 +887,67 @@
         }
     }
 
-    window.alternarModoEdicaoRota = async function() {
-        modoEdicaoAtivo = !modoEdicaoAtivo;
-        if (!modoEdicaoAtivo) {
-            let btn = document.getElementById('btnModoEdicao');
-            if(btn) btn.innerText = '⏳ Salvando...';
-            await sincronizarMemoriaGlobal();
-            alert("✅ Alterações salvas com sucesso e sincronizadas com o aplicativo do técnico!");
+    window.sincronizarMemoriaGlobal = async function() {
+        window.isSyncing = true;
+        if (visualizandoHistorico) {
+            let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
+            if (rotaHist) {
+                rotaHist.itinerario = [...rotaAtiva];
+                if (rotaHist._id) {
+                    try {
+                        await fetch(`/api/rotas/${rotaHist._id}`, { 
+                            method: 'PUT', 
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                            body: JSON.stringify({ data: rotaHist.data, tecnico: tecnicoAtivo, itinerario: rotaAtiva }) 
+                        });
+                    } catch (e) { console.error("Erro ao atualizar histórico:", e); }
+                }
+            }
+        } else {
+            if (tecnicoAtivo && dadosGlobaisRotas[tecnicoAtivo]) {
+                dadosGlobaisRotas[tecnicoAtivo].manha = rotaAtiva.filter(o => o.periodo === 'MANHA');
+                dadosGlobaisRotas[tecnicoAtivo].tarde = rotaAtiva.filter(o => o.periodo === 'TARDE' || o.periodo !== 'MANHA');
+                localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+            }
         }
-        atualizarTela(false);
+        window.isSyncing = false;
     }
 
-    window.adicionarOrdemEmRotaAtiva = async function() {
+    window.alternarModoEdicaoRotaHistorica = async function(idRota, idx, event) {
+        event.stopPropagation();
+        if (window.modoEdicaoAtivo && window.idRotaEmEdicao === idRota) {
+            let btn = document.getElementById(`btnEdicao-${idx}`);
+            if(btn) { btn.innerHTML = '⏳ Salvando...'; btn.style.background = '#334155'; }
+            let btnAdd = document.getElementById(`btnAddOS-${idx}`);
+            if(btnAdd) { btnAdd.style.display = 'none'; }
+            
+            await window.sincronizarMemoriaGlobal();
+            
+            window.modoEdicaoAtivo = false;
+            window.idRotaEmEdicao = null;
+            if(btn) { btn.innerHTML = '✏️ Editar'; btn.style.background = '#F59E0B'; }
+            
+            alert("✅ Alterações salvas com sucesso e enviadas para o técnico!");
+            atualizarTela(false);
+        } else {
+            document.querySelectorAll('[id^="btnAddOS-"]').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('[id^="btnEdicao-"]').forEach(el => { el.innerHTML = '✏️ Editar'; el.style.background = '#F59E0B'; });
+            
+            window.carregarRotaHistorica(idx, true);
+            window.modoEdicaoAtivo = true;
+            window.idRotaEmEdicao = idRota;
+            
+            let btnAdd = document.getElementById(`btnAddOS-${idx}`);
+            if(btnAdd) { btnAdd.style.display = 'inline-block'; }
+            let btn = document.getElementById(`btnEdicao-${idx}`);
+            if(btn) { btn.innerHTML = '💾 Salvar'; btn.style.background = '#10B981'; }
+            
+            atualizarTela(false);
+        }
+    }
+
+    window.adicionarOrdemEmRotaAtiva = async function(event) {
+        if(event) { event.stopPropagation(); }
         if (!tecnicoAtivo) return alert("Selecione um técnico ativo primeiro.");
         let codigo = prompt("Digite o CÓDIGO da Nova OS para adicionar a este roteiro:"); if (!codigo) return;
         let rua = prompt("Digite o ENDEREÇO completo (ou cole coordenadas GPS):"); if (!rua) return;
@@ -917,20 +978,22 @@
         }
 
         rotaAtiva.push(novaOrdem);
-        await sincronizarMemoriaGlobal();
+        if(!visualizandoHistorico) { await window.sincronizarMemoriaGlobal(); }
         atualizarTela(true);
-        alert("✅ Nova OS adicionada com sucesso ao roteiro!");
+        if(visualizandoHistorico) {
+            alert("✅ Nova OS adicionada! Clique no botão '💾 Salvar' verde na lista de técnicos para confirmar no Banco de Dados.");
+        } else {
+            alert("✅ Nova OS adicionada ao planejamento!");
+        }
     }
 
-    async function editarEnderecoManual(codigo, ruaAtual, event) {
+    window.editarEnderecoManual = async function(codigo, ruaAtual, event) {
         event.stopPropagation(); 
         let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
         if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
         
         let itemLocal = rotaAtiva.find(p => String(p.codigo).trim() === String(codigo).trim());
-        if (!itemLocal) {
-            return alert("❌ Erro: Não foi possível localizar esta OS na lista ativa.");
-        }
+        if (!itemLocal) { return alert("❌ Erro: Não foi possível localizar esta OS na lista ativa."); }
 
         const originalBtn = event.target; 
         let textoOriginalBtn = originalBtn.innerText;
@@ -962,42 +1025,19 @@
             itemLocal.lon = crds.lon; 
             itemLocal.precisaCorrecao = isCoordenadaExata ? false : (ehRodoviaOuKm(novoInput) ? true : false);
 
-            await sincronizarMemoriaGlobal(); 
+            if(!visualizandoHistorico) { await window.sincronizarMemoriaGlobal(); }
             atualizarTela(true);
-            alert("✅ Endereço e posição GPS atualizados com sucesso!");
+            if(visualizandoHistorico) {
+                alert("✅ Posição GPS atualizada! Clique no botão '💾 Salvar' na lista de técnicos para gravar as alterações.");
+            } else {
+                alert("✅ Endereço e posição GPS atualizados com sucesso!");
+            }
         } catch (e) { 
-            console.error(e);
             alert("❌ Ocorreu um erro ao atualizar o endereço."); 
         } finally { 
             originalBtn.innerText = "✏️"; 
             originalBtn.disabled = false; 
         }
-    }
-
-    window.sincronizarMemoriaGlobal = async function() {
-        isSyncing = true;
-        if (visualizandoHistorico) {
-            let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
-            if (rotaHist) {
-                rotaHist.itinerario = [...rotaAtiva];
-                if (rotaHist._id) {
-                    try {
-                        await fetch(`/api/rotas/${rotaHist._id}`, { 
-                            method: 'PUT', 
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                            body: JSON.stringify({ data: rotaHist.data, tecnico: tecnicoAtivo, itinerario: rotaAtiva }) 
-                        });
-                    } catch (e) { console.error("Erro ao atualizar histórico no banco:", e); }
-                }
-            }
-        } else {
-            if (tecnicoAtivo && dadosGlobaisRotas[tecnicoAtivo]) {
-                dadosGlobaisRotas[tecnicoAtivo].manha = rotaAtiva.filter(o => o.periodo === 'MANHA');
-                dadosGlobaisRotas[tecnicoAtivo].tarde = rotaAtiva.filter(o => o.periodo === 'TARDE' || o.periodo !== 'MANHA');
-                localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-            }
-        }
-        isSyncing = false;
     }
 
     let transfTempData = {};
@@ -1090,7 +1130,7 @@
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
         let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); 
-        await sincronizarMemoriaGlobal(); 
+        if(!visualizandoHistorico) { await window.sincronizarMemoriaGlobal(); }
         atualizarTela(false);
     }
 
@@ -1172,7 +1212,9 @@
                             </div>
                             <div class="tecnico-stats" style="color:#10B981; font-weight:bold;">Progresso: ${perc}%</div>
                         </div>
-                        <div style="display:flex; gap:6px;">
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <button id="btnAddOS-${idx}" onclick="adicionarOrdemEmRotaAtiva(event)" style="display:none; background:#3B82F6; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Adicionar OS ao roteiro">✚ OS</button>
+                            <button id="btnEdicao-${idx}" onclick="alternarModoEdicaoRotaHistorica('${roteiro._id}', ${idx}, event)" style="background:#F59E0B; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Editar Roteiro">✏️ Editar</button>
                             <button onclick="abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir">🔄</button>
                             <button onclick="deletarRotaHistorica('${roteiro._id}', event)" style="background:transparent; border:none; color:#EF4444; font-size:14px; cursor:pointer;" title="Apagar">🗑️</button>
                         </div>
@@ -1188,7 +1230,8 @@
 
     window.carregarRotaHistorica = function(idx, clickManual) {
         if(clickManual) { document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo'); }
-        const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...(roteiro.itinerario || [])]; modoVisaoGlobal = false; modoEdicaoAtivo = false; 
+        const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...(roteiro.itinerario || [])]; modoVisaoGlobal = false; 
+        if (!window.modoEdicaoAtivo) { window.modoEdicaoAtivo = false; }
         configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); if (clickManual && dataAtiva) iniciarAutoRefresh();
     }
 
@@ -1197,7 +1240,7 @@
     function iniciarAutoRefresh() {
         pararAutoRefresh();
         autoRefreshInterval = setInterval(async () => {
-            if (!visualizandoHistorico || !dataAtiva || modoEdicaoAtivo || isSyncing) { return; }
+            if (!visualizandoHistorico || !dataAtiva || window.modoEdicaoAtivo || window.isSyncing) { return; }
             try {
                 const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataAtiva)}&_=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
                 const rotasEncontradas = await res.json();
@@ -1430,26 +1473,28 @@
         }
     };
 
-    window.desalocarOrdem = async function(index, event) {
+    window.desalocarOrdem = function(index, event) {
         try {
             if (event) { event.preventDefault(); event.stopPropagation(); }
             let ordemRemovida = rotaAtiva.splice(index, 1)[0];
             ordensNaoAlocadas.push(ordemRemovida); 
             renderNaoAlocadas(); 
-            await sincronizarMemoriaGlobal(); 
+            if(!visualizandoHistorico) { window.sincronizarMemoriaGlobal(); } 
             configurarSliderInicio(); 
             atualizarTela(false);
+            if(visualizandoHistorico) alert("ℹ️ O.S. enviada para a fila! Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no banco.");
         } catch (erro) { alert("Houve um pequeno erro, a tela recarregará."); window.location.reload(); }
     };
 
-    window.alocarParaTecnicoAtivo = async function(idxOrdemFila) {
+    window.alocarParaTecnicoAtivo = function(idxOrdemFila) {
         if (!tecnicoAtivo) return alert("⚠️ Primeiro, clique no nome de um Técnico na lista acima para selecioná-lo.");
         let ordem = ordensNaoAlocadas.splice(idxOrdemFila, 1)[0];
         rotaAtiva.push(ordem); 
-        await sincronizarMemoriaGlobal(); 
+        if(!visualizandoHistorico) { window.sincronizarMemoriaGlobal(); } 
         renderNaoAlocadas(); 
         configurarSliderInicio(); 
         atualizarTela(true);
+        if(visualizandoHistorico) alert("ℹ️ O.S. inserida! Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no banco.");
     };
 
     window.criarOrdemManual = async function() {
