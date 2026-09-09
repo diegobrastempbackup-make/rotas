@@ -1097,14 +1097,55 @@
             rotaHistoricaAtivaId = rotaHist._id || rotaHistoricaAtivaId;
 
             if (rotaHist._id) {
-                const res = await fetch(`/api/rotas/${rotaHist._id}`, {
+                const payload = {
+                    data: rotaHist.data,
+                    tecnico: rotaHist.tecnico,
+                    itinerario: rotaHist.itinerario
+                };
+
+                // Primeiro tenta atualizar diretamente a rota existente.
+                let res = await fetch(`/api/rotas/${rotaHist._id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ data: rotaHist.data, tecnico: rotaHist.tecnico, itinerario: rotaHist.itinerario })
+                    body: JSON.stringify(payload)
                 });
+
                 if (!res.ok) {
-                    const texto = await res.text().catch(() => "");
-                    throw new Error(`Falha ao salvar a rota (${res.status}). ${texto}`);
+                    // Compatibilidade com servidores antigos que possuem apenas
+                    // POST /api/rotas e DELETE /api/rotas/:id, sem PUT.
+                    console.warn(`PUT não aceito (${res.status}). Tentando salvar por POST e remover a rota antiga...`);
+
+                    const resPost = await fetch('/api/rotas', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!resPost.ok) {
+                        const texto = await resPost.text().catch(() => "");
+                        throw new Error(`Falha ao criar a rota atualizada (${resPost.status}). ${texto}`);
+                    }
+
+                    // Só remove a rota antiga depois que a nova foi gravada com sucesso.
+                    const resDelete = await fetch(`/api/rotas/${rotaHist._id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!resDelete.ok) {
+                        throw new Error(`A nova rota foi criada, mas não foi possível remover a rota antiga (${resDelete.status}).`);
+                    }
+
+                    // Atualiza o ID em memória caso o POST retorne a nova rota.
+                    try {
+                        const novaRota = await resPost.clone().json();
+                        if (novaRota && novaRota._id) {
+                            rotaHist._id = novaRota._id;
+                            rotaHistoricaAtivaId = novaRota._id;
+                        }
+                    } catch (e) {
+                        // Alguns servidores retornam apenas uma mensagem de sucesso.
+                    }
                 }
             }
             return true;
