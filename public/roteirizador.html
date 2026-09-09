@@ -38,11 +38,11 @@
         .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
         .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 14px; }
         .lista-clientes { flex-grow: 1; overflow-y: auto; }
-        .tecnico-item { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .tecnico-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
         .tecnico-item:hover { background: rgba(59, 130, 246, 0.1); }
         .tecnico-item.ativo { background: rgba(59, 130, 246, 0.2); border-left: 4px solid #3B82F6; }
         .tecnico-nome { font-weight: bold; color: #E2E8F0; font-size: 13px; }
-        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 2px; }
         
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
@@ -285,6 +285,7 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
     let osDestacada = ""; 
+    let modoEdicaoAtivo = false; // Controla se o técnico selecionado está em modo de edição livre
 
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
@@ -523,7 +524,6 @@
                 if (crds) {
                     ordem.lat = crds.lat;
                     ordem.lon = crds.lon;
-                    // Se for rodovia, marca como impreciso (vermelho) para forçar revisão manual
                     ordem.precisaCorrecao = ehRodoviaOuKm(ordem.rua) ? true : false;
                 } else {
                     let offsetLat = (Math.random() - 0.5) * 0.006; 
@@ -585,7 +585,7 @@
     async function iniciarCalculoTecnico(nome) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
-        tecnicoAtivo = nome; modoVisaoGlobal = false;
+        tecnicoAtivo = nome; modoVisaoGlobal = false; modoEdicaoAtivo = false;
         
         let coordsManha = []; let coordsTarde = [];
         if (visualizandoHistorico) {
@@ -721,7 +721,14 @@
         }
 
         document.getElementById("painelPlayback").style.display = "flex";
-        document.getElementById("tituloPainelLateral").innerText = "🛠️ Itinerário";
+        document.getElementById("tituloPainelLateral").innerHTML = `
+            <span>🛠️ Itinerário</span>
+            <div style="display:flex; gap:5px; align-items:center;">
+                <button onclick="adicionarOrdemEmRotaAtiva()" style="background:#10B981; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Adicionar nova OS a este roteiro">✚ OS</button>
+                <button onclick="alternarModoEdicaoRota()" id="btnModoEdicao" style="background:${modoEdicaoAtivo ? '#F59E0B' : '#334155'}; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Ativar modo de edição do roteiro">${modoEdicaoAtivo ? '💾 Salvar' : '✏️ Editar'}</button>
+            </div>
+        `;
+
         const slider = document.getElementById("sliderPlayback");
         let progressoSlider = parseFloat(slider.value) / parseFloat(slider.max || 10);
         
@@ -781,7 +788,6 @@
             if (isDestacada) { marcadorDestacado = marker; }
 
             let badgeHTML = cliente.periodo === 'MANHA' ? `<span class="badge-turno badge-manha">M</span>` : `<span class="badge-turno badge-tarde">T</span>`;
-
             let telemetriaHTML = `<div class="card-telemetria"><span class="time-stamp" title="Deslocamento">🚗 ${hSaida}</span><span class="time-stamp" title="Chegada">📍 ${hChegada}</span><span class="time-stamp" title="Finalização">🏁 ${hFinal}</span></div>`;
             
             if (cliente.rastroReal && cliente.rastroReal.length > 0) {
@@ -792,18 +798,21 @@
                 }
             }
 
+            let dragAttrs = modoEdicaoAtivo ? `draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})"` : '';
+            let dragHandleHTML = modoEdicaoAtivo ? `<div class="drag-handle" style="cursor: grab;" title="Arraste para reordenar">☰</div>` : '';
+
             htmlLista += `
-                <div class="itinerario-item" style="border-left-color: ${corPino};" draggable="true" ondragstart="iniciarArraste(event, ${index})" ondragover="permitirSoltar(event)" ondrop="soltarItem(event, ${index})">
+                <div class="itinerario-item" style="border-left-color: ${corPino};" ${dragAttrs}>
                     <div class="card-topo">
-                        <div class="drag-handle" style="cursor: grab;">☰</div>
+                        ${dragHandleHTML}
                         <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
                         <div class="itinerario-info">
                             <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${cliente.codigo} ${badgeHTML} ${cliente.precisaCorrecao ? '<span title="Endereço Impreciso" style="color:#E11D48; margin-left:4px;">⚠️</span>' : ''}</div>
                             <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
                         </div>
                         <div style="display: flex;">
-                            <button class="btn-lapis" onclick="editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço">✏️</button>
-                            <button class="btn-lapis" style="color:#EF4444;" onclick="desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Espera">✖</button>
+                            <button class="btn-lapis" onclick="editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço ou colar GPS">✏️</button>
+                            <button class="btn-lapis" style="color:#EF4444;" onclick="desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Fila de Espera">✖</button>
                         </div>
                     </div>
                     ${telemetriaHTML}
@@ -863,6 +872,53 @@
         }
     }
 
+    // Função de alternar edição da rota (Botões Editar / Salvar no painel)
+    function alternarModoEdicaoRota() {
+        modoEdicaoAtivo = !modoEdicaoAtivo;
+        if (!modoEdicaoAtivo) {
+            sincronizarMemoriaGlobal();
+            alert("✅ Alterações salvas com sucesso e sincronizadas com o aplicativo do técnico!");
+        }
+        atualizarTela(false);
+    }
+
+    // Adicionar O.S. diretamente no roteiro ativo (puxando da fila ou manual)
+    async function adicionarOrdemEmRotaAtiva() {
+        if (!tecnicoAtivo) return alert("Selecione um técnico ativo primeiro.");
+        let codigo = prompt("Digite o CÓDIGO da Nova OS para adicionar a este roteiro:"); if (!codigo) return;
+        let rua = prompt("Digite o ENDEREÇO completo (ou cole coordenadas GPS):"); if (!rua) return;
+        let isManha = confirm("A OS é no período da MANHÃ?\n(OK para Manhã, Cancelar para Tarde)");
+
+        let novaOrdem = {
+            chaveAgrupamento: `MANUAL_${Date.now()}`,
+            codigo: codigo,
+            cliente: "Adicionado Manualmente",
+            servico: "Instalação / Reparo",
+            rua: rua,
+            detalhes: "",
+            cidade: "São Paulo",
+            cep: "00000-000",
+            periodo: isManha ? "MANHA" : "TARDE",
+            status: "pendente"
+        };
+
+        let crds = await obterCoordenadasSilenciosa(novaOrdem);
+        if (crds) {
+            novaOrdem.lat = crds.lat;
+            novaOrdem.lon = crds.lon;
+            novaOrdem.precisaCorrecao = ehRodoviaOuKm(rua) ? true : false;
+        } else {
+            novaOrdem.lat = configGalpao.lat;
+            novaOrdem.lon = configGalpao.lon;
+            novaOrdem.precisaCorrecao = true;
+        }
+
+        rotaAtiva.push(novaOrdem);
+        sincronizarMemoriaGlobal();
+        atualizarTela(true);
+        alert("✅ Nova OS adicionada com sucesso ao roteiro!");
+    }
+
    async function editarEnderecoManual(codigo, ruaAtual, event) {
         event.stopPropagation(); 
         let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
@@ -901,8 +957,6 @@
             itemLocal.rua = novoInput; 
             itemLocal.lat = crds.lat; 
             itemLocal.lon = crds.lon; 
-            
-            // Se foi coordenada manual exata, apaga o aviso vermelho. Senão, se for Rodovia, liga o alerta.
             itemLocal.precisaCorrecao = isCoordenadaExata ? false : (ehRodoviaOuKm(novoInput) ? true : false);
 
             sincronizarMemoriaGlobal(); 
@@ -1101,11 +1155,13 @@
                         <div style="flex-grow: 1; cursor: pointer;" onclick="carregarRotaHistorica(${idx}, true)">
                             <div class="tecnico-nome" style="display:flex; align-items:center; gap:8px;">
                                 ${roteiro.tecnico} (${roteiro.data})
-                                <button onclick="abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir para outro Técnico">🔄</button>
                             </div>
                             <div class="tecnico-stats" style="color:#10B981; font-weight:bold;">Progresso: ${perc}%</div>
                         </div>
-                        <button onclick="deletarRotaHistorica('${roteiro._id}', event)" style="background:transparent; border:none; color:#EF4444; font-size:14px; cursor:pointer;">🗑️</button>
+                        <div style="display:flex; gap:6px;">
+                            <button onclick="abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir">🔄</button>
+                            <button onclick="deletarRotaHistorica('${roteiro._id}', event)" style="background:transparent; border:none; color:#EF4444; font-size:14px; cursor:pointer;" title="Apagar">🗑️</button>
+                        </div>
                     </div>
                 `;
             });
@@ -1115,7 +1171,7 @@
 
     function carregarRotaHistorica(idx, clickManual) {
         if(clickManual) { document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo'); }
-        const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...roteiro.itinerario]; modoVisaoGlobal = false; 
+        const roteiro = window.historicoRotasMemoria[idx]; tecnicoAtivo = roteiro.tecnico; rotaAtiva = [...roteiro.itinerario]; modoVisaoGlobal = false; modoEdicaoAtivo = false; 
         configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; atualizarTela(true); if (clickManual && dataAtiva) iniciarAutoRefresh();
     }
 
