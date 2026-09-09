@@ -284,10 +284,10 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
     let osDestacada = ""; 
-    let rotaHistoricaAtivaId = null;
     
-    // VARIÁVEIS DE PROTEÇÃO DO CRUD E REFRESH
+    // VARIÁVEIS SEGURAS DE EDIÇÃO E REFRESH
     window.modoEdicaoAtivo = false;
+    window.idRotaEmEdicao = null;
     window.pausarRefresh = false;
 
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
@@ -309,7 +309,6 @@
             setTimeout(() => { mapa.invalidateSize(); }, 500);
         }
         if (typeof window.renderNaoAlocadas === "function") window.renderNaoAlocadas();
-        else setTimeout(() => { if (typeof window.renderNaoAlocadas === "function") window.renderNaoAlocadas(); }, 0);
     });
 
     function toggleMenu() {
@@ -335,69 +334,6 @@
     }
     document.addEventListener('fullscreenchange', () => { setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 200); });
 
-    // FUNÇÕES ESSENCIAIS DO CONTROLE DO ROTEIRO
-    window.configurarSliderInicio = function() {
-        const slider = document.getElementById("sliderPlayback");
-        if (!slider) return;
-        slider.min = 0;
-        slider.max = 100;
-        slider.value = 100;
-    }
-
-    window.ativarVisaoGlobal = function() {
-        modoVisaoGlobal = true;
-        tecnicoAtivo = "";
-        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
-        window.atualizarTela(true);
-        if (visualizandoHistorico && dataAtiva) iniciarAutoRefresh();
-    };
-
-    window.criarOrdemManual = async function() {
-        const codigo = prompt("Digite o CÓDIGO da nova OS:");
-        if (!codigo || !codigo.trim()) return;
-
-        const rua = prompt("Digite o ENDEREÇO completo ou cole as coordenadas GPS:");
-        if (!rua || !rua.trim()) return;
-
-        const cliente = prompt("Digite o nome do CLIENTE:", "Nova Ordem") || "Nova Ordem";
-        const cidade = prompt("Digite a CIDADE:", "São Paulo") || "São Paulo";
-        const isManha = confirm("A OS é no período da MANHÃ?\nOK = Manhã | Cancelar = Tarde");
-
-        const ordem = {
-            chaveAgrupamento: `MANUAL_${Date.now()}`,
-            codigo: codigo.trim(),
-            cliente: cliente.trim(),
-            servico: "Adicionado Manualmente",
-            rua: rua.trim(),
-            detalhes: "",
-            cidade: cidade.trim(),
-            cep: "",
-            periodo: isManha ? "MANHA" : "TARDE",
-            status: "pendente"
-        };
-
-        try {
-            const crds = await obterCoordenadasSilenciosa(ordem);
-            if (crds) {
-                ordem.lat = crds.lat;
-                ordem.lon = crds.lon;
-                ordem.precisaCorrecao = false;
-            } else {
-                ordem.lat = configGalpao.lat;
-                ordem.lon = configGalpao.lon;
-                ordem.precisaCorrecao = true;
-            }
-        } catch (erro) {
-            ordem.lat = configGalpao.lat;
-            ordem.lon = configGalpao.lon;
-            ordem.precisaCorrecao = true;
-        }
-
-        ordensNaoAlocadas.push(ordem);
-        window.renderNaoAlocadas();
-        alert("✅ Nova OS adicionada à Fila de Espera!");
-    };
-
     function calcularDistancia(lat1, lon1, lat2, lon2) {
         if (typeof lat1 !== 'number' || typeof lon1 !== 'number' || typeof lat2 !== 'number' || typeof lon2 !== 'number') return 0;
         const R = 6371; 
@@ -417,22 +353,6 @@
             }
         });
         return (km * 1.3).toFixed(1); 
-    }
-
-    function limparCep(str) {
-        if (!str) return "";
-        let cep = String(str);
-        if (cep.includes('.')) cep = cep.split('.')[0];
-        cep = cep.replace(/\D/g, '').trim();
-        if (cep.length > 0 && cep.length < 8) cep = cep.padStart(8, '0');
-        return cep;
-    }
-
-    function formatarCepComTraco(cepLimpo) {
-        if (cepLimpo.length === 8) {
-            return cepLimpo.substring(0, 5) + "-" + cepLimpo.substring(5);
-        }
-        return cepLimpo;
     }
 
     function buscarValorNaLinha(linha, palavrasChave) {
@@ -490,6 +410,16 @@
         return t.includes("KM") || t.includes("RODOVIA") || t.includes("ROD ") || t.includes("ESTRADA") || t.includes("SP-") || t.includes("BR-");
     }
 
+    function limparCepETracar(cepSujo) {
+        if (!cepSujo) return "";
+        let cepStr = String(cepSujo);
+        if (cepStr.includes('.')) cepStr = cepStr.split('.')[0];
+        let cepBusca = cepStr.replace(/\D/g, '');
+        if (cepBusca.length > 0 && cepBusca.length < 8) cepBusca = cepBusca.padStart(8, '0');
+        if (cepBusca.length === 8) return cepBusca.substring(0, 5) + "-" + cepBusca.substring(5);
+        return cepBusca;
+    }
+
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
@@ -502,12 +432,11 @@
             return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
         }
 
-        let cepStr = String(cliente.cep || "");
-        let cepBusca = limparCep(cepStr);
+        let cepBusca = limparCepETracar(cliente.cep || "").replace(/\D/g, '');
 
         if (!cepBusca && ruaOriginal) {
             let cepMatch = ruaOriginal.match(/\b\d{5}-?\d{3}\b/);
-            if (cepMatch) cepBusca = limparCep(cepMatch[0]);
+            if (cepMatch) cepBusca = limparCepETracar(cepMatch[0]).replace(/\D/g, '');
         }
 
         if (cepBusca.length === 8) {
@@ -562,9 +491,8 @@
             const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
             const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
             
-            let cepSujo = String(buscarValorNaLinha(linha, ["CEP"]));
-            let cepLimpo = limparCep(cepSujo);
-            let cepFormatado = formatarCepComTraco(cepLimpo);
+            let cepOriginal = String(buscarValorNaLinha(linha, ["CEP"]));
+            let cepFormatado = limparCepETracar(cepOriginal);
 
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let detalhes = String(buscarValorNaLinha(linha, ["DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
@@ -818,7 +746,6 @@
             return; 
         }
 
-        // MODO INDIVIDUAL DE UM TÉCNICO
         document.getElementById("painelPlayback").style.display = "flex";
         
         let permissaoEdicao = (!visualizandoHistorico || window.modoEdicaoAtivo);
@@ -1067,21 +994,20 @@
         }
     }
 
-    // --- MODO DE EDIÇÃO SEGURO COM POST + DELETE ---
+    // --- MODO DE EDIÇÃO SEGURO USANDO O POST DO SERVIDOR ---
     window.alternarModoEdicaoRotaHistorica = async function(idRota, idx, event) {
         if(event) event.stopPropagation();
         
         let btn = document.getElementById(`btnEdicao-${idx}`);
 
-        // SE CLICOU PARA SALVAR
+        // SE CLICOU PARA SALVAR (Estava no modo de edição)
         if (window.modoEdicaoAtivo && window.idRotaEmEdicao === idRota) {
             if(btn) { btn.innerHTML = '⏳ Salvando...'; btn.disabled = true; }
             
             try {
                 const rotaHist = window.historicoRotasMemoria[idx];
-                let idAntigo = rotaHist._id;
                 
-                // Grava a Nova Rota atualizada por completo usando POST
+                // O backend usa POST para criar ou atualizar (upsert) rotas usando data e tecnico como chaves
                 const res = await fetch('/api/rotas', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
@@ -1090,24 +1016,16 @@
 
                 if (!res.ok) throw new Error("Falha no servidor ao gravar rota");
 
-                // Apaga a Antiga para não duplicar no banco
-                if (idAntigo) {
-                    await fetch(`/api/rotas/${idAntigo}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                }
-
                 window.modoEdicaoAtivo = false;
                 window.idRotaEmEdicao = null;
                 window.pausarRefresh = false; 
                 
-                alert("✅ Rota atualizada com sucesso no banco de dados!");
-                
-                // Recarrega o painel lateral para puxar o ID correto que o servidor gerou
-                await window.recarregarHistoricoSilencioso();
                 if(btn) { btn.innerHTML = '✏️ Editar'; btn.style.background = '#F59E0B'; btn.disabled = false; }
                 
-                let novaRotaObj = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
-                if(novaRotaObj) { rotaAtiva = [...(novaRotaObj.itinerario || [])]; }
-                window.atualizarTela(false);
+                alert("✅ Rota atualizada com sucesso no banco de dados!");
+                
+                // Recarrega a lista perfeitamente do servidor
+                window.buscarHistorico(); 
                 
             } catch(e) {
                 console.error(e);
@@ -1126,28 +1044,20 @@
             window.carregarRotaHistorica(idx, true);
             window.modoEdicaoAtivo = true;
             window.idRotaEmEdicao = idRota;
-            window.pausarRefresh = true; // IMPEDE O REFRESH DE DESTRUIR SUAS EDIÇÕES
+            window.pausarRefresh = true; // PAUSA O REFRESH ENQUANTO EDITA
             
             if(btn) { btn.innerHTML = '💾 Salvar'; btn.style.background = '#10B981'; }
+            
             window.atualizarTela(false);
         }
     };
 
-    window.recarregarHistoricoSilencioso = async function() {
-        if (!dataAtiva) return;
-        try {
-            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataAtiva)}&_=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
-            if (res.ok) {
-                let rotas = await res.json();
-                let dataMes = document.getElementById("buscaMes").value;
-                let dataDia = document.getElementById("buscaData").value;
-                if (dataMes && !dataDia) {
-                    let p = dataMes.split('-'); let mesAnoFilter = `${p[1]}/${p[0]}`;
-                    rotas = rotas.filter(r => r && r.data && r.data.endsWith(mesAnoFilter));
-                }
-                window.historicoRotasMemoria = rotas.filter(r => r !== null);
-            }
-        } catch(e) {}
+    window.sincronizarMemoriaGlobal = function() {
+        if (!visualizandoHistorico && tecnicoAtivo && dadosGlobaisRotas[tecnicoAtivo]) {
+            dadosGlobaisRotas[tecnicoAtivo].manha = rotaAtiva.filter(o => o.periodo === 'MANHA');
+            dadosGlobaisRotas[tecnicoAtivo].tarde = rotaAtiva.filter(o => o.periodo !== 'MANHA');
+            localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+        }
     };
 
     window.carregarRotaHistorica = function(idx, clickManual) {
@@ -1404,18 +1314,15 @@
     window.desalocarOrdem = function(index, event) {
         try {
             if (event) { event.preventDefault(); event.stopPropagation(); }
-            
             let ordemRemovida = rotaAtiva.splice(index, 1)[0];
+            ordensNaoAlocadas.push(ordemRemovida); 
             
-            const jaEstaNaFila = ordensNaoAlocadas.some(o => (o.chaveAgrupamento && o.chaveAgrupamento === ordemRemovida.chaveAgrupamento));
-            if (!jaEstaNaFila) ordensNaoAlocadas.push(ordemRemovida);
-            
+            window.sincronizarMemoriaGlobal(); // Salva na memoria local apenas
             window.renderNaoAlocadas(); 
-            
             window.configurarSliderInicio(); 
             window.atualizarTela(false);
             
-            if(visualizandoHistorico) alert("ℹ️ O.S. enviada para a fila! Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no Banco de Dados.");
+            if(visualizandoHistorico) alert("ℹ️ O.S. enviada para a fila! Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no servidor.");
         } catch (erro) { alert("Houve um pequeno erro, a tela recarregará."); window.location.reload(); }
     };
 
@@ -1424,11 +1331,12 @@
         let ordem = ordensNaoAlocadas.splice(idxOrdemFila, 1)[0];
         rotaAtiva.push(ordem); 
         
+        window.sincronizarMemoriaGlobal(); // Salva na memoria local apenas
         window.renderNaoAlocadas(); 
         window.configurarSliderInicio(); 
         window.atualizarTela(true);
         
-        if(visualizandoHistorico) alert("ℹ️ O.S. incluída no roteiro visualmente! Clique no botão verde 'Salvar' na lista para consolidar a alteração no Banco de Dados.");
+        if(visualizandoHistorico) alert("ℹ️ O.S. incluída no roteiro! Clique no botão verde 'Salvar' na lista para consolidar a alteração no servidor.");
     };
 
     window.adicionarOrdemEmRotaAtiva = async function(event) {
@@ -1451,6 +1359,8 @@
             status: "pendente"
         };
 
+        document.getElementById("listaItinerarioUI").innerHTML = `<div style="color: #FACC15; font-size: 12px; text-align: center; padding: 10px;">Buscando GPS no satélite... 🛰️</div>`;
+
         let crds = await obterCoordenadasSilenciosa(novaOrdem);
         novaOrdem.lat = crds ? crds.lat : configGalpao.lat;
         novaOrdem.lon = crds ? crds.lon : configGalpao.lon;
@@ -1458,67 +1368,15 @@
 
         rotaAtiva.push(novaOrdem);
         
+        window.sincronizarMemoriaGlobal();
         window.atualizarTela(true);
+        
         if(visualizandoHistorico) {
-            alert("✅ Nova OS adicionada à lista! Lembre-se de clicar em '💾 Salvar' no painel do técnico para gravar.");
+            alert("✅ Nova OS adicionada à lista! Lembre-se de clicar em '💾 Salvar' na lista lateral para gravar no servidor.");
         } else {
             alert("✅ Nova OS adicionada ao planejamento!");
         }
     };
-
-    window.editarEnderecoManual = async function(codigo, ruaAtual, event) {
-        event.stopPropagation(); 
-        let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
-        if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
-        
-        let itemLocal = rotaAtiva.find(p => String(p.codigo).trim() === String(codigo).trim());
-        if (!itemLocal) { return alert("❌ Erro: Não foi possível localizar esta OS na lista ativa."); }
-
-        const originalBtn = event.target; 
-        let textoOriginalBtn = originalBtn.innerText;
-        originalBtn.innerText = "⏳"; 
-        originalBtn.disabled = true;
-
-        try {
-            let crds = null;
-            let isCoordenadaExata = false;
-
-            let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
-            let matchCoord = novoInput.trim().match(coordRegex);
-
-            if (matchCoord) {
-                crds = { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
-                isCoordenadaExata = true;
-            } else {
-                crds = await obterCoordenadasSilenciosa({ rua: novoInput, cidade: "São Paulo", cep: itemLocal.cep });
-            }
-
-            if (!crds) {
-                originalBtn.innerText = textoOriginalBtn; 
-                originalBtn.disabled = false;
-                return alert("❌ Não conseguimos converter esse endereço em GPS. A localização anterior foi preservada intacta.");
-            }
-            
-            itemLocal.rua = novoInput; 
-            itemLocal.lat = crds.lat; 
-            itemLocal.lon = crds.lon; 
-            itemLocal.precisaCorrecao = isCoordenadaExata ? false : (ehRodoviaOuKm(novoInput) ? true : false);
-
-            window.atualizarTela(true);
-            
-            if(visualizandoHistorico) {
-                alert("✅ Posição GPS atualizada na tela! Clique no botão '💾 Salvar' para enviar para o servidor.");
-            } else {
-                alert("✅ Endereço e posição GPS atualizados com sucesso!");
-            }
-        } catch (e) { 
-            console.error(e);
-            alert("❌ Ocorreu um erro ao atualizar o endereço."); 
-        } finally { 
-            originalBtn.innerText = "✏️"; 
-            originalBtn.disabled = false; 
-        }
-    }
 
     window.iniciarArraste = function(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
     window.permitirSoltar = function(e) { e.preventDefault(); }
@@ -1526,6 +1384,7 @@
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
         let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); 
+        window.sincronizarMemoriaGlobal();
         window.atualizarTela(false);
     }
 </script>
