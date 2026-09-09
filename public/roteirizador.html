@@ -308,6 +308,8 @@
             renderizarListaTecnicosModoNovo();
             setTimeout(() => { mapa.invalidateSize(); }, 500);
         }
+        if (typeof window.renderNaoAlocadas === "function") window.renderNaoAlocadas();
+        else setTimeout(() => { if (typeof window.renderNaoAlocadas === "function") window.renderNaoAlocadas(); }, 0);
     });
 
     function toggleMenu() {
@@ -332,6 +334,70 @@
         }
     }
     document.addEventListener('fullscreenchange', () => { setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 200); });
+
+    // FUNÇÕES ESSENCIAIS DO CONTROLE DO ROTEIRO
+    // Estas funções estavam sendo chamadas pela interface, mas não existiam no arquivo.
+    function configurarSliderInicio() {
+        const slider = document.getElementById("sliderPlayback");
+        if (!slider) return;
+        slider.min = 0;
+        slider.max = 100;
+        slider.value = 100;
+    }
+
+    window.ativarVisaoGlobal = function() {
+        modoVisaoGlobal = true;
+        tecnicoAtivo = "";
+        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
+        atualizarTela(true);
+        if (visualizandoHistorico && dataAtiva) iniciarAutoRefresh();
+    };
+
+    window.criarOrdemManual = async function() {
+        const codigo = prompt("Digite o CÓDIGO da nova OS:");
+        if (!codigo || !codigo.trim()) return;
+
+        const rua = prompt("Digite o ENDEREÇO completo ou cole as coordenadas GPS:");
+        if (!rua || !rua.trim()) return;
+
+        const cliente = prompt("Digite o nome do CLIENTE:", "Nova Ordem") || "Nova Ordem";
+        const cidade = prompt("Digite a CIDADE:", "São Paulo") || "São Paulo";
+        const isManha = confirm("A OS é no período da MANHÃ?\nOK = Manhã | Cancelar = Tarde");
+
+        const ordem = {
+            chaveAgrupamento: `MANUAL_${Date.now()}`,
+            codigo: codigo.trim(),
+            cliente: cliente.trim(),
+            servico: "Adicionado Manualmente",
+            rua: rua.trim(),
+            detalhes: "",
+            cidade: cidade.trim(),
+            cep: "",
+            periodo: isManha ? "MANHA" : "TARDE",
+            status: "pendente"
+        };
+
+        try {
+            const crds = await obterCoordenadasSilenciosa(ordem);
+            if (crds) {
+                ordem.lat = crds.lat;
+                ordem.lon = crds.lon;
+                ordem.precisaCorrecao = false;
+            } else {
+                ordem.lat = configGalpao.lat;
+                ordem.lon = configGalpao.lon;
+                ordem.precisaCorrecao = true;
+            }
+        } catch (erro) {
+            ordem.lat = configGalpao.lat;
+            ordem.lon = configGalpao.lon;
+            ordem.precisaCorrecao = true;
+        }
+
+        ordensNaoAlocadas.push(ordem);
+        renderNaoAlocadas();
+        alert("✅ Nova OS adicionada à Fila de Espera!");
+    };
 
     function calcularDistancia(lat1, lon1, lat2, lon2) {
         const R = 6371; 
