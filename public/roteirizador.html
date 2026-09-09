@@ -38,11 +38,11 @@
         .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
         .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 14px; }
         .lista-clientes { flex-grow: 1; overflow-y: auto; }
-        .tecnico-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .tecnico-item { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
         .tecnico-item:hover { background: rgba(59, 130, 246, 0.1); }
         .tecnico-item.ativo { background: rgba(59, 130, 246, 0.2); border-left: 4px solid #3B82F6; }
         .tecnico-nome { font-weight: bold; color: #E2E8F0; font-size: 13px; }
-        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 4px; }
         
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
@@ -285,7 +285,8 @@
     let visualizandoHistorico = false;
     let modoVisaoGlobal = false; 
     let osDestacada = ""; 
-    let modoEdicaoAtivo = false; // Controla se o técnico selecionado está em modo de edição livre
+    let modoEdicaoAtivo = false; 
+    let isSyncing = false; // Trava de segurança para impedir conflito com auto-refresh
 
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
@@ -721,6 +722,8 @@
         }
 
         document.getElementById("painelPlayback").style.display = "flex";
+        
+        // CONTROLES DE EDIÇÃO DO ROTEIRO ATIVO
         document.getElementById("tituloPainelLateral").innerHTML = `
             <span>🛠️ Itinerário</span>
             <div style="display:flex; gap:5px; align-items:center;">
@@ -872,18 +875,18 @@
         }
     }
 
-    // Função de alternar edição da rota (Botões Editar / Salvar no painel)
-    function alternarModoEdicaoRota() {
+    window.alternarModoEdicaoRota = async function() {
         modoEdicaoAtivo = !modoEdicaoAtivo;
         if (!modoEdicaoAtivo) {
-            sincronizarMemoriaGlobal();
+            let btn = document.getElementById('btnModoEdicao');
+            if(btn) btn.innerText = '⏳ Salvando...';
+            await sincronizarMemoriaGlobal();
             alert("✅ Alterações salvas com sucesso e sincronizadas com o aplicativo do técnico!");
         }
         atualizarTela(false);
     }
 
-    // Adicionar O.S. diretamente no roteiro ativo (puxando da fila ou manual)
-    async function adicionarOrdemEmRotaAtiva() {
+    window.adicionarOrdemEmRotaAtiva = async function() {
         if (!tecnicoAtivo) return alert("Selecione um técnico ativo primeiro.");
         let codigo = prompt("Digite o CÓDIGO da Nova OS para adicionar a este roteiro:"); if (!codigo) return;
         let rua = prompt("Digite o ENDEREÇO completo (ou cole coordenadas GPS):"); if (!rua) return;
@@ -914,12 +917,12 @@
         }
 
         rotaAtiva.push(novaOrdem);
-        sincronizarMemoriaGlobal();
+        await sincronizarMemoriaGlobal();
         atualizarTela(true);
         alert("✅ Nova OS adicionada com sucesso ao roteiro!");
     }
 
-   async function editarEnderecoManual(codigo, ruaAtual, event) {
+    async function editarEnderecoManual(codigo, ruaAtual, event) {
         event.stopPropagation(); 
         let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS (Ex: -23.5701, -46.7421) do Google Maps para esta OS:", ruaAtual);
         if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
@@ -959,7 +962,7 @@
             itemLocal.lon = crds.lon; 
             itemLocal.precisaCorrecao = isCoordenadaExata ? false : (ehRodoviaOuKm(novoInput) ? true : false);
 
-            sincronizarMemoriaGlobal(); 
+            await sincronizarMemoriaGlobal(); 
             atualizarTela(true);
             alert("✅ Endereço e posição GPS atualizados com sucesso!");
         } catch (e) { 
@@ -971,17 +974,20 @@
         }
     }
 
-    function sincronizarMemoriaGlobal() {
+    async function sincronizarMemoriaGlobal() {
+        isSyncing = true;
         if (visualizandoHistorico) {
             let rotaHist = window.historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
             if (rotaHist) {
                 rotaHist.itinerario = [...rotaAtiva];
                 if (rotaHist._id) {
-                    fetch(`/api/rotas/${rotaHist._id}`, { 
-                        method: 'PUT', 
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                        body: JSON.stringify({ data: rotaHist.data, tecnico: tecnicoAtivo, itinerario: rotaAtiva }) 
-                    }).catch(e => console.error("Erro ao atualizar histórico no banco:", e));
+                    try {
+                        await fetch(`/api/rotas/${rotaHist._id}`, { 
+                            method: 'PUT', 
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                            body: JSON.stringify({ data: rotaHist.data, tecnico: tecnicoAtivo, itinerario: rotaAtiva }) 
+                        });
+                    } catch (e) { console.error("Erro ao atualizar histórico no banco:", e); }
                 }
             }
         } else {
@@ -991,6 +997,7 @@
                 localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
             }
         }
+        isSyncing = false;
     }
 
     let transfTempData = {};
@@ -1076,16 +1083,15 @@
         alert(`✅ Roteiro criado com sucesso para ${novoNome}!`);
     };
 
-    function configurarSliderInicio() { const slider = document.getElementById("sliderPlayback"); slider.max = rotaAtiva.length * 10; slider.value = rotaAtiva.length * 10; }
-    function ativarVisaoGlobal() { modoVisaoGlobal = true; document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); tecnicoAtivo = ""; atualizarTela(true); if (dataAtiva) iniciarAutoRefresh(); }
-
     let itemArrastadoIndice = null;
     function iniciarArraste(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
     function permitirSoltar(e) { e.preventDefault(); }
-    function soltarItem(e, indexAlvo) {
+    async function soltarItem(e, indexAlvo) {
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
-        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); sincronizarMemoriaGlobal(); atualizarTela(false);
+        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); 
+        await sincronizarMemoriaGlobal(); 
+        atualizarTela(false);
     }
 
     function limparRotas() { if(confirm("Limpar tela atual?")) { localStorage.removeItem("planilhaRotas"); window.location.reload(); } }
@@ -1180,7 +1186,8 @@
     function iniciarAutoRefresh() {
         pararAutoRefresh();
         autoRefreshInterval = setInterval(async () => {
-            if (!visualizandoHistorico || !dataAtiva) { pararAutoRefresh(); return; }
+            // PAUSA O REFRESH SE ESTIVER NO MODO DE EDIÇÃO OU SALVANDO
+            if (!visualizandoHistorico || !dataAtiva || modoEdicaoAtivo || isSyncing) { return; }
             try {
                 const res = await fetch(`/api/rotas?data=${encodeURIComponent(dataAtiva)}&_=${new Date().getTime()}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
                 const rotasEncontradas = await res.json();
@@ -1200,7 +1207,7 @@
     function calcularDiferencaMinutos(inicio, fim) {
         if(!inicio || !fim || inicio === "-" || fim === "-") return "-";
         try {
-            const [h1, m1, s1] = inicio.split(':').map(Number); const [h2, m2, s2] = fim.split(':').map(Number);
+            const [h1, m1, s1] = inicio.split(':').map(Number); const [h2, m2, s2] = split(':').map(Number);
             let d1 = new Date(2000, 0, 1, h1, m1, s1 || 0); let d2 = new Date(2000, 0, 1, h2, m2, s2 || 0);
             let diffMins = Math.floor((d2 - d1) / 60000); if(diffMins < 0) diffMins += 24 * 60; return diffMins;
         } catch(e) { return "-"; }
@@ -1412,18 +1419,26 @@
         }
     };
 
-    window.desalocarOrdem = function(index, event) {
+    window.desalocarOrdem = async function(index, event) {
         try {
             if (event) { event.preventDefault(); event.stopPropagation(); }
             let ordemRemovida = rotaAtiva.splice(index, 1)[0];
-            ordensNaoAlocadas.push(ordemRemovida); renderNaoAlocadas(); sincronizarMemoriaGlobal(); configurarSliderInicio(); atualizarTela(false);
+            ordensNaoAlocadas.push(ordemRemovida); 
+            renderNaoAlocadas(); 
+            await sincronizarMemoriaGlobal(); // Aguarda salvar o banco antes de prosseguir!
+            configurarSliderInicio(); 
+            atualizarTela(false);
         } catch (erro) { alert("Houve um pequeno erro, a tela recarregará."); window.location.reload(); }
     };
 
-    window.alocarParaTecnicoAtivo = function(idxOrdemFila) {
+    window.alocarParaTecnicoAtivo = async function(idxOrdemFila) {
         if (!tecnicoAtivo) return alert("⚠️ Primeiro, clique no nome de um Técnico na lista acima para selecioná-lo.");
         let ordem = ordensNaoAlocadas.splice(idxOrdemFila, 1)[0];
-        rotaAtiva.push(ordem); sincronizarMemoriaGlobal(); renderNaoAlocadas(); configurarSliderInicio(); atualizarTela(true);
+        rotaAtiva.push(ordem); 
+        await sincronizarMemoriaGlobal(); // Garante que a adição vá para o DB
+        renderNaoAlocadas(); 
+        configurarSliderInicio(); 
+        atualizarTela(true);
     };
 
     window.criarOrdemManual = async function() {
