@@ -287,7 +287,7 @@
     
     // VARIÁVEIS SEGURAS DE EDIÇÃO E REFRESH
     window.modoEdicaoAtivo = false;
-    window.idRotaEmEdicao = null;
+    window.indiceEdicao = null;
     window.pausarRefresh = false;
 
     document.getElementById("buscaData").addEventListener("change", function() { if(this.value) document.getElementById("buscaMes").value = ""; });
@@ -355,6 +355,22 @@
         return (km * 1.3).toFixed(1); 
     }
 
+    function limparCep(str) {
+        if (!str) return "";
+        let cep = String(str);
+        if (cep.includes('.')) cep = cep.split('.')[0];
+        cep = cep.replace(/\D/g, '').trim();
+        if (cep.length > 0 && cep.length < 8) cep = cep.padStart(8, '0');
+        return cep;
+    }
+
+    function formatarCepComTraco(cepLimpo) {
+        if (cepLimpo.length === 8) {
+            return cepLimpo.substring(0, 5) + "-" + cepLimpo.substring(5);
+        }
+        return cepLimpo;
+    }
+
     function buscarValorNaLinha(linha, palavrasChave) {
         for (let chave of Object.keys(linha)) { for (let palavra of palavrasChave) { if (chave.includes(palavra)) return linha[chave]; } }
         return "";
@@ -410,16 +426,6 @@
         return t.includes("KM") || t.includes("RODOVIA") || t.includes("ROD ") || t.includes("ESTRADA") || t.includes("SP-") || t.includes("BR-");
     }
 
-    function limparCepETracar(cepSujo) {
-        if (!cepSujo) return "";
-        let cepStr = String(cepSujo);
-        if (cepStr.includes('.')) cepStr = cepStr.split('.')[0];
-        let cepBusca = cepStr.replace(/\D/g, '');
-        if (cepBusca.length > 0 && cepBusca.length < 8) cepBusca = cepBusca.padStart(8, '0');
-        if (cepBusca.length === 8) return cepBusca.substring(0, 5) + "-" + cepBusca.substring(5);
-        return cepBusca;
-    }
-
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
@@ -432,11 +438,12 @@
             return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
         }
 
-        let cepBusca = limparCepETracar(cliente.cep || "").replace(/\D/g, '');
+        let cepStr = String(cliente.cep || "");
+        let cepBusca = limparCep(cepStr);
 
         if (!cepBusca && ruaOriginal) {
             let cepMatch = ruaOriginal.match(/\b\d{5}-?\d{3}\b/);
-            if (cepMatch) cepBusca = limparCepETracar(cepMatch[0]).replace(/\D/g, '');
+            if (cepMatch) cepBusca = limparCep(cepMatch[0]);
         }
 
         if (cepBusca.length === 8) {
@@ -492,7 +499,8 @@
             const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
             
             let cepOriginal = String(buscarValorNaLinha(linha, ["CEP"]));
-            let cepFormatado = limparCepETracar(cepOriginal);
+            let cepLimpo = limparCep(cepOriginal);
+            let cepFormatado = formatarCepComTraco(cepLimpo);
 
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let detalhes = String(buscarValorNaLinha(linha, ["DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
@@ -696,7 +704,9 @@
                         }
                     }
 
-                    let isDestacada = (osDestacada && String(cliente.codigo).toUpperCase().includes(osDestacada.toUpperCase()));
+                    let valCod = cliente.codigo || 'S/N';
+                    let valSts = (cliente.status || 'pendente').toUpperCase();
+                    let isDestacada = (osDestacada && String(valCod).toUpperCase().includes(osDestacada.toUpperCase()));
                     let extraShadow = isDestacada ? 'box-shadow: 0 0 0 3px white, 0 0 15px 6px #FACC15; transform: scale(1.6);' : 'box-shadow: 0 3px 8px rgba(0,0,0,0.6);';
 
                     const miniIcon = L.divIcon({ 
@@ -710,9 +720,9 @@
                     let popupContent = `
                         <div style="color:#1E293B; font-size:12px;">
                             ${avisoImpreciso}
-                            <b>${roteiro.tecnico}</b><br>
-                            OS: ${cliente.codigo}<br>
-                            Status: <b>${cliente.status.toUpperCase()}</b>
+                            <b>${roteiro.tecnico || 'Técnico'}</b><br>
+                            OS: ${valCod}<br>
+                            Status: <b>${valSts}</b>
                             <hr style="margin:5px 0; border:0; border-top:1px solid #CBD5E1;">
                             🚗 Saída: ${hSaida}<br>
                             📍 Chegada: ${hChegada}<br>
@@ -731,7 +741,7 @@
                 if (jaIniciou) {
                     let nomeTecnicoExibicao = (roteiro.tecnico || "Técnico").split(' ')[0];
                     const carIcon = L.divIcon({ className: 'custom-pin', html: `<div class="car-pin" style="border-color: ${corBordaCarro};">🚗 ${nomeTecnicoExibicao}</div>`, iconSize: [80, 25], iconAnchor: [40, 12] });
-                    L.marker([posicaoCarro.lat, posicaoCarro.lon], {icon: carIcon}).bindPopup(`<b>Viatura: ${roteiro.tecnico}</b><br>Status Atual: ${statusCarro}`).addTo(layerGrupo);
+                    L.marker([posicaoCarro.lat, posicaoCarro.lon], {icon: carIcon}).bindPopup(`<b>Viatura: ${roteiro.tecnico || 'Técnico'}</b><br>Status Atual: ${statusCarro}`).addTo(layerGrupo);
                 }
             });
 
@@ -786,7 +796,9 @@
             let hChegada = cliente.horaChegada || "--:--"; 
             let hFinal = cliente.horaFinal || "--:--";
 
-            let isDestacada = (osDestacada && String(cliente.codigo).toUpperCase().includes(osDestacada.toUpperCase()));
+            let valCod = cliente.codigo || 'S/N';
+            let valSts = (cliente.status || 'pendente').toUpperCase();
+            let isDestacada = (osDestacada && String(valCod).toUpperCase().includes(osDestacada.toUpperCase()));
             let extraShadow = isDestacada ? 'box-shadow: 0 0 0 3px white, 0 0 15px 6px #FACC15; transform: scale(1.4);' : 'box-shadow: 0 3px 6px rgba(0,0,0,0.5);';
 
             const customIcon = L.divIcon({ 
@@ -802,8 +814,8 @@
                 <div style="color:#1E293B; font-size:13px;">
                     ${avisoImpreciso}
                     <b>Parada #${seq}</b><br>
-                    OS: ${cliente.codigo}<br>
-                    Status: <b>${cliente.status.toUpperCase()}</b>
+                    OS: ${valCod}<br>
+                    Status: <b>${valSts}</b>
                     <hr style="margin:5px 0; border:0; border-top:1px solid #CBD5E1;">
                     🚗 Saída: ${hSaida}<br>
                     📍 Chegada: ${hChegada}<br>
@@ -834,8 +846,8 @@
 
             let painelAcoesHTML = permissaoEdicao ? `
                 <div style="display: flex;">
-                    <button class="btn-lapis" onclick="window.editarEnderecoManual('${cliente.codigo}', '${cliente.rua}', event)" title="Editar endereço ou colar GPS">✏️</button>
-                    <button class="btn-lapis" style="color:#EF4444;" onclick="window.desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Fila de Espera">✖</button>
+                    <button class="btn-lapis" onclick="window.editarEnderecoManual('${valCod}', '${cliente.rua || ''}', event)" title="Editar endereço ou colar GPS">✏️</button>
+                    <button class="btn-lapis" style="color:#EF4444;" onclick="window.desalocarOrdem(${index}, event)" title="Tirar do Técnico e jogar pra Espera">✖</button>
                 </div>
             ` : ``;
 
@@ -845,8 +857,8 @@
                         ${dragHandleHTML}
                         <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
                         <div class="itinerario-info">
-                            <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${cliente.codigo} ${badgeHTML} ${cliente.precisaCorrecao ? '<span title="Endereço Impreciso" style="color:#E11D48; margin-left:4px;">⚠️</span>' : ''}</div>
-                            <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua}</div>
+                            <div style="color: white; font-size: 12px; font-weight:bold; white-space: normal; word-wrap: break-word; line-height: 1.4;">OS: ${valCod} ${badgeHTML} ${cliente.precisaCorrecao ? '<span title="Endereço Impreciso" style="color:#E11D48; margin-left:4px;">⚠️</span>' : ''}</div>
+                            <div style="color: #94A3B8; font-size: 10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${cliente.rua || 'Sem endereço'}</div>
                         </div>
                         ${painelAcoesHTML}
                     </div>
@@ -980,7 +992,7 @@
                             <div class="tecnico-stats" style="color:#10B981; font-weight:bold;">Progresso: ${perc}%</div>
                         </div>
                         <div style="display:flex; gap:6px;">
-                            <button id="btnEdicao-${idx}" onclick="window.alternarModoEdicaoRotaHistorica('${roteiro._id}', ${idx}, event)" style="background:#F59E0B; border:none; color:white; font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer;" title="Editar Roteiro">✏️ Editar</button>
+                            <button id="btnEdicao-${idx}" onclick="window.alternarModoEdicaoRotaHistorica(${idx}, event)" style="background:#F59E0B; border:none; color:white; font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer;" title="Editar Roteiro">✏️ Editar</button>
                             <button onclick="window.abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir">🔄</button>
                             <button onclick="window.deletarRotaHistorica('${roteiro._id}', event)" style="background:transparent; border:none; color:#EF4444; font-size:14px; cursor:pointer;" title="Apagar">🗑️</button>
                         </div>
@@ -995,42 +1007,43 @@
     }
 
     // --- MODO DE EDIÇÃO SEGURO USANDO O POST DO SERVIDOR ---
-    window.alternarModoEdicaoRotaHistorica = async function(idRota, idx, event) {
+    window.alternarModoEdicaoRotaHistorica = async function(idx, event) {
         if(event) event.stopPropagation();
         
         let btn = document.getElementById(`btnEdicao-${idx}`);
 
         // SE CLICOU PARA SALVAR (Estava no modo de edição)
-        if (window.modoEdicaoAtivo && window.idRotaEmEdicao === idRota) {
+        if (window.modoEdicaoAtivo && window.indiceEdicao === idx) {
             if(btn) { btn.innerHTML = '⏳ Salvando...'; btn.disabled = true; }
             
             try {
                 const rotaHist = window.historicoRotasMemoria[idx];
                 
-                // O backend usa POST para criar ou atualizar (upsert) rotas usando data e tecnico como chaves
+                // O backend usa POST para criar ou atualizar rotas (usando a data e o tecnico como chaves)
                 const res = await fetch('/api/rotas', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
-                    body: JSON.stringify({ data: rotaHist.data, tecnico: tecnicoAtivo, itinerario: window.rotaAtiva }) 
+                    body: JSON.stringify({ data: rotaHist.data, tecnico: rotaHist.tecnico, itinerario: rotaAtiva }) 
                 });
 
                 if (!res.ok) throw new Error("Falha no servidor ao gravar rota");
 
                 window.modoEdicaoAtivo = false;
-                window.idRotaEmEdicao = null;
+                window.indiceEdicao = null;
                 window.pausarRefresh = false; 
                 
                 if(btn) { btn.innerHTML = '✏️ Editar'; btn.style.background = '#F59E0B'; btn.disabled = false; }
                 
                 alert("✅ Rota atualizada com sucesso no banco de dados!");
                 
-                // Recarrega a lista perfeitamente do servidor
-                window.buscarHistorico(); 
+                // Atualiza a memória na hora e carrega
+                rotaHist.itinerario = [...rotaAtiva];
+                window.atualizarTela(false);
                 
             } catch(e) {
                 console.error(e);
                 if(btn) { btn.innerHTML = '💾 Salvar'; btn.style.background = '#10B981'; btn.disabled = false; }
-                alert("❌ A alteração NÃO foi salva. Verifique a conexão com a internet.");
+                alert("❌ A alteração NÃO foi salva. Verifique a conexão.");
             }
         } 
         // SE CLICOU PARA EDITAR
@@ -1043,20 +1056,12 @@
             
             window.carregarRotaHistorica(idx, true);
             window.modoEdicaoAtivo = true;
-            window.idRotaEmEdicao = idRota;
+            window.indiceEdicao = idx;
             window.pausarRefresh = true; // PAUSA O REFRESH ENQUANTO EDITA
             
             if(btn) { btn.innerHTML = '💾 Salvar'; btn.style.background = '#10B981'; }
             
             window.atualizarTela(false);
-        }
-    };
-
-    window.sincronizarMemoriaGlobal = function() {
-        if (!visualizandoHistorico && tecnicoAtivo && dadosGlobaisRotas[tecnicoAtivo]) {
-            dadosGlobaisRotas[tecnicoAtivo].manha = rotaAtiva.filter(o => o.periodo === 'MANHA');
-            dadosGlobaisRotas[tecnicoAtivo].tarde = rotaAtiva.filter(o => o.periodo !== 'MANHA');
-            localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         }
     };
 
@@ -1067,7 +1072,7 @@
         rotaAtiva = [...(roteiro.itinerario || [])]; 
         modoVisaoGlobal = false; 
         
-        if (!window.modoEdicaoAtivo) { window.modoEdicaoAtivo = false; window.idRotaEmEdicao = null; window.pausarRefresh = false;}
+        if (!window.modoEdicaoAtivo) { window.modoEdicaoAtivo = false; window.indiceEdicao = null; window.pausarRefresh = false;}
         window.configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; window.atualizarTela(true); if (clickManual && dataAtiva) iniciarAutoRefresh();
     }
 
@@ -1314,15 +1319,17 @@
     window.desalocarOrdem = function(index, event) {
         try {
             if (event) { event.preventDefault(); event.stopPropagation(); }
-            let ordemRemovida = rotaAtiva.splice(index, 1)[0];
-            ordensNaoAlocadas.push(ordemRemovida); 
             
-            window.sincronizarMemoriaGlobal(); // Salva na memoria local apenas
+            let ordemRemovida = rotaAtiva.splice(index, 1)[0];
+            
+            const jaEstaNaFila = ordensNaoAlocadas.some(o => (o.chaveAgrupamento && o.chaveAgrupamento === ordemRemovida.chaveAgrupamento));
+            if (!jaEstaNaFila) ordensNaoAlocadas.push(ordemRemovida);
+            
             window.renderNaoAlocadas(); 
             window.configurarSliderInicio(); 
             window.atualizarTela(false);
             
-            if(visualizandoHistorico) alert("ℹ️ O.S. enviada para a fila! Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no servidor.");
+            if(visualizandoHistorico) alert("ℹ️ O.S. enviada para a fila! Clique em 'Salvar' (botão verde) na lista para consolidar a alteração no Banco de Dados.");
         } catch (erro) { alert("Houve um pequeno erro, a tela recarregará."); window.location.reload(); }
     };
 
@@ -1331,51 +1338,34 @@
         let ordem = ordensNaoAlocadas.splice(idxOrdemFila, 1)[0];
         rotaAtiva.push(ordem); 
         
-        window.sincronizarMemoriaGlobal(); // Salva na memoria local apenas
         window.renderNaoAlocadas(); 
         window.configurarSliderInicio(); 
         window.atualizarTela(true);
         
-        if(visualizandoHistorico) alert("ℹ️ O.S. incluída no roteiro! Clique no botão verde 'Salvar' na lista para consolidar a alteração no servidor.");
+        if(visualizandoHistorico) alert("ℹ️ O.S. incluída no roteiro visualmente! Clique no botão verde 'Salvar' na lista para consolidar a alteração no Banco de Dados.");
     };
 
     window.adicionarOrdemEmRotaAtiva = async function(event) {
         if(event) event.stopPropagation();
         if (!tecnicoAtivo) return alert("Selecione um técnico ativo primeiro.");
         let codigo = prompt("Digite o CÓDIGO da Nova OS para adicionar a este roteiro:"); if (!codigo) return;
-        let rua = prompt("Digite o ENDEREÇO completo (ou cole coordenadas GPS):"); if (!rua) return;
-        let isManha = confirm("A OS é no período da MANHÃ?\n(OK para Manhã, Cancelar para Tarde)");
-
-        let novaOrdem = {
-            chaveAgrupamento: `MANUAL_${Date.now()}`,
-            codigo: codigo,
-            cliente: "Adicionado Manualmente",
-            servico: "Adicionado Manualmente",
-            rua: rua,
-            detalhes: "",
-            cidade: "São Paulo",
-            cep: "",
-            periodo: isManha ? "MANHA" : "TARDE",
-            status: "pendente"
-        };
-
+        let rua = prompt("Digite o ENDEREÇO completo com número e bairro (ou Rodovia e KM):"); if (!rua) return;
+        let cliente = prompt("Nome do Cliente (opcional):") || "Não informado";
+        let isManha = confirm("A OS deve ser atendida no período da MANHÃ?\n(Clique OK para Manhã, CANCELAR para Tarde)");
+        
+        let novaOrdem = { chaveAgrupamento: `MANUAL_${Date.now()}`, codigo: codigo, cliente: cliente, rua: rua, cidade: "São Paulo", cep: "", periodo: isManha ? "MANHA" : "TARDE", status: 'pendente' };
         document.getElementById("listaItinerarioUI").innerHTML = `<div style="color: #FACC15; font-size: 12px; text-align: center; padding: 10px;">Buscando GPS no satélite... 🛰️</div>`;
 
         let crds = await obterCoordenadasSilenciosa(novaOrdem);
-        novaOrdem.lat = crds ? crds.lat : configGalpao.lat;
-        novaOrdem.lon = crds ? crds.lon : configGalpao.lon;
+        novaOrdem.lat = crds ? crds.lat : configGalpao.lat; 
+        novaOrdem.lon = crds ? crds.lon : configGalpao.lon; 
         novaOrdem.precisaCorrecao = crds ? (ehRodoviaOuKm(novaOrdem.rua) ? true : false) : true;
 
-        rotaAtiva.push(novaOrdem);
+        if(!crds) alert("⚠️ Endereço não encontrado com exatidão pelo GPS, ele foi jogado provisoriamente na Base. Edite depois se necessário.");
         
-        window.sincronizarMemoriaGlobal();
+        rotaAtiva.push(novaOrdem); 
         window.atualizarTela(true);
-        
-        if(visualizandoHistorico) {
-            alert("✅ Nova OS adicionada à lista! Lembre-se de clicar em '💾 Salvar' na lista lateral para gravar no servidor.");
-        } else {
-            alert("✅ Nova OS adicionada ao planejamento!");
-        }
+        if(visualizandoHistorico) alert("✅ Ordem Adicionada na tela! Lembre-se de clicar em 'Salvar' (botão verde) na lista para gravar a alteração.");
     };
 
     window.iniciarArraste = function(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '0.5'; }
@@ -1384,7 +1374,6 @@
         e.preventDefault(); document.querySelectorAll('.itinerario-item').forEach(el => el.style.opacity = '1');
         if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
         let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0]; rotaAtiva.splice(indexAlvo, 0, item); 
-        window.sincronizarMemoriaGlobal();
         window.atualizarTela(false);
     }
 </script>
