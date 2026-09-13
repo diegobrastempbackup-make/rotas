@@ -890,7 +890,7 @@
                     let coordenadasRotaCompleta = dadosRota.routes[0].geometry.coordinates; 
                     let distanciaTotalMetros = dadosRota.routes[0].distance;
                     
-                    document.getElementById("txtKMTarefa").innerText = `${(distanciaTotalMetros / 1000 * 1.3 * progressoSlider).toFixed(1)} KM percorridos`;
+                    document.getElementById("txtKMTarefa").innerText = `${(distanciaTotalMetros / 1000 * progressoSlider).toFixed(1)} KM percorridos`;
                     document.getElementById("lblPlaybackStatus").innerText = `Progresso do Percurso: ${Math.round(progressoSlider * 100)}%`;
 
                     let limiteCoordenadas = Math.max(2, Math.floor(coordenadasRotaCompleta.length * progressoSlider));
