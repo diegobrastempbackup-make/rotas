@@ -239,16 +239,50 @@ app.delete('/api/bases/:id', autenticarToken, async (req, res) => {
   } catch (e) { res.status(500).json({ erro: "Erro ao excluir base." }); }
 });
 
-// Retorna técnico + sua base. É a fonte oficial para o roteirizador.
+// Retorna técnicos do roteirizador com a BASE OFICIAL DO USUÁRIO.
+// Regra: usuários.tipo === "tecnico" são a fonte principal da base.
+// tecnicos_dashboard é usado apenas para compatibilidade e dados de frota.
 app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) => {
   try {
-    const tecnicos = await db.collection("tecnicos_dashboard")
-      .find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray();
-    const bases = await db.collection("bases_operacionais")
-      .find({ cliente_id: req.usuario.cliente_id }).toArray();
+    const cliente_id = req.usuario.cliente_id;
+    const [tecnicosDashboard, usuariosTecnicos, bases] = await Promise.all([
+      db.collection("tecnicos_dashboard").find({ cliente_id }).sort({ nome: 1 }).toArray(),
+      db.collection("usuarios").find({ cliente_id, tipo: "tecnico", ativo: { $ne: false } }).toArray(),
+      db.collection("bases_operacionais").find({ cliente_id }).toArray()
+    ]);
+
+    const normalizarNome = (nome) => String(nome || "").trim().toUpperCase();
     const mapaBases = new Map(bases.map(b => [String(b._id), b]));
-    res.json(tecnicos.map(t => ({ ...t, base: t.base_id ? (mapaBases.get(String(t.base_id)) || null) : null })));
-  } catch (e) { res.status(500).json({ erro: "Erro ao carregar técnicos e bases." }); }
+    const mapaUsuarios = new Map(usuariosTecnicos.map(u => [normalizarNome(u.nome), u]));
+    const mapaDashboard = new Map(tecnicosDashboard.map(t => [normalizarNome(t.nome), t]));
+
+    // União dos nomes para suportar técnico que existe apenas em Usuários
+    // ou em técnicos_dashboard durante a migração.
+    const nomes = new Set([...mapaUsuarios.keys(), ...mapaDashboard.keys()]);
+    const resultado = [];
+
+    for (const chave of nomes) {
+      const usuario = mapaUsuarios.get(chave) || null;
+      const tecnicoDashboard = mapaDashboard.get(chave) || null;
+      // PRIORIDADE PROFISSIONAL: base do USUÁRIO técnico.
+      const baseId = usuario?.base_id || tecnicoDashboard?.base_id || null;
+      const base = baseId ? (mapaBases.get(String(baseId)) || null) : null;
+      resultado.push({
+        ...(tecnicoDashboard || {}),
+        ...(usuario ? { usuario_id: String(usuario._id), usuario: usuario.usuario, tipo: usuario.tipo } : {}),
+        nome: usuario?.nome || tecnicoDashboard?.nome || chave,
+        base_id: baseId,
+        base_nome: base?.nome || usuario?.base_nome || tecnicoDashboard?.base_nome || null,
+        base
+      });
+    }
+
+    resultado.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+    res.json(resultado);
+  } catch (e) {
+    console.error("Erro ao carregar técnicos e bases:", e);
+    res.status(500).json({ erro: "Erro ao carregar técnicos e bases." });
+  }
 });
 
 // =====================================================================
@@ -267,7 +301,9 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
         nome: new RegExp(`^${String(tecnico).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i")
       });
       const usuarioTecnico = await db.collection("usuarios").findOne({ cliente_id: req.usuario.cliente_id, nome: tecnicoDoc ? tecnicoDoc.nome : new RegExp(`^${String(tecnico).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i"), tipo: "tecnico" });
-      const baseIdFinal = base_id || usuarioTecnico?.base_id || tecnicoDoc?.base_id;
+      // A base do usuário técnico é a fonte oficial. Nunca deixe uma base
+      // antiga/global enviada pelo navegador sobrescrever a base do técnico.
+      const baseIdFinal = usuarioTecnico?.base_id || tecnicoDoc?.base_id || base_id || null;
       let base = null;
       if (baseIdFinal) base = await db.collection("bases_operacionais").findOne({
         _id: new ObjectId(String(baseIdFinal)), cliente_id: req.usuario.cliente_id
