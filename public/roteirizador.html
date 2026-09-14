@@ -249,6 +249,35 @@
 
     // GESTÃO DE ESTADO GLOBAL LIMPA E SEGURA (Sem o "window." a quebrar)
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
+    let basesOperacionais = [];
+    let tecnicosComBase = new Map();
+
+    async function carregarBasesETecnicos() {
+        const headers = { "Authorization": `Bearer ${token}` };
+        const [rb, rt] = await Promise.all([
+            fetch("/api/bases", { headers }),
+            fetch("/api/tecnicos-dashboard/com-bases", { headers })
+        ]);
+        if (rb.ok) basesOperacionais = await rb.json();
+        if (rt.ok) {
+            const tecnicos = await rt.json();
+            tecnicosComBase = new Map(tecnicos.map(t => [String(t.nome).trim().toUpperCase(), t.base]));
+        }
+    }
+
+    function aplicarBaseDoTecnico(nome, baseDaRota = null) {
+        const base = baseDaRota || tecnicosComBase.get(String(nome || "").trim().toUpperCase());
+        if (base && Number.isFinite(Number(base.lat)) && Number.isFinite(Number(base.lon))) {
+            configGalpao = {
+                id: base.id || base._id || null,
+                lat: Number(base.lat), lon: Number(base.lon),
+                nome: base.nome || "Base Operacional",
+                endereco: base.endereco || ""
+            };
+            return true;
+        }
+        return false;
+    }
     let mapa = null;
     let layerGrupo = null; 
     let dadosGlobaisRotas = {}; 
@@ -270,7 +299,8 @@
     document.getElementById("buscaMes").addEventListener("change", function() { if(this.value) document.getElementById("buscaData").value = ""; });
 
     document.addEventListener("DOMContentLoaded", async () => {
-        await carregarBaseOficial(); 
+        await carregarBasesETecnicos();
+        await carregarBaseOficial();
         await carregarTecnicosParaDropdown(); 
 
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
@@ -288,16 +318,16 @@
     });
 
     async function carregarBaseOficial() {
+        // Compatibilidade apenas para clientes antigos sem bases cadastradas.
+        if (basesOperacionais.length > 0) {
+            if (basesOperacionais.length === 1) aplicarBaseDoTecnico("", basesOperacionais[0]);
+            return;
+        }
         try {
             const res = await fetch("/api/config-base", { headers: { "Authorization": `Bearer ${token}` } });
             const conf = await res.json();
-            if (conf && conf.latBase && conf.lonBase) {
-                configGalpao = { lat: parseFloat(conf.latBase), lon: parseFloat(conf.lonBase), nome: "Base Operacional", endereco: "Base Centralizada" };
-            }
-        } catch(e) {
-            let galpaoLocal = JSON.parse(localStorage.getItem("configGalpao"));
-            if (galpaoLocal && galpaoLocal.lat) configGalpao = galpaoLocal;
-        }
+            if (conf && conf.latBase && conf.lonBase) configGalpao = { lat: parseFloat(conf.latBase), lon: parseFloat(conf.lonBase), nome: "Base Operacional", endereco: "Base Centralizada" };
+        } catch(e) {}
     }
 
     async function carregarTecnicosParaDropdown() {
@@ -620,7 +650,8 @@
     window.iniciarCalculoTecnico = async function(nome) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
-        tecnicoAtivo = nome; 
+        tecnicoAtivo = nome;
+        aplicarBaseDoTecnico(nome);
         modoVisaoGlobal = false;
         modoEdicaoAtivo = false;
         
@@ -642,14 +673,8 @@
         window.configurarSliderInicio(); document.getElementById("painelItinerario").style.display = "block"; window.atualizarTela(true); 
     }
 
-    window.editarEnderecoGalpao = async function() {
-        let novoEndereco = prompt("✏️ Digite o novo endereço ou rua da Base / Galpão:", configGalpao.endereco);
-        if (!novoEndereco || novoEndereco.trim() === "") return;
-        let crds = await obterCoordenadasSilenciosa({ rua: novoEndereco, cidade: "São Paulo" });
-        if (!crds) return alert("❌ Não foi possível encontrar coordenadas GPS para este endereço da Base.");
-
-        configGalpao = { lat: crds.lat, lon: crds.lon, nome: "Base Operacional", endereco: novoEndereco };
-        localStorage.setItem("configGalpao", JSON.stringify(configGalpao)); alert("✅ Base atualizada e salva com sucesso!"); window.atualizarTela(true);
+    window.editarEnderecoGalpao = function() {
+        alert("Para alterar uma base, acesse Administração → Bases Operacionais. A base não é mais global: cada técnico usa a sua própria base.");
     }
 
     window.atualizarTela = async function(recentrarMapa = true) {
@@ -660,7 +685,7 @@
 
         const iconeGalpao = L.divIcon({ 
             className: 'custom-pin', 
-            html: `<div onclick="window.editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Clique para editar o endereço da Base">🏢 ${configGalpao.nome} (Editar)</div>`, 
+            html: `<div onclick="window.editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Base operacional do técnico">🏢 ${configGalpao.nome}</div>`, 
             iconSize: [140, 30] 
         });
         L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
@@ -1079,7 +1104,9 @@
     window.carregarRotaHistorica = function(idx, clickManual) {
         if(clickManual) { document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo')); document.getElementById(`hist-tecnico-${idx}`).classList.add('ativo'); }
         const roteiro = historicoRotasMemoria[idx]; 
-        tecnicoAtivo = roteiro.tecnico; 
+        tecnicoAtivo = roteiro.tecnico;
+        // Roteiro histórico sempre usa o snapshot da base daquele dia.
+        aplicarBaseDoTecnico(tecnicoAtivo, roteiro.base || null);
         rotaAtiva = [...(roteiro.itinerario || [])]; 
         modoVisaoGlobal = false; 
         
@@ -1101,7 +1128,7 @@
                     if (houveMudancaGlobal) { historicoRotasMemoria = rotasEncontradas; window.atualizarTela(false); }
                 } else if (tecnicoAtivo) {
                     const rotaAtualizada = rotasEncontradas.find(r => r.tecnico === tecnicoAtivo); const rotaAntiga = historicoRotasMemoria.find(r => r.tecnico === tecnicoAtivo);
-                    if (rotaAtualizada && JSON.stringify(rotaAntiga) !== JSON.stringify(rotaAtualizada)) { historicoRotasMemoria = rotasEncontradas; rotaAtiva = [...(rotaAtualizada.itinerario || [])]; window.atualizarTela(false); }
+                    if (rotaAtualizada && JSON.stringify(rotaAntiga) !== JSON.stringify(rotaAtualizada)) { historicoRotasMemoria = rotasEncontradas; aplicarBaseDoTecnico(tecnicoAtivo, rotaAtualizada.base || null); rotaAtiva = [...(rotaAtualizada.itinerario || [])]; window.atualizarTela(false); }
                 }
             } catch(e) {} 
         }, 10000); 
@@ -1484,7 +1511,7 @@
                 let roteiro = historicoRotasMemoria[rotaIndex]; let idBancoAntigo = roteiro._id;
                 roteiro.tecnico = novoNome; if (tecnicoAtivo === nomeAntigo) tecnicoAtivo = novoNome;
                 try {
-                    await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: roteiro.data, tecnico: novoNome, itinerario: roteiro.itinerario }) });
+                    await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: roteiro.data, tecnico: novoNome, itinerario: roteiro.itinerario, base_id: configGalpao.id || null }) });
                     if (idBancoAntigo) { await fetch(`/api/rotas/${idBancoAntigo}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); }
                 } catch(e) {}
                 alert(`✅ Roteiro transferido com sucesso para ${novoNome}!`); window.buscarHistorico(); 
@@ -1549,7 +1576,7 @@
         const hoje = new Date(); const dBR = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth()+1).padStart(2, '0')}/${hoje.getFullYear()}`;
         let dataInput = prompt("Data (DD/MM/AAAA):", dBR); if (!dataInput) return;
         try {
-            const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: dataInput.trim(), tecnico: tecnicoAtivo, itinerario: rotaAtiva }) });
+            const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: dataInput.trim(), tecnico: tecnicoAtivo, itinerario: rotaAtiva, base_id: configGalpao.id || null }) });
             if (res.ok) alert(`✅ Roteiro de ${tecnicoAtivo} guardado para ${dataInput}.`); else alert("❌ Falha no servidor.");
         } catch(e) { alert("❌ Erro."); }
     }

@@ -1,6 +1,7 @@
 const token = localStorage.getItem("token");
 let cacheTecnicos = [];
 let cacheTotem = [];
+let cacheBases = [];
 
 if (!token) window.location.replace("/login.html");
 
@@ -38,6 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+    await carregarBases();
     await carregarTecnicos();
     await carregarUsuarios();
     await carregarEquipeTotem();
@@ -49,7 +51,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function mudarAba(abaSelecionada) {
-    const abas = ['tecnicos', 'usuarios', 'empresas', 'totem'];
+    const abas = ['tecnicos', 'usuarios', 'empresas', 'totem', 'bases'];
     abas.forEach(aba => {
         const el = document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`);
         const btn = document.getElementById(`btnTab${aba.charAt(0).toUpperCase() + aba.slice(1)}`);
@@ -209,7 +211,7 @@ function renderizarTabela(lista) {
             <tr>
                 <td style="padding: 10px;"><strong>${t.nome}</strong></td>
                 <td style="padding: 10px;"><span class="badge ${classeBadge}">${statusReal}</span></td>
-                <td style="padding: 10px;">${t.telefone || "-"}</td>
+                <td style="padding: 10px;"><strong>${t.base_nome || cacheBases.find(b => String(b._id) === String(t.base_id))?.nome || "Não vinculada"}</strong></td><td style="padding: 10px;">${t.telefone || "-"}</td>
                 <td style="padding: 10px;">${t.email || "-"}</td>
                 <td style="padding: 10px;">${t.veiculo || "-"}</td>
                 <td style="padding: 10px;">
@@ -236,7 +238,7 @@ function abrirModalTecnico() {
     document.getElementById("tecnicoId").value = ""; document.getElementById("formNome").value = "";
     document.getElementById("formStatus").value = "Ativo"; document.getElementById("formTelefone").value = "";
     document.getElementById("formEmail").value = ""; document.getElementById("formVeiculo").value = "";
-    document.getElementById("formPlaca").value = ""; document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("formPlaca").value = ""; preencherSelectBases(); document.getElementById("formBaseTecnico").value = ""; document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 function prepararEdicaoTecnico(id) {
@@ -246,7 +248,7 @@ function prepararEdicaoTecnico(id) {
     document.getElementById("tecnicoId").value = t._id; document.getElementById("formNome").value = t.nome;
     document.getElementById("formStatus").value = t.status || "Ativo"; document.getElementById("formTelefone").value = t.telefone || "";
     document.getElementById("formEmail").value = t.email || ""; document.getElementById("formVeiculo").value = t.veiculo || "";
-    document.getElementById("formPlaca").value = t.placa || ""; document.getElementById("modalTecnico").classList.add("ativo"); 
+    document.getElementById("formPlaca").value = t.placa || ""; preencherSelectBases(t.base_id || ""); document.getElementById("modalTecnico").classList.add("ativo"); 
 }
 
 async function salvarTecnico() {
@@ -254,9 +256,10 @@ async function salvarTecnico() {
     const payload = {
         nome: document.getElementById("formNome").value.trim(), status: document.getElementById("formStatus").value,
         telefone: document.getElementById("formTelefone").value.trim(), email: document.getElementById("formEmail").value.trim(),
-        veiculo: document.getElementById("formVeiculo").value.trim(), placa: document.getElementById("formPlaca").value.trim()
+        veiculo: document.getElementById("formVeiculo").value.trim(), placa: document.getElementById("formPlaca").value.trim(), base_id: document.getElementById("formBaseTecnico").value, base_nome: cacheBases.find(b => String(b._id) === String(document.getElementById("formBaseTecnico").value))?.nome || null
     };
     if (!payload.nome) return alert("O Nome é obrigatório.");
+    if (!payload.base_id && cacheBases.length > 1) return alert("Selecione a Base Operacional do técnico.");
     try {
         const url = id ? `/api/tecnicos-dashboard/${id}` : "/api/tecnicos-dashboard";
         const metodo = id ? "PUT" : "POST";
@@ -471,3 +474,46 @@ function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
     `);
     janelaCracha.document.close();
 }
+
+// =========================================================
+// BASES OPERACIONAIS - MULTIBASE SaaS
+// =========================================================
+async function carregarBases() {
+    try {
+        const res = await fetch('/api/bases', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error();
+        cacheBases = await res.json();
+        renderizarBases();
+    } catch (e) { console.error('Erro ao carregar bases', e); cacheBases = []; }
+}
+function preencherSelectBases(selecionada = '') {
+    const sel = document.getElementById('formBaseTecnico'); if (!sel) return;
+    sel.innerHTML = '<option value="">Selecione a base...</option>' + cacheBases.map(b => `<option value="${b._id}">${b.nome}</option>`).join('');
+    if (selecionada) sel.value = String(selecionada);
+    if (cacheBases.length === 1 && !selecionada) sel.value = String(cacheBases[0]._id);
+}
+function renderizarBases() {
+    const corpo = document.getElementById('corpoTabelaBases'); if (!corpo) return;
+    corpo.innerHTML = cacheBases.length ? cacheBases.map(b => `<tr><td><strong>${b.nome}</strong></td><td>${b.endereco || '-'}</td><td>${Number(b.lat).toFixed(6)}</td><td>${Number(b.lon).toFixed(6)}</td><td>${b.raioBase || 150} m</td><td><button class="btn-mini btn-editar" onclick="editarBase('${b._id}')">Editar</button><button class="btn-mini btn-excluir" onclick="excluirBase('${b._id}')">Excluir</button></td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#94A3B8;">Nenhuma base cadastrada.</td></tr>';
+}
+function abrirModalBase() {
+    document.getElementById('modalTituloBase').innerText = 'Nova Base Operacional';
+    ['baseId','baseNome','baseEndereco','baseLat','baseLon'].forEach(id => document.getElementById(id).value='');
+    document.getElementById('baseRaio').value=150; document.getElementById('baseLimite').value='08:00';
+    document.getElementById('modalBase').classList.add('ativo');
+}
+function editarBase(id) {
+    const b=cacheBases.find(x=>String(x._id)===String(id)); if(!b) return;
+    document.getElementById('modalTituloBase').innerText='Editar Base: '+b.nome;
+    document.getElementById('baseId').value=b._id; document.getElementById('baseNome').value=b.nome||''; document.getElementById('baseEndereco').value=b.endereco||'';
+    document.getElementById('baseLat').value=b.lat??''; document.getElementById('baseLon').value=b.lon??''; document.getElementById('baseRaio').value=b.raioBase||150; document.getElementById('baseLimite').value=b.limiteAtraso||'08:00';
+    document.getElementById('modalBase').classList.add('ativo');
+}
+async function salvarBase() {
+    const id=document.getElementById('baseId').value;
+    const payload={nome:document.getElementById('baseNome').value.trim(), endereco:document.getElementById('baseEndereco').value.trim(), lat:Number(document.getElementById('baseLat').value), lon:Number(document.getElementById('baseLon').value), raioBase:Number(document.getElementById('baseRaio').value)||150, limiteAtraso:document.getElementById('baseLimite').value||'08:00'};
+    if(!payload.nome || !Number.isFinite(payload.lat) || !Number.isFinite(payload.lon)) return alert('Nome, latitude e longitude são obrigatórios.');
+    const res=await fetch(id?`/api/bases/${id}`:'/api/bases',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify(payload)}); const d=await res.json().catch(()=>({}));
+    if(!res.ok) return alert(d.erro||'Não foi possível salvar a base.'); fecharModal('modalBase'); await carregarBases(); await carregarTecnicos();
+}
+async function excluirBase(id) { if(!confirm('Excluir esta base? Técnicos vinculados impedem a exclusão.')) return; const res=await fetch(`/api/bases/${id}`,{method:'DELETE',headers:{'Authorization':`Bearer ${token}`}}); const d=await res.json().catch(()=>({})); if(!res.ok) return alert(d.erro||'Não foi possível excluir.'); await carregarBases(); }

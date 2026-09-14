@@ -179,24 +179,109 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
+// BASES OPERACIONAIS (MULTIBASE / MULTITENANT)
+// Cada base pertence a um cliente_id. A rota grava um snapshot da base,
+// evitando que São Paulo e BH compartilhem uma configuração global.
+// =====================================================================
+app.get('/api/bases', autenticarToken, async (req, res) => {
+  try {
+    const bases = await db.collection("bases_operacionais")
+      .find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray();
+    res.json(bases);
+  } catch (e) { res.status(500).json({ erro: "Erro ao listar bases." }); }
+});
+
+app.post('/api/bases', autenticarToken, async (req, res) => {
+  try {
+    const { nome, lat, lon, raioBase, limiteAtraso, endereco } = req.body;
+    if (!nome || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
+      return res.status(400).json({ erro: "Nome, latitude e longitude são obrigatórios." });
+    }
+    const base = {
+      cliente_id: req.usuario.cliente_id,
+      nome: String(nome).trim(),
+      endereco: endereco || "",
+      lat: Number(lat), lon: Number(lon),
+      raioBase: Number(raioBase) || 150,
+      limiteAtraso: limiteAtraso || "08:00",
+      criadoEm: new Date(), atualizadoEm: new Date()
+    };
+    const r = await db.collection("bases_operacionais").insertOne(base);
+    res.json({ ok: true, id: r.insertedId, base: { ...base, _id: r.insertedId } });
+  } catch (e) { res.status(500).json({ erro: "Erro ao criar base." }); }
+});
+
+app.put('/api/bases/:id', autenticarToken, async (req, res) => {
+  try {
+    const dados = {};
+    for (const campo of ["nome","endereco","limiteAtraso"]) if (req.body[campo] !== undefined) dados[campo] = req.body[campo];
+    if (req.body.lat !== undefined) dados.lat = Number(req.body.lat);
+    if (req.body.lon !== undefined) dados.lon = Number(req.body.lon);
+    if (req.body.raioBase !== undefined) dados.raioBase = Number(req.body.raioBase);
+    dados.atualizadoEm = new Date();
+    const r = await db.collection("bases_operacionais").updateOne(
+      { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: dados });
+    if (!r.matchedCount) return res.status(404).json({ erro: "Base não encontrada." });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ erro: "Erro ao atualizar base." }); }
+});
+
+app.delete('/api/bases/:id', autenticarToken, async (req, res) => {
+  try {
+    const id = new ObjectId(req.params.id);
+    const emUso = await db.collection("tecnicos_dashboard").countDocuments({
+      cliente_id: req.usuario.cliente_id, base_id: req.params.id
+    });
+    if (emUso) return res.status(400).json({ erro: "Não é possível excluir uma base com técnicos vinculados." });
+    const r = await db.collection("bases_operacionais").deleteOne({ _id: id, cliente_id: req.usuario.cliente_id });
+    if (!r.deletedCount) return res.status(404).json({ erro: "Base não encontrada." });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ erro: "Erro ao excluir base." }); }
+});
+
+// Retorna técnico + sua base. É a fonte oficial para o roteirizador.
+app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) => {
+  try {
+    const tecnicos = await db.collection("tecnicos_dashboard")
+      .find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray();
+    const bases = await db.collection("bases_operacionais")
+      .find({ cliente_id: req.usuario.cliente_id }).toArray();
+    const mapaBases = new Map(bases.map(b => [String(b._id), b]));
+    res.json(tecnicos.map(t => ({ ...t, base: t.base_id ? (mapaBases.get(String(t.base_id)) || null) : null })));
+  } catch (e) { res.status(500).json({ erro: "Erro ao carregar técnicos e bases." }); }
+});
+
+// =====================================================================
 // NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE
 // =====================================================================
 
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
-      const { data, tecnico, itinerario } = req.body;
+      const { data, tecnico, itinerario, base_id } = req.body;
       if (!data || !tecnico || !itinerario) {
           return res.status(400).json({ erro: "Dados incompletos" });
       }
 
-      const itinerarioFormatado = itinerario.map(item => ({
-          ...item,
-          status: item.status || 'pendente'
-      }));
+      const tecnicoDoc = await db.collection("tecnicos_dashboard").findOne({
+        cliente_id: req.usuario.cliente_id,
+        nome: new RegExp(`^${String(tecnico).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i")
+      });
+      const baseIdFinal = base_id || tecnicoDoc?.base_id;
+      let base = null;
+      if (baseIdFinal) base = await db.collection("bases_operacionais").findOne({
+        _id: new ObjectId(String(baseIdFinal)), cliente_id: req.usuario.cliente_id
+      });
+      if (!base) {
+        const bases = await db.collection("bases_operacionais").find({ cliente_id: req.usuario.cliente_id }).toArray();
+        if (bases.length === 1) base = bases[0];
+        else if (bases.length > 1) return res.status(400).json({ erro: `O técnico ${tecnico} não possui uma base operacional vinculada.` });
+      }
+      const itinerarioFormatado = itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
+      const baseSnapshot = base ? { id: String(base._id), nome: base.nome, endereco: base.endereco || "", lat: Number(base.lat), lon: Number(base.lon), raioBase: base.raioBase, limiteAtraso: base.limiteAtraso } : null;
 
       await db.collection("planejamento_rotas").updateOne(
           { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
-          { $set: { itinerario: itinerarioFormatado, atualizadoEm: new Date() } },
+          { $set: { itinerario: itinerarioFormatado, base_id: baseSnapshot?.id || null, base: baseSnapshot, atualizadoEm: new Date() } },
           { upsert: true }
       );
 
@@ -357,7 +442,7 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
 // ESTOQUE, HISTÓRICO, TÉCNICOS DASHBOARD
 // =====================================================================
 app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
-app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { const { nome, status, telefone, email, veiculo, placa } = req.body; const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Técnico já registado" }); await db.collection("tecnicos_dashboard").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", telefone, email, veiculo, placa, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { const { nome, status, telefone, email, veiculo, placa, base_id, base_nome } = req.body; const existe = await db.collection("tecnicos_dashboard").findOne({ nome: nome.trim(), cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Técnico já registado" }); await db.collection("tecnicos_dashboard").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.trim(), status: status || "Ativo", telefone, email, veiculo, placa, base_id: base_id ? String(base_id) : null, base_nome: base_nome || null, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { nome: req.body.nome.trim(), status: req.body.status, telefone: req.body.telefone, email: req.body.email, veiculo: req.body.veiculo, placa: req.body.placa } }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 app.delete("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => { try { await db.collection("tecnicos_dashboard").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
 

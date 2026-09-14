@@ -62,6 +62,7 @@
             <button id="btnTabTecnicos" class="tab-btn ativa" onclick="mudarAba('tecnicos')">🚗 Técnicos Dashboard</button>
             <button id="btnTabUsuarios" class="tab-btn" onclick="mudarAba('usuarios')" style="display:none;">🔐 Usuários</button>
             <button id="btnTabTotem" class="tab-btn" onclick="mudarAba('totem')">🪪 Técnicos Lista</button>
+            <button id="btnTabBases" class="tab-btn" onclick="mudarAba('bases')">📍 Bases Operacionais</button>
             <button id="btnTabEmpresas" class="tab-btn" onclick="mudarAba('empresas')" style="display:none; background:rgba(16, 185, 129, 0.1); color:#10B981; border:1px solid rgba(16, 185, 129, 0.3);">🏢 Clientes (SaaS)</button>
         </div>
 
@@ -82,10 +83,19 @@
             </div>
             <div class="painel-tabela">
                 <table>
-                    <thead><tr><th>Nome</th><th>Status</th><th>Telefone</th><th>E-mail</th><th>Veículo</th><th>Placa</th><th>Ações</th></tr></thead>
+                    <thead><tr><th>Nome</th><th>Status</th><th>Base Operacional</th><th>Telefone</th><th>E-mail</th><th>Veículo</th><th>Placa</th><th>Ações</th></tr></thead>
                     <tbody id="corpoTabelaTecnicos"></tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- ABA BASES OPERACIONAIS -->
+        <div id="abaBases" style="display:none;">
+            <div class="area-filtros">
+                <div style="flex:1;"><h3 style="margin:0;color:white;">Bases Operacionais</h3><p style="margin:5px 0 0;color:#94A3B8;font-size:13px;">Cada técnico pertence a uma base. O roteirizador calcula a rota a partir da base correta.</p></div>
+                <button class="btn-novo btn-novo-verde" onclick="abrirModalBase()">+ Nova Base</button>
+            </div>
+            <div class="painel-tabela"><table><thead><tr><th>Base</th><th>Endereço</th><th>Latitude</th><th>Longitude</th><th>Raio</th><th>Ações</th></tr></thead><tbody id="corpoTabelaBases"></tbody></table></div>
         </div>
 
         <!-- ABA USUÁRIOS -->
@@ -196,9 +206,20 @@
         <div class="form-grid"><div class="form-group"><label>Status</label><select id="formStatus"><option value="Ativo">Ativo</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastado</option><option value="Desligado">Desligado</option></select></div><div class="form-group"><label>Telefone</label><input type="text" id="formTelefone" placeholder="(19) 99999-1111"></div></div>
         <div class="form-group"><label>E-mail</label><input type="email" id="formEmail" placeholder="joao@neri.com"></div>
         <div class="form-grid"><div class="form-group"><label>Veículo</label><input type="text" id="formVeiculo" placeholder="Ex: Fiat Strada"></div><div class="form-group"><label>Placa</label><input type="text" id="formPlaca" placeholder="Ex: ABC1D23"></div></div>
+        <div class="form-group"><label>Base Operacional <span style="color:#F87171;">*</span></label><select id="formBaseTecnico"><option value="">Carregando bases...</option></select><small style="color:#94A3B8;">O roteiro deste técnico sempre partirá desta base.</small></div>
         <button class="btn-bloco" onclick="salvarTecnico()">Gravar Alterações</button>
     </div>
 </div>
+
+
+<!-- MODAL: BASE OPERACIONAL -->
+<div id="modalBase" class="modal"><div class="modal-conteudo">
+<div class="modal-header"><h3 id="modalTituloBase">Nova Base Operacional</h3><button class="fechar-modal" onclick="fecharModal('modalBase')">×</button></div>
+<input type="hidden" id="baseId"><div class="form-group"><label>Nome da Base</label><input id="baseNome" placeholder="Ex: São Paulo ou Belo Horizonte"></div>
+<div class="form-group"><label>Endereço</label><input id="baseEndereco" placeholder="Endereço completo"></div>
+<div class="form-grid"><div class="form-group"><label>Latitude</label><input id="baseLat" type="number" step="any" placeholder="-23.5505"></div><div class="form-group"><label>Longitude</label><input id="baseLon" type="number" step="any" placeholder="-46.6333"></div></div>
+<div class="form-grid"><div class="form-group"><label>Raio (metros)</label><input id="baseRaio" type="number" value="150"></div><div class="form-group"><label>Limite de atraso</label><input id="baseLimite" type="time" value="08:00"></div></div>
+<button class="btn-bloco" onclick="salvarBase()">Salvar Base</button></div></div>
 
 <!-- MODAL: USUÁRIO -->
 <div id="modalUsuario" class="modal">
