@@ -206,8 +206,7 @@
         <div class="form-grid"><div class="form-group"><label>Status</label><select id="formStatus"><option value="Ativo">Ativo</option><option value="Em Férias">Em Férias</option><option value="Afastado">Afastado</option><option value="Desligado">Desligado</option></select></div><div class="form-group"><label>Telefone</label><input type="text" id="formTelefone" placeholder="(19) 99999-1111"></div></div>
         <div class="form-group"><label>E-mail</label><input type="email" id="formEmail" placeholder="joao@neri.com"></div>
         <div class="form-grid"><div class="form-group"><label>Veículo</label><input type="text" id="formVeiculo" placeholder="Ex: Fiat Strada"></div><div class="form-group"><label>Placa</label><input type="text" id="formPlaca" placeholder="Ex: ABC1D23"></div></div>
-        <div class="form-group"><label>Base Operacional <span style="color:#F87171;">*</span></label><select id="formBaseTecnico"><option value="">Carregando bases...</option></select><small style="color:#94A3B8;">O roteiro deste técnico sempre partirá desta base.</small></div>
-        <button class="btn-bloco" onclick="salvarTecnico()">Gravar Alterações</button>
+                <button class="btn-bloco" onclick="salvarTecnico()">Gravar Alterações</button>
     </div>
 </div>
 
@@ -240,6 +239,7 @@
                 <option value="totem">Totem (Entrada)</option>
             </select>
         </div>
+        <div class="form-group" id="grupoBaseUsuario"><label>Base Operacional do Usuário</label><select id="cadBaseId"><option value="">Sem base vinculada</option></select><small style="color:#94A3B8;">Obrigatória para usuários do tipo Técnico. É esta base que o roteirizador utilizará.</small></div>
         <button class="btn-bloco" style="background:#10B981;" onclick="salvarUsuario()">Salvar Usuário</button>
     </div>
 </div>
@@ -251,6 +251,8 @@
 const token = localStorage.getItem("token");
 let cacheTecnicos = [];
 let cacheTotem = [];
+let cacheBases = [];
+let cacheUsuarios = [];
 
 // Um avatar padrão embutido no código, assim nunca tem imagem quebrada!
 const AVATAR_PADRAO = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394A3B8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
@@ -288,6 +290,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+    await carregarBases();
     await carregarTecnicos();
     await carregarUsuarios();
     await carregarEquipeTotem();
@@ -299,7 +302,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function mudarAba(abaSelecionada) {
-    const abas = ['tecnicos', 'usuarios', 'empresas', 'totem'];
+    const abas = ['tecnicos', 'usuarios', 'empresas', 'totem', 'bases'];
     abas.forEach(aba => {
         const el = document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`);
         const btn = document.getElementById(`btnTab${aba.charAt(0).toUpperCase() + aba.slice(1)}`);
@@ -506,6 +509,7 @@ async function carregarUsuarios() {
     try {
         const res = await fetch("/api/usuarios", { headers: { "Authorization": `Bearer ${token}` } });
         const usuarios = await res.json();
+        cacheUsuarios = usuarios;
         corpo.innerHTML = "";
         usuarios.forEach(u => {
             let badge = `<span class="badge" style="background:rgba(148,163,184,0.15); color:#94A3B8;">Simples</span>`;
@@ -522,7 +526,7 @@ async function carregarUsuarios() {
                     <td>${u.usuario}</td>
                     <td>${badge}</td>
                     <td>
-                        ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}', '${u.nome}', '${u.usuario}', '${u.tipo}')">Editar</button> <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
+                        ${u.tipo !== "superadmin" ? `<button class="btn-mini btn-editar" onclick="prepararEdicaoUsuario('${u._id}')">Editar</button> <button class="btn-mini btn-excluir" onclick="deletarUsuario('${u._id}')">Excluir</button>` : `<span style="color:#64748B; font-size:11px;">Protegido</span>`}
                     </td>
                 </tr>
             `;
@@ -535,14 +539,17 @@ function abrirModalUsuario() {
     document.getElementById("usuarioEditId").value = ""; document.getElementById("cadNome").value = "";
     document.getElementById("cadUsuario").value = ""; document.getElementById("cadUsuario").disabled = false; 
     document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = "simples";
+    preencherSelectBasesUsuario();
     document.getElementById("modalUsuario").classList.add("ativo"); 
 }
 
-function prepararEdicaoUsuario(id, nome, usuario, tipoReal) {
-    document.getElementById("modalTituloUsuario").innerText = `Editar: ${usuario}`;
-    document.getElementById("usuarioEditId").value = id; document.getElementById("cadNome").value = nome;
-    document.getElementById("cadUsuario").value = usuario; document.getElementById("cadUsuario").disabled = true; 
-    document.getElementById("cadSenha").value = ""; document.getElementById("cadTipo").value = tipoReal;
+function prepararEdicaoUsuario(id) {
+    const u = cacheUsuarios.find(x => String(x._id) === String(id)); if(!u) return;
+    document.getElementById("modalTituloUsuario").innerText = `Editar: ${u.usuario}`;
+    document.getElementById("usuarioEditId").value = id; document.getElementById("cadNome").value = u.nome || '';
+    document.getElementById("cadUsuario").value = u.usuario || ''; document.getElementById("cadUsuario").disabled = true;
+    document.getElementById("cadSenha").value = ''; document.getElementById("cadTipo").value = u.tipo || 'simples';
+    preencherSelectBasesUsuario(u.base_id || '');
     document.getElementById("modalUsuario").classList.add("ativo");
 }
 
@@ -552,11 +559,14 @@ async function salvarUsuario() {
     const usuario = document.getElementById("cadUsuario").value.trim();
     const senha = document.getElementById("cadSenha").value;
     const tipo = document.getElementById("cadTipo").value;
+    const base_id = document.getElementById("cadBaseId")?.value || "";
+    const base_nome = cacheBases.find(b => String(b._id) === String(base_id))?.nome || null;
+    if (tipo === "tecnico" && !base_id) return alert("Selecione a Base Operacional do técnico.");
     if (!nome || !usuario) return alert("Preencha todos os campos obrigatórios.");
     try {
         let res;
-        if (id) res = await fetch(`/api/usuarios/${id}`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, tipo, senha }) });
-        else res = await fetch("/cadastro", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, usuario, senha, tipo }) });
+        if (id) res = await fetch(`/api/usuarios/${id}`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, tipo, senha, base_id, base_nome }) });
+        else res = await fetch("/cadastro", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify({ nome, usuario, senha, tipo, base_id, base_nome }) });
         if (!res.ok) return alert("Erro.");
         fecharModal('modalUsuario'); await carregarUsuarios();
     } catch (err) {}
@@ -717,6 +727,20 @@ function imprimirCracha(nomePessoa, funcao = "Equipe Operacional") {
     `);
     janelaCracha.document.close();
 }
+
+// =========================================================
+// BASES OPERACIONAIS - CORREÇÃO MULTIBASE
+// =========================================================
+async function carregarBases(){
+ try{const r=await fetch('/api/bases',{headers:{Authorization:`Bearer ${token}`}}); if(!r.ok) throw new Error(); cacheBases=await r.json(); renderizarBases(); preencherSelectBasesUsuario();}
+ catch(e){console.error(e);cacheBases=[];}
+}
+function renderizarBases(){const c=document.getElementById('corpoTabelaBases'); if(!c)return; c.innerHTML=cacheBases.length?cacheBases.map(b=>`<tr><td><strong>${b.nome}</strong></td><td>${b.endereco||'-'}</td><td>${Number(b.lat).toFixed(6)}</td><td>${Number(b.lon).toFixed(6)}</td><td>${b.raioBase||150} m</td><td><button class="btn-mini btn-editar" onclick="editarBase('${b._id}')">Editar</button> <button class="btn-mini btn-excluir" onclick="excluirBase('${b._id}')">Excluir</button></td></tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:#94A3B8;">Nenhuma base cadastrada. Clique em + Nova Base.</td></tr>'; }
+function preencherSelectBasesUsuario(sel=''){const e=document.getElementById('cadBaseId');if(!e)return;e.innerHTML='<option value="">Sem base vinculada</option>'+cacheBases.map(b=>`<option value="${b._id}">${b.nome}</option>`).join('');if(sel)e.value=String(sel);}
+function abrirModalBase(){document.getElementById('modalTituloBase').innerText='Nova Base Operacional';['baseId','baseNome','baseEndereco','baseLat','baseLon'].forEach(i=>document.getElementById(i).value='');document.getElementById('baseRaio').value=150;document.getElementById('baseLimite').value='08:00';document.getElementById('modalBase').classList.add('ativo');}
+function editarBase(id){const b=cacheBases.find(x=>String(x._id)===String(id));if(!b)return;document.getElementById('modalTituloBase').innerText='Editar Base Operacional';document.getElementById('baseId').value=b._id;document.getElementById('baseNome').value=b.nome||'';document.getElementById('baseEndereco').value=b.endereco||'';document.getElementById('baseLat').value=b.lat??'';document.getElementById('baseLon').value=b.lon??'';document.getElementById('baseRaio').value=b.raioBase||150;document.getElementById('baseLimite').value=b.limiteAtraso||'08:00';document.getElementById('modalBase').classList.add('ativo');}
+async function salvarBase(){const id=document.getElementById('baseId').value;const payload={nome:document.getElementById('baseNome').value.trim(),endereco:document.getElementById('baseEndereco').value.trim(),lat:Number(document.getElementById('baseLat').value),lon:Number(document.getElementById('baseLon').value),raioBase:Number(document.getElementById('baseRaio').value)||150,limiteAtraso:document.getElementById('baseLimite').value||'08:00'};if(!payload.nome||!Number.isFinite(payload.lat)||!Number.isFinite(payload.lon))return alert('Nome, latitude e longitude são obrigatórios.');const r=await fetch(id?`/api/bases/${id}`:'/api/bases',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(payload)});const d=await r.json().catch(()=>({}));if(!r.ok)return alert(d.erro||'Não foi possível salvar a base.');fecharModal('modalBase');await carregarBases();alert('Base salva com sucesso.');}
+async function excluirBase(id){if(!confirm('Excluir esta base?'))return;const r=await fetch(`/api/bases/${id}`,{method:'DELETE',headers:{Authorization:`Bearer ${token}`}});const d=await r.json().catch(()=>({}));if(!r.ok)return alert(d.erro||'Não foi possível excluir.');await carregarBases();}
 </script>
 </body>
 </html>

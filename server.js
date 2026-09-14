@@ -141,7 +141,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
     
-    const { nome, usuario, senha, tipo, cliente_id } = req.body; 
+    const { nome, usuario, senha, tipo, cliente_id, base_id, base_nome } = req.body; 
     
     const existe = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (existe) return res.status(400).json({ erro: "Login já em uso" });
@@ -150,7 +150,7 @@ app.post("/cadastro", autenticarToken, async (req, res) => {
     
     const tenantId = (req.usuario.tipo === "superadmin" && cliente_id) ? cliente_id : req.usuario.cliente_id;
 
-    await db.collection("usuarios").insertOne({ cliente_id: tenantId, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, ativo: true, criadoEm: new Date() });
+    await db.collection("usuarios").insertOne({ cliente_id: tenantId, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, base_id: base_id ? String(base_id) : null, base_nome: base_nome || null, ativo: true, criadoEm: new Date() });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -170,8 +170,8 @@ app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
 app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "master" && req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Negado" });
-    const { nome, tipo, senha } = req.body;
-    const atualizacao = { nome, tipo };
+    const { nome, tipo, senha, base_id, base_nome } = req.body;
+    const atualizacao = { nome, tipo, base_id: base_id ? String(base_id) : null, base_nome: base_nome || null };
     if (senha && senha.trim() !== "") atualizacao.senha = await bcrypt.hash(senha, 10);
     await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: atualizacao });
     res.json({ ok: true });
@@ -229,9 +229,9 @@ app.put('/api/bases/:id', autenticarToken, async (req, res) => {
 app.delete('/api/bases/:id', autenticarToken, async (req, res) => {
   try {
     const id = new ObjectId(req.params.id);
-    const emUso = await db.collection("tecnicos_dashboard").countDocuments({
-      cliente_id: req.usuario.cliente_id, base_id: req.params.id
-    });
+    const emUsoDashboard = await db.collection("tecnicos_dashboard").countDocuments({ cliente_id: req.usuario.cliente_id, base_id: req.params.id });
+    const emUsoUsuarios = await db.collection("usuarios").countDocuments({ cliente_id: req.usuario.cliente_id, base_id: req.params.id });
+    const emUso = emUsoDashboard + emUsoUsuarios;
     if (emUso) return res.status(400).json({ erro: "Não é possível excluir uma base com técnicos vinculados." });
     const r = await db.collection("bases_operacionais").deleteOne({ _id: id, cliente_id: req.usuario.cliente_id });
     if (!r.deletedCount) return res.status(404).json({ erro: "Base não encontrada." });
@@ -266,7 +266,8 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
         cliente_id: req.usuario.cliente_id,
         nome: new RegExp(`^${String(tecnico).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i")
       });
-      const baseIdFinal = base_id || tecnicoDoc?.base_id;
+      const usuarioTecnico = await db.collection("usuarios").findOne({ cliente_id: req.usuario.cliente_id, nome: tecnicoDoc ? tecnicoDoc.nome : new RegExp(`^${String(tecnico).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i"), tipo: "tecnico" });
+      const baseIdFinal = base_id || usuarioTecnico?.base_id || tecnicoDoc?.base_id;
       let base = null;
       if (baseIdFinal) base = await db.collection("bases_operacionais").findOne({
         _id: new ObjectId(String(baseIdFinal)), cliente_id: req.usuario.cliente_id
