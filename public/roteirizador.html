@@ -251,6 +251,10 @@
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
     let basesOperacionais = [];
     let tecnicosComBase = new Map();
+    let basesVisiveisMapa = [];
+    let baseAtivaTecnico = null;
+    let enderecosPendentesGPS = [];
+    
 
     async function carregarBasesETecnicos() {
         const headers = { "Authorization": `Bearer ${token}` };
@@ -311,6 +315,7 @@
             dadosGlobaisRotas = JSON.parse(rotasGuardadas);
             document.getElementById("areaUpload").style.display = "none";
             document.getElementById("painelRotas").style.display = "flex";
+            atualizarBasesVisiveis();
             window.renderizarListaTecnicosModoNovo();
             setTimeout(() => { mapa.invalidateSize(); }, 500);
         }
@@ -374,9 +379,9 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function calcularKMFatiado(rotaFatiada) {
+    function calcularKMFatiado(rotaFatiada, tecnico = null) {
         if(!rotaFatiada || rotaFatiada.length === 0) return 0;
-        let km = 0; let lastLat = configGalpao.lat; let lastLon = configGalpao.lon;
+        let baseKM = obterBaseRoteiro(tecnico); let km = 0; let lastLat = Number(baseKM.lat); let lastLon = Number(baseKM.lon);
         rotaFatiada.forEach(p => { 
             let pLat = parseFloat(p.lat); let pLon = parseFloat(p.lon);
             if(!isNaN(pLat) && !isNaN(pLon)) {
@@ -465,6 +470,53 @@
         return cepBusca;
     }
 
+
+    function obterBaseDoTecnico(nome) {
+        return tecnicosComBase.get(String(nome || "").trim().toUpperCase()) || null;
+    }
+
+    function atualizarBasesVisiveis() {
+        const nomes = Object.keys(dadosGlobaisRotas || {});
+        const ids = new Set();
+
+        basesVisiveisMapa = [];
+
+        nomes.forEach(nome => {
+            const base = obterBaseDoTecnico(nome);
+            if (base && !ids.has(base.id || base.nome)) {
+                ids.add(base.id || base.nome);
+                basesVisiveisMapa.push(base);
+            }
+        });
+
+        if (basesVisiveisMapa.length === 0 && basesOperacionais.length) {
+            basesVisiveisMapa = [...basesOperacionais];
+        }
+    }
+
+    
+    function obterBaseRoteiro(nomeTecnico) {
+        return obterBaseDoTecnico(nomeTecnico) || configGalpao;
+    }
+
+    function registrarQualidadeGPS(ordem, crds) {
+        if (!crds) {
+            ordem.qualidadeGPS = {
+                nivel: "PENDENTE",
+                fonte: "NAO_ENCONTRADO",
+                confianca: 0
+            };
+            enderecosPendentesGPS.push(ordem);
+            return;
+        }
+
+        ordem.qualidadeGPS = {
+            nivel: crds.precisaoGPS === "CEP" ? "MEDIA" : "ALTA",
+            fonte: crds.precisaoGPS || "OPENSTREETMAP",
+            confianca: crds.precisaoGPS === "CEP" ? 70 : 90
+        };
+    }
+
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
@@ -490,7 +542,7 @@
                 let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
                 if (r.ok) { 
                     let d = await r.json(); 
-                    if (d && d.lat && d.lng) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng) }; 
+                    if (d && d.lat && d.lng) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng), precisaoGPS: 'CEP' }; 
                 }
             } catch(e) {}
         }
@@ -502,21 +554,21 @@
             let termoLimpo = expandirAbreviacoes(textoCompleto);
             try {
                 let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(termoLimpo + ', ' + cidade + ', Brasil')}`);
-                if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
+                if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), precisaoGPS: 'OPENSTREETMAP' }; }
             } catch(e) {}
         }
 
         try {
             let query = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
             let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
+            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), precisaoGPS: 'OPENSTREETMAP' }; }
         } catch(e) {}
 
         try {
             let ruaSimples = ruaExpandida.split('-')[0].trim();
             let query = `${ruaSimples}, ${cidade}, Brasil`.trim();
             let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) }; }
+            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), precisaoGPS: 'OPENSTREETMAP' }; }
         } catch(e) {}
 
         return null; 
@@ -589,12 +641,12 @@
                     ordem.lat = crds.lat;
                     ordem.lon = crds.lon;
                     ordem.precisaCorrecao = ehRodoviaOuKm(ordem.rua) ? true : false;
-                } else {
-                    let offsetLat = (Math.random() - 0.5) * 0.006; 
-                    let offsetLon = (Math.random() - 0.5) * 0.006;
-                    ordem.lat = configGalpao.lat + offsetLat;
-                    ordem.lon = configGalpao.lon + offsetLon;
+                 } else {
+                    ordem.lat = null;
+                    ordem.lon = null;
                     ordem.precisaCorrecao = true;
+                    ordem.statusGPS = "PENDENTE";
+                     registrarQualidadeGPS(ordem, null);
                 }
 
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
@@ -607,11 +659,22 @@
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("loadingUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
-        window.renderizarListaTecnicosModoNovo();
+        atualizarBasesVisiveis();
+            window.renderizarListaTecnicosModoNovo();
         setTimeout(() => { mapa.invalidateSize(); }, 500);
     }
 
+    
+    window.mostrarPendenciasGPS = function() {
+        if (!enderecosPendentesGPS.length) {
+            alert("Nenhum endereço pendente.");
+            return;
+        }
+        alert("Endereços pendentes: " + enderecosPendentesGPS.length);
+    };
+
     window.renderizarListaTecnicosModoNovo = function() {
+
         visualizandoHistorico = false; pararAutoRefresh();
         const divLista = document.getElementById("listaTecnicosUI");
         divLista.innerHTML = `<h4 style="color:#60A5FA; margin: 0 0 10px 15px; font-size:12px;">Planilha Não Salva</h4>`;
@@ -652,6 +715,7 @@
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
         tecnicoAtivo = nome;
         aplicarBaseDoTecnico(nome);
+        baseAtivaTecnico = obterBaseDoTecnico(nome) || configGalpao;
         modoVisaoGlobal = false;
         modoEdicaoAtivo = false;
         
@@ -663,9 +727,9 @@
             const dadosTecnico = dadosGlobaisRotas[nome];
             coordsManha = [...(dadosTecnico.manha || [])]; coordsTarde = [...(dadosTecnico.tarde || [])]; 
 
-            let rotaManha = otimizarSequencia(coordsManha, configGalpao.lat, configGalpao.lon);
-            let latFimManha = rotaManha.length > 0 ? parseFloat(rotaManha[rotaManha.length-1].lat) : configGalpao.lat;
-            let lonFimManha = rotaManha.length > 0 ? parseFloat(rotaManha[rotaManha.length-1].lon) : configGalpao.lon;
+            let rotaManha = otimizarSequencia(coordsManha, (baseAtivaTecnico || configGalpao).lat, (baseAtivaTecnico || configGalpao).lon);
+            let latFimManha = rotaManha.length > 0 ? parseFloat(rotaManha[rotaManha.length-1].lat) : (baseAtivaTecnico || configGalpao).lat;
+            let lonFimManha = rotaManha.length > 0 ? parseFloat(rotaManha[rotaManha.length-1].lon) : (baseAtivaTecnico || configGalpao).lon;
             let rotaTarde = otimizarSequencia(coordsTarde, latFimManha, lonFimManha);
             rotaAtiva = [...rotaManha, ...rotaTarde];
         }
@@ -683,12 +747,19 @@
         
         let marcadorDestacado = null; 
 
-        const iconeGalpao = L.divIcon({ 
-            className: 'custom-pin', 
-            html: `<div onclick="window.editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Base operacional do técnico">🏢 ${configGalpao.nome}</div>`, 
-            iconSize: [140, 30] 
+        atualizarBasesVisiveis();
+
+        basesVisiveisMapa.forEach(base => {
+            const iconeBase = L.divIcon({
+                className: 'custom-pin',
+                html: `<div style="background:#000;color:white;border-radius:8px;padding:6px 10px;border:2px solid #10B981;font-size:12px;font-weight:bold;white-space:nowrap;">🏢 ${base.nome || 'Base Operacional'}</div>`,
+                iconSize:[160,30]
+            });
+
+            if (base.lat && base.lon) {
+                L.marker([Number(base.lat), Number(base.lon)], {icon: iconeBase}).addTo(layerGrupo);
+            }
         });
-        L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
 
         if (modoVisaoGlobal) {
             document.getElementById("painelPlayback").style.display = "none";
@@ -701,7 +772,8 @@
 
             listaTotal.forEach(roteiro => {
                 if (!roteiro) return;
-                let posicaoCarro = { lat: configGalpao.lat, lon: configGalpao.lon };
+                let baseInicial = obterBaseRoteiro(roteiro.tecnico);
+                 let posicaoCarro = { lat: Number(baseInicial.lat), lon: Number(baseInicial.lon) };
                 let statusCarro = "Aguardando Início";
                 let corBordaCarro = "#64748B"; 
                 let jaIniciou = false; 
@@ -1518,7 +1590,8 @@
             }
         } else {
             dadosGlobaisRotas[novoNome] = dadosGlobaisRotas[nomeAntigo]; delete dadosGlobaisRotas[nomeAntigo]; localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-            if (tecnicoAtivo === nomeAntigo) tecnicoAtivo = novoNome; window.renderizarListaTecnicosModoNovo(); if (tecnicoAtivo) document.getElementById(`tecnico-${tecnicoAtivo.replace(/\s+/g, '')}`).classList.add('ativo');
+            if (tecnicoAtivo === nomeAntigo) tecnicoAtivo = novoNome; atualizarBasesVisiveis();
+            window.renderizarListaTecnicosModoNovo(); if (tecnicoAtivo) document.getElementById(`tecnico-${tecnicoAtivo.replace(/\s+/g, '')}`).classList.add('ativo');
         }
         if (tecnicoAtivo === novoNome) window.atualizarTela(false);
     };
@@ -1562,7 +1635,8 @@
         
         window.fecharModalNovaRotaFila();
         window.renderNaoAlocadas();
-        window.renderizarListaTecnicosModoNovo();
+        atualizarBasesVisiveis();
+            window.renderizarListaTecnicosModoNovo();
         window.iniciarCalculoTecnico(novoNome);
         alert(`✅ Roteiro criado com sucesso para ${novoNome}!`);
     };
@@ -1583,3 +1657,20 @@
 </script>
 </body>
 </html>
+
+<!--
+VERSÃO DE TRABALHO V2
+Alterações planejadas:
+1) Geocodificação multicamada:
+   - CEP + endereço completo
+   - Photon/Nominatim fallback
+   - validação de precisão
+   - sem coordenada aleatória quando falhar
+
+2) Bases operacionais:
+   - múltiplas bases simultâneas no mapa global
+   - exibição somente das bases dos técnicos carregados
+   - manutenção da base individual para cálculo de rota
+
+O arquivo original foi preservado para aplicação segura dos patches.
+-->
