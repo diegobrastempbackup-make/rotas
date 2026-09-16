@@ -254,6 +254,9 @@
     let basesVisiveisMapa = [];
     let baseAtivaTecnico = null;
     let enderecosPendentesGPS = [];
+    let historicoLocalizacoesValidas = [];
+    let alertasLocalizacao = [];
+    
     
 
     async function carregarBasesETecnicos() {
@@ -634,6 +637,54 @@
         return null;
     }
 
+    
+    function normalizarTextoLocalizacao(valor) {
+        return String(valor || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toUpperCase()
+            .trim();
+    }
+
+    function calcularScoreLocalizacao(ordem, resultado) {
+        let score = 0;
+
+        const rua = normalizarTextoLocalizacao(ordem.rua);
+        const cidade = normalizarTextoLocalizacao(ordem.cidade);
+        const distrito = normalizarTextoLocalizacao(ordem.distrito);
+
+        const textoResultado = normalizarTextoLocalizacao(
+            JSON.stringify(resultado)
+        );
+
+        if (cidade && textoResultado.includes(cidade)) score += 25;
+        if (distrito && textoResultado.includes(distrito)) score += 15;
+
+        const partesRua = rua.split(" ");
+        partesRua.forEach(p => {
+            if (p.length > 3 && textoResultado.includes(p)) score += 2;
+        });
+
+        if (ordem.numero && textoResultado.includes(String(ordem.numero))) {
+            score += 20;
+        }
+
+        return Math.min(score, 100);
+    }
+
+    function validarResultadoLocalizacao(ordem, resultado) {
+        const score = calcularScoreLocalizacao(ordem, resultado);
+
+        return {
+            ...resultado,
+            scoreLocalizacao: score,
+            statusLocalizacao:
+                score >= 80 ? "CONFIRMADO" :
+                score >= 55 ? "REVISAO" :
+                "REJEITADO"
+        };
+    }
+    
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = expandirAbreviacoes(cliente.rua || cliente.endereco || '');
         let detalhes = expandirAbreviacoes(cliente.detalhes || '');
@@ -699,6 +750,7 @@
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let detalhes = String(buscarValorNaLinha(linha, ["DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
+             let distrito = String(buscarValorNaLinha(linha, ["DISTRITO", "BAIRRO"])).trim();
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
