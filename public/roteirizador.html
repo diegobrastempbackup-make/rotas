@@ -517,6 +517,60 @@
         };
     }
 
+
+    function extrairNumeroEndereco(texto) {
+        if (!texto) return '';
+        const m = String(texto).match(/\b(\d{1,6})\b/);
+        return m ? m[1] : '';
+    }
+
+    function normalizarTextoBusca(t) {
+        return String(t || '').toUpperCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+            .replace(/[^A-Z0-9 ]/g,' ')
+            .replace(/\s+/g,' ').trim();
+    }
+
+    function pontuarResultadoGeo(resultado, cliente) {
+        let score = 0;
+        const display = normalizarTextoBusca(resultado.display_name);
+        const rua = normalizarTextoBusca(cliente.rua);
+        const cidade = normalizarTextoBusca(cliente.cidade);
+        const numero = extrairNumeroEndereco(cliente.rua + ' ' + cliente.detalhes);
+
+        if (rua && display.includes(rua)) score += 40;
+        if (cidade && display.includes(cidade)) score += 20;
+        if (numero && display.includes(numero)) score += 30;
+        if (resultado.type && ['house','building'].includes(resultado.type)) score += 10;
+
+        return score;
+    }
+
+    async function buscarPhoton(query, cliente) {
+        try {
+            const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`;
+            const r = await fetch(url);
+            if (!r.ok) return null;
+            const d = await r.json();
+            if (!d.features || !d.features.length) return null;
+
+            let melhor = d.features.map(f => {
+                return {
+                    lat: f.geometry.coordinates[1],
+                    lon: f.geometry.coordinates[0],
+                    display_name: JSON.stringify(f.properties),
+                    type: f.properties.type,
+                    score: pontuarResultadoGeo({display_name:JSON.stringify(f.properties),type:f.properties.type}, cliente)
+                }
+            }).sort((a,b)=>b.score-a.score)[0];
+
+            if (melhor && melhor.score >= 50) {
+                return {lat:Number(melhor.lat), lon:Number(melhor.lon), precisaoGPS:'PHOTON', confianca:melhor.score};
+            }
+        } catch(e) {}
+        return null;
+    }
+
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
@@ -557,6 +611,12 @@
                 if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), precisaoGPS: 'OPENSTREETMAP' }; }
             } catch(e) {}
         }
+
+        try {
+            let queryPhoton = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
+            let photon = await buscarPhoton(queryPhoton, cliente);
+            if (photon) return photon;
+        } catch(e) {}
 
         try {
             let query = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
