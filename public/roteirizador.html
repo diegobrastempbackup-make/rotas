@@ -513,7 +513,7 @@
         ordem.qualidadeGPS = {
             nivel: crds.precisaoGPS === "CEP" ? "MEDIA" : "ALTA",
             fonte: crds.precisaoGPS || "OPENSTREETMAP",
-            confianca: crds.precisaoGPS === "CEP" ? 70 : 90
+            confianca: crds.confianca || (crds.precisaoGPS === "CEP" ? 45 : 80)
         };
     }
 
@@ -571,67 +571,111 @@
         return null;
     }
 
+    function separarEnderecoCompleto(cliente) {
+        let texto = `${cliente.rua || ''} ${cliente.detalhes || ''}`.trim();
+        let numero = extrairNumeroEndereco(texto);
+        let rua = texto.replace(/\b\d{1,6}\b/, '').trim();
+        return { rua, numero };
+    }
+
+    function calcularConfiancaEndereco(resultado, cliente, fonte) {
+        let score = 0;
+        const props = normalizarTextoBusca(resultado.display_name || resultado.nome || '');
+        const cidade = normalizarTextoBusca(cliente.cidade);
+        const rua = normalizarTextoBusca(cliente.rua);
+        const numero = extrairNumeroEndereco(`${cliente.rua} ${cliente.detalhes}`);
+
+        if (rua && props.includes(rua)) score += 40;
+        if (cidade && props.includes(cidade)) score += 25;
+        if (numero && props.includes(numero)) score += 25;
+        if (fonte === 'PHOTON') score += 10;
+
+        return score;
+    }
+
+    async function buscarEnderecoAvancado(query, cliente, fonte) {
+        try {
+            let url = fonte === 'PHOTON'
+                ? `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=8`
+                : `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&q=${encodeURIComponent(query)}`;
+
+            let r = await fetch(url);
+            if (!r.ok) return null;
+            let dados = await r.json();
+
+            let resultados = fonte === 'PHOTON'
+                ? (dados.features || []).map(x => ({
+                    lat:x.geometry.coordinates[1],
+                    lon:x.geometry.coordinates[0],
+                    display_name:JSON.stringify(x.properties),
+                    type:x.properties.type
+                }))
+                : dados.map(x => ({
+                    lat:x.lat,
+                    lon:x.lon,
+                    display_name:x.display_name,
+                    type:x.type
+                }));
+
+            resultados = resultados.map(x => ({
+                ...x,
+                score: calcularConfiancaEndereco(x, cliente, fonte)
+            })).sort((a,b)=>b.score-a.score);
+
+            if(resultados.length && resultados[0].score >= 60) {
+                return {
+                    lat:Number(resultados[0].lat),
+                    lon:Number(resultados[0].lon),
+                    precisaoGPS:fonte,
+                    confianca:resultados[0].score
+                };
+            }
+        } catch(e) {}
+        return null;
+    }
+
     async function obterCoordenadasSilenciosa(cliente) {
-        let ruaOriginal = cliente.rua || cliente.endereco || "";
-        let detalhesOriginal = cliente.detalhes || "";
-        let textoCompleto = `${ruaOriginal} ${detalhesOriginal}`;
-        let cidade = cliente.cidade || "São Paulo";
+        let ruaOriginal = expandirAbreviacoes(cliente.rua || cliente.endereco || '');
+        let detalhes = expandirAbreviacoes(cliente.detalhes || '');
+        let cidade = cliente.cidade || '';
+        let cep = limparCep(cliente.cep || '');
+        let partes = separarEnderecoCompleto({rua:ruaOriginal, detalhes});
 
-        let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
-        let matchCoord = String(ruaOriginal).trim().match(coordRegex);
-        if (matchCoord) {
-            return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]) };
+        let base = `${partes.rua} ${partes.numero}, ${cliente.distrito || ''}, ${cidade}, Brasil`;
+        let baseCEP = `${partes.rua} ${partes.numero}, ${cep}, ${cidade}, Brasil`;
+
+        // 1 - endereço completo com número
+        let r = await buscarEnderecoAvancado(baseCEP, cliente, 'PHOTON');
+        if(r) return r;
+
+        // 2 - endereço + bairro
+        r = await buscarEnderecoAvancado(base, cliente, 'PHOTON');
+        if(r) return r;
+
+        // 3 - Nominatim com endereço completo
+        r = await buscarEnderecoAvancado(baseCEP, cliente, 'NOMINATIM');
+        if(r) return r;
+
+        // 4 - somente se rodovia
+        if(ehRodoviaOuKm(base)) {
+            r = await buscarEnderecoAvancado(`${ruaOriginal}, ${cidade}, Brasil`, cliente, 'NOMINATIM');
+            if(r) return r;
         }
 
-        let cepStr = String(cliente.cep || "");
-        let cepBusca = limparCep(cepStr);
-
-        if (!cepBusca && ruaOriginal) {
-            let cepMatch = ruaOriginal.match(/\b\d{5}-?\d{3}\b/);
-            if (cepMatch) cepBusca = limparCep(cepMatch[0]);
-        }
-
-        if (cepBusca.length === 8) {
+        // 5 - CEP apenas como última alternativa
+        if(cep.length === 8) {
             try {
-                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
-                if (r.ok) { 
-                    let d = await r.json(); 
-                    if (d && d.lat && d.lng) return { lat: parseFloat(d.lat), lon: parseFloat(d.lng), precisaoGPS: 'CEP' }; 
+                let resp = await fetch(`https://cep.awesomeapi.com.br/json/${cep}`);
+                if(resp.ok){
+                    let d = await resp.json();
+                    if(d.lat && d.lng){
+                        return {lat:Number(d.lat), lon:Number(d.lng), precisaoGPS:'CEP', confianca:45};
+                    }
                 }
-            } catch(e) {}
+            }catch(e){}
         }
 
-        let ruaExpandida = expandirAbreviacoes(ruaOriginal);
-        let detalhesExpandidos = expandirAbreviacoes(detalhesOriginal);
-
-        if (ehRodoviaOuKm(textoCompleto)) {
-            let termoLimpo = expandirAbreviacoes(textoCompleto);
-            try {
-                let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(termoLimpo + ', ' + cidade + ', Brasil')}`);
-                if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), precisaoGPS: 'OPENSTREETMAP' }; }
-            } catch(e) {}
-        }
-
-        try {
-            let queryPhoton = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
-            let photon = await buscarPhoton(queryPhoton, cliente);
-            if (photon) return photon;
-        } catch(e) {}
-
-        try {
-            let query = `${ruaExpandida} ${detalhesExpandidos}, ${cidade}, Brasil`.trim();
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), precisaoGPS: 'OPENSTREETMAP' }; }
-        } catch(e) {}
-
-        try {
-            let ruaSimples = ruaExpandida.split('-')[0].trim();
-            let query = `${ruaSimples}, ${cidade}, Brasil`.trim();
-            let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            if (r.ok) { let d = await r.json(); if (d && d.length > 0) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), precisaoGPS: 'OPENSTREETMAP' }; }
-        } catch(e) {}
-
-        return null; 
+        return null;
     }
 
     async function agruparEGeocodificar(linhas) {
