@@ -721,9 +721,85 @@
             html: `<div onclick="window.editarEnderecoGalpao()" style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap; cursor: pointer;" title="Base operacional do técnico">🏢 ${configGalpao.nome}</div>`, 
             iconSize: [140, 30] 
         });
-        L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
+        if (!modoVisaoGlobal) {
+            L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
+        }
 
         if (modoVisaoGlobal) {
+
+            // BASES DA FROTA GLOBAL
+            // Não utiliza configGalpao (base do último técnico selecionado)
+            // Cada técnico contribui com sua própria base.
+
+            const basesMapaGlobal = new Map();
+
+            Object.keys(dadosGlobaisRotas).forEach(nomeTecnico => {
+
+                const chaveTecnico = String(nomeTecnico || "").trim().toUpperCase();
+
+                const baseTecnico = tecnicosComBase.get(chaveTecnico);
+
+                if (baseTecnico &&
+                    Number.isFinite(Number(baseTecnico.lat)) &&
+                    Number.isFinite(Number(baseTecnico.lon))) {
+
+                    const idBase = String(
+                        baseTecnico.id ||
+                        baseTecnico._id ||
+                        baseTecnico.nome
+                    );
+
+                    if (!basesMapaGlobal.has(idBase)) {
+                        basesMapaGlobal.set(idBase, baseTecnico);
+                    }
+                }
+            });
+
+
+            basesMapaGlobal.forEach(base => {
+
+                const iconeBaseGlobal = L.divIcon({
+                    className: 'custom-pin',
+                    html: `<div style="
+                        background:#000;
+                        color:white;
+                        border-radius:8px;
+                        padding:6px 10px;
+                        border:2px solid #10B981;
+                        font-size:12px;
+                        font-weight:bold;
+                        white-space:nowrap;">
+                        🏢 ${base.nome || "Base Operacional"}
+                    </div>`,
+                    iconSize:[140,30]
+                });
+
+
+                L.marker(
+                    [
+                        Number(base.lat),
+                        Number(base.lon)
+                    ],
+                    {
+                        icon: iconeBaseGlobal
+                    }
+                )
+                .bindPopup(`
+                    <b>🏢 Base Operacional</b><br><br>
+                    ${base.nome || ""}<br>
+                    ${base.endereco || ""}
+                `)
+                .addTo(layerGrupo);
+
+            });
+
+
+            console.log(
+                "BASES MOSTRADAS NO GLOBAL:",
+                Array.from(basesMapaGlobal.values())
+            );
+
+
             document.getElementById("painelPlayback").style.display = "none";
             document.getElementById("painelItinerario").style.display = "block";
             document.getElementById("tituloPainelLateral").innerText = "🌍 Frota Global";
