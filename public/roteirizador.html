@@ -2078,5 +2078,135 @@ window.adicionarBasesNaTorre = function(){
 
 </script>
 
+
+<script>
+// ============================================================
+// PATCH v1.3 - MOSTRAR SOMENTE BASES DOS TÉCNICOS EM OPERAÇÃO
+// No modo global:
+// 1 técnico em uma base = mostra 1 base
+// técnicos em 3 bases = mostra 3 bases
+// ============================================================
+
+window.obterBasesAtivasEmCampo = function(){
+
+    const basesAtivas = new Map();
+
+    if(!window.dadosGlobaisRotas || !window.tecnicosComBase){
+        return [];
+    }
+
+
+    Object.keys(window.dadosGlobaisRotas).forEach(nomeTecnico=>{
+
+        const base =
+            window.tecnicosComBase.get(
+                String(nomeTecnico).trim().toUpperCase()
+            );
+
+
+        if(!base) return;
+
+
+        const chave =
+            String(base.id || base._id || base.nome);
+
+
+        if(!basesAtivas.has(chave)){
+
+            const validada = validarBaseMapa(base);
+
+            if(validada){
+
+                validada.tecnicos = [
+                    nomeTecnico
+                ];
+
+                basesAtivas.set(
+                    chave,
+                    validada
+                );
+            }
+
+        }else{
+
+            basesAtivas
+            .get(chave)
+            .tecnicos
+            .push(nomeTecnico);
+
+        }
+
+    });
+
+
+    return Array.from(basesAtivas.values());
+
+};
+
+
+
+window.renderizarBasesOperacionais = function(layer){
+
+    const basesAtivas =
+        window.obterBasesAtivasEmCampo();
+
+
+    basesAtivas.forEach(base=>{
+
+
+        const iconeBase = L.divIcon({
+
+            className:"custom-pin",
+
+            html:
+            `<div style="
+                background:#111827;
+                color:white;
+                border:3px solid #10B981;
+                border-radius:10px;
+                padding:6px 10px;
+                font-size:12px;
+                font-weight:bold;
+                white-space:nowrap;">
+                🏢 ${base.nome || "Base"}
+            </div>`,
+
+            iconSize:[120,35]
+
+        });
+
+
+
+        L.marker(
+            [base.lat, base.lon],
+            {
+                icon:iconeBase
+            }
+        )
+        .bindPopup(`
+
+            <b>🏢 Base Operacional Ativa</b><br><br>
+
+            <b>${base.nome || ""}</b><br>
+
+            ${base.endereco || ""}
+
+            <br><br>
+
+            <b>Técnicos em campo:</b><br>
+
+            ${base.tecnicos.join("<br>")}
+
+        `)
+        .addTo(layer);
+
+
+    });
+
+
+};
+
+</script>
+
 </body>
 </html>
