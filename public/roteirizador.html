@@ -2430,5 +2430,154 @@ window.montarResumoBasesFrota = function(){
 
 </script>
 
+
+<script>
+// ============================================================
+// PATCH v1.6 - BASES NO FLUXO REAL DO MODO GLOBAL
+// Exclusivo visualização. Não altera roteirização.
+// ============================================================
+
+window.criarListaBasesFrotaGlobal = function(){
+
+    const bases = new Map();
+
+    if(!window.dadosGlobaisRotas){
+        console.log("dadosGlobaisRotas vazio");
+        return [];
+    }
+
+
+    Object.keys(window.dadosGlobaisRotas).forEach(nomeTecnico=>{
+
+        let base = null;
+
+
+        if(window.tecnicosComBase){
+
+            for(const [nome, valorBase] of window.tecnicosComBase.entries()){
+
+                const n1 = String(nome)
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g,"")
+                    .replace(/\s+/g,"")
+                    .toUpperCase();
+
+                const n2 = String(nomeTecnico)
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g,"")
+                    .replace(/\s+/g,"")
+                    .toUpperCase();
+
+
+                if(n1 === n2){
+                    base = valorBase;
+                    break;
+                }
+            }
+        }
+
+
+        if(!base) return;
+
+
+        const valida =
+            validarBaseMapa
+            ? validarBaseMapa(base)
+            : base;
+
+
+        if(!valida) return;
+
+
+        const chave =
+            String(
+                valida.id ||
+                valida._id ||
+                valida.nome
+            );
+
+
+        if(!bases.has(chave)){
+
+            valida.tecnicos = [
+                nomeTecnico
+            ];
+
+            bases.set(chave,valida);
+
+        }else{
+
+            bases.get(chave)
+            .tecnicos
+            .push(nomeTecnico);
+
+        }
+
+    });
+
+
+    console.log(
+        "=== BASES FROTA GLOBAL ===",
+        Array.from(bases.values())
+    );
+
+
+    return Array.from(bases.values());
+
+};
+
+
+
+window.desenharBasesFrotaGlobal = function(layer){
+
+    const bases =
+        window.criarListaBasesFrotaGlobal();
+
+
+    bases.forEach(base=>{
+
+
+        const marker =
+            L.marker(
+                [
+                    Number(base.lat),
+                    Number(base.lon)
+                ],
+                {
+                    icon:L.divIcon({
+                        className:"base-global",
+                        html:
+                        `<div style="
+                        background:#111827;
+                        color:#fff;
+                        border:3px solid #22c55e;
+                        border-radius:8px;
+                        padding:5px;">
+                        🏢 ${base.nome || "Base"}
+                        </div>`
+                    })
+                }
+            );
+
+
+        marker.bindPopup(
+            `
+            <b>Base Operacional</b><br>
+            ${base.nome || ""}<br><br>
+            Técnicos:<br>
+            ${(base.tecnicos || []).join("<br>")}
+            `
+        );
+
+
+        marker.addTo(layer);
+
+    });
+
+
+};
+
+</script>
+
 </body>
 </html>
