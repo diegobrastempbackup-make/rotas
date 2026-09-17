@@ -2385,5 +2385,50 @@ window.renderizarBasesOperacionais = function(layer){
 
 </script>
 
+
+<script>
+// ============================================================
+// PATCH v1.5 - BASES DA FROTA GLOBAL
+// Apenas visualização. Não altera cálculo de rotas.
+// ============================================================
+
+window.modoVisualizacaoBasesFrota = true;
+
+window.montarResumoBasesFrota = function(){
+
+    const resumo = {};
+
+    if(!window.dadosGlobaisRotas) return resumo;
+
+    Object.keys(window.dadosGlobaisRotas).forEach(nomeTecnico=>{
+
+        const base =
+            window.buscarBaseTecnicoGlobal
+            ? window.buscarBaseTecnicoGlobal(nomeTecnico)
+            : null;
+
+        if(!base) return;
+
+        const chave =
+            String(base.id || base._id || base.nome);
+
+        if(!resumo[chave]){
+            resumo[chave] = {
+                base: base,
+                tecnicos:[]
+            };
+        }
+
+        resumo[chave].tecnicos.push(nomeTecnico);
+
+    });
+
+    console.log("Resumo bases frota:", resumo);
+
+    return resumo;
+};
+
+</script>
+
 </body>
 </html>
