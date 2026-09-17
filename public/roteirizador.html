@@ -2579,5 +2579,168 @@ window.desenharBasesFrotaGlobal = function(layer){
 
 </script>
 
+
+<script>
+// ============================================================
+// PATCH v1.7 - SEPARAÇÃO ESTADO INDIVIDUAL x GLOBAL
+// Corrige herança da última base selecionada.
+// Não altera roteirização.
+// ============================================================
+
+window.baseIndividualAtual = window.baseIndividualAtual || null;
+window.basesFrotaGlobal = window.basesFrotaGlobal || [];
+
+
+window.atualizarBaseIndividualSeguro = function(base){
+
+    window.baseIndividualAtual = base;
+
+    // mantém compatibilidade com cálculo existente
+    if(typeof configGalpao !== "undefined" && base){
+
+        configGalpao.lat = Number(base.lat);
+        configGalpao.lon = Number(base.lon);
+        configGalpao.nome = base.nome;
+
+    }
+};
+
+
+
+window.calcularBasesFrotaGlobal = function(){
+
+    const bases = new Map();
+
+
+    if(!window.dadosGlobaisRotas ||
+       !window.tecnicosComBase){
+
+        return [];
+    }
+
+
+    Object.keys(window.dadosGlobaisRotas)
+    .forEach(nomeTecnico=>{
+
+
+        let baseEncontrada = null;
+
+
+        for(const [nome,base] of window.tecnicosComBase.entries()){
+
+            const a = String(nome)
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g,"")
+                .replace(/\s/g,"")
+                .toUpperCase();
+
+            const b = String(nomeTecnico)
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g,"")
+                .replace(/\s/g,"")
+                .toUpperCase();
+
+
+            if(a === b){
+
+                baseEncontrada = base;
+                break;
+
+            }
+
+        }
+
+
+        if(!baseEncontrada) return;
+
+
+        const chave =
+            String(
+                baseEncontrada.id ||
+                baseEncontrada._id ||
+                baseEncontrada.nome
+            );
+
+
+        if(!bases.has(chave)){
+
+            bases.set(chave,{
+                ...baseEncontrada,
+                tecnicos:[nomeTecnico]
+            });
+
+        }else{
+
+            bases.get(chave)
+            .tecnicos
+            .push(nomeTecnico);
+
+        }
+
+
+    });
+
+
+    window.basesFrotaGlobal =
+        Array.from(bases.values());
+
+
+    console.log(
+        "BASES GLOBAIS INDEPENDENTES:",
+        window.basesFrotaGlobal
+    );
+
+
+    return window.basesFrotaGlobal;
+
+};
+
+
+
+// Função para o mapa global.
+// Não consulta configGalpao.
+window.renderizarTodasBasesGlobal = function(layer){
+
+    const bases =
+        window.calcularBasesFrotaGlobal();
+
+
+    bases.forEach(base=>{
+
+        L.marker(
+            [
+                Number(base.lat),
+                Number(base.lon)
+            ],
+            {
+                icon:L.divIcon({
+                    className:"base-global",
+                    html:
+                    `<div style="
+                    background:#111827;
+                    color:white;
+                    border:3px solid #22c55e;
+                    border-radius:8px;
+                    padding:5px;">
+                    🏢 ${base.nome || "Base"}
+                    </div>`
+                })
+            }
+        )
+        .bindPopup(
+            `
+            <b>${base.nome || "Base Operacional"}</b><br><br>
+            Técnicos:<br>
+            ${(base.tecnicos||[]).join("<br>")}
+            `
+        )
+        .addTo(layer);
+
+    });
+
+};
+
+</script>
+
 </body>
 </html>
