@@ -2208,5 +2208,182 @@ window.renderizarBasesOperacionais = function(layer){
 
 </script>
 
+
+<script>
+// ============================================================
+// PATCH v1.4 - BASES CORRETAS NO MODO GLOBAL
+// Busca bases somente dos técnicos presentes na operação atual.
+// ============================================================
+
+function normalizarNomeTecnicoBase(nome){
+    return String(nome || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g,"")
+        .replace(/\s+/g,"")
+        .toUpperCase();
+}
+
+
+window.buscarBaseTecnicoGlobal = function(nomeTecnico){
+
+    if(!window.tecnicosComBase) return null;
+
+    const procurado =
+        normalizarNomeTecnicoBase(nomeTecnico);
+
+
+    for(const [nome, base] of window.tecnicosComBase.entries()){
+
+        if(
+            normalizarNomeTecnicoBase(nome) === procurado
+        ){
+            return base;
+        }
+    }
+
+    return null;
+};
+
+
+
+window.obterBasesAtivasGlobalCorrigido = function(){
+
+    const resultado = new Map();
+
+
+    if(!window.dadosGlobaisRotas){
+        return [];
+    }
+
+
+    Object.keys(window.dadosGlobaisRotas)
+    .forEach(nomeTecnico=>{
+
+
+        const base =
+            window.buscarBaseTecnicoGlobal(nomeTecnico);
+
+
+        if(!base) return;
+
+
+        const validada =
+            validarBaseMapa(base);
+
+
+        if(!validada) return;
+
+
+        const chave =
+            String(
+                validada.id ||
+                validada._id ||
+                validada.nome
+            );
+
+
+        if(!resultado.has(chave)){
+
+            validada.tecnicos = [
+                nomeTecnico
+            ];
+
+            resultado.set(
+                chave,
+                validada
+            );
+
+        }else{
+
+            resultado
+            .get(chave)
+            .tecnicos
+            .push(nomeTecnico);
+
+        }
+
+
+    });
+
+
+    return Array.from(resultado.values());
+
+};
+
+
+
+// substitui renderização anterior
+window.renderizarBasesOperacionais = function(layer){
+
+
+    const bases =
+        window.obterBasesAtivasGlobalCorrigido();
+
+
+    console.log(
+        "BASES ATIVAS NO GLOBAL:",
+        bases
+    );
+
+
+    bases.forEach(base=>{
+
+
+        const icone =
+        L.divIcon({
+
+            className:"custom-pin",
+
+            html:
+            `<div style="
+                background:#111827;
+                color:white;
+                border:3px solid #10B981;
+                border-radius:10px;
+                padding:6px 10px;
+                font-size:12px;
+                font-weight:bold;
+                white-space:nowrap;">
+                🏢 ${base.nome || "Base"}
+            </div>`,
+
+            iconSize:[120,35]
+
+        });
+
+
+        L.marker(
+            [
+                base.lat,
+                base.lon
+            ],
+            {
+                icon:icone
+            }
+        )
+        .bindPopup(`
+
+            <b>🏢 Base Operacional Ativa</b><br><br>
+
+            <b>${base.nome || ""}</b><br>
+
+            ${base.endereco || ""}
+
+            <br><br>
+
+            <b>Técnicos em campo:</b><br>
+
+            ${base.tecnicos.join("<br>")}
+
+        `)
+        .addTo(layer);
+
+
+    });
+
+};
+
+</script>
+
 </body>
 </html>
