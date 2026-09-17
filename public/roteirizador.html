@@ -1873,5 +1873,210 @@ function(dadosTecnico){
 
 </script>
 
+
+<script>
+function validarCoordenadaGPS(lat, lon){
+    lat = Number(String(lat).replace(",", ".").trim());
+    lon = Number(String(lon).replace(",", ".").trim());
+
+    if(!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+    if(lat < -35 || lat > 5 || lon < -75 || lon > -30) return null;
+
+    return {lat, lon};
+}
+
+function extrairCoordenadaDireta(cliente){
+    const campos = [
+        cliente.endereco,
+        cliente.rua,
+        cliente.ENDERECO,
+        cliente.RUA
+    ];
+
+    for(const campo of campos){
+        if(!campo) continue;
+
+        const texto = String(campo);
+
+        const match = texto.match(
+            /(-?\d+(?:[\.,]\d+)?)\s*[,;]\s*(-?\d+(?:[\.,]\d+)?)/g
+        );
+
+        if(match){
+            const partes = match[0].split(/[,;]/);
+            const coord = validarCoordenadaGPS(partes[0], partes[1]);
+
+            if(coord){
+                return {
+                    lat: coord.lat,
+                    lon: coord.lon,
+                    origemGPS: "COORDENADA_EXCEL",
+                    scoreGPS: 100
+                };
+            }
+        }
+    }
+
+    return null;
+}
+
+window.obterCoordenadasSilenciosaComCoordenada =
+    window.obterCoordenadasSilenciosa;
+
+window.obterCoordenadasSilenciosa =
+async function(cliente){
+
+    const coordenada = extrairCoordenadaDireta(cliente);
+
+    if(coordenada){
+        cliente.origemGPS = coordenada.origemGPS;
+        cliente.scoreGPS = coordenada.scoreGPS;
+        cliente.precisaCorrecao = false;
+
+        return {
+            lat: coordenada.lat,
+            lon: coordenada.lon,
+            precisaCorrecao:false
+        };
+    }
+
+    return await window.obterCoordenadasSilenciosaComCoordenada(cliente);
+};
+</script>
+
+
+<script>
+// ============================================================
+// PATCH v1.2 - VISUALIZAÇÃO DE BASES OPERACIONAIS NO MAPA
+// Mantém cálculo individual e adiciona bases no modo global.
+// ============================================================
+
+window.basesMapaControle = [];
+
+
+function validarBaseMapa(base){
+
+    let lat = Number(String(base.lat ?? base.latitude).replace(",", "."));
+    let lon = Number(String(base.lon ?? base.longitude).replace(",", "."));
+
+    if(!Number.isFinite(lat) || !Number.isFinite(lon)){
+        return null;
+    }
+
+    if(lat < -35 || lat > 5 || lon < -75 || lon > -30){
+        return null;
+    }
+
+    return {
+        ...base,
+        lat,
+        lon
+    };
+}
+
+
+function prepararBasesMapa(){
+
+    window.basesMapaControle = [];
+
+    if(!window.basesOperacionais) return;
+
+    window.basesOperacionais.forEach(base=>{
+
+        let validada = validarBaseMapa(base);
+
+        if(validada){
+
+            let tecnicos = [];
+
+            if(window.tecnicosComBase){
+
+                window.tecnicosComBase.forEach((valor,nome)=>{
+
+                    if(
+                        valor &&
+                        String(valor.id || valor._id || valor.nome)
+                        ===
+                        String(validada.id || validada._id || validada.nome)
+                    ){
+                        tecnicos.push(nome);
+                    }
+
+                });
+
+            }
+
+            validada.tecnicos = tecnicos;
+
+            window.basesMapaControle.push(validada);
+        }
+
+    });
+
+}
+
+
+// Renderização visual das bases no mapa global
+window.renderizarBasesOperacionais = function(layer){
+
+    prepararBasesMapa();
+
+    window.basesMapaControle.forEach(base=>{
+
+        const iconeBase = L.divIcon({
+            className:"custom-pin",
+            html:
+            `<div style="
+                background:#111827;
+                color:white;
+                border:3px solid #3B82F6;
+                border-radius:10px;
+                padding:6px 10px;
+                font-size:12px;
+                font-weight:bold;
+                white-space:nowrap;
+            ">
+            🏢 ${base.nome || "Base"}
+            </div>`,
+            iconSize:[120,35]
+        });
+
+
+        let tecnicos =
+            base.tecnicos && base.tecnicos.length
+            ? base.tecnicos.join("<br>")
+            : "Nenhum técnico vinculado";
+
+
+        L.marker(
+            [base.lat, base.lon],
+            {icon:iconeBase}
+        )
+        .bindPopup(`
+            <b>🏢 Base Operacional</b><br><br>
+            <b>${base.nome || ""}</b><br>
+            ${base.endereco || ""}<br><br>
+            <b>Técnicos:</b><br>
+            ${tecnicos}
+        `)
+        .addTo(layer);
+
+    });
+
+};
+
+
+// Chamada auxiliar para integração com o modo global existente
+window.adicionarBasesNaTorre = function(){
+
+    if(window.layerGrupo){
+        window.renderizarBasesOperacionais(window.layerGrupo);
+    }
+
+};
+
+</script>
+
 </body>
 </html>
