@@ -1585,5 +1585,293 @@
         } catch(e) { alert("❌ Erro."); }
     }
 </script>
+
+<script>
+// ============================================================
+// MOTOR DE LOCALIZAÇÃO PROFISSIONAL v1.0
+// Mantém arquitetura atual: Leaflet, edição, histórico e UI.
+// Adiciona cache, score de precisão e geocodificação híbrida.
+// ============================================================
+
+window.cacheGPS = JSON.parse(localStorage.getItem("cacheGPS_ENDERECOS") || "{}");
+
+function salvarCacheGPS(chave, valor){
+    window.cacheGPS[chave] = valor;
+    localStorage.setItem("cacheGPS_ENDERECOS", JSON.stringify(window.cacheGPS));
+}
+
+function normalizarEnderecoCache(cliente){
+    return [
+        cliente.rua,
+        cliente.detalhes,
+        cliente.cidade,
+        cliente.cep
+    ].join("|").toUpperCase().trim();
+}
+
+function criarQualidadeGPS(origem, score, nivel){
+    return {
+        origem: origem,
+        score: score,
+        nivel: nivel
+    };
+}
+
+async function buscarNominatimProfissional(query){
+    try{
+        const r = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(query)}`,
+            {
+                headers:{
+                    "Accept-Language":"pt-BR,pt;q=0.9"
+                }
+            }
+        );
+
+        const dados = await r.json();
+
+        if(dados && dados.length){
+            return {
+                lat:Number(dados[0].lat),
+                lon:Number(dados[0].lon),
+                qualidadeGPS:
+                    criarQualidadeGPS(
+                        "Nominatim",
+                        85,
+                        "BOM"
+                    )
+            };
+        }
+    }catch(e){}
+
+    return null;
+}
+
+
+async function buscarPhotonProfissional(query){
+    try{
+        const r = await fetch(
+            `https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(query)}`
+        );
+
+        const dados = await r.json();
+
+        if(dados.features && dados.features.length){
+
+            const c = dados.features[0].geometry.coordinates;
+
+            return {
+                lat:Number(c[1]),
+                lon:Number(c[0]),
+                qualidadeGPS:
+                    criarQualidadeGPS(
+                        "Photon",
+                        75,
+                        "BOM"
+                    )
+            };
+        }
+
+    }catch(e){}
+
+    return null;
+}
+
+
+async function obterCoordenadasProfissional(cliente){
+
+    const chave = normalizarEnderecoCache(cliente);
+
+    if(window.cacheGPS[chave]){
+        return window.cacheGPS[chave];
+    }
+
+
+    let rua = expandirAbreviacoes(
+        cliente.rua || cliente.endereco || ""
+    );
+
+    let cidade = cliente.cidade || "São Paulo";
+
+    let numero = extrairNumeroLimpo(
+        rua,
+        cliente.detalhes || ""
+    );
+
+
+    let consultas = [];
+
+    if(numero){
+        consultas.push(
+            `${rua}, ${numero}, ${cidade}, Brasil`
+        );
+    }
+
+    consultas.push(
+        `${rua}, ${cidade}, Brasil`
+    );
+
+
+    for(const q of consultas){
+
+        let resultado =
+            await buscarNominatimProfissional(q);
+
+        if(resultado){
+
+            salvarCacheGPS(
+                chave,
+                resultado
+            );
+
+            return resultado;
+        }
+
+
+        resultado =
+            await buscarPhotonProfissional(q);
+
+        if(resultado){
+
+            salvarCacheGPS(
+                chave,
+                resultado
+            );
+
+            return resultado;
+        }
+
+    }
+
+
+    return null;
+}
+
+
+// substituição segura da função antiga
+window.obterCoordenadasSilenciosa =
+    async function(cliente){
+
+        const resultado =
+            await obterCoordenadasProfissional(cliente);
+
+
+        if(resultado){
+
+            cliente.qualidadeGPS =
+                resultado.qualidadeGPS;
+
+            cliente.precisaCorrecao =
+                resultado.qualidadeGPS.score < 70;
+
+            return {
+                lat:resultado.lat,
+                lon:resultado.lon,
+                precisaCorrecao:cliente.precisaCorrecao
+            };
+        }
+
+
+        return null;
+    };
+
+
+// ============================================================
+// OTIMIZAÇÃO MANTENDO REGRA MANHÃ -> TARDE
+// ============================================================
+
+window.otimizarSequenciaProfissional =
+function(pontos, inicioLat, inicioLon){
+
+    let restantes = [...pontos];
+
+    let resultado=[];
+
+    let lat=inicioLat;
+    let lon=inicioLon;
+
+
+    while(restantes.length){
+
+        let melhor=0;
+        let menor=Infinity;
+
+
+        restantes.forEach((p,i)=>{
+
+            let d =
+                calcularDistancia(
+                    lat,
+                    lon,
+                    Number(p.lat),
+                    Number(p.lon)
+                );
+
+
+            if(d < menor){
+                menor=d;
+                melhor=i;
+            }
+
+        });
+
+
+        let escolhido =
+            restantes.splice(melhor,1)[0];
+
+
+        resultado.push(escolhido);
+
+        lat=Number(escolhido.lat);
+        lon=Number(escolhido.lon);
+
+    }
+
+
+    return resultado;
+};
+
+
+// preserva manhã antes da tarde
+window.gerarRotaProfissional =
+function(dadosTecnico){
+
+    const manha =
+        dadosTecnico.manha || [];
+
+    const tarde =
+        dadosTecnico.tarde || [];
+
+
+    const rotaManha =
+        window.otimizarSequenciaProfissional(
+            manha,
+            configGalpao.lat,
+            configGalpao.lon
+        );
+
+
+    let ultimo =
+        rotaManha.length ?
+        rotaManha[rotaManha.length-1] :
+        configGalpao;
+
+
+    const rotaTarde =
+        window.otimizarSequenciaProfissional(
+            tarde,
+            Number(ultimo.lat),
+            Number(ultimo.lon)
+        );
+
+
+    return [
+        ...rotaManha,
+        ...rotaTarde
+    ];
+};
+
+</script>
+
 </body>
 </html>
