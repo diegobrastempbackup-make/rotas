@@ -525,7 +525,8 @@
         // 3. Tenta encontrar a RUA + NÚMERO EXATO (Padrão ouro do GPS)
         if (numero) {
             // Padrão que o Nominatim mais gosta: "Rua X, 123, Cidade"
-            let contexto = `${bairro || ""} ${cidade || ""} ${uf || ""}`.trim();\n            let resNum = await buscarNominatim(`${nomeRuaLimpo}, ${numero}, ${contexto}, Brasil`);
+            let contexto = `${bairro || ""} ${cidade || ""} ${uf || ""}`.trim();
+            let resNum = await buscarNominatim(`${nomeRuaLimpo}, ${numero}, ${contexto}, Brasil`);
             if (resNum) return { lat: resNum.lat, lon: resNum.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
             
             // Fallback para Photon (ele é bom com o número na frente)
