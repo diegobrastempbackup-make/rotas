@@ -580,7 +580,20 @@
             let bairro = String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim();
             let uf = String(buscarValorNaLinha(linha, ["UF", "ESTADO"])).trim();
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
-            let defeito = buscarValorNaLinha(linha, ["DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
+            let defeito = buscarValorNaLinha(linha, [
+                "DEFEITO INFORMADO",
+                "DEFEITO",
+                "RECLAMAÇÃO",
+                "RECLAMACAO",
+                "PROBLEMA",
+                "DESCRIÇÃO DO DEFEITO"
+            ]);
+
+            if (!defeito || String(defeito).trim() === "") {
+                // Compatibilidade com planilhas antigas onde o defeito ficava na 4ª coluna
+                const valoresLinha = Object.values(linha);
+                defeito = valoresLinha[3] || "Não informado";
+            }
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
@@ -596,6 +609,7 @@
                     codigo: String(codigo), 
                     cliente: String(cliente).trim(), 
                     servico: servico,
+                    defeito: String(defeito).trim(),
                     rua: rua,
                     detalhes: detalhes,
                     cidade: cidade,
