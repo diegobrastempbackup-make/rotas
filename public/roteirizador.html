@@ -504,7 +504,7 @@
         // 1. Coordenada exata colada manualmente
         let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
         let matchCoord = String(ruaOriginal).trim().match(coordRegex);
-        if (matchCoord) return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]), precisaCorrecao: false };
+        if (matchCoord) return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]), precisaCorrecao: false, precisaoGPS: "EXATA" };
 
         // 2. Preparação dos dados para precisão máxima do satélite
         let ruaExpandida = expandirAbreviacoes(ruaOriginal);
@@ -519,24 +519,24 @@
             let queryRodovia = `${nomeRuaLimpo} ${km}, ${cidade}, Brasil`.trim();
             
             let res = await buscarNominatim(queryRodovia);
-            if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
+            if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
         }
 
         // 3. Tenta encontrar a RUA + NÚMERO EXATO (Padrão ouro do GPS)
         if (numero) {
             // Padrão que o Nominatim mais gosta: "Rua X, 123, Cidade"
-            let resNum = await buscarNominatim(`${nomeRuaLimpo}, ${numero}, ${cidade}, Brasil`);
-            if (resNum) return { lat: resNum.lat, lon: resNum.lon, precisaCorrecao: false };
+            let contexto = `${bairro || ""} ${cidade || ""} ${uf || ""}`.trim();\n            let resNum = await buscarNominatim(`${nomeRuaLimpo}, ${numero}, ${contexto}, Brasil`);
+            if (resNum) return { lat: resNum.lat, lon: resNum.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
             
             // Fallback para Photon (ele é bom com o número na frente)
             let resPhoton = await buscarPhoton(`${numero} ${nomeRuaLimpo}, ${cidade}, Brasil`);
-            if (resPhoton) return { lat: resPhoton.lat, lon: resPhoton.lon, precisaCorrecao: false };
+            if (resPhoton) return { lat: resPhoton.lat, lon: resPhoton.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
         }
 
         // 4. Fallback Seguro: Encontra a RUA, mas sem o número.
         // Como errar apenas a casa e acertar a rua é aceitável, não vamos deixar o pino vermelho aqui!
         let resRua = await buscarNominatim(`${nomeRuaLimpo}, ${cidade}, Brasil`);
-        if (resRua) return { lat: resRua.lat, lon: resRua.lon, precisaCorrecao: false };
+        if (resRua) return { lat: resRua.lat, lon: resRua.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
 
         // 5. Último Recurso: Busca pelo CEP (Pino fica VERMELHO porque o CEP joga no meio do bairro aleatoriamente)
         let cepBusca = limparCep(cepStr);
@@ -546,7 +546,7 @@
                 if (r.ok) { 
                     let d = await r.json(); 
                     if (d.lat && d.lng) {
-                        return { lat: parseFloat(d.lat), lon: parseFloat(d.lng), precisaCorrecao: true };
+                        return { lat: parseFloat(d.lat), lon: parseFloat(d.lng), precisaCorrecao: true, precisaoGPS: "CEP/APROXIMADA" };
                     }
                 }
             } catch(e) {}
@@ -576,7 +576,10 @@
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let detalhes = String(buscarValorNaLinha(linha, ["DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
+            let bairro = String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim();
+            let uf = String(buscarValorNaLinha(linha, ["UF", "ESTADO"])).trim();
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
+            let defeito = buscarValorNaLinha(linha, ["DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
