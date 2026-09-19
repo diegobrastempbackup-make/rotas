@@ -125,12 +125,12 @@
         </label>
 
         <div id="loadingUpload" style="display: none; border: 2px solid rgba(16, 185, 129, 0.5); background: rgba(30, 41, 59, 0.8); padding: 40px; text-align: center; border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: #10B981; margin-top: 0;">🌍 Traduzindo endereços para GPS (Geocodificação)...</h3>
+            <h3 style="color: #10B981; margin-top: 0;" id="tituloProgressoIA">🤖 Gemini AI a analisar endereços...</h3>
             <p id="lblProgresso" style="color: #94A3B8; font-size: 14px; font-weight: bold;">0 de X concluídos</p>
             <div style="width: 100%; background: #0F172A; height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
                 <div id="barraProgresso" style="width: 0%; background: #10B981; height: 100%; transition: width 0.3s;"></div>
             </div>
-            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ <b>Por favor, não feche nem atualize esta página até chegar a 100%.</b></p>
+            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ <b>Por favor, não feche nem atualize esta página até concluir.</b></p>
         </div>
 
         <div id="painelRotas">
@@ -247,7 +247,6 @@
         document.getElementById("btnAdmin").style.display = "block";
     }
 
-    // GESTÃO DE ESTADO GLOBAL LIMPA E SEGURA
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
     let basesOperacionais = [];
     let tecnicosComBase = new Map();
@@ -291,7 +290,6 @@
     let osDestacada = ""; 
     let historicoRotasMemoria = [];
     
-    // Controles de Edição
     let modoEdicaoAtivo = false;
     let indiceEdicao = null;
     let pausarRefresh = false;
@@ -357,8 +355,6 @@
         const mapaArea = document.getElementById('mapaArea');
         if (!document.fullscreenElement) {
             if (mapaArea.requestFullscreen) { mapaArea.requestFullscreen(); } 
-            else if (mapaArea.webkitRequestFullscreen) { mapaArea.webkitRequestFullscreen(); } 
-            else if (mapaArea.msRequestFullscreen) { mapaArea.msRequestFullscreen(); }
         } else {
             if (document.exitFullscreen) { document.exitFullscreen(); }
         }
@@ -411,7 +407,7 @@
                 const workbook = XLSX.read(data, {type: 'array'});
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
                 const dadosNormalizados = jsonData.map(linha => { let novaLinha = {}; for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; } return novaLinha; });
-                agruparEGeocodificar(dadosNormalizados);
+                agruparEGeocodificarComIA(dadosNormalizados);
             } catch (erro) { alert("❌ Erro: " + erro.message); }
         };
         reader.readAsArrayBuffer(file);
@@ -460,9 +456,6 @@
         return cepBusca;
     }
 
-    // =====================================================================
-    // MOTOR DE GEOCODIFICAÇÃO COM GEMINI AI + NOMINATIM / PHOTON
-    // =====================================================================
     function extrairNumeroLimpo(rua, detalhes) {
         let regexNum = /(?:nº|n|número|km)?\s*(\d+)/i;
         let matchRua = String(rua).match(regexNum);
@@ -470,6 +463,26 @@
         let matchDet = String(detalhes).match(regexNum);
         if (matchDet) return matchDet[1];
         return "";
+    }
+
+    // =====================================================================
+    // MOTOR HÍBRIDO DE PRECISÃO: GEMINI AI + GOOGLE MAPS GEOCODING
+    // =====================================================================
+    async function buscarGoogleMapsPreciso(enderecoCompleto, cliente) {
+        try {
+            const resposta = await fetch("/api/geocodificar-endereco", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({
+                    endereco: enderecoCompleto,
+                    dadosOriginais: { rua: cliente.rua || "", bairro: cliente.bairro || "", cidade: cliente.cidade || "", cep: cliente.cep || "" }
+                })
+            });
+            if (!resposta.ok) return null;
+            const dados = await resposta.json();
+            if (!dados.encontrado) return null;
+            return { lat: Number(dados.lat), lon: Number(dados.lon), precisaCorrecao: false, precisaoGPS: dados.precisao || "EXATA" };
+        } catch(e) { return null; }
     }
 
     async function buscarNominatim(query) {
@@ -483,42 +496,33 @@
         return null;
     }
 
-    async function buscarPhoton(query) {
-        try {
-            let r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1`, { headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' }});
-            if (r.ok) {
-                let d = await r.json();
-                if (d.features && d.features.length > 0) {
-                    return { lat: parseFloat(d.features[0].geometry.coordinates[1]), lon: parseFloat(d.features[0].geometry.coordinates[0]) };
-                }
-            }
-        } catch(e) {}
-        return null;
-    }
-
     async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
         let cidade = cliente.cidade || "São Paulo";
         let cepStr = String(cliente.cep || "");
+        let bairro = cliente.bairro || cliente.distrito || "";
 
         let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
         let matchCoord = String(ruaOriginal).trim().match(coordRegex);
         if (matchCoord) return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]), precisaCorrecao: false, precisaoGPS: "EXATA" };
 
+        // 1. Tenta alta precisão via Google Maps API
+        let enderecoGoogle = `${ruaOriginal},${bairro}, ${cidade}, CEP${cepStr}`;
+        let googleRes = await buscarGoogleMapsPreciso(enderecoGoogle, cliente);
+        if (googleRes) return googleRes;
+
+        // 2. Fallback Nominatim (OpenStreetMap)
         let ruaExpandida = expandirAbreviacoes(ruaOriginal);
         let nomeRuaLimpo = ruaExpandida.split(',')[0].replace(/(?:nº|n|número|km)?\s*\d+$/gi, '').trim();
         let numero = extrairNumeroLimpo(ruaOriginal, detalhesOriginal);
 
         if (numero) {
-            let resNum = await buscarNominatim(`${nomeRuaLimpo}, ${numero}, ${cidade}, Brasil`);
+            let resNum = await buscarNominatim(`${nomeRuaLimpo}, ${numero},${cidade}, Brasil`);
             if (resNum) return { lat: resNum.lat, lon: resNum.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
-            
-            let resPhoton = await buscarPhoton(`${numero} ${nomeRuaLimpo}, ${cidade}, Brasil`);
-            if (resPhoton) return { lat: resPhoton.lat, lon: resPhoton.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
         }
 
-        let resRua = await buscarNominatim(`${nomeRuaLimpo}, ${cidade}, Brasil`);
+        let resRua = await buscarNominatim(`${nomeRuaLimpo},${cidade}, Brasil`);
         if (resRua) return { lat: resRua.lat, lon: resRua.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
 
         let cepBusca = limparCep(cepStr);
@@ -535,53 +539,48 @@
         return null;
     }
 
-    async function agruparEGeocodificar(linhas) {
+    async function agruparEGeocodificarComIA(linhas) {
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("loadingUpload").style.display = "block";
+        document.getElementById("tituloProgressoIA").innerText = "🤖 Gemini AI a limpar endereços em lote...";
 
         let ordensPorTecnico = {};
         let totalOS = 0;
+        let enderecosBrutosParaIA = [];
 
         linhas.forEach(linha => {
-            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
+            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]) || "Geral";
             const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
-            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
-            if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
-            const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
-            const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
-            
-            let cepOriginal = String(buscarValorNaLinha(linha, ["CEP"]));
-            let cepFormatado = limparCepETracar(cepOriginal);
+            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]) || "Cliente";
+            if (!codigo) return;
 
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
-            let detalhes = String(buscarValorNaLinha(linha, ["DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
+            let detalhes = String(buscarValorNaLinha(linha, ["DETALHES", "COMPLEMENTO", "OBS"])).trim();
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
             let bairro = String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim();
+            let cep = String(buscarValorNaLinha(linha, ["CEP"])).trim();
+            let horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
+            let periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
             let defeito = buscarValorNaLinha(linha, ["DEFEITO", "RECLAMAÇÃO", "PROBLEMA"]) || "Não informado";
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
-            ordensPorTecnico[tecnico].push({
-                codigo: String(codigo), 
-                cliente: String(cliente).trim(), 
-                servico: servico,
-                defeito: String(defeito).trim(),
-                rua: rua,
-                detalhes: detalhes,
-                cidade: cidade,
-                bairro: bairro,
-                cep: cepFormatado, 
-                periodo: periodoOriginal, 
-                status: 'pendente' 
-            });
-            totalOS++; 
+            let ordemObj = {
+                codigo: String(codigo), cliente: String(cliente).trim(), servico, defeito,
+                rua, detalhes, cidade, bairro, cep: limparCepETracar(cep), periodo: periodoOriginal, status: 'pendente'
+            };
+
+            ordensPorTecnico[tecnico].push(ordemObj);
+            enderecosBrutosParaIA.push(ordemObj);
+            totalOS++;
         });
 
-        // Limpeza inteligente via Gemini AI
-        let todasOrdensIA = Object.values(ordensPorTecnico).flat();
+        // Varredura cirúrgica com Gemini AI
         try {
-            const payloadIA = todasOrdensIA.map((o, i) => ({ id: i, rua: o.rua, numero: extrairNumeroLimpo(o.rua, o.detalhes), bairro: o.bairro, cidade: o.cidade, cep: o.cep }));
+            const payloadIA = enderecosBrutosParaIA.map((o, i) => ({
+                id: i, rua: o.rua, numero: extrairNumeroLimpo(o.rua, o.detalhes), bairro: o.bairro, cidade: o.cidade, cep: o.cep
+            }));
             const resIA = await fetch("/api/rotas/processar-ia", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
@@ -590,34 +589,28 @@
             if (resIA.ok) {
                 const dadosIA = await resIA.json();
                 const tratados = dadosIA.resultados || [];
-                todasOrdensIA = todasOrdensIA.map((o, i) => {
+                enderecosBrutosParaIA.forEach((o, i) => {
                     const g = tratados[i];
-                    if (!g) return o;
-                    o.rua = g.rua ? `${g.rua}, ${g.numero || ''}` : o.rua;
-                    o.cidade = g.cidade || o.cidade;
-                    o.cep = g.cep || o.cep;
-                    return o;
+                    if (g) {
+                        o.rua = g.rua ? `${g.rua},${g.numero || ''}` : o.rua;
+                        o.bairro = g.bairro || o.bairro;
+                        o.cidade = g.cidade || o.cidade;
+                        o.cep = g.cep || o.cep;
+                    }
                 });
             }
         } catch(e) {}
 
-        let posIA = 0;
-        Object.keys(ordensPorTecnico).forEach(t => {
-            ordensPorTecnico[t] = ordensPorTecnico[t].map(() => todasOrdensIA[posIA++]);
-        });
-
-        dadosGlobaisRotas = {}; 
+        document.getElementById("tituloProgressoIA").innerText = "🌍 Traduzindo endereços para GPS (Google Maps)...";
         let concluidos = 0;
         let barra = document.getElementById("barraProgresso");
         let lbl = document.getElementById("lblProgresso");
 
         for (let tecnico of Object.keys(ordensPorTecnico)) {
-            dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
             for (let ordem of ordensPorTecnico[tecnico]) {
                 concluidos++;
-                let perc = Math.round((concluidos / totalOS) * 100);
-                barra.style.width = perc + "%";
-                lbl.innerText = `${concluidos} de ${totalOS} locais convertidos em GPS...`;
+                barra.style.width = Math.round((concluidos / totalOS) * 100) + "%";
+                lbl.innerText = `${concluidos} de${totalOS} geocodificados com precisão...`;
 
                 let crds = await obterCoordenadasSilenciosa(ordem);
                 if (crds) {
@@ -625,18 +618,15 @@
                     ordem.lon = crds.lon;
                     ordem.precisaCorrecao = crds.precisaCorrecao;
                 } else {
-                    ordem.lat = configGalpao.lat + (Math.random() - 0.5) * 0.006;
-                    ordem.lon = configGalpao.lon + (Math.random() - 0.5) * 0.006;
+                    ordem.lat = configGalpao.lat + (Math.random() - 0.5) * 0.005;
+                    ordem.lon = configGalpao.lon + (Math.random() - 0.5) * 0.005;
                     ordem.precisaCorrecao = true;
                 }
-
-                if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
-                else dadosGlobaisRotas[tecnico].tarde.push(ordem);
-
-                await new Promise(r => setTimeout(r, 400));
+                await new Promise(r => setTimeout(r, 200));
             }
         }
 
+        dadosGlobaisRotas = ordensPorTecnico;
         localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("loadingUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
@@ -645,7 +635,7 @@
     }
 
     window.renderizarListaTecnicosModoNovo = function() {
-        visualizandoHistorico = false;
+        visualizandoHistorico = false; pararAutoRefresh();
         const divLista = document.getElementById("listaTecnicosUI");
         divLista.innerHTML = `<h4 style="color:#60A5FA; margin: 0 0 10px 15px; font-size:12px;">Planilha Carregada</h4>`;
         
@@ -654,7 +644,10 @@
             divLista.innerHTML += `
                 <div class="tecnico-item" id="tecnico-${nome.replace(/\s+/g, '')}" onclick="window.iniciarCalculoTecnico('${nome}')">
                     <div style="width: 100%;">
-                        <div class="tecnico-nome"><span>${nome}</span></div>
+                        <div class="tecnico-nome" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>${nome}</span>
+                            <button onclick="window.abrirModalTransferencia('${nome}', false, event)" style="background:none;border:none;cursor:pointer;font-size:16px; padding: 2px;" title="Transferir Roteiro">🔄</button>
+                        </div>
                         <div class="tecnico-stats">Total: ${total} paradas</div>
                     </div>
                 </div>
@@ -677,68 +670,130 @@
         return rotaOrdenada;
     }
 
-    window.iniciarCalculoTecnico = function(nome) {
+    window.iniciarCalculoTecnico = async function(nome) {
         document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
         document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
         tecnicoAtivo = nome;
+        aplicarBaseDoTecnico(nome);
         modoVisaoGlobal = false;
+        modoEdicaoAtivo = false;
         
-        const dados = visualizandoHistorico ? historicoRotasMemoria.find(r => r.tecnico === nome) : dadosGlobaisRotas[nome];
         if (visualizandoHistorico) {
-            rotaAtiva = [...(dados.itinerario || [])];
+            let rotaHist = historicoRotasMemoria.find(r => r.tecnico === nome);
+            if (rotaHist) { rotaAtiva = [...(rotaHist.itinerario || [])]; }
         } else {
-            let rotaManha = otimizarSequencia(dados.manha || [], configGalpao.lat, configGalpao.lon);
-            let rotaTarde = otimizarSequencia(dados.tarde || [], rotaManha.length ? rotaManha[rotaManha.length-1].lat : configGalpao.lat, rotaManha.length ? rotaManha[rotaManha.length-1].lon : configGalpao.lon);
+            const dadosTecnico = dadosGlobaisRotas[nome];
+            let coordsManha = [...(dadosTecnico.manha || [])]; 
+            let coordsTarde = [...(dadosTecnico.tarde || [])]; 
+
+            let rotaManha = otimizarSequencia(coordsManha, configGalpao.lat, configGalpao.lon);
+            let latFimManha = rotaManha.length > 0 ? parseFloat(rotaManha[rotaManha.length-1].lat) : configGalpao.lat;
+            let lonFimManha = rotaManha.length > 0 ? parseFloat(rotaManha[rotaManha.length-1].lon) : configGalpao.lon;
+            let rotaTarde = otimizarSequencia(coordsTarde, latFimManha, lonFimManha);
             rotaAtiva = [...rotaManha, ...rotaTarde];
         }
         
+        window.configurarSliderInicio(); 
         document.getElementById("painelItinerario").style.display = "block"; 
         window.atualizarTela(true); 
     }
 
-    window.atualizarTela = function(recentrarMapa = true) {
-        if (layerGrupo) mapa.removeLayer(layerGrupo);
+    window.atualizarTela = async function(recentrarMapa = true) {
+        if (layerGrupo) { mapa.removeLayer(layerGrupo); }
         layerGrupo = L.featureGroup().addTo(mapa);
         
-        L.marker([configGalpao.lat, configGalpao.lon], {
-            icon: L.divIcon({ className: 'custom-pin', html: `<div style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold;">🏢 Base</div>`, iconSize: [80, 30] })
-        }).addTo(layerGrupo);
+        let marcadorDestacado = null; 
+
+        const iconeGalpao = L.divIcon({ 
+            className: 'custom-pin', 
+            html: `<div style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold; white-space: nowrap;">🏢 ${configGalpao.nome}</div>`, 
+            iconSize: [140, 30] 
+        });
+        if (!modoVisaoGlobal) {
+            L.marker([configGalpao.lat, configGalpao.lon], {icon: iconeGalpao}).addTo(layerGrupo);
+        }
+
+        if (modoVisaoGlobal) {
+            document.getElementById("painelPlayback").style.display = "none";
+            document.getElementById("painelItinerario").style.display = "block";
+            document.getElementById("tituloPainelLateral").innerText = "🌍 Frota Global";
+            document.getElementById("listaItinerarioUI").innerHTML = "<div style='color:#94A3B8; padding:10px; text-align:center;'>Modo Torre de Controle Ativado.</div>";
+
+            let listaTotal = visualizandoHistorico ? historicoRotasMemoria : Object.keys(dadosGlobaisRotas).map(k => ({ tecnico: k, itinerario: [...dadosGlobaisRotas[k].manha, ...dadosGlobaisRotas[k].tarde] }));
+
+            listaTotal.forEach(roteiro => {
+                if (!roteiro) return;
+                (roteiro.itinerario || []).forEach(cliente => {
+                    if (!cliente || isNaN(cliente.lat)) return;
+                    let corPino = cliente.status === 'sucesso' ? "#10B981" : (cliente.status === 'insucesso' ? "#EF4444" : "#64748B");
+                    L.marker([cliente.lat, cliente.lon], {
+                        icon: L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white;"></div>`, iconSize: [22, 22] })
+                    }).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}<br>Status:${(cliente.status||'pendente').toUpperCase()}`).addTo(layerGrupo);
+                });
+            });
+            if (recentrarMapa && layerGrupo.getLayers().length > 0) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+            return; 
+        }
+
+        document.getElementById("painelPlayback").style.display = "flex";
+        let permissaoEdicao = (!visualizandoHistorico || modoEdicaoAtivo);
+        
+        document.getElementById("tituloPainelLateral").innerHTML = `
+            <span>🛠️ Itinerário ${modoEdicaoAtivo ? '<span style="color:#F59E0B">(Edição)</span>' : ''}</span>
+        `;
 
         let htmlLista = "";
 
         rotaAtiva.forEach((cliente, index) => {
             if (!cliente) return;
             const seq = index + 1;
+            let corPino = "#64748B"; 
+            
             let lat = parseFloat(cliente.lat) || configGalpao.lat;
             let lon = parseFloat(cliente.lon) || configGalpao.lon;
-            
-            let corPino = "#64748B"; 
+
             if (cliente.status === 'sucesso') corPino = "#10B981";       
             else if (cliente.status === 'insucesso') corPino = "#EF4444"; 
             else if (cliente.precisaCorrecao) corPino = "#E11D48";      
 
-            L.marker([lat, lon], {
-                icon: L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; font-size: 13px;">${seq}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] })
-            }).bindPopup(`<b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>Status: ${(cliente.status || 'pendente').toUpperCase()}<br>${cliente.rua}`).addTo(layerGrupo);
+            const customIcon = L.divIcon({ 
+                className: 'custom-pin', 
+                html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; font-size: 13px;">${seq}</div>`, 
+                iconSize: [26, 26], iconAnchor: [13, 13] 
+            });
+
+            L.marker([lat, lon], { icon: customIcon }).bindPopup(`<b>Parada #${seq}</b><br>OS:${cliente.codigo}<br>Status: ${(cliente.status \vert{}\vert{} 'pendente').toUpperCase()}<br>${cliente.rua}`).addTo(layerGrupo);
+
+            let dragAttrs = permissaoEdicao ? `draggable="true" ondragstart="window.iniciarArraste(event, ${index})" ondragover="window.permitirSoltar(event)" ondrop="window.soltarItem(event, ${index})"` : '';
+            let dragHandleHTML = permissaoEdicao ? `<div class="drag-handle" style="cursor: grab;">☰</div>` : '';
+
+            let painelAcoesHTML = permissaoEdicao ? `
+                <div style="display: flex;">
+                    <button class="btn-lapis" onclick="window.editarEnderecoManual('${cliente.codigo}', '${cliente.rua || ''}', event)" title="Editar endereço">✏️</button>
+                    <button class="btn-lapis" style="color:#EF4444;" onclick="window.removerItemRota(${index}, event)" title="Remover OS">✖</button>
+                </div>
+            ` : ``;
 
             htmlLista += `
-                <div class="itinerario-item" style="border-left-color: ${corPino};">
+                <div class="itinerario-item" style="border-left-color: ${corPino};" ${dragAttrs}>
                     <div class="card-topo">
+                        ${dragHandleHTML}
                         <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
                         <div class="itinerario-info">
                             <div style="color: white; font-size: 12px; font-weight:bold;">OS: ${cliente.codigo} (${(cliente.status || 'pendente').toUpperCase()})</div>
-                            <div style="color: #94A3B8; font-size: 10px;">${cliente.rua || 'Sem endereço'}</div>
+                            <div style="color: #94A3B8; font-size: 10px; overflow:hidden; white-space:nowrap;">${cliente.rua || 'Sem endereço'}</div>
                         </div>
+                        ${painelAcoesHTML}
                     </div>
                 </div>
             `;
         });
 
         document.getElementById("listaItinerarioUI").innerHTML = htmlLista;
-        if (recentrarMapa && rotaAtiva.length > 0) mapa.fitBounds(layerGrupo.getBounds(), { padding: [30, 30] });
+        if (recentrarMapa && rotaAtiva.length > 0) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
     }
 
-    // BUSCA DE HISTÓRICO COM SUPORTE A DUPLO FORMATO DE DATA (DD/MM/YYYY e YYYY-MM-DD)
+    // BUSCA DE HISTÓRICO COM SUPORTE A DUPLO FORMATO (DD/MM/YYYY e YYYY-MM-DD)
     window.buscarHistorico = async function() {
         let dataInput = document.getElementById("buscaData").value;
         if (!dataInput) return alert("⚠️ Selecione uma data.");
@@ -764,17 +819,137 @@
             const divLista = document.getElementById("listaTecnicosUI");
             divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Histórico (${dFormatadaBR})</h4>`;
             
-            rotas.forEach((roteiro) => {
+            rotas.forEach((roteiro, idx) => {
                 divLista.innerHTML += `
-                    <div class="tecnico-item" onclick="window.iniciarCalculoTecnico('${roteiro.tecnico}')">
-                        <div style="width: 100%;">
+                    <div class="tecnico-item" id="hist-tecnico-${idx}">
+                        <div style="flex-grow: 1; cursor: pointer;" onclick="window.carregarRotaHistorica(${idx})">
                             <div class="tecnico-nome"><span>${roteiro.tecnico}</span></div>
                             <div class="tecnico-stats">Paradas: ${roteiro.itinerario ? roteiro.itinerario.length : 0}</div>
                         </div>
+                        <div style="display:flex; gap:6px;">
+                            <button id="btnEdicao-${idx}" onclick="window.alternarModoEdicao(${idx}, event)" style="background:#F59E0B; border:none; color:white; font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer;">✏️ Editar</button>
+                            <button onclick="window.abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px;" title="Transferir">🔄</button>
+                            <button onclick="window.deletarRotaHistorica('${roteiro._id}', event)" style="background:transparent; border:none; color:#EF4444; font-size:14px; cursor:pointer;" title="Apagar">🗑️</button>
+                        </div>
                     </div>`;
             });
+            window.ativarVisaoGlobal();
             alert("✅ Roteiros carregados com sucesso!");
         } catch(e) { alert("❌ Erro ao buscar histórico."); }
+    }
+
+    window.carregarRotaHistorica = function(idx) {
+        const roteiro = historicoRotasMemoria[idx]; 
+        tecnicoAtivo = roteiro.tecnico;
+        rotaAtiva = [...(roteiro.itinerario || [])]; 
+        modoVisaoGlobal = false; 
+        document.getElementById("painelItinerario").style.display = "block"; 
+        window.atualizarTela(true);
+    }
+
+    window.alternarModoEdicao = async function(idx, event) {
+        event.stopPropagation();
+        let btn = document.getElementById(`btnEdicao-${idx}`);
+        if (modoEdicaoAtivo && indiceEdicao === idx) {
+            btn.innerHTML = '⏳ Salvando...'; btn.disabled = true;
+            try {
+                const roteiroBase = historicoRotasMemoria[idx];
+                const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: roteiroBase.data, tecnico: roteiroBase.tecnico, itinerario: rotaAtiva }) });
+                if (!res.ok) throw new Error();
+                modoEdicaoAtivo = false; indiceEdicao = null;
+                btn.innerHTML = '✏️ Editar'; btn.style.background = '#F59E0B'; btn.disabled = false;
+                alert("✅ Alterações salvas com sucesso!");
+                window.buscarHistorico();
+            } catch(e) { alert("❌ Erro ao salvar alterações."); btn.innerHTML = '💾 Salvar'; btn.disabled = false; }
+        } else {
+            if (modoEdicaoAtivo) return alert("⚠️ Salve a edição atual primeiro!");
+            window.carregarRotaHistorica(idx);
+            modoEdicaoAtivo = true; indiceEdicao = idx;
+            btn.innerHTML = '💾 Salvar'; btn.style.background = '#10B981';
+            alert("✏️ Modo de edição ativado! Você já pode arrastar itens ou editar endereços na tela.");
+        }
+    }
+
+    window.deletarRotaHistorica = async function(id, event) {
+        event.stopPropagation();
+        if (!confirm("⚠️ Deseja realmente apagar esta rota permanentemente?")) return;
+        try {
+            const res = await fetch(`/api/rotas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) { alert("✅ Rota apagada!"); window.buscarHistorico(); }
+        } catch(e) { alert("❌ Erro ao excluir."); }
+    }
+
+    window.removerItemRota = function(index, event) {
+        event.stopPropagation();
+        rotaAtiva.splice(index, 1);
+        window.atualizarTela(false);
+    }
+
+    window.iniciarArraste = function(e, index) { itemArrastadoIndice = index; e.dataTransfer.effectAllowed = 'move'; }
+    window.permitirSoltar = function(e) { e.preventDefault(); }
+    window.soltarItem = function(e, indexAlvo) {
+        e.preventDefault();
+        if (itemArrastadoIndice === null || itemArrastadoIndice === indexAlvo) return;
+        let item = rotaAtiva.splice(itemArrastadoIndice, 1)[0];
+        rotaAtiva.splice(indexAlvo, 0, item);
+        window.atualizarTela(false);
+    }
+
+    window.editarEnderecoManual = async function(codigo, ruaAtual, event) {
+        event.stopPropagation();
+        let novoInput = prompt("✏️ Edite o endereço ou cole a Coordenada GPS:", ruaAtual);
+        if (!novoInput || novoInput.trim() === "" || novoInput === ruaAtual) return;
+        
+        let itemLocal = rotaAtiva.find(p => String(p.codigo).trim() === String(codigo).trim());
+        if (!itemLocal) return alert("OS não encontrada.");
+
+        let crds = await obterCoordenadasSilenciosa({ rua: novoInput, cidade: "São Paulo" });
+        if (crds) {
+            itemLocal.rua = novoInput;
+            itemLocal.lat = crds.lat;
+            itemLocal.lon = crds.lon;
+            itemLocal.precisaCorrecao = false;
+            window.atualizarTela(true);
+            alert("✅ Endereço e GPS atualizados!");
+        } else {
+            alert("❌ Não foi possível geocodificar este endereço.");
+        }
+    }
+
+    let transfTempData = {};
+    window.abrirModalTransferencia = async function(nomeAntigo, isHistorico, event) {
+        event.stopPropagation(); transfTempData = { nomeAntigo, isHistorico };
+        document.getElementById('lblNomeAntigo').innerText = nomeAntigo;
+        const select = document.getElementById('selectNovoTecnico'); select.innerHTML = '<option value="">Carregando...</option>';
+        document.getElementById('modalTransferencia').style.display = 'flex';
+
+        try {
+            let res = await fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) {
+                let users = await res.json();
+                select.innerHTML = '<option value="">-- Selecione o Técnico --</option>';
+                users.forEach(u => { if(u.nome && u.nome.toUpperCase() !== nomeAntigo) select.innerHTML += `<option value="${u.nome}">${u.nome}</option>`; });
+            }
+        } catch(e) {}
+    }
+
+    window.fecharModalTransferencia = function() { document.getElementById('modalTransferencia').style.display = 'none'; }
+
+    window.confirmarTransferencia = async function() {
+        let novoNome = document.getElementById('selectNovoTecnico').value;
+        if (!novoNome) return alert("Selecione um técnico.");
+        let { nomeAntigo, isHistorico } = transfTempData; window.fecharModalTransferencia();
+
+        if (isHistorico) {
+            let roteiro = historicoRotasMemoria.find(r => r.tecnico === nomeAntigo);
+            if (roteiro) {
+                try {
+                    await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: roteiro.data, tecnico: novoNome, itinerario: roteiro.itinerario }) });
+                    await fetch(`/api/rotas/${roteiro._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                    alert(`✅ Roteiro transferido para ${novoNome}!`); window.buscarHistorico();
+                } catch(e) { alert("❌ Erro na transferência."); }
+            }
+        }
     }
 
     window.ativarVisaoGlobal = function() {
