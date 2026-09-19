@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roteirizador Inteligente - NERI</title>
+    <title>Roteirizador Inteligente - NERI (Corrigido)</title>
     
     <link rel="stylesheet" href="style.css?v=2">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -417,7 +417,10 @@
         let matchCoord = String(ruaOriginal).trim().match(coordRegex);
         if (matchCoord) return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]), precisaCorrecao: false };
 
-        let queryBusca = `${ruaOriginal}, ${cidade}, Brasil`.trim();
+        let estado = cliente.estado || "SP";
+        let bairro = cliente.bairro || "";
+        let numero = cliente.numero || "";
+        let queryBusca = `${ruaOriginal} ${numero} ${bairro}, ${cidade}, ${estado}, Brasil ${cepStr}`.trim();
         let res = await buscarNominatim(queryBusca);
         if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
 
@@ -536,9 +539,10 @@
                 ordemObj.lon = crds.lon;
                 ordemObj.precisaCorrecao = crds.precisaCorrecao;
             } else {
-                ordemObj.lat = configGalpao.lat + (Math.random() - 0.5) * 0.005;
-                ordemObj.lon = configGalpao.lon + (Math.random() - 0.5) * 0.005;
+                ordemObj.lat = null;
+                ordemObj.lon = null;
                 ordemObj.precisaCorrecao = true;
+                ordemObj.erroGeocodificacao = true;
             }
 
             let tecnicoNome = original.tecnico;
@@ -636,6 +640,50 @@
         }
 
         if (modoVisaoGlobal) {
+
+            // Bases operacionais
+            if (Array.isArray(basesOperacionais)) {
+                basesOperacionais.forEach(base => {
+                    if (base && Number.isFinite(Number(base.lat)) && Number.isFinite(Number(base.lon))) {
+                        const iconeBase = L.divIcon({
+                            className: 'custom-pin',
+                            html: `<div style="background:#F59E0B;color:#111827;border-radius:8px;padding:5px;border:2px solid white;font-weight:bold;">🏢 ${base.nome || 'Base'}</div>`,
+                            iconSize:[120,30]
+                        });
+                        L.marker([Number(base.lat), Number(base.lon)], {icon:iconeBase})
+                        .bindPopup(`<b>${base.nome || 'Base Operacional'}</b><br>${base.endereco || ''}`)
+                        .addTo(layerGrupo);
+                    }
+                });
+            }
+
+            // Técnicos em campo (GPS)
+            try {
+                const respostaTecnicos = await fetch('/api/tecnicos/localizacao', {
+                    headers:{'Authorization':`Bearer ${token}`}
+                });
+
+                if (respostaTecnicos.ok) {
+                    const tecnicosGPS = await respostaTecnicos.json();
+
+                    tecnicosGPS.forEach(t => {
+                        if (!t.lat || !t.lon) return;
+
+                        const iconeVeiculo = L.divIcon({
+                            className:'custom-pin',
+                            html:`<div style="background:#2563EB;color:white;border-radius:10px;padding:6px;border:2px solid white;">🚚 ${t.nome}</div>`,
+                            iconSize:[120,35]
+                        });
+
+                        L.marker([Number(t.lat), Number(t.lon)], {icon:iconeVeiculo})
+                        .bindPopup(`<b>${t.nome}</b><br>Status: ${t.status || 'Em operação'}<br>Atualizado: ${t.atualizado || '-'}`)
+                        .addTo(layerGrupo);
+                    });
+                }
+            } catch(e) {
+                console.warn("GPS dos técnicos indisponível", e);
+            }
+
             document.getElementById("painelPlayback").style.display = "none";
             document.getElementById("painelItinerario").style.display = "block";
             document.getElementById("tituloPainelLateral").innerText = "🌍 Frota Global";
