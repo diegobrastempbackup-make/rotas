@@ -666,7 +666,7 @@
         }
 
 
-        async function buscarGoogleMapsPreciso(enderecoCompleto) {
+        async function buscarGoogleMapsPreciso(enderecoCompleto, cliente) {
             try {
                 const resposta = await fetch("/api/geocodificar-endereco", {
                     method:"POST",
@@ -674,7 +674,16 @@
                         "Content-Type":"application/json",
                         "Authorization":`Bearer ${token}`
                     },
-                    body:JSON.stringify({ endereco:enderecoCompleto })
+                    body:JSON.stringify({
+                        endereco:enderecoCompleto,
+                        dadosOriginais:{
+                            rua: cliente.rua || "",
+                            bairro: cliente.bairro || cliente.distrito || "",
+                            distrito: cliente.distrito || "",
+                            cidade: cliente.cidade || "",
+                            cep: cliente.cep || ""
+                        }
+                    })
                 });
 
                 if (!resposta.ok) return null;
@@ -719,7 +728,7 @@ async function obterCoordenadasSilenciosa(cliente) {
 
         // GOOGLE MAPS - prioridade máxima de precisão
         let enderecoGoogle = `${ruaExpandida}, ${cliente.numero || numero}, ${bairro}, ${cidade}, ${uf}, CEP ${cepStr}`;
-        let googleResultado = await buscarGoogleMapsPreciso(enderecoGoogle);
+        let googleResultado = await buscarGoogleMapsPreciso(enderecoGoogle, cliente);
 
         if (googleResultado) {
             return googleResultado;
