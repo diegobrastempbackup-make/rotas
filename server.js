@@ -327,10 +327,11 @@ app.post("/login", async (req, res) => {
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta" });
 
-    const token = jwt.sign(
-      { id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id },
-      JWT_SECRET, { expiresIn: "12h" }
-    );
+   const token = jwt.sign(
+  { id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id },
+  JWT_SECRET,
+  { expiresIn: "30d" }
+);
 
     const tipoFront = usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo;
     res.json({ ok: true, token, nome: usuarioBanco.nome, tipo: tipoFront });
