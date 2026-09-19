@@ -167,6 +167,19 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     if(!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
 
     const enderecoCompleto = [rua, numero, bairro, cidade, uf, cep, "Brasil"].filter(Boolean).join(", ");
+
+    console.log("========================================");
+    console.log("DIAGNOSTICO GEOCODIFICACAO");
+    console.log("ENTRADA ORIGINAL:", JSON.stringify(req.body, null, 2));
+    console.log("RUA:", rua);
+    console.log("NUMERO:", numero);
+    console.log("BAIRRO:", bairro);
+    console.log("CIDADE:", cidade);
+    console.log("UF:", uf);
+    console.log("CEP:", cep);
+    console.log("ENDERECO ENVIADO GOOGLE:", enderecoCompleto);
+    console.log("========================================");
+
     const consultas = [
       { address: enderecoCompleto },
       { address: [rua, numero, cidade, uf, "Brasil"].filter(Boolean).join(", ") },
@@ -180,7 +193,17 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
       if (json.status === "REQUEST_DENIED") {
         return res.status(502).json({ encontrado: false, erro: "Google Maps recusou a requisição. Verifique a chave e a Geocoding API." });
       }
-      if (json.status === "OK") candidatos.push(...json.results);
+      if (json.status === "OK") {
+        console.log("RETORNO GOOGLE CONSULTA:", consulta.address);
+        json.results.forEach((r, index) => {
+          console.log("CANDIDATO", index + 1, {
+            endereco: r.formatted_address,
+            precisao: r.geometry?.location_type,
+            parcial: r.partial_match || false
+          });
+        });
+        candidatos.push(...json.results);
+      }
     }
 
     const avaliados = candidatos.map(resultado => {
@@ -204,6 +227,19 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
       if (cidadeDivergente || ufDivergente || cepDivergente) score = -100;
       return { resultado, score, tipo, cidadeGoogle, ufGoogle, cepGoogle, ruaGoogle, numeroGoogle };
     }).sort((a, b) => b.score - a.score);
+
+    console.log("RESULTADOS AVALIADOS:");
+    avaliados.forEach((item, index) => {
+      console.log(index + 1, {
+        endereco: item.resultado.formatted_address,
+        score: item.score,
+        tipo: item.tipo,
+        cidade: item.cidadeGoogle,
+        cep: item.cepGoogle,
+        rua: item.ruaGoogle,
+        numero: item.numeroGoogle
+      });
+    });
 
     const melhor = avaliados[0];
     if (!melhor || melhor.score < 45) {
