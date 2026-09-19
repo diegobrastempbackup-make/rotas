@@ -4,11 +4,15 @@ const { MongoClient, ObjectId } = require("mongodb");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const https = require("https"); 
+const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
 
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
+
+// Inicializa a IA do Google Gemini (lê automaticamente process.env.GEMINI_API_KEY)
+const ai = new GoogleGenAI();
 
 // =====================================================================
 const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com"; 
@@ -180,8 +184,6 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
 
 // =====================================================================
 // BASES OPERACIONAIS (MULTIBASE / MULTITENANT)
-// Cada base pertence a um cliente_id. A rota grava um snapshot da base,
-// evitando que São Paulo e BH compartilhem uma configuração global.
 // =====================================================================
 app.get('/api/bases', autenticarToken, async (req, res) => {
   try {
@@ -239,9 +241,6 @@ app.delete('/api/bases/:id', autenticarToken, async (req, res) => {
   } catch (e) { res.status(500).json({ erro: "Erro ao excluir base." }); }
 });
 
-// Retorna técnicos do roteirizador com a BASE OFICIAL DO USUÁRIO.
-// Regra: usuários.tipo === "tecnico" são a fonte principal da base.
-// tecnicos_dashboard é usado apenas para compatibilidade e dados de frota.
 app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) => {
   try {
     const cliente_id = req.usuario.cliente_id;
@@ -256,15 +255,12 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
     const mapaUsuarios = new Map(usuariosTecnicos.map(u => [normalizarNome(u.nome), u]));
     const mapaDashboard = new Map(tecnicosDashboard.map(t => [normalizarNome(t.nome), t]));
 
-    // União dos nomes para suportar técnico que existe apenas em Usuários
-    // ou em técnicos_dashboard durante a migração.
     const nomes = new Set([...mapaUsuarios.keys(), ...mapaDashboard.keys()]);
     const resultado = [];
 
     for (const chave of nomes) {
       const usuario = mapaUsuarios.get(chave) || null;
       const tecnicoDashboard = mapaDashboard.get(chave) || null;
-      // PRIORIDADE PROFISSIONAL: base do USUÁRIO técnico.
       const baseId = usuario?.base_id || tecnicoDashboard?.base_id || null;
       const base = baseId ? (mapaBases.get(String(baseId)) || null) : null;
       resultado.push({
@@ -286,8 +282,37 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
 });
 
 // =====================================================================
-// NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE
+// NOVO MÓDULO: ROTEIRIZADOR INTELIGENTE COM GEMINI AI
 // =====================================================================
+
+app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
+  try {
+    const { enderecosBrutos } = req.body;
+    if (!enderecosBrutos || !Array.isArray(enderecosBrutos)) {
+      return res.status(400).json({ erro: "Lista de endereços inválida." });
+    }
+
+    const prompt = `Analise a seguinte lista de endereços e dados brutos extraídos de uma planilha logística. 
+    Para cada item, corrija erros de digitação, limpe abreviações complexas, deduza informações faltantes e retorne estritamente um array JSON válido onde cada objeto contenha exatamente os seguintes campos: 
+    { "rua": "...", "numero": "...", "bairro": "...", "cidade": "...", "estado": "...", "cep": "..." }.
+    
+    Dados para análise: ${JSON.stringify(enderecosBrutos)}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const enderecosTratados = JSON.parse(response.text);
+    res.json({ ok: true, resultados: enderecosTratados });
+  } catch (err) {
+    console.error("Erro na IA do Roteirizador:", err);
+    res.status(500).json({ erro: "Erro ao processar endereços com inteligência artificial." });
+  }
+});
 
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -301,8 +326,6 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
         nome: new RegExp(`^${String(tecnico).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i")
       });
       const usuarioTecnico = await db.collection("usuarios").findOne({ cliente_id: req.usuario.cliente_id, nome: tecnicoDoc ? tecnicoDoc.nome : new RegExp(`^${String(tecnico).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i"), tipo: "tecnico" });
-      // A base do usuário técnico é a fonte oficial. Nunca deixe uma base
-      // antiga/global enviada pelo navegador sobrescrever a base do técnico.
       const baseIdFinal = usuarioTecnico?.base_id || tecnicoDoc?.base_id || base_id || null;
       let base = null;
       if (baseIdFinal) base = await db.collection("bases_operacionais").findOne({
@@ -334,10 +357,7 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       let filtro = { cliente_id: req.usuario.cliente_id };
 
       if (data) filtro.data = data;
-      
-      if (codigo) {
-          filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
-      }
+      if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
 
       const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
       res.json(rotas);
@@ -372,18 +392,12 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
 
         let atualizacao = { "itinerario.$.status": novoStatus };
 
-        if (campoTempo && valorTempo) {
-            atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
-        }
-
+        if (campoTempo && valorTempo) atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         if (latitude !== undefined && longitude !== undefined) {
             atualizacao["itinerario.$.latCheckin"] = latitude;
             atualizacao["itinerario.$.lonCheckin"] = longitude;
         }
-
-        if (motivo) {
-            atualizacao["itinerario.$.motivoInsucesso"] = motivo;
-        }
+        if (motivo) atualizacao["itinerario.$.motivoInsucesso"] = motivo;
 
         const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
 
@@ -405,9 +419,7 @@ app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
             data: regexData
         }).toArray();
 
-        let total = 0;
-        let sucesso = 0;
-        let insucesso = 0;
+        let total = 0, sucesso = 0, insucesso = 0;
         rotas.forEach(rota => {
             if (rota.itinerario) {
                 rota.itinerario.forEach(os => {
@@ -427,7 +439,6 @@ app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
 app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, lat, lon } = req.body;
-        
         let filterDoc = { 
             data: data, 
             tecnico: new RegExp(`^${tecnico}$`, 'i'), 
@@ -436,12 +447,7 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
         };
 
         let novoPonto = { lat, lon, timestamp: new Date() };
-
-        await db.collection("planejamento_rotas").updateOne(
-            filterDoc, 
-            { $push: { "itinerario.$.rastroReal": novoPonto } }
-        );
-
+        await db.collection("planejamento_rotas").updateOne(filterDoc, { $push: { "itinerario.$.rastroReal": novoPonto } });
         res.json({ ok: true });
     } catch (err) {
         res.status(500).json({ erro: "Erro ao salvar tracking." });
@@ -451,7 +457,6 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
 app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
-        
         let filterDoc = { 
             data: data, 
             tecnico: new RegExp(`^${tecnico}$`, 'i'), 
@@ -510,9 +515,6 @@ app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
   } catch (erro) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// =====================================================================
-// AQUI ESTÃO AS ROTAS QUE FALTAVAM PARA EDITAR/EXCLUIR O HISTÓRICO
-// =====================================================================
 app.put("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
   try {
     const { tipoAcao, quantidade, observacao } = req.body;
@@ -534,7 +536,6 @@ app.delete("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
     else res.status(404).json({ erro: "Registro não encontrado." });
   } catch (erro) { res.status(500).json({ erro: "Erro ao excluir histórico" }); }
 });
-// =====================================================================
 
 app.get("/api/registros", autenticarToken, async (req, res) => { try { res.json(await db.collection("registros").find(getFiltroSaaS(req)).sort({ data: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 app.post("/registro", autenticarToken, async (req, res) => {
@@ -634,7 +635,6 @@ app.post('/api/config-base', autenticarToken, async (req, res) => {
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
         const { codigoBarras, horaBatida, dataBatida, origem } = req.body;
-        
         const pessoa = await db.collection("equipe_totem").findOne({ 
             nome: new RegExp(`^${codigoBarras}$`, 'i'), 
             cliente_id: req.usuario.cliente_id 
@@ -698,10 +698,6 @@ app.put('/api/fila/:id/status', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// ==========================================
-// MÓDULO: CHAMADAS AVULSAS DO COORDENADOR
-// ==========================================
-
 app.post('/api/totem/alerta-balcao', autenticarToken, async (req, res) => {
     try {
         const { tecnico, coordenador, mensagem } = req.body;
@@ -714,9 +710,7 @@ app.post('/api/totem/alerta-balcao', autenticarToken, async (req, res) => {
             timestamp: new Date()
         });
         res.json({ ok: true });
-    } catch(e) { 
-        res.status(500).json({erro: "Erro ao registrar alerta"}); 
-    }
+    } catch(e) { res.status(500).json({erro: "Erro ao registrar alerta"}); }
 });
 
 app.get('/api/totem/alertas-pendentes', autenticarToken, async (req, res) => {
@@ -726,9 +720,7 @@ app.get('/api/totem/alertas-pendentes', autenticarToken, async (req, res) => {
             status: "Pendente"
         }).sort({ timestamp: 1 }).toArray();
         res.json(alertas);
-    } catch(e) { 
-        res.status(500).json({erro: "Erro ao buscar alertas"}); 
-    }
+    } catch(e) { res.status(500).json({erro: "Erro ao buscar alertas"}); }
 });
 
 app.put('/api/totem/alerta-balcao/:id/concluido', autenticarToken, async (req, res) => {
@@ -738,14 +730,9 @@ app.put('/api/totem/alerta-balcao/:id/concluido', autenticarToken, async (req, r
             { $set: { status: "Concluido", lidoEm: new Date() } }
         );
         res.json({ok: true});
-    } catch(e) { 
-        res.status(500).json({erro: "Erro ao atualizar alerta"}); 
-    }
+    } catch(e) { res.status(500).json({erro: "Erro ao atualizar alerta"}); }
 });
 
-// ==========================================
-// ROTA DE COMUNICAÇÃO: PAINEL -> TOTEM
-// ==========================================
 app.put('/api/fila/:id/chamar-totem', autenticarToken, async (req, res) => {
     try {
         await db.collection("fila_ponto").updateOne(
@@ -776,12 +763,8 @@ app.put('/api/fila/:id/chamada-concluida', autenticarToken, async (req, res) => 
     } catch(e) { res.status(500).json({erro: "Erro"}); }
 });
 
-// ==========================================
-// FASE 6: MODO "ESPIÃO" (SaaS LOGIN AS)
-// ==========================================
 app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({erro: "Acesso Negado"});
-    
     const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
     if (!empresa) return res.status(404).json({erro: "Empresa não encontrada"});
 
@@ -789,24 +772,17 @@ app.post('/api/acessar-empresa/:id', autenticarToken, async (req, res) => {
         { id: req.usuario.id, tipo: "master", cliente_id: empresa.cliente_id, superadmin_original: true },
         process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
     );
-    
     res.json({ ok: true, token: tokenNovo, nome: empresa.empresaNome });
 });
 
 app.post('/api/voltar-admin', autenticarToken, async (req, res) => {
     if (!req.usuario.superadmin_original) return res.status(403).json({erro: "Negado"});
-    
     const tokenNovo = jwt.sign(
         { id: req.usuario.id, tipo: "superadmin", cliente_id: "GLOBAL_SYSTEM" },
         process.env.JWT_SECRET || "NERI_SECRET_2026", { expiresIn: "12h" }
     );
-    
     res.json({ ok: true, token: tokenNovo });
 });
-
-// ==========================================
-// MÓDULO: GESTÃO E SOLICITAÇÃO DE PEÇAS
-// ==========================================
 
 app.post('/api/pecas/catalogo', autenticarToken, async (req, res) => {
     try {
@@ -867,14 +843,12 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
     try {
         const { data } = req.query;
         let filtro = { cliente_id: req.usuario.cliente_id };
-        
         if (data) {
             let inicio = new Date(data);
             let fim = new Date(data);
             fim.setDate(fim.getDate() + 1);
             filtro.dataSolicitacao = { $gte: inicio, $lt: fim };
         }
-
         const solicitacoes = await db.collection("solicitacoes_pecas").find(filtro).sort({ dataSolicitacao: -1 }).toArray();
         res.json(solicitacoes);
     } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
