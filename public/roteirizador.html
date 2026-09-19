@@ -548,6 +548,48 @@
             }
         }
 
+
+        // ============================================================
+        // GEMINI V2 - VALIDAÇÃO INTELIGENTE DE RESULTADOS
+        // Evita aceitar coordenadas aproximadas ou cidades erradas.
+        // ============================================================
+
+        async function validarCoordenadaComGemini(endereco, candidatos) {
+            try {
+                const resposta = await fetch("/api/rotas/validar-localizacao-ia", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        endereco,
+                        candidatos
+                    })
+                });
+
+                if (!resposta.ok) return candidatos[0];
+
+                const resultado = await resposta.json();
+
+                return resultado.melhor || candidatos[0];
+
+            } catch(e) {
+                return candidatos[0];
+            }
+        }
+
+        function calcularConfiancaEndereco(resultado, cliente) {
+            let score = 0;
+
+            if (resultado.display_name) score += 20;
+            if (cliente.cep && resultado.display_name?.includes(cliente.cep.substring(0,5))) score += 30;
+            if (cliente.cidade && resultado.display_name?.toLowerCase().includes(cliente.cidade.toLowerCase())) score += 25;
+            if (cliente.rua && resultado.display_name?.toLowerCase().includes(cliente.rua.toLowerCase().split(" ")[0])) score += 25;
+
+            return Math.min(score,100);
+        }
+
 async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
@@ -708,6 +750,7 @@ async function obterCoordenadasSilenciosa(cliente) {
                     ordem.lat = null;
                     ordem.lon = null;
                     ordem.precisaCorrecao = true;
+                    ordem.confiancaEndereco = 0;
                     ordem.erroGeocodificacao = true;
                 }
 
