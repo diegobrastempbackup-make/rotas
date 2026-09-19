@@ -43,6 +43,107 @@ const autenticarToken = (req, res, next) => {
   } catch (err) { return res.status(403).json({ erro: "Token inválido." }); }
 };
 
+// GOOGLE MAPS GEOCODING
+app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
+  try {
+
+    const { endereco } = req.body;
+
+    if (!endereco) {
+      return res.status(400).json({
+        erro: "Endereço não informado"
+      });
+    }
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({
+        erro: "GOOGLE_MAPS_API_KEY ausente"
+      });
+    }
+
+    const url =
+      "https://maps.googleapis.com/maps/api/geocode/json?" +
+      `address=${encodeURIComponent(endereco + ", Brasil")}` +
+      `&language=pt-BR` +
+      `&key=${apiKey}`;
+
+
+    https.get(url, response => {
+
+      let body = "";
+
+      response.on("data", chunk => {
+        body += chunk;
+      });
+
+
+      response.on("end", () => {
+
+        const dados = JSON.parse(body);
+
+
+        if (
+          dados.status !== "OK" ||
+          !dados.results ||
+          dados.results.length === 0
+        ) {
+
+          return res.json({
+            encontrado:false,
+            status:dados.status
+          });
+
+        }
+
+
+        const resultado = dados.results[0];
+
+
+        return res.json({
+
+          encontrado:true,
+
+          lat:
+          resultado.geometry.location.lat,
+
+          lon:
+          resultado.geometry.location.lng,
+
+
+          precisao:
+          resultado.geometry.location_type,
+
+
+          enderecoFormatado:
+          resultado.formatted_address,
+
+
+          componentes:
+          resultado.address_components
+
+        });
+
+
+      });
+
+
+    });
+
+
+  } catch(error){
+
+    console.error(error);
+
+    res.status(500).json({
+      erro:"Falha na geocodificação"
+    });
+
+  }
+
+});
+
 // FILTRO SAAS (Separa os dados de cada empresa)
 const getFiltroSaaS = (req) => {
   if (req.usuario.tipo === "superadmin") return {}; 

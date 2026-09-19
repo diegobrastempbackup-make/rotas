@@ -506,7 +506,7 @@
                 const payload = ordens.map((o, i) => ({
                     id: i,
                     rua: o.rua || "",
-                    numero: "",
+                    numero: extrairNumeroLimpo(o.rua || "", o.detalhes || ""),
                     bairro: o.bairro || "",
                     cidade: o.cidade || "",
                     estado: o.uf || "",
@@ -533,7 +533,7 @@
                     if (!g) return o;
 
                     o.rua = g.rua || o.rua;
-                    o.numero = g.numero || "";
+                    o.numero = g.numero || o.numero;
                     o.bairro = g.bairro || o.bairro;
                     o.cidade = g.cidade || o.cidade;
                     o.uf = g.estado || o.uf;
@@ -665,6 +665,36 @@
             return cliente;
         }
 
+
+        async function buscarGoogleMapsPreciso(enderecoCompleto) {
+            try {
+                const resposta = await fetch("/api/geocodificar-endereco", {
+                    method:"POST",
+                    headers:{
+                        "Content-Type":"application/json",
+                        "Authorization":`Bearer ${token}`
+                    },
+                    body:JSON.stringify({ endereco:enderecoCompleto })
+                });
+
+                if (!resposta.ok) return null;
+
+                const dados = await resposta.json();
+
+                if (!dados.encontrado) return null;
+
+                return {
+                    lat:Number(dados.lat),
+                    lon:Number(dados.lon),
+                    precisaCorrecao:false,
+                    precisaoGPS:dados.precisao || "GOOGLE"
+                };
+
+            } catch(e) {
+                return null;
+            }
+        }
+
 async function obterCoordenadasSilenciosa(cliente) {
 
         // Primeiro valida e completa pelo CEP oficial
@@ -686,6 +716,14 @@ async function obterCoordenadasSilenciosa(cliente) {
         // Isola o nome da rua (tira vírgulas e números do final para o Nominatim não bugar)
         let nomeRuaLimpo = ruaExpandida.split(',')[0].replace(/(?:nº|n|número|km)?\s*\d+$/gi, '').trim();
         let numero = extrairNumeroLimpo(ruaOriginal, detalhesOriginal);
+
+        // GOOGLE MAPS - prioridade máxima de precisão
+        let enderecoGoogle = `${ruaExpandida}, ${cliente.numero || numero}, ${bairro}, ${cidade}, ${uf}, CEP ${cepStr}`;
+        let googleResultado = await buscarGoogleMapsPreciso(enderecoGoogle);
+
+        if (googleResultado) {
+            return googleResultado;
+        }
 
         // Tratamento exclusivo para Rodovias (Mantém a precisão na estrada)
         if (ehRodoviaOuKm(ruaOriginal) || ehRodoviaOuKm(detalhesOriginal)) {
