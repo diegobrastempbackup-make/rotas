@@ -41,35 +41,138 @@ const getFiltroSaaS = (req) => {
 // =====================================================================
 // GEOCODIFICAÇÃO GOOGLE MAPS
 // =====================================================================
+const removerAcentos = (valor = "") => String(valor)
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toUpperCase()
+  .replace(/[^A-Z0-9]+/g, " ")
+  .trim();
+
+const somenteDigitos = (valor = "") => String(valor).replace(/\D/g, "");
+
+const normalizarUf = (valor = "") => {
+  const mapa = {
+    ACRE: "AC", ALAGOAS: "AL", AMAPA: "AP", AMAZONAS: "AM", BAHIA: "BA", CEARA: "CE",
+    "DISTRITO FEDERAL": "DF", "ESPIRITO SANTO": "ES", GOIAS: "GO", MARANHAO: "MA",
+    "MATO GROSSO": "MT", "MATO GROSSO DO SUL": "MS", "MINAS GERAIS": "MG", PARA: "PA",
+    PARAIBA: "PB", PARANA: "PR", PERNAMBUCO: "PE", PIAUI: "PI", "RIO DE JANEIRO": "RJ",
+    "RIO GRANDE DO NORTE": "RN", "RIO GRANDE DO SUL": "RS", RONDONIA: "RO", RORAIMA: "RR",
+    "SANTA CATARINA": "SC", "SAO PAULO": "SP", SERGIPE: "SE", TOCANTINS: "TO"
+  };
+  const limpo = removerAcentos(valor);
+  return mapa[limpo] || limpo;
+};
+
+const componenteGoogle = (resultado, tipos) => {
+  const componente = (resultado.address_components || []).find(c =>
+    tipos.some(tipo => c.types.includes(tipo))
+  );
+  return componente?.long_name || "";
+};
+
+const similaridadeTexto = (a, b) => {
+  const ignorar = new Set(["RUA", "AVENIDA", "AV", "RODOVIA", "ESTRADA", "ALAMEDA", "TRAVESSA"]);
+  const tokens = valor => new Set(removerAcentos(valor).split(" ").filter(t => t && !ignorar.has(t)));
+  const ta = tokens(a); const tb = tokens(b);
+  if (!ta.size || !tb.size) return 0;
+  const intersecao = [...ta].filter(t => tb.has(t)).length;
+  return intersecao / Math.max(ta.size, tb.size);
+};
+
+const requisitarGoogle = url => new Promise((resolve, reject) => {
+  https.get(url, response => {
+    let dados = "";
+    response.on("data", chunk => { dados += chunk; });
+    response.on("end", () => {
+      try { resolve(JSON.parse(dados)); } catch (erro) { reject(erro); }
+    });
+  }).on("error", reject);
+});
+
 app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
   try {
-    const { endereco } = req.body;
-    if(!endereco) return res.status(400).json({ encontrado: false });
+    const entrada = typeof req.body.endereco === "object"
+      ? req.body.endereco
+      : { rua: req.body.endereco };
+    const rua = String(entrada.rua || entrada.endereco || "").trim();
+    const numero = String(entrada.numero || "").trim();
+    const bairro = String(entrada.bairro || entrada.distrito || "").trim();
+    const cidade = String(entrada.cidade || "").trim();
+    const uf = String(entrada.uf || entrada.estado || "").trim();
+    const cep = somenteDigitos(entrada.cep).slice(0, 8);
+    if (!rua && !cep) return res.status(400).json({ encontrado: false, motivo: "ENDERECO_VAZIO" });
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if(!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
 
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco + ", Brasil")}&language=pt-BR&key=${apiKey}`;
+    const enderecoCompleto = [rua, numero, bairro, cidade, uf, cep, "Brasil"].filter(Boolean).join(", ");
+    const consultas = [
+      { address: enderecoCompleto },
+      { address: [rua, numero, cidade, uf, "Brasil"].filter(Boolean).join(", ") },
+      ...(cep ? [{ address: `${cep}, Brasil` }] : [])
+    ];
 
-    https.get(url, (response) => {
-      let dados = "";
-      response.on("data", (chunk) => { dados += chunk; });
-      response.on("end", () => {
-        const json = JSON.parse(dados);
-        if(json.status !== "OK" || !json.results.length){
-          return res.json({ encontrado: false });
-        }
-        const melhor = json.results[0];
-        return res.json({
-          encontrado: true,
-          lat: melhor.geometry.location.lat,
-          lon: melhor.geometry.location.lng,
-          precisao: melhor.geometry.location_type
-        });
+    const candidatos = [];
+    for (const consulta of consultas) {
+      const params = new URLSearchParams({ ...consulta, language: "pt-BR", region: "br", key: apiKey });
+      const json = await requisitarGoogle(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+      if (json.status === "REQUEST_DENIED") {
+        return res.status(502).json({ encontrado: false, erro: "Google Maps recusou a requisição. Verifique a chave e a Geocoding API." });
+      }
+      if (json.status === "OK") candidatos.push(...json.results);
+    }
+
+    const avaliados = candidatos.map(resultado => {
+      const cidadeGoogle = componenteGoogle(resultado, ["administrative_area_level_2", "locality"]);
+      const ufGoogle = componenteGoogle(resultado, ["administrative_area_level_1"]);
+      const cepGoogle = somenteDigitos(componenteGoogle(resultado, ["postal_code"]));
+      const ruaGoogle = componenteGoogle(resultado, ["route"]);
+      const numeroGoogle = componenteGoogle(resultado, ["street_number"]);
+      const cidadeDivergente = Boolean(cidade && cidadeGoogle && removerAcentos(cidade) !== removerAcentos(cidadeGoogle));
+      const ufDivergente = Boolean(uf && ufGoogle && normalizarUf(uf) !== normalizarUf(ufGoogle));
+      const cepDivergente = Boolean(cep && cepGoogle && cep !== cepGoogle);
+      const tipo = resultado.geometry?.location_type || "APPROXIMATE";
+      let score = ({ ROOFTOP: 45, RANGE_INTERPOLATED: 34, GEOMETRIC_CENTER: 18, APPROXIMATE: 5 })[tipo] || 0;
+      score += resultado.types.some(t => ["street_address", "premise", "subpremise"].includes(t)) ? 18 : 0;
+      score += cidade && cidadeGoogle && !cidadeDivergente ? 18 : 0;
+      score += uf && ufGoogle && !ufDivergente ? 7 : 0;
+      score += cep && cepGoogle && !cepDivergente ? 14 : 0;
+      score += Math.round(similaridadeTexto(rua, ruaGoogle) * 15);
+      if (numero) score += numeroGoogle === numero ? 12 : -8;
+      if (resultado.partial_match) score -= 20;
+      if (cidadeDivergente || ufDivergente || cepDivergente) score = -100;
+      return { resultado, score, tipo, cidadeGoogle, ufGoogle, cepGoogle, ruaGoogle, numeroGoogle };
+    }).sort((a, b) => b.score - a.score);
+
+    const melhor = avaliados[0];
+    if (!melhor || melhor.score < 45) {
+      return res.json({
+        encontrado: false,
+        motivo: melhor?.score === -100 ? "DIVERGENCIA_DE_LOCALIDADE" : "BAIXA_CONFIANCA",
+        enderecoConsultado: enderecoCompleto
       });
+    }
+
+    const altaPrecisao = melhor.score >= 75 && ["ROOFTOP", "RANGE_INTERPOLATED"].includes(melhor.tipo);
+    return res.json({
+      encontrado: true,
+      lat: melhor.resultado.geometry.location.lat,
+      lon: melhor.resultado.geometry.location.lng,
+      precisao: melhor.tipo,
+      score: Math.min(100, melhor.score),
+      precisaCorrecao: !altaPrecisao,
+      enderecoFormatado: melhor.resultado.formatted_address,
+      componentes: {
+        rua: melhor.ruaGoogle,
+        numero: melhor.numeroGoogle,
+        cidade: melhor.cidadeGoogle,
+        uf: melhor.ufGoogle,
+        cep: melhor.cepGoogle
+      }
     });
   } catch(e) {
-    res.status(500).json({ encontrado: false });
+    console.error("Erro na geocodificação:", e.message);
+    res.status(500).json({ encontrado: false, erro: "Falha ao consultar o serviço de geocodificação." });
   }
 });
 

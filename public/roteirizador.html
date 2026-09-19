@@ -496,64 +496,48 @@
     }
 
     async function obterCoordenadasSilenciosa(cliente) {
-        let ruaOriginal = cliente.rua || cliente.endereco || "";
-        let detalhesOriginal = cliente.detalhes || "";
-        let cidade = cliente.cidade || "São Paulo";
-        let cepStr = String(cliente.cep || "");
+        const ruaOriginal = cliente.rua || cliente.endereco || "";
+        const detalhesOriginal = cliente.detalhes || "";
+        const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+        const matchCoord = String(ruaOriginal).trim().match(coordRegex);
+        if (matchCoord) return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false, precisaoGPS: "COORDENADA_INFORMADA", scoreGPS: 100 };
 
-        // 1. Coordenada exata colada manualmente
-        let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
-        let matchCoord = String(ruaOriginal).trim().match(coordRegex);
-        if (matchCoord) return { lat: parseFloat(matchCoord[1]), lon: parseFloat(matchCoord[2]), precisaCorrecao: false, precisaoGPS: "EXATA" };
+        const numero = extrairNumeroLimpo(ruaOriginal, detalhesOriginal);
+        const ruaSemNumero = expandirAbreviacoes(ruaOriginal)
+            .replace(/[,\s]+(?:nº|n|número)?\s*\d+\s*$/i, "")
+            .trim();
 
-        // 2. Preparação dos dados para precisão máxima do satélite
-        let ruaExpandida = expandirAbreviacoes(ruaOriginal);
-        // Isola o nome da rua (tira vírgulas e números do final para o Nominatim não bugar)
-        let nomeRuaLimpo = ruaExpandida.split(',')[0].replace(/(?:nº|n|número|km)?\s*\d+$/gi, '').trim();
-        let numero = extrairNumeroLimpo(ruaOriginal, detalhesOriginal);
-
-        // Tratamento exclusivo para Rodovias (Mantém a precisão na estrada)
-        if (ehRodoviaOuKm(ruaOriginal) || ehRodoviaOuKm(detalhesOriginal)) {
-            let kmMatch = String(ruaOriginal + " " + detalhesOriginal).match(/KM\s*\d+/i);
-            let km = kmMatch ? kmMatch[0] : (numero ? "KM " + numero : "");
-            let queryRodovia = `${nomeRuaLimpo} ${km}, ${cidade}, Brasil`.trim();
-            
-            let res = await buscarNominatim(queryRodovia);
-            if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
+        try {
+            const resposta = await fetch('/api/geocodificar-endereco', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ endereco: {
+                    rua: ruaSemNumero,
+                    numero,
+                    bairro: cliente.bairro || cliente.distrito || "",
+                    cidade: cliente.cidade || "",
+                    uf: cliente.uf || "",
+                    cep: cliente.cep || ""
+                }})
+            });
+            const resultado = await resposta.json();
+            if (!resposta.ok || !resultado.encontrado) {
+                cliente.erroGeocodificacao = resultado.motivo || resultado.erro || "ENDERECO_NAO_ENCONTRADO";
+                return null;
+            }
+            cliente.qualidadeGPS = { origem: "Google Maps", score: resultado.score, nivel: resultado.precisaCorrecao ? "REVISAR" : "ALTA" };
+            cliente.enderecoGeocodificado = resultado.enderecoFormatado;
+            return {
+                lat: Number(resultado.lat),
+                lon: Number(resultado.lon),
+                precisaCorrecao: Boolean(resultado.precisaCorrecao),
+                precisaoGPS: resultado.precisao,
+                scoreGPS: resultado.score
+            };
+        } catch (erro) {
+            console.error("Falha ao geocodificar", erro);
+            return null;
         }
-
-        // 3. Tenta encontrar a RUA + NÚMERO EXATO (Padrão ouro do GPS)
-        if (numero) {
-            // Padrão que o Nominatim mais gosta: "Rua X, 123, Cidade"
-            let contexto = `${bairro || ""} ${cidade || ""} ${uf || ""}`.trim();
-            let resNum = await buscarNominatim(`${nomeRuaLimpo}, ${numero}, ${contexto}, Brasil`);
-            if (resNum) return { lat: resNum.lat, lon: resNum.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
-            
-            // Fallback para Photon (ele é bom com o número na frente)
-            let resPhoton = await buscarPhoton(`${numero} ${nomeRuaLimpo}, ${cidade}, Brasil`);
-            if (resPhoton) return { lat: resPhoton.lat, lon: resPhoton.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
-        }
-
-        // 4. Fallback Seguro: Encontra a RUA, mas sem o número.
-        // Como errar apenas a casa e acertar a rua é aceitável, não vamos deixar o pino vermelho aqui!
-        let resRua = await buscarNominatim(`${nomeRuaLimpo}, ${cidade}, Brasil`);
-        if (resRua) return { lat: resRua.lat, lon: resRua.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
-
-        // 5. Último Recurso: Busca pelo CEP (Pino fica VERMELHO porque o CEP joga no meio do bairro aleatoriamente)
-        let cepBusca = limparCep(cepStr);
-        if (cepBusca.length === 8) {
-            try {
-                let r = await fetch(`https://cep.awesomeapi.com.br/json/${cepBusca}`);
-                if (r.ok) { 
-                    let d = await r.json(); 
-                    if (d.lat && d.lng) {
-                        return { lat: parseFloat(d.lat), lon: parseFloat(d.lng), precisaCorrecao: true, precisaoGPS: "CEP/APROXIMADA" };
-                    }
-                }
-            } catch(e) {}
-        }
-
-        return null; // Força erro total (Jogará na Base e ficará vermelho)
     }
 
     async function agruparEGeocodificar(linhas) {
@@ -612,7 +596,9 @@
                     defeito: String(defeito).trim(),
                     rua: rua,
                     detalhes: detalhes,
+                    bairro: bairro,
                     cidade: cidade,
+                    uf: uf,
                     cep: cepFormatado, 
                     periodo: periodoOriginal, 
                     status: 'pendente' 
@@ -641,11 +627,12 @@
                     ordem.lon = crds.lon;
                     ordem.precisaCorrecao = crds.precisaCorrecao !== undefined ? crds.precisaCorrecao : ehRodoviaOuKm(ordem.rua);
                 } else {
-                    let offsetLat = (Math.random() - 0.5) * 0.006; 
-                    let offsetLon = (Math.random() - 0.5) * 0.006;
-                    ordem.lat = configGalpao.lat + offsetLat;
-                    ordem.lon = configGalpao.lon + offsetLon;
+                    // Sem coordenada confiável: mantém na base e sinaliza revisão.
+                    // Nunca fabrica uma posição aleatória, pois isso contamina a otimização.
+                    ordem.lat = configGalpao.lat;
+                    ordem.lon = configGalpao.lon;
                     ordem.precisaCorrecao = true;
+                    ordem.qualidadeGPS = { origem: "Não localizado", score: 0, nivel: "REVISAR" };
                 }
 
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
@@ -660,6 +647,10 @@
         document.getElementById("painelRotas").style.display = "flex";
         window.renderizarListaTecnicosModoNovo();
         setTimeout(() => { mapa.invalidateSize(); }, 500);
+        const revisar = Object.values(dadosGlobaisRotas)
+            .flatMap(grupo => [...grupo.manha, ...grupo.tarde])
+            .filter(ordem => ordem.precisaCorrecao).length;
+        if (revisar) alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
     }
 
     window.renderizarListaTecnicosModoNovo = function() {
