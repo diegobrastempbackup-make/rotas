@@ -29,10 +29,7 @@
         .caixa-busca h3 { margin: 0 0 10px 0; color: #60A5FA; font-size: 14px; }
         .caixa-busca input, .caixa-busca select { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; outline: none; }
         .caixa-busca button { width: 100%; padding: 10px; background: #3B82F6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-relatorio { background: #10B981 !important; margin-top: 10px; transition: 0.2s; }
-        .btn-relatorio:hover { background: #059669 !important; }
-        .btn-global { background: #8B5CF6 !important; margin-top: 10px; border: 1px solid #7C3AED !important; transition: 0.2s; }
-        .btn-global:hover { background: #7C3AED !important; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.4); }
+        .btn-global { background: #8B5CF6 !important; margin-top: 10px; border: 1px solid #7C3AED !important; }
         
         .lista-tecnicos { background: #1E293B; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; overflow: hidden; }
         .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
@@ -47,36 +44,13 @@
         #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
 
-        .btn-fullscreen { position: absolute; top: 80px; left: 10px; z-index: 1000; background: white; color: black; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 1px 5px rgba(0,0,0,0.65); transition: 0.2s; }
-        .btn-fullscreen:hover { background: #f4f4f4; }
-
         #painelItinerario { display: none; position: absolute; top: 15px; right: 15px; width: 340px; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.1); z-index: 1000; border-radius: 12px; padding: 15px; max-height: 80%; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
-        
-        #painelPlayback { display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(30, 41, 59, 0.95); padding: 15px 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 1000; width: 80%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); flex-direction: column; gap: 10px; }
-        .slider-control { width: 100%; cursor: pointer; accent-color: #3B82F6; height: 6px; border-radius: 5px; outline: none; }
-
-        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #64748B; margin-bottom: 8px; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
-        .itinerario-item:active { cursor: grabbing; border-color: #3B82F6; box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3); transform: scale(1.02); }
-
+        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #64748B; margin-bottom: 8px; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
         .card-topo { display: flex; align-items: center; width: 100%; }
-        .drag-handle { color: #64748B; padding-right: 10px; font-size: 18px; display: flex; align-items: center; }
-        .itinerario-info { flex-grow: 1; margin: 0 5px; cursor: default; min-width: 0; }
-        
-        .card-telemetria { display: flex; gap: 10px; font-size: 10px; color: #94A3B8; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.03); margin-top: 4px; }
-        .time-stamp { display: flex; align-items: center; gap: 2px; }
-
-        .btn-lapis { background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 5px; font-size: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
-        .btn-lapis:hover { color: #FACC15; background: rgba(255,255,255,0.05); }
-
-        .badge-turno { font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
-        .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; }
-        .badge-tarde { background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981; }
-        
+        .itinerario-info { flex-grow: 1; margin: 0 5px; min-width: 0; }
         .legenda-radar { display: flex; gap: 8px; font-size: 10px; color: #94A3B8; margin-top: 10px; flex-wrap: wrap; }
         .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 3px; }
-
         .custom-pin { background: transparent; border: none; }
-        .car-pin { background: #1E293B; color: white; border-radius: 8px; padding: 4px 8px; border: 2px solid #3B82F6; font-size: 11px; font-weight:bold; white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display:flex; align-items:center; gap:5px; transition: all 0.3s; }
     </style>
     <script>
         function navegarSeguro(rota) { const token = localStorage.getItem("token"); window.location.href = `${rota}?token=${token}`; }
@@ -99,85 +73,56 @@
 
     <div class="main">
         <div class="header-painel">
-            <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
+            <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu">☰</button>
             <div>
                 <h1>Torre de Controle Logístico</h1>
-                <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
+                <p>Gemini AI + Google Maps Geocoding</p>
             </div>
         </div>
 
         <label class="upload-area" id="areaUpload">
             <input type="file" id="arquivoExcel" accept=".xlsx, .xls, .csv" onchange="processarExcel(event)">
-            <h3>📥 Clique ou arraste a sua folha de Excel aqui para Planejar</h3>
-            <p>Formatos suportados: .XLSX, .XLS, .CSV</p>
+            <h3>📥 Clique ou arraste sua planilha de Excel aqui para Planejar</h3>
         </label>
 
-        <div id="loadingUpload" style="display: none; border: 2px solid rgba(16, 185, 129, 0.5); background: rgba(30, 41, 59, 0.8); padding: 40px; text-align: center; border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: #10B981; margin-top: 0;">🤖 Gemini AI + Google Maps: Geocodificando com precisão máxima...</h3>
-            <p id="lblProgresso" style="color: #94A3B8; font-size: 14px; font-weight: bold;">0 de X concluídos</p>
-            <div style="width: 100%; background: #0F172A; height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+        <div id="loadingUpload" style="display: none; background: rgba(30, 41, 59, 0.8); padding: 40px; text-align: center; border-radius: 12px; margin-bottom: 20px;">
+            <h3 style="color: #10B981; margin-top: 0;">🤖 Geocodificando com IA + Google Maps...</h3>
+            <p id="lblProgresso" style="color: #94A3B8; font-weight: bold;">A processar...</p>
+            <div style="width: 100%; background: #0F172A; height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden;">
                 <div id="barraProgresso" style="width: 0%; background: #10B981; height: 100%; transition: width 0.3s;"></div>
             </div>
-            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ <b>Por favor, não feche nem atualize esta página até concluir.</b></p>
         </div>
 
         <div id="painelRotas">
             <div class="painel-esquerdo">
                 <div class="caixa-busca">
-                    <h3>🔍 Radar e Relatórios</h3>
-                    <label style="font-size:11px; color:#94A3B8;">Pesquisar roteiro por Dia Específico:</label>
-                    <input type="date" id="buscaData" title="Pesquisar roteiro por Data">
-                    
-                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Ou Extrato Mensal:</label>
-                    <input type="month" id="buscaMes" title="Filtrar por Mês">
-                    
-                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Técnico (Filtro para Relatórios):</label>
-                    <select id="buscaTecnicoRelatorio">
-                        <option value="TODOS">Geral (Todos os Técnicos)</option>
-                    </select>
-
-                    <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS" style="margin-top:5px;">
-                    <button onclick="window.buscarHistorico()">1. Buscar Planejamento (Mapas)</button>
-                    <button onclick="window.ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
-                    <button onclick="window.exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
+                    <h3>🔍 Radar e Histórico</h3>
+                    <label style="font-size:11px; color:#94A3B8;">Pesquisar Roteiro por Data:</label>
+                    <input type="date" id="buscaData">
+                    <button onclick="window.buscarHistorico()">1. Buscar Planejamento (Dia)</button>
+                    <button onclick="window.ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota</button>
                 </div>
 
                 <div class="lista-tecnicos" style="flex-grow: 1;">
                     <div class="lista-tecnicos-header">
-                        <h3>Equipe em Operação</h3>
-                        <button onclick="window.limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px;">🔄 Limpar</button>
+                        <h3>Equipe / Roteiros</h3>
+                        <button onclick="window.limparRotas()" style="background:transparent; border:none; color:#EF4444; cursor:pointer; font-size: 10px;">🔄 Limpar</button>
                     </div>
                     <div class="lista-clientes" id="listaTecnicosUI"></div>
                 </div>
             </div>
             
             <div id="mapaArea">
-                <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Alternar Tela Cheia">⛶</button>
                 <div id="mapa"></div>
-                
                 <div id="painelItinerario">
-                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; display:flex; justify-content:space-between;">
-                        <span id="tituloPainelLateral">🛠️ Itinerário</span>
-                        <span id="txtKMTarefa" style="color:#10B981; font-size:12px;">-- km</span>
-                    </h3>
+                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">🛠️ Itinerário</h3>
                     <div class="legenda-radar">
                         <div><span class="dot" style="background:#64748B;"></span>Pendente</div>
                         <div><span class="dot" style="background:#10B981;"></span>Sucesso</div>
                         <div><span class="dot" style="background:#EF4444;"></span>Insucesso</div>
-                        <div><span class="dot" style="background:#E11D48;"></span>Impreciso ⚠️</div>
                     </div>
                     <div id="listaItinerarioUI" style="margin-top: 15px;"></div>
                 </div>
-
-                <div id="painelPlayback">
-                    <div style="display: flex; justify-content: space-between; align-items: center; color: white; font-weight: bold; font-size: 13px;">
-                        <span>⏮ Início</span>
-                        <span id="lblPlaybackStatus" style="color: #3B82F6;">Linha do Tempo </span>
-                        <span>Fim ⏭</span>
-                    </div>
-                    <input type="range" id="sliderPlayback" class="slider-control" min="0" max="10" value="10" oninput="window.atualizarTela(false)">
-                </div>
-
             </div>
         </div>
     </div>
@@ -186,33 +131,12 @@
 <script>
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
-    const usuarioTipo = localStorage.getItem("usuarioTipo");
-    if (usuarioTipo === "master" || usuarioTipo === "superadmin" || usuarioTipo === "admin") {
-        document.getElementById("btnAdmin").style.display = "block";
-    }
 
     let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional" };
-    let basesOperacionais = [];
-    let tecnicosComBase = new Map();
-
-    async function carregarBasesETecnicos() {
-        const headers = { "Authorization": `Bearer ${token}` };
-        const [rb, rt] = await Promise.all([
-            fetch("/api/bases", { headers }),
-            fetch("/api/tecnicos-dashboard/com-bases", { headers })
-        ]);
-        if (rb.ok) basesOperacionais = await rb.json();
-        if (rt.ok) {
-            const tecnicos = await rt.json();
-            tecnicosComBase = new Map(tecnicos.map(t => [String(t.nome).trim().toUpperCase(), t.base]));
-        }
-    }
-
-    let mapa = null, layerGrupo = null, dadosGlobaisRotas = {}, rotaAtiva = [], tecnicoAtivo = "", dataAtiva = "";
-    let historicoRotasMemoria = [], visualizandoHistorico = false, modoVisaoGlobal = false;
+    let mapa = null, layerGrupo = null, dadosGlobaisRotas = {}, rotaAtiva = [], tecnicoAtivo = "";
+    let historicoRotasMemoria = [], visualizandoHistorico = false;
 
     document.addEventListener("DOMContentLoaded", async () => {
-        await carregarBasesETecnicos();
         mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
         
@@ -225,18 +149,6 @@
             setTimeout(() => mapa.invalidateSize(), 500);
         }
     });
-
-    function toggleMenu() {
-        const sidebar = document.getElementById('menuLateral');
-        sidebar.style.display = sidebar.style.display === 'none' ? 'block' : 'none';
-        setTimeout(() => mapa.invalidateSize(), 300);
-    }
-
-    function toggleFullscreen() {
-        const mapaArea = document.getElementById('mapaArea');
-        if (!document.fullscreenElement) mapaArea.requestFullscreen?.();
-        else document.exitFullscreen?.();
-    }
 
     function calcularDistancia(lat1, lon1, lat2, lon2) {
         if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return 0;
@@ -260,7 +172,6 @@
         return "";
     }
 
-    // Geocodificação em lote com Gemini AI + Google Maps
     async function melhorarEnderecosComGemini(ordens) {
         try {
             const payload = ordens.map((o, i) => ({
@@ -288,7 +199,7 @@
         } catch(e) { return ordens; }
     }
 
-    async function buscarGoogleMapsPreciso(enderecoCompleto, cliente) {
+    async function buscarGoogleMapsPreciso(enderecoCompleto) {
         try {
             const resposta = await fetch("/api/geocodificar-endereco", {
                 method: "POST",
@@ -306,15 +217,10 @@
         let ruaCompleta = `${cliente.rua || ''} ${cliente.numero ? ', ' + cliente.numero : ''}`;
         let enderecoCompleto = `${ruaCompleta}, ${cliente.bairro || ''}, ${cliente.cidade || 'São Paulo'}, CEP ${cliente.cep || ''}`;
         
-        let googleRes = await buscarGoogleMapsPreciso(enderecoCompleto, cliente);
+        let googleRes = await buscarGoogleMapsPreciso(enderecoCompleto);
         if (googleRes) return googleRes;
 
-        // Fallback geográfico se o Google Maps falhar no ponto exato
-        return { 
-            lat: configGalpao.lat + (Math.random() - 0.5) * 0.008, 
-            lon: configGalpao.lon + (Math.random() - 0.5) * 0.008, 
-            precisaCorrecao: true 
-        };
+        return { lat: configGalpao.lat + (Math.random()-0.5)*0.01, lon: configGalpao.lon + (Math.random()-0.5)*0.01, precisaCorrecao: true };
     }
 
     function processarExcel(event) {
@@ -328,7 +234,7 @@
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
                 const dadosNormalizados = jsonData.map(linha => { let novaLinha = {}; for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; } return novaLinha; });
                 agruparEGeocodificar(dadosNormalizados);
-            } catch (erro) { alert("❌ Erro ao ler Excel: " + erro.message); }
+            } catch (erro) { alert("Erro ao ler Excel: " + erro.message); }
         };
         reader.readAsArrayBuffer(file);
     }
@@ -379,9 +285,7 @@
                 lbl.innerText = `${concluidos} de ${totalOS} geocodificados com IA + Google Maps...`;
 
                 let crds = await obterCoordenadasSilenciosa(ordem);
-                ordem.lat = crds.lat;
-                ordem.lon = crds.lon;
-                ordem.precisaCorrecao = crds.precisaCorrecao;
+                ordem.lat = crds.lat; ordem.lon = crds.lon; ordem.precisaCorrecao = crds.precisaCorrecao;
 
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
                 else dadosGlobaisRotas[tecnico].tarde.push(ordem);
@@ -489,26 +393,43 @@
         if (recentrarMapa && rotaAtiva.length > 0) mapa.fitBounds(layerGrupo.getBounds(), { padding: [30, 30] });
     }
 
+    // BUSCA CORRIGIDA DE HISTÓRICO QUE SUPORTA AMBOS OS FORMATOS DE DATA (AAAA-MM-DD e DD/MM/AAAA)
     window.buscarHistorico = async function() {
-        let dataDia = document.getElementById("buscaData").value;
-        if (!dataDia) return alert("Selecione uma data.");
-        const p = dataDia.split('-'); 
-        let dFormatada = `${p[2]}/${p[1]}/${p[0]}`; 
+        let dataInput = document.getElementById("buscaData").value;
+        if (!dataInput) return alert("⚠️ Selecione uma data.");
+
+        const p = dataInput.split('-'); // vem AAAA-MM-DD
+        let dataDesejadaBR = `${p[2]}/${p[1]}/${p[0]}`; // DD/MM/AAAA
 
         try {
-            const res = await fetch(`/api/rotas?data=${encodeURIComponent(dFormatada)}`, { headers: { 'Authorization': `Bearer ${token}` } });
-            const rotas = await res.json();
-            if (!rotas.length) return alert("Nenhum roteiro encontrado para esta data.");
+            // Tenta buscar pelo formato DD/MM/AAAA e também por AAAA-MM-DD no banco
+            let res = await fetch(`/api/rotas?data=${encodeURIComponent(dataDesejadaBR)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            let rotas = await res.json();
+
+            if (!rotas.length) {
+                let resAlt = await fetch(`/api/rotas?data=${encodeURIComponent(dataInput)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                rotas = await resAlt.json();
+            }
+
+            if (!rotas.length) return alert("❌ Nenhum roteiro encontrado para esta data.");
+            
             historicoRotasMemoria = rotas;
             visualizandoHistorico = true;
             
             const divLista = document.getElementById("listaTecnicosUI");
-            divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Histórico</h4>`;
+            divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Histórico (${dataDesejadaBR})</h4>`;
+            
             rotas.forEach((roteiro, idx) => {
-                divLista.innerHTML += `<div class="tecnico-item" onclick="window.iniciarCalculoTecnico('${roteiro.tecnico}')"><span>${roteiro.tecnico} (${roteiro.data})</span></div>`;
+                divLista.innerHTML += `
+                    <div class="tecnico-item" onclick="window.iniciarCalculoTecnico('${roteiro.tecnico}')">
+                        <div style="width: 100%;">
+                            <div class="tecnico-nome"><span>${roteiro.tecnico}</span></div>
+                            <div class="tecnico-stats">Paradas: ${roteiro.itinerario ? roteiro.itinerario.length : 0}</div>
+                        </div>
+                    </div>`;
             });
-            alert("Roteiro carregado com sucesso!");
-        } catch(e) { alert("Erro ao buscar histórico."); }
+            alert("✅ Roteiros carregados com sucesso!");
+        } catch(e) { alert("❌ Erro ao buscar histórico."); }
     }
 
     window.ativarVisaoGlobal = function() {
@@ -533,7 +454,7 @@
     window.limparRotas = function() { localStorage.removeItem("planilhaRotas"); window.location.reload(); }
 
     window.salvarHistoricoBanco = async function() {
-        if (!tecnicoAtivo || rotaAtiva.length === 0) return alert("Selecione um técnico.");
+        if (!tecnicoAtivo || rotaAtiva.length === 0) return alert("⚠️ Selecione um técnico.");
         let dataInput = prompt("Data (DD/MM/AAAA):", new Date().toLocaleDateString('pt-BR')); if (!dataInput) return;
         try {
             const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: dataInput.trim(), tecnico: tecnicoAtivo, itinerario: rotaAtiva }) });
