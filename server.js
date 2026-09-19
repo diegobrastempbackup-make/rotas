@@ -7,14 +7,10 @@ const https = require("https");
 const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
-
 const PORT = process.env.PORT || 10000;
 const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
 
 const ai = new GoogleGenAI();
-
-const URL_DO_SEU_SISTEMA = "https://rotas-2.onrender.com"; 
-
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 let db = null;
@@ -35,6 +31,11 @@ const autenticarToken = (req, res, next) => {
     req.usuario = jwt.verify(token, JWT_SECRET); 
     next();
   } catch (err) { return res.status(403).json({ erro: "Token inválido." }); }
+};
+
+const getFiltroSaaS = (req) => {
+  if (req.usuario.tipo === "superadmin") return {}; 
+  return { cliente_id: req.usuario.cliente_id };
 };
 
 // =====================================================================
@@ -135,11 +136,7 @@ app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
   }
 });
 
-const getFiltroSaaS = (req) => {
-  if (req.usuario.tipo === "superadmin") return {}; 
-  return { cliente_id: req.usuario.cliente_id };
-};
-
+// ROTAS DE PÁGINAS FRONT-END
 app.get("/", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/roteirizador.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/roteirizador.html"); } catch (err) { res.redirect("/login.html"); }});

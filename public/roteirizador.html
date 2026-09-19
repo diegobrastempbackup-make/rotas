@@ -4,73 +4,198 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Roteirizador Inteligente - NERI</title>
+    
     <link rel="stylesheet" href="style.css?v=2">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <style>
-        .main { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; }
+        .main { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; transition: 0.3s; }
         .header-painel { display: flex; align-items: flex-start; }
         .header-painel h1 { margin: 0 0 5px 0; font-size: 24px; color: white; }
-        .upload-area { border: 2px dashed rgba(59, 130, 246, 0.5); background: rgba(30, 41, 59, 0.5); padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; margin-bottom: 20px; }
+        .header-painel p { margin: 0 0 20px 0; color: #94A3B8; font-size: 14px; }
+        
+        .btn-toggle-menu { background: #1E293B; color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; cursor: pointer; margin-right: 15px; font-size: 20px; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .btn-toggle-menu:hover { background: #3B82F6; }
+
+        .upload-area { border: 2px dashed rgba(59, 130, 246, 0.5); background: rgba(30, 41, 59, 0.5); padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
+        .upload-area:hover { background: rgba(30, 41, 59, 0.8); border-color: #3B82F6; }
         .upload-area input { display: none; }
+        
         #painelRotas { display: none; flex-grow: 1; display: flex; gap: 20px; margin-top: 10px; }
         .painel-esquerdo { width: 350px; display: flex; flex-direction: column; gap: 15px; }
-        .caixa-busca { background: #1E293B; padding: 15px; border-radius: 12px; }
-        .caixa-busca input, .caixa-busca select { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; }
+        .caixa-busca { background: #1E293B; padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+        .caixa-busca h3 { margin: 0 0 10px 0; color: #60A5FA; font-size: 14px; }
+        .caixa-busca input, .caixa-busca select { width: 100%; padding: 10px; margin-bottom: 10px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-sizing: border-box; outline: none; }
         .caixa-busca button { width: 100%; padding: 10px; background: #3B82F6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .lista-tecnicos { background: #1E293B; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
-        .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center; }
+        .btn-relatorio { background: #10B981 !important; margin-top: 10px; transition: 0.2s; }
+        .btn-relatorio:hover { background: #059669 !important; }
+        .btn-global { background: #8B5CF6 !important; margin-top: 10px; border: 1px solid #7C3AED !important; transition: 0.2s; }
+        .btn-global:hover { background: #7C3AED !important; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.4); }
+        
+        .lista-tecnicos { background: #1E293B; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; overflow: hidden; }
+        .lista-tecnicos-header { padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .lista-tecnicos-header h3 { margin: 0; color: white; font-size: 14px; }
         .lista-clientes { flex-grow: 1; overflow-y: auto; }
-        .tecnico-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .tecnico-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
         .tecnico-item:hover { background: rgba(59, 130, 246, 0.1); }
         .tecnico-item.ativo { background: rgba(59, 130, 246, 0.2); border-left: 4px solid #3B82F6; }
-        #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; position: relative; }
+        .tecnico-nome { font-weight: bold; color: #E2E8F0; font-size: 13px; }
+        .tecnico-stats { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+        
+        #mapaArea { flex-grow: 1; background: #0F172A; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; position: relative; }
         #mapa { width: 100%; height: 100%; }
-        #painelItinerario { display: none; position: absolute; top: 15px; right: 15px; width: 340px; background: rgba(30, 41, 59, 0.95); z-index: 1000; border-radius: 12px; padding: 15px; max-height: 80%; overflow-y: auto; }
-        .itinerario-item { background: #0F172A; border-left: 4px solid #64748B; margin-bottom: 8px; padding: 12px; border-radius: 8px; }
+
+        .btn-fullscreen { position: absolute; top: 80px; left: 10px; z-index: 1000; background: white; color: black; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 1px 5px rgba(0,0,0,0.65); transition: 0.2s; }
+        .btn-fullscreen:hover { background: #f4f4f4; }
+
+        #painelItinerario { display: none; position: absolute; top: 15px; right: 15px; width: 340px; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.1); z-index: 1000; border-radius: 12px; padding: 15px; max-height: 80%; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
+        
+        #painelPlayback { display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(30, 41, 59, 0.95); padding: 15px 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 1000; width: 80%; max-width: 600px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px); flex-direction: column; gap: 10px; }
+        .slider-control { width: 100%; cursor: pointer; accent-color: #3B82F6; height: 6px; border-radius: 5px; outline: none; }
+
+        .itinerario-item { background: #0F172A; border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #64748B; margin-bottom: 8px; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; transition: transform 0.1s, box-shadow 0.1s; cursor: grab; }
+        .itinerario-item:active { cursor: grabbing; border-color: #3B82F6; box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3); transform: scale(1.02); }
+
+        .card-topo { display: flex; align-items: center; width: 100%; }
+        .drag-handle { color: #64748B; padding-right: 10px; font-size: 18px; display: flex; align-items: center; }
+        .itinerario-info { flex-grow: 1; margin: 0 5px; cursor: default; min-width: 0; }
+        
+        .card-telemetria { display: flex; gap: 10px; font-size: 10px; color: #94A3B8; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.03); margin-top: 4px; }
+        .time-stamp { display: flex; align-items: center; gap: 2px; }
+
+        .btn-lapis { background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 5px; font-size: 14px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .btn-lapis:hover { color: #FACC15; background: rgba(255,255,255,0.05); }
+
+        .badge-turno { font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
+        .badge-manha { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; }
+        .badge-tarde { background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981; }
+        
+        .legenda-radar { display: flex; gap: 8px; font-size: 10px; color: #94A3B8; margin-top: 10px; flex-wrap: wrap; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+
+        .custom-pin { background: transparent; border: none; }
+        .car-pin { background: #1E293B; color: white; border-radius: 8px; padding: 4px 8px; border: 2px solid #3B82F6; font-size: 11px; font-weight:bold; white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display:flex; align-items:center; gap:5px; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .modal-box { background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid #3B82F6; width: 320px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        .modal-box h3 { margin: 0 0 10px 0; font-size: 16px; color: #60A5FA; }
+        .modal-box select { width: 100%; padding: 12px; margin-top: 10px; margin-bottom: 20px; background: #0F172A; color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; outline: none; }
+        .modal-actions { display: flex; justify-content: space-between; }
+        .modal-actions button { padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; border: none; }
+        .btn-cancel { background: transparent; border: 1px solid #64748B !important; color: #94A3B8; }
+        .btn-confirm { background: #3B82F6; color: white; }
     </style>
+    <script>
+        function navegarSeguro(rota) { const token = localStorage.getItem("token"); window.location.href = `${rota}?token=${token}`; }
+    </script>
 </head>
 <body>
+
 <div class="container" style="display: flex;">
-    <div class="main" style="width: 100%;">
+    <div class="sidebar" id="menuLateral" style="transition: all 0.3s ease; width: 250px; flex-shrink: 0; overflow: hidden;">
+        <div class="logo-area"><img src="logo.svg" class="logo" alt="Logo NERI" style="max-width: 100%; margin-bottom: 10px;" /></div>
+        <div class="menu">
+            <button onclick="navegarSeguro('/index.html')">Dashboard Geral</button>
+            <button onclick="navegarSeguro('/dados.html')">Lançar Dados</button>
+            <button style="background: #2563EB; color: white; border-color: #3B82F6;">Roteirizador</button>
+            <button onclick="navegarSeguro('/estoque.html')">Almoxarifado</button>
+            <hr><button onclick="navegarSeguro('/tecnicos.html')" id="btnAdmin" style="display:none;">Administração</button><hr>
+            <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">Sair</button>
+        </div>
+    </div>
+
+    <div class="main">
         <div class="header-painel">
+            <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu">☰</button>
             <div>
-                <h1>Torre de Controle Logístico - Gemini + Google Maps</h1>
-                <p>Geocodificação de precisão máxima.</p>
+                <h1>Torre de Controle Logístico (Gemini + Google Maps)</h1>
+                <p>Acompanhe os técnicos pelo mapa global ou acesse a linha do tempo individual de cada roteiro.</p>
             </div>
         </div>
 
         <label class="upload-area" id="areaUpload">
             <input type="file" id="arquivoExcel" accept=".xlsx, .xls, .csv" onchange="processarExcel(event)">
-            <h3>📥 Clique ou arraste sua planilha aqui</h3>
+            <h3>📥 Clique ou arraste a sua folha de Excel aqui para Planejar</h3>
+            <p>Formatos suportados: .XLSX, .XLS, .CSV</p>
         </label>
 
-        <div id="loadingUpload" style="display: none; background: rgba(30, 41, 59, 0.8); padding: 40px; text-align: center; border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: #10B981;">🤖 Processando endereços com IA e Google Maps...</h3>
-            <p id="lblProgresso" style="color: #94A3B8;">Aguarde...</p>
-            <div style="width: 100%; background: #0F172A; height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden;">
+        <div id="loadingUpload" style="display: none; border: 2px solid rgba(16, 185, 129, 0.5); background: rgba(30, 41, 59, 0.8); padding: 40px; text-align: center; border-radius: 12px; margin-bottom: 20px;">
+            <h3 style="color: #10B981; margin-top: 0;" id="tituloProgressoIA">🤖 IA do Gemini + Google Maps trabalhando...</h3>
+            <p id="lblProgresso" style="color: #94A3B8; font-size: 14px; font-weight: bold;">A processar planilha...</p>
+            <div style="width: 100%; background: #0F172A; height: 12px; border-radius: 6px; margin-top: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
                 <div id="barraProgresso" style="width: 0%; background: #10B981; height: 100%; transition: width 0.3s;"></div>
             </div>
+            <p style="color: #FACC15; font-size: 12px; margin-top: 15px;">⚠️ <b>Por favor, não feche nem atualize esta página até concluir.</b></p>
         </div>
 
         <div id="painelRotas">
             <div class="painel-esquerdo">
                 <div class="caixa-busca">
-                    <h3>🔍 Pesquisar Roteiro</h3>
-                    <input type="date" id="buscaData">
-                    <button onclick="window.buscarHistorico()">Buscar Planejamento</button>
+                    <h3>🔍 Radar e Relatórios</h3>
+                    <label style="font-size:11px; color:#94A3B8;">Pesquisar roteiro por Dia Específico:</label>
+                    <input type="date" id="buscaData" title="Pesquisar roteiro por Data">
+                    
+                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Ou Extrato Mensal:</label>
+                    <input type="month" id="buscaMes" title="Filtrar por Mês">
+                    
+                    <label style="font-size:11px; color:#94A3B8; margin-top:5px;">Técnico (Filtro para Relatórios):</label>
+                    <select id="buscaTecnicoRelatorio">
+                        <option value="TODOS">Geral (Todos os Técnicos)</option>
+                    </select>
+
+                    <input type="text" id="buscaCodigo" placeholder="Ou pesquise pelo Código da OS" style="margin-top:5px;">
+                    <button onclick="window.buscarHistorico()">1. Buscar Planejamento (Mapas)</button>
+                    <button onclick="window.ativarVisaoGlobal()" class="btn-global">🌍 2. Ver Toda a Frota no Mapa</button>
+                    <button onclick="window.exportarRelatorioExcel()" class="btn-relatorio">📊 3. Extrair Relatório (Excel)</button>
                 </div>
+
                 <div class="lista-tecnicos" style="flex-grow: 1;">
-                    <div class="lista-tecnicos-header"><h3>Equipe</h3></div>
+                    <div class="lista-tecnicos-header">
+                        <h3>Equipe em Operação</h3>
+                        <button onclick="window.limparRotas()" style="background: transparent; border: 1px solid #EF4444; color: #EF4444; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px;">🔄 Limpar</button>
+                    </div>
                     <div class="lista-clientes" id="listaTecnicosUI"></div>
                 </div>
+
+                <div class="lista-tecnicos" style="flex-grow: 0; min-height: 200px; max-height: 250px; border-color: #F59E0B;">
+                    <div class="lista-tecnicos-header" style="background: rgba(245, 158, 11, 0.2); gap: 5px;">
+                        <h3 style="color: #FACC15; flex-grow: 1; margin: 0;">⚠️ Fila de Espera</h3>
+                        <button onclick="window.abrirModalNovaRotaFila()" style="background: #10B981; border: none; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold;">🗺️ Criar Rota</button>
+                    </div>
+                    <div class="lista-clientes" id="listaNaoAlocadasUI" style="padding: 10px; overflow-y: auto;">
+                        <div style="color: #94A3B8; font-size: 12px; text-align: center; padding: 10px;">Nenhuma ordem na fila.</div>
+                    </div>
+                </div>
             </div>
+            
             <div id="mapaArea">
+                <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Alternar Tela Cheia">⛶</button>
                 <div id="mapa"></div>
+                
                 <div id="painelItinerario">
-                    <h3 style="color: white; margin-top: 0;">🛠️ Itinerário</h3>
-                    <div id="listaItinerarioUI"></div>
+                    <h3 style="color: white; margin-top: 0; font-size: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; display:flex; justify-content:space-between;">
+                        <span id="tituloPainelLateral">🛠️ Itinerário</span>
+                        <span id="txtKMTarefa" style="color:#10B981; font-size:12px;">-- km</span>
+                    </h3>
+                    <div class="legenda-radar">
+                        <div><span class="dot" style="background:#64748B;"></span>Pendente</div>
+                        <div><span class="dot" style="background:#FACC15;"></span>Em Trânsito</div>
+                        <div><span class="dot" style="background:#F97316;"></span>No Local</div>
+                        <div><span class="dot" style="background:#10B981;"></span>Sucesso</div>
+                        <div><span class="dot" style="background:#EF4444;"></span>Insucesso</div>
+                    </div>
+                    <div id="listaItinerarioUI" style="margin-top: 15px;"></div>
+                </div>
+
+                <div id="painelPlayback">
+                    <div style="display: flex; justify-content: space-between; align-items: center; color: white; font-weight: bold; font-size: 13px;">
+                        <span>⏮ Início</span>
+                        <span id="lblPlaybackStatus" style="color: #3B82F6;">Linha do Tempo </span>
+                        <span>Fim ⏭</span>
+                    </div>
+                    <input type="range" id="sliderPlayback" class="slider-control" min="0" max="10" value="10" oninput="window.atualizarTela(false)">
                 </div>
             </div>
         </div>
@@ -80,12 +205,44 @@
 <script>
     const token = localStorage.getItem("token");
     if (!token) window.location.replace("/login.html");
-    let mapa = null, layerGrupo = null, dadosGlobaisRotas = {}, rotaAtiva = [], tecnicoAtivo = "";
+
+    let configGalpao = { lat: -23.5155, lon: -46.7450, nome: "Base Operacional", endereco: "Base Centralizada" };
+    let mapa = null, layerGrupo = null, dadosGlobaisRotas = {}, rotaAtiva = [], tecnicoAtivo = "", dataAtiva = "";
+    let historicoRotasMemoria = [], visualizandoHistorico = false, modoVisaoGlobal = false, osDestacada = "";
 
     document.addEventListener("DOMContentLoaded", async () => {
-        mapa = L.map('mapa').setView([-23.5155, -46.7450], 11); 
+        mapa = L.map('mapa').setView([configGalpao.lat, configGalpao.lon], 11); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapa);
+        
+        const rotasGuardadas = localStorage.getItem("planilhaRotas");
+        if (rotasGuardadas) {
+            dadosGlobaisRotas = JSON.parse(rotasGuardadas);
+            document.getElementById("areaUpload").style.display = "none";
+            document.getElementById("painelRotas").style.display = "flex";
+            window.renderizarListaTecnicosModoNovo();
+            setTimeout(() => mapa.invalidateSize(), 500);
+        }
     });
+
+    function toggleMenu() {
+        const sidebar = document.getElementById('menuLateral');
+        sidebar.style.display = sidebar.style.display === 'none' ? 'block' : 'none';
+        setTimeout(() => mapa.invalidateSize(), 300);
+    }
+
+    function toggleFullscreen() {
+        const mapaArea = document.getElementById('mapaArea');
+        if (!document.fullscreenElement) mapaArea.requestFullscreen?.();
+        else document.exitFullscreen?.();
+    }
+
+    function calcularDistancia(lat1, lon1, lat2, lon2) {
+        if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return 0;
+        const R = 6371; 
+        const dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
 
     function buscarValorNaLinha(linha, palavrasChave) {
         for (let chave of Object.keys(linha)) { for (let palavra of palavrasChave) { if (chave.includes(palavra)) return linha[chave]; } }
@@ -104,12 +261,8 @@
     async function melhorarEnderecosComGemini(ordens) {
         try {
             const payload = ordens.map((o, i) => ({
-                id: i,
-                rua: o.rua || "",
-                numero: extrairNumeroLimpo(o.rua || "", o.detalhes || ""),
-                bairro: o.bairro || "",
-                cidade: o.cidade || "",
-                cep: o.cep || ""
+                id: i, rua: o.rua || "", numero: extrairNumeroLimpo(o.rua || "", o.detalhes || ""),
+                bairro: o.bairro || "", cidade: o.cidade || "", cep: o.cep || ""
             }));
 
             const resposta = await fetch("/api/rotas/processar-ia", {
@@ -125,10 +278,8 @@
             return ordens.map((o, i) => {
                 const g = tratados[i];
                 if (!g) return o;
-                o.rua = g.rua || o.rua;
-                o.bairro = g.bairro || o.bairro;
-                o.cidade = g.cidade || o.cidade;
-                o.cep = g.cep || o.cep;
+                o.rua = g.rua || o.rua; o.bairro = g.bairro || o.bairro;
+                o.cidade = g.cidade || o.cidade; o.cep = g.cep || o.cep;
                 return o;
             });
         } catch(e) { return ordens; }
@@ -152,16 +303,10 @@
     }
 
     async function obterCoordenadasSilenciosa(cliente) {
-        let ruaOriginal = cliente.rua || "";
-        let cidade = cliente.cidade || "São Paulo";
-        let bairro = cliente.bairro || "";
-        let cepStr = String(cliente.cep || "");
-
-        let enderecoCompleto = `${ruaOriginal}, ${bairro}, ${cidade}, CEP ${cepStr}`;
+        let enderecoCompleto = `${cliente.rua || ''}, ${cliente.bairro || ''}, ${cliente.cidade || 'São Paulo'}, CEP ${cliente.cep || ''}`;
         let googleRes = await buscarGoogleMapsPreciso(enderecoCompleto, cliente);
         if (googleRes) return googleRes;
-
-        return null;
+        return { lat: configGalpao.lat + (Math.random()-0.5)*0.01, lon: configGalpao.lon + (Math.random()-0.5)*0.01, precisaCorrecao: true };
     }
 
     function processarExcel(event) {
@@ -188,10 +333,10 @@
         let totalOS = 0;
 
         linhas.forEach(linha => {
-            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
+            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]) || "Geral";
             const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
-            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
-            if (!codigo && !cliente) return;
+            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]) || "Cliente";
+            if (!codigo) return;
 
             let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
@@ -221,61 +366,129 @@
             for (let ordem of ordensPorTecnico[tecnico]) {
                 concluidos++;
                 barra.style.width = Math.round((concluidos / totalOS) * 100) + "%";
-                lbl.innerText = `${concluidos} de ${totalOS} geocodificados via Google Maps...`;
+                lbl.innerText = `${concluidos} de ${totalOS} geocodificados via Gemini + Google Maps...`;
 
                 let crds = await obterCoordenadasSilenciosa(ordem);
-                if (crds) {
-                    ordem.lat = crds.lat;
-                    ordem.lon = crds.lon;
-                    ordem.precisaCorrecao = false;
-                } else {
-                    ordem.lat = -23.5155;
-                    ordem.lon = -46.7450;
-                    ordem.precisaCorrecao = true;
-                }
+                ordem.lat = crds.lat;
+                ordem.lon = crds.lon;
+                ordem.precisaCorrecao = crds.precisaCorrecao;
 
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
                 else dadosGlobaisRotas[tecnico].tarde.push(ordem);
 
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 100));
             }
         }
 
+        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
         document.getElementById("loadingUpload").style.display = "none";
         document.getElementById("painelRotas").style.display = "flex";
-        renderizarListaTecnicos();
+        window.renderizarListaTecnicosModoNovo();
         setTimeout(() => mapa.invalidateSize(), 500);
     }
 
-    function renderizarListaTecnicos() {
+    window.renderizarListaTecnicosModoNovo = function() {
+        visualizandoHistorico = false;
         const divLista = document.getElementById("listaTecnicosUI");
-        divLista.innerHTML = "";
+        divLista.innerHTML = `<h4 style="color:#60A5FA; margin: 0 0 10px 15px; font-size:12px;">Planilha Carregada</h4>`;
+        
         Object.keys(dadosGlobaisRotas).forEach(nome => {
-            divLista.innerHTML += `<div class="tecnico-item" onclick="iniciarCalculoTecnico('${nome}')"><span>${nome}</span></div>`;
+            const t = dadosGlobaisRotas[nome]; const total = t.manha.length + t.tarde.length;
+            divLista.innerHTML += `
+                <div class="tecnico-item" id="tecnico-${nome.replace(/\s+/g, '')}" onclick="window.iniciarCalculoTecnico('${nome}')">
+                    <div style="width: 100%;">
+                        <div class="tecnico-nome"><span>${nome}</span></div>
+                        <div class="tecnico-stats">Total: ${total} paradas</div>
+                    </div>
+                </div>
+            `;
         });
+        divLista.innerHTML += `<div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.05);"><button onclick="window.salvarHistoricoBanco()" style="width: 100%; padding: 12px; background: #10B981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">💾 Salvar no Banco</button></div>`;
     }
 
-    function iniciarCalculoTecnico(nome) {
+    function otimizarSequencia(pontos, inicioLat, inicioLon) {
+        let naoVisitados = [...pontos].filter(p => p && !isNaN(parseFloat(p.lat))); 
+        let rotaOrdenada = [], atualLat = inicioLat, atualLon = inicioLon;
+        while (naoVisitados.length > 0) {
+            let idx = 0, menorDist = Infinity;
+            for (let i = 0; i < naoVisitados.length; i++) {
+                let dist = calcularDistancia(atualLat, atualLon, parseFloat(naoVisitados[i].lat), parseFloat(naoVisitados[i].lon));
+                if (dist < menorDist) { menorDist = dist; idx = i; }
+            }
+            let px = naoVisitados.splice(idx, 1)[0]; rotaOrdenada.push(px); atualLat = parseFloat(px.lat); atualLon = parseFloat(px.lon);
+        }
+        return rotaOrdenada;
+    }
+
+    window.iniciarCalculoTecnico = function(nome) {
+        document.querySelectorAll('.tecnico-item').forEach(el => el.classList.remove('ativo'));
+        document.getElementById(`tecnico-${nome.replace(/\s+/g, '')}`).classList.add('ativo');
         tecnicoAtivo = nome;
+        modoVisaoGlobal = false;
+        
         const dados = dadosGlobaisRotas[nome];
-        rotaAtiva = [...dados.manha, ...dados.tarde];
+        let rotaManha = otimizarSequencia(dados.manha || [], configGalpao.lat, configGalpao.lon);
+        let rotaTarde = otimizarSequencia(dados.tarde || [], rotaManha.length ? rotaManha[rotaManha.length-1].lat : configGalpao.lat, rotaManha.length ? rotaManha[rotaManha.length-1].lon : configGalpao.lon);
+        rotaAtiva = [...rotaManha, ...rotaTarde];
+
         document.getElementById("painelItinerario").style.display = "block";
-        atualizarTela();
+        window.atualizarTela(true);
     }
 
-    function atualizarTela() {
+    window.atualizarTela = function(recentrarMapa = true) {
         if (layerGrupo) mapa.removeLayer(layerGrupo);
         layerGrupo = L.featureGroup().addTo(mapa);
+        
+        L.marker([configGalpao.lat, configGalpao.lon], {
+            icon: L.divIcon({ className: 'custom-pin', html: `<div style="background: #000; color: white; border-radius: 8px; padding: 6px 10px; border: 2px solid #3B82F6; font-size: 12px; font-weight:bold;">🏢 Base</div>`, iconSize: [80, 30] })
+        }).addTo(layerGrupo);
+
+        if (modoVisaoGlobal) {
+            document.getElementById("painelPlayback").style.display = "none";
+            document.getElementById("painelItinerario").style.display = "block";
+            let listaTotal = visualizandoHistorico ? historicoRotasMemoria : Object.keys(dadosGlobaisRotas).map(k => ({ tecnico: k, itinerario: [...dadosGlobaisRotas[k].manha, ...dadosGlobaisRotas[k].tarde] }));
+
+            listaTotal.forEach(roteiro => {
+                (roteiro.itinerario || []).forEach(cliente => {
+                    if (!cliente || isNaN(cliente.lat)) return;
+                    let corPino = cliente.precisaCorrecao ? "#E11D48" : "#10B981";
+                    L.marker([cliente.lat, cliente.lon], {
+                        icon: L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; border-radius: 50%; width: 22px; height: 22px; border: 2px solid white;"></div>`, iconSize: [22, 22] })
+                    }).bindPopup(`<b>${roteiro.tecnico}</b><br>OS: ${cliente.codigo}`).addTo(layerGrupo);
+                });
+            });
+            if (recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), { padding: [30, 30] });
+            return;
+        }
+
+        document.getElementById("painelPlayback").style.display = "flex";
         let htmlLista = "";
 
-        rotaAtiva.forEach((c, idx) => {
-            if (!c || isNaN(c.lat)) return;
-            L.marker([c.lat, c.lon]).addTo(layerGrupo).bindPopup(`OS: ${c.codigo}<br>${c.rua}`);
-            htmlLista += `<div class="itinerario-item"><b>${idx+1}. OS: ${c.codigo}</b><br>${c.rua}</div>`;
+        rotaAtiva.forEach((cliente, index) => {
+            if (!cliente) return;
+            const seq = index + 1;
+            let lat = parseFloat(cliente.lat) || configGalpao.lat, lon = parseFloat(cliente.lon) || configGalpao.lon;
+            let corPino = cliente.precisaCorrecao ? "#E11D48" : "#10B981";
+
+            L.marker([lat, lon], {
+                icon: L.divIcon({ className: 'custom-pin', html: `<div style="background-color: ${corPino}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; font-size: 13px;">${seq}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] })
+            }).bindPopup(`<b>Parada #${seq}</b><br>OS: ${cliente.codigo}<br>${cliente.rua}`).addTo(layerGrupo);
+
+            htmlLista += `
+                <div class="itinerario-item" style="border-left-color: ${corPino};">
+                    <div class="card-topo">
+                        <strong style="color:#60A5FA; font-size:14px; min-width:20px;">${seq}.</strong>
+                        <div class="itinerario-info">
+                            <div style="color: white; font-size: 12px; font-weight:bold;">OS: ${cliente.codigo}</div>
+                            <div style="color: #94A3B8; font-size: 10px;">${cliente.rua || 'Sem endereço'}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
         });
 
         document.getElementById("listaItinerarioUI").innerHTML = htmlLista;
-        mapa.fitBounds(layerGrupo.getBounds(), { padding: [30, 30] });
+        if (recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), { padding: [30, 30] });
     }
 
     window.buscarHistorico = async function() {
@@ -287,11 +500,41 @@
         try {
             const res = await fetch(`/api/rotas?data=${encodeURIComponent(dFormatada)}`, { headers: { 'Authorization': `Bearer ${token}` } });
             const rotas = await res.json();
-            if (!rotas.length) return alert("Nenhum roteiro encontrado.");
+            if (!rotas.length) return alert("Nenhum roteiro encontrado para esta data.");
             historicoRotasMemoria = rotas;
             visualizandoHistorico = true;
+            dataAtiva = dFormatada;
+            
+            const divLista = document.getElementById("listaTecnicosUI");
+            divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Histórico</h4>`;
+            rotas.forEach((roteiro, idx) => {
+                divLista.innerHTML += `<div class="tecnico-item" onclick="window.carregarRotaHistorica(${idx})"><span>${roteiro.tecnico} (${roteiro.data})</span></div>`;
+            });
+            window.ativarVisaoGlobal();
             alert("Roteiro carregado com sucesso!");
         } catch(e) { alert("Erro ao buscar histórico."); }
+    }
+
+    window.carregarRotaHistorica = function(idx) {
+        const roteiro = historicoRotasMemoria[idx];
+        tecnicoAtivo = roteiro.tecnico;
+        rotaAtiva = [...(roteiro.itinerario || [])];
+        modoVisaoGlobal = false;
+        document.getElementById("painelItinerario").style.display = "block";
+        window.atualizarTela(true);
+    }
+
+    window.ativarVisaoGlobal = function() { modoVisaoGlobal = true; tecnicoAtivo = ""; window.atualizarTela(true); }
+    window.limparRotas = function() { localStorage.removeItem("planilhaRotas"); window.location.reload(); }
+
+    window.salvarHistoricoBanco = async function() {
+        if (!tecnicoAtivo || rotaAtiva.length === 0) return alert("Selecione um técnico para salvar.");
+        let dataInput = prompt("Data (DD/MM/AAAA):", new Date().toLocaleDateString('pt-BR')); if (!dataInput) return;
+        try {
+            const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ data: dataInput.trim(), tecnico: tecnicoAtivo, itinerario: rotaAtiva }) });
+            if (res.ok) alert("Roteiro salvo com sucesso no banco de dados!");
+            else alert("Erro ao salvar.");
+        } catch(e) { alert("Erro de conexão."); }
     }
 </script>
 </body>
