@@ -88,6 +88,68 @@ const requisitarGoogle = url => new Promise((resolve, reject) => {
   }).on("error", reject);
 });
 
+
+// =====================================================================
+// VALIDACAO_FORTE_ENDERECO_V4
+// CEP + NUMERO + LOGRADOURO antes de aceitar coordenada
+// =====================================================================
+
+function normalizarTextoEndereco(valor){
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase()
+    .trim();
+}
+
+function validarCandidatoEndereco(resultado, original){
+
+  const texto = normalizarTextoEndereco(
+    resultado.formatted_address
+  );
+
+  let score = 0;
+  let problemas = [];
+
+  if(original.rua &&
+     texto.includes(normalizarTextoEndereco(original.rua))){
+      score += 30;
+  } else {
+      problemas.push("rua");
+  }
+
+  if(original.cidade &&
+     texto.includes(normalizarTextoEndereco(original.cidade))){
+      score += 20;
+  } else {
+      problemas.push("cidade");
+  }
+
+  if(original.bairro &&
+     texto.includes(normalizarTextoEndereco(original.bairro))){
+      score += 20;
+  }
+
+  if(original.cep){
+      const cep = String(original.cep).replace(/\D/g,"");
+      if(texto.includes(cep.substring(0,5))){
+          score += 25;
+      } else {
+          problemas.push("cep");
+      }
+  }
+
+  if(resultado.geometry.location_type === "ROOFTOP"){
+      score += 20;
+  }
+
+  if(resultado.geometry.location_type === "APPROXIMATE"){
+      score -= 80;
+  }
+
+  return {score, problemas};
+}
+
 app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
   try {
     const entrada = typeof req.body.endereco === "object"
