@@ -39,15 +39,39 @@ const getFiltroSaaS = (req) => {
 };
 
 // =====================================================================
-// GOOGLE MAPS GEOCODING API COM FALLBACK SEGURO
+// GOOGLE MAPS + VALIDAÇÃO INTELIGENTE DE ENDEREÇOS
 // =====================================================================
+function normalizarEnderecoTexto(valor) {
+  return String(valor || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function pontuarResultadoGoogle(resultado, enderecoOriginal) {
+  const texto = normalizarEnderecoTexto(resultado.formatted_address);
+  let pontos = 0;
+  const campos = [enderecoOriginal.rua, enderecoOriginal.bairro, enderecoOriginal.distrito, enderecoOriginal.cidade];
+
+  campos.forEach(campo => {
+    if (campo && texto.includes(normalizarEnderecoTexto(campo))) pontos += 20;
+  });
+
+  if (enderecoOriginal.cep) {
+    const cep = String(enderecoOriginal.cep).replace(/\D/g,"").substring(0,5);
+    if(texto.includes(cep)) pontos += 25;
+  }
+
+  if (resultado.geometry.location_type === "ROOFTOP") pontos += 30;
+  else if (resultado.geometry.location_type === "RANGE_INTERPOLATED") pontos += 20;
+
+  return pontos;
+}
+
 app.post('/api/geocodificar-endereco', autenticarToken, async (req,res)=>{
   try {
-    const { endereco } = req.body;
-    if(!endereco) return res.status(400).json({ encontrado: false });
+    const { endereco, dadosOriginais } = req.body;
+    if(!endereco) return res.status(400).json({ erro: "Endereço vazio" });
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if(!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
+    if(!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada no Vercel" });
 
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco + ", Brasil")}&language=pt-BR&key=${apiKey}`;
 
@@ -57,19 +81,29 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req,res)=>{
       response.on("end", ()=>{
         const json = JSON.parse(dados);
         if(json.status !== "OK" || !json.results.length){
-          return res.json({ encontrado: false });
+          return res.json({ encontrado: false, status: json.status });
         }
-        const melhor = json.results[0];
+
+        const candidatos = json.results.map(resultado => ({
+          ...resultado,
+          score: pontuarResultadoGoogle(resultado, dadosOriginais || {})
+        }));
+
+        candidatos.sort((a,b)=> b.score - a.score);
+        const melhor = candidatos[0];
+
         return res.json({
           encontrado: true,
           lat: melhor.geometry.location.lat,
           lon: melhor.geometry.location.lng,
-          precisao: melhor.geometry.location_type
+          precisao: melhor.geometry.location_type,
+          score: melhor.score,
+          enderecoFormatado: melhor.formatted_address
         });
       });
     });
   } catch(e) {
-    res.status(500).json({ encontrado: false });
+    res.status(500).json({ erro: "Erro ao comunicar com Google Maps" });
   }
 });
 
@@ -80,11 +114,13 @@ app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
   try {
     const { enderecosBrutos } = req.body;
     if (!enderecosBrutos || !Array.isArray(enderecosBrutos)) {
-      return res.status(400).json({ erro: "Lista inválida." });
+      return res.status(400).json({ erro: "Lista de endereços inválida." });
     }
 
-    const prompt = `Analise a lista de endereços e retorne estritamente um array JSON válido onde cada objeto contenha exatamente: 
+    const prompt = `Analise a seguinte lista de endereços e dados brutos extraídos de uma planilha logística. 
+    Para cada item, corrija erros de digitação, limpe abreviações e deduza informações faltantes. Retorne estritamente um array JSON válido onde cada objeto contenha exatamente: 
     { "rua": "...", "numero": "...", "bairro": "...", "cidade": "...", "estado": "...", "cep": "..." }.
+    
     Dados: ${JSON.stringify(enderecosBrutos)}`;
 
     const response = await ai.models.generateContent({
@@ -93,7 +129,8 @@ app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
       config: { responseMimeType: 'application/json' },
     });
 
-    res.json({ ok: true, resultados: JSON.parse(response.text) });
+    const enderecosTratados = JSON.parse(response.text);
+    res.json({ ok: true, resultados: enderecosTratados });
   } catch (err) {
     res.status(500).json({ erro: "Erro ao processar com IA." });
   }
@@ -110,33 +147,50 @@ app.post("/login", async (req, res) => {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
     if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
+    if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso." });
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta" });
     const token = jwt.sign({ id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id }, JWT_SECRET, { expiresIn: "12h" });
     res.json({ ok: true, token, nome: usuarioBanco.nome, tipo: usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo });
-  } catch (err) { res.status(500).json({ erro: "Erro no login" }); }
+  } catch (err) { res.status(500).json({ erro: "Erro ao realizar login" }); }
 });
 
 app.get('/api/bases', autenticarToken, async (req, res) => {
   try {
     const bases = await db.collection("bases_operacionais").find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray();
     res.json(bases);
-  } catch (e) { res.status(500).json({ erro: "Erro" }); }
+  } catch (e) { res.status(500).json({ erro: "Erro ao listar bases." }); }
 });
 
 app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) => {
   try {
     const cliente_id = req.usuario.cliente_id;
     const [tecnicosDashboard, usuariosTecnicos, bases] = await Promise.all([
-      db.collection("tecnicos_dashboard").find({ cliente_id }).toArray(),
-      db.collection("usuarios").find({ cliente_id, tipo: "tecnico" }).toArray(),
+      db.collection("tecnicos_dashboard").find({ cliente_id }).sort({ nome: 1 }).toArray(),
+      db.collection("usuarios").find({ cliente_id, tipo: "tecnico", ativo: { $ne: false } }).toArray(),
       db.collection("bases_operacionais").find({ cliente_id }).toArray()
     ]);
+    const normalizarNome = (nome) => String(nome || "").trim().toUpperCase();
     const mapaBases = new Map(bases.map(b => [String(b._id), b]));
-    const resultado = tecnicosDashboard.map(t => ({
-      ...t,
-      base: t.base_id ? mapaBases.get(String(t.base_id)) : null
-    }));
+    const mapaUsuarios = new Map(usuariosTecnicos.map(u => [normalizarNome(u.nome), u]));
+    const mapaDashboard = new Map(tecnicosDashboard.map(t => [normalizarNome(t.nome), t]));
+    const nomes = new Set([...mapaUsuarios.keys(), ...mapaDashboard.keys()]);
+    const resultado = [];
+    for (const chave of nomes) {
+      const usuario = mapaUsuarios.get(chave) || null;
+      const tecnicoDashboard = mapaDashboard.get(chave) || null;
+      const baseId = usuario?.base_id || tecnicoDashboard?.base_id || null;
+      const base = baseId ? (mapaBases.get(String(baseId)) || null) : null;
+      resultado.push({
+        ...(tecnicoDashboard || {}),
+        ...(usuario ? { usuario_id: String(usuario._id), usuario: usuario.usuario, tipo: usuario.tipo } : {}),
+        nome: usuario?.nome || tecnicoDashboard?.nome || chave,
+        base_id: baseId,
+        base_nome: base?.nome || usuario?.base_nome || tecnicoDashboard?.base_nome || null,
+        base
+      });
+    }
+    resultado.sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
     res.json(resultado);
   } catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -144,14 +198,15 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, tecnico, itinerario, base_id } = req.body;
-      if (!data || !tecnico || !itinerario) return res.status(400).json({ erro: "Incompletos" });
+      if (!data || !tecnico || !itinerario) return res.status(400).json({ erro: "Dados incompletos" });
+      const itinerarioFormatado = itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
       await db.collection("planejamento_rotas").updateOne(
           { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
-          { $set: { itinerario, base_id: base_id || null, atualizadoEm: new Date() } },
+          { $set: { itinerario: itinerarioFormatado, base_id: base_id || null, atualizadoEm: new Date() } },
           { upsert: true }
       );
-      res.json({ mensagem: "Salvo!" });
-  } catch (err) { res.status(500).json({ erro: "Erro ao salvar" }); }
+      res.json({ mensagem: "Roteiro salvo com sucesso!" });
+  } catch (err) { res.status(500).json({ erro: "Erro ao salvar roteiro." }); }
 });
 
 app.get('/api/rotas', autenticarToken, async (req, res) => {
@@ -162,14 +217,14 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
       const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
       res.json(rotas);
-  } catch (err) { res.status(500).json({ erro: "Erro" }); }
+  } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
 });
 
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   try {
       await db.collection("planejamento_rotas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
       res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: "Erro" }); }
+  } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
 app.use(express.static(__dirname + "/public", { index: false }));
