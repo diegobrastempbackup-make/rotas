@@ -590,12 +590,90 @@
             return Math.min(score,100);
         }
 
+
+        // ============================================================
+        // GEMINI V3 - MOTOR DE PRECISÃO DE ENDEREÇO
+        // Usa CEP + Distrito + Número antes de aceitar coordenadas.
+        // ============================================================
+
+        async function buscarViaCEPPreciso(cep) {
+            try {
+                const limpo = String(cep || "").replace(/\D/g,"");
+                if (limpo.length !== 8) return null;
+
+                const r = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+                const j = await r.json();
+
+                if (j.erro) return null;
+
+                return {
+                    logradouro: j.logradouro || "",
+                    bairro: j.bairro || "",
+                    cidade: j.localidade || "",
+                    uf: j.uf || ""
+                };
+            } catch(e) {
+                return null;
+            }
+        }
+
+        function normalizarTextoEndereco(v) {
+            return String(v || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g,"")
+                .toLowerCase()
+                .trim();
+        }
+
+        function validarCompatibilidadeEndereco(resultado, cliente, cepData) {
+            if (!resultado) return false;
+
+            const texto = normalizarTextoEndereco(resultado.display_name);
+
+            let pontos = 0;
+
+            const cidade = cliente.cidade || cepData?.cidade;
+            const bairro = cliente.bairro || cliente.distrito || cepData?.bairro;
+
+            if (cidade && texto.includes(normalizarTextoEndereco(cidade)))
+                pontos += 30;
+
+            if (bairro && texto.includes(normalizarTextoEndereco(bairro)))
+                pontos += 30;
+
+            if (cliente.rua && texto.includes(normalizarTextoEndereco(cliente.rua).split(" ")[0]))
+                pontos += 20;
+
+            if (cliente.cep && texto.includes(String(cliente.cep).replace(/\D/g,"").substring(0,5)))
+                pontos += 20;
+
+            return pontos >= 60;
+        }
+
+        async function enriquecerEnderecoComCEP(cliente) {
+            const dadosCEP = await buscarViaCEPPreciso(cliente.cep);
+
+            if (!dadosCEP) return cliente;
+
+            cliente.rua = cliente.rua || dadosCEP.logradouro;
+            cliente.bairro = cliente.bairro || dadosCEP.bairro;
+            cliente.cidade = cliente.cidade || dadosCEP.cidade;
+            cliente.uf = cliente.uf || dadosCEP.uf;
+
+            cliente.enderecoCEPValidado = true;
+
+            return cliente;
+        }
+
 async function obterCoordenadasSilenciosa(cliente) {
+
+        // Primeiro valida e completa pelo CEP oficial
+        cliente = await enriquecerEnderecoComCEP(cliente);
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
         let cidade = cliente.cidade || "São Paulo";
         let cepStr = String(cliente.cep || "");
-        let bairro = cliente.bairro || "";
+        let bairro = cliente.bairro || cliente.distrito || "";
         let uf = cliente.uf || "";
 
         // 1. Coordenada exata colada manualmente
@@ -633,7 +711,7 @@ async function obterCoordenadasSilenciosa(cliente) {
 
         // 4. Fallback Seguro: Encontra a RUA, mas sem o número.
         // Como errar apenas a casa e acertar a rua é aceitável, não vamos deixar o pino vermelho aqui!
-        let resRua = await buscarNominatim(`${nomeRuaLimpo}, ${bairro}, ${cidade}, ${uf}, Brasil ${cepStr}`);
+        let resRua = await buscarNominatim(`${nomeRuaLimpo}, ${cliente.numero || ""}, ${bairro}, ${cidade}, ${uf}, Brasil ${cepStr}`);
         if (resRua) return { lat: resRua.lat, lon: resRua.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
 
         // 5. Último Recurso: Busca pelo CEP (Pino fica VERMELHO porque o CEP joga no meio do bairro aleatoriamente)
