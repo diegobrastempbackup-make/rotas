@@ -366,19 +366,6 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function calcularKMFatiado(rotaFatiada) {
-        if(!rotaFatiada || rotaFatiada.length === 0) return 0;
-        let km = 0; let lastLat = configGalpao.lat; let lastLon = configGalpao.lon;
-        rotaFatiada.forEach(p => { 
-            let pLat = parseFloat(p.lat); let pLon = parseFloat(p.lon);
-            if(!isNaN(pLat) && !isNaN(pLon)) {
-                km += calcularDistancia(lastLat, lastLon, pLat, pLon); 
-                lastLat = pLat; lastLon = pLon; 
-            }
-        });
-        return (km * 1.3).toFixed(1); 
-    }
-
     function limparCepETracar(cepSujo) {
         if (!cepSujo) return "";
         let cepStr = String(cepSujo);
@@ -408,12 +395,6 @@
             } catch (erro) { alert("❌ Erro ao ler planilha: " + erro.message); }
         };
         reader.readAsArrayBuffer(file);
-    }
-
-    function ehRodoviaOuKm(texto) {
-        if (!texto) return false;
-        let t = texto.toUpperCase();
-        return t.includes("KM") || t.includes("RODOVIA") || t.includes("ROD ") || t.includes("ESTRADA") || t.includes("SP-") || t.includes("BR-");
     }
 
     async function buscarNominatim(query) {
@@ -453,9 +434,6 @@
         return null;
     }
 
-    // =====================================================================
-    // INTEGRAÇÃO COM A IA DO GEMINI NO FRONTEND
-    // =====================================================================
     async function agruparEGeocodificarComIA(linhas) {
         document.getElementById("areaUpload").style.display = "none";
         document.getElementById("loadingUpload").style.display = "block";
@@ -463,7 +441,6 @@
         document.getElementById("lblProgresso").innerText = "Enviando dados para a Inteligência Artificial...";
 
         let enderecosBrutosParaIA = [];
-        let mapaLinhasBrutas = [];
 
         linhas.forEach((linha, idx) => {
             const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
@@ -498,7 +475,6 @@
         let dadosTratadosPelaIA = [];
 
         try {
-            // Envia em lotes para a API do Backend que chama o Gemini
             const respostaIA = await fetch('/api/rotas/processar-ia', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -513,7 +489,6 @@
             console.warn("Falha ao usar IA, aplicando modo padrão:", e);
         }
 
-        // Se a IA porventura retornar vazio, usa os dados brutos como fallback
         if (!dadosTratadosPelaIA || dadosTratadosPelaIA.length === 0) {
             dadosTratadosPelaIA = enderecosBrutosParaIA.map(item => ({
                 rua: item.ruaBruta,
@@ -722,6 +697,107 @@
 
         document.getElementById("listaItinerarioUI").innerHTML = htmlLista;
         if (recentrarMapa) mapa.fitBounds(layerGrupo.getBounds(), {padding: [30, 30]});
+    }
+
+    // =====================================================================
+    // FUNÇÃO CORRIGIDA DE BUSCA DE HISTÓRICO POR DIA
+    // =====================================================================
+    window.buscarHistorico = async function() {
+        let dataDia = document.getElementById("buscaData").value;
+        let dataMes = document.getElementById("buscaMes").value;
+        const codigoBusca = document.getElementById("buscaCodigo").value.trim();
+        
+        osDestacada = codigoBusca;
+
+        if (!dataDia && !dataMes && !codigoBusca) return alert("⚠️ Preencha Data (Dia ou Mês) ou Código.");
+        
+        let url = '/api/rotas?'; 
+        let dFormatada = "";
+        let mesAnoFilter = "";
+
+        if (dataDia) {
+            const p = dataDia.split('-'); 
+            dFormatada = `${p[2]}/${p[1]}/${p[0]}`; 
+            dataAtiva = dFormatada;
+            url += `data=${encodeURIComponent(dFormatada)}&`; 
+        } else if (dataMes) {
+            const p = dataMes.split('-'); 
+            mesAnoFilter = `${p[1]}/${p[0]}`; 
+            dataAtiva = null; 
+        }
+        
+        if (codigoBusca) url += `codigo=${encodeURIComponent(codigoBusca)}&`; 
+        url += `_=${new Date().getTime()}`;
+
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
+            if (!res.ok) throw new Error("Erro na resposta do servidor");
+            
+            let rotasEncontradas = await res.json();
+            
+            if ((!rotasEncontradas || rotasEncontradas.length === 0) && dataDia) {
+                let urlAlternativa = `/api/rotas?data=${encodeURIComponent(dataDia)}&_=${new Date().getTime()}`;
+                const resAlt = await fetch(urlAlternativa, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
+                if (resAlt.ok) {
+                    rotasEncontradas = await resAlt.json();
+                    if (rotasEncontradas && rotasEncontradas.length > 0) dataAtiva = dataDia;
+                }
+            }
+
+            if (dataMes && !dataDia) {
+                rotasEncontradas = rotasEncontradas.filter(r => r && r.data && (r.data.endsWith(mesAnoFilter) || r.data.includes(dataMes)) );
+            }
+
+            rotasEncontradas = rotasEncontradas.filter(r => r !== null);
+
+            if (!rotasEncontradas || rotasEncontradas.length === 0) return alert("❌ Nenhum roteiro encontrado para esta data.");
+            
+            visualizandoHistorico = true; 
+            historicoRotasMemoria = rotasEncontradas;
+            
+            if (layerGrupo) { mapa.removeLayer(layerGrupo); }
+            document.getElementById("painelPlayback").style.display = "none"; 
+            document.getElementById("painelItinerario").style.display = "none";
+            
+            const divLista = document.getElementById("listaTecnicosUI");
+            divLista.innerHTML = `<h4 style="color:#10B981; margin: 0 0 10px 15px; font-size:12px;">📅 Monitorando Histórico</h4>`;
+            
+            rotasEncontradas.forEach((roteiro, idx) => {
+                if (!roteiro) return;
+                let statusCount = { pendente:0, deslocamento:0, chegada:0, sucesso:0, insucesso:0 };
+                let itinerarioValido = roteiro.itinerario || []; 
+                
+                itinerarioValido.forEach(c => { 
+                    if(!c) return;
+                    let st = c.status || 'pendente'; 
+                    if(statusCount[st] !== undefined) statusCount[st]++; 
+                    else statusCount.pendente++; 
+                });
+                
+                let concluídos = statusCount.sucesso + statusCount.insucesso; 
+                let perc = itinerarioValido.length > 0 ? Math.round((concluídos / itinerarioValido.length) * 100) : 0;
+
+                divLista.innerHTML += `
+                    <div class="tecnico-item" id="hist-tecnico-${idx}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;">
+                        <div style="flex-grow: 1; cursor: pointer;" onclick="window.carregarRotaHistorica(${idx}, true)">
+                            <div class="tecnico-nome" style="display:flex; align-items:center; gap:8px;">
+                                ${roteiro.tecnico} (${roteiro.data})
+                            </div>
+                            <div class="tecnico-stats" style="color:#10B981; font-weight:bold;">Progresso: ${perc}%</div>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <button id="btnEdicao-${idx}" onclick="window.alternarModoEdicaoRotaHistorica(${idx}, event)" style="background:#F59E0B; border:none; color:white; font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer;" title="Editar Roteiro">✏️ Editar</button>
+                            <button onclick="window.abrirModalTransferencia('${roteiro.tecnico}', true, event)" style="background:none;border:none;cursor:pointer;font-size:14px; padding:2px;" title="Transferir">🔄</button>
+                            <button onclick="window.deletarRotaHistorica('${roteiro._id}', event)" style="background:transparent; border:none; color:#EF4444; font-size:14px; cursor:pointer;" title="Apagar">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            });
+            window.ativarVisaoGlobal();
+        } catch(e) { 
+            console.error("Erro real:", e); 
+            alert("❌ Erro ao buscar histórico. Verifique a consola."); 
+        }
     }
 
     window.configurarSliderInicio = function() { const slider = document.getElementById("sliderPlayback"); slider.max = rotaAtiva.length * 10; slider.value = rotaAtiva.length * 10; }
