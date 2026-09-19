@@ -19,7 +19,6 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
 app.use((req, res, next) => {
-  if (!db) return res.status(503).json({ erro: "Banco de dados inicializando. Tente novamente em instantes." });
   next();
 });
 
@@ -187,7 +186,7 @@ app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
     }
 
     const prompt = `Analise a seguinte lista de endereços e dados brutos extraídos de uma planilha logística. 
-    Para cada item, corrija erros de digitação, limpe abreviações e deduza informações faltantes. Retorne estritamente um array JSON válido onde cada objeto contenha exatamente: 
+    Para cada item, corrija erros de digitação, normalize abreviações e valide informações existentes. Não invente dados faltantes. Retorne estritamente um array JSON válido onde cada objeto contenha exatamente: 
     { "rua": "...", "numero": "...", "bairro": "...", "cidade": "...", "estado": "...", "cep": "..." }.
     
     Dados: ${JSON.stringify(enderecosBrutos)}`;
@@ -325,6 +324,29 @@ app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
         await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao, foto });
         res.json({ ok: true });
     } catch(e) { res.status(500).json({ erro: "Erro ao cadastrar pessoa" }); }
+});
+
+
+// Compatibilidade com roteirizador novo
+app.get("/api/config-base", autenticarToken, async (req, res) => {
+  try {
+    const base = await db.collection("bases_operacionais")
+      .findOne({ cliente_id: req.usuario.cliente_id });
+
+    if (!base) {
+      return res.json({});
+    }
+
+    res.json({
+      latBase: base.lat,
+      lonBase: base.lon,
+      nome: base.nome,
+      endereco: base.endereco
+    });
+
+  } catch (e) {
+    res.status(500).json({ erro: "Erro ao buscar base" });
+  }
 });
 
 // ROTEIRIZADOR E PLANEJAMENTO DE ROTAS
