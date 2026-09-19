@@ -495,11 +495,66 @@
         return null;
     }
 
-    async function obterCoordenadasSilenciosa(cliente) {
+    
+        // ============================================================
+        // CAMADA GEMINI PARA NORMALIZAÇÃO DE ENDEREÇOS
+        // O Gemini não substitui o GPS: ele corrige e estrutura o endereço
+        // antes da geocodificação.
+        // ============================================================
+        async function melhorarEnderecosComGemini(ordens) {
+            try {
+                const payload = ordens.map((o, i) => ({
+                    id: i,
+                    rua: o.rua || "",
+                    numero: "",
+                    bairro: o.bairro || "",
+                    cidade: o.cidade || "",
+                    estado: o.uf || "",
+                    cep: o.cep || "",
+                    detalhes: o.detalhes || ""
+                }));
+
+                const resposta = await fetch("/api/rotas/processar-ia", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ enderecosBrutos: payload })
+                });
+
+                if (!resposta.ok) return ordens;
+
+                const dados = await resposta.json();
+                const tratados = dados.resultados || [];
+
+                return ordens.map((o, i) => {
+                    const g = tratados[i];
+                    if (!g) return o;
+
+                    o.rua = g.rua || o.rua;
+                    o.numero = g.numero || "";
+                    o.bairro = g.bairro || o.bairro;
+                    o.cidade = g.cidade || o.cidade;
+                    o.uf = g.estado || o.uf;
+                    o.cep = g.cep || o.cep;
+
+                    return o;
+                });
+
+            } catch(e) {
+                console.warn("Gemini indisponível, mantendo geocodificação normal.", e);
+                return ordens;
+            }
+        }
+
+async function obterCoordenadasSilenciosa(cliente) {
         let ruaOriginal = cliente.rua || cliente.endereco || "";
         let detalhesOriginal = cliente.detalhes || "";
         let cidade = cliente.cidade || "São Paulo";
         let cepStr = String(cliente.cep || "");
+        let bairro = cliente.bairro || "";
+        let uf = cliente.uf || "";
 
         // 1. Coordenada exata colada manualmente
         let coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
@@ -536,7 +591,7 @@
 
         // 4. Fallback Seguro: Encontra a RUA, mas sem o número.
         // Como errar apenas a casa e acertar a rua é aceitável, não vamos deixar o pino vermelho aqui!
-        let resRua = await buscarNominatim(`${nomeRuaLimpo}, ${cidade}, Brasil`);
+        let resRua = await buscarNominatim(`${nomeRuaLimpo}, ${bairro}, ${cidade}, ${uf}, Brasil ${cepStr}`);
         if (resRua) return { lat: resRua.lat, lon: resRua.lon, precisaCorrecao: false, precisaoGPS: "EXATA" };
 
         // 5. Último Recurso: Busca pelo CEP (Pino fica VERMELHO porque o CEP joga no meio do bairro aleatoriamente)
@@ -621,6 +676,15 @@
             }
         });
 
+        // Antes do GPS: corrige abreviações, erros de digitação e estrutura usando Gemini
+        let todasOrdensIA = Object.values(ordensPorTecnico).flat();
+        todasOrdensIA = await melhorarEnderecosComGemini(todasOrdensIA);
+
+        let posIA = 0;
+        Object.keys(ordensPorTecnico).forEach(t => {
+            ordensPorTecnico[t] = ordensPorTecnico[t].map(() => todasOrdensIA[posIA++]);
+        });
+
         dadosGlobaisRotas = {}; 
         let concluidos = 0;
         let barra = document.getElementById("barraProgresso");
@@ -641,11 +705,10 @@
                     ordem.lon = crds.lon;
                     ordem.precisaCorrecao = crds.precisaCorrecao !== undefined ? crds.precisaCorrecao : ehRodoviaOuKm(ordem.rua);
                 } else {
-                    let offsetLat = (Math.random() - 0.5) * 0.006; 
-                    let offsetLon = (Math.random() - 0.5) * 0.006;
-                    ordem.lat = configGalpao.lat + offsetLat;
-                    ordem.lon = configGalpao.lon + offsetLon;
+                    ordem.lat = null;
+                    ordem.lon = null;
                     ordem.precisaCorrecao = true;
+                    ordem.erroGeocodificacao = true;
                 }
 
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
