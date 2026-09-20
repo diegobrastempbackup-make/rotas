@@ -198,7 +198,7 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
         if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
         const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
         if(empresa && empresa.cliente_id) {
-            const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_ponto", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes", "alertas_totem"];
+            const collections = ["usuarios", "registros", "estoque", "historico_estoque", "tecnicos", "equipe_totem", "bases_operacionais", "fila_ponto", "planejamento_rotas", "tecnicos_dashboard", "catalogo_pecas", "solicitacoes_pecas", "alertas_totem"];
             for (let c of collections) await db.collection(c).deleteMany({ cliente_id: empresa.cliente_id });
         }
         res.json({ ok: true });
@@ -309,7 +309,7 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
 });
 
 // =====================================================================
-// EQUIPE TOTEM E FALLBACK
+// EQUIPE TOTEM
 // =====================================================================
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
     try { 
@@ -358,9 +358,12 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       const { data, codigo } = req.query;
       let filtro = getFiltroSaaS(req);
       
-      // Pesquisa elástica sem âncoras para evitar bloqueio por espaços vazios
-      if (data) filtro.data = { $regex: data.trim(),$options: "i" };
-      if (codigo) filtro["itinerario.codigo"] = { $regex: codigo.trim(),$options: "i" };
+      if (data) {
+          filtro.data = { $regex: data.trim(),$options: "i" };
+      }
+      if (codigo) {
+          filtro["itinerario.codigo"] = { $regex: codigo.trim(),$options: "i" };
+      }
       
       res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
   } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
@@ -406,90 +409,84 @@ app.delete("/registro/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ALMOXARIFADO E ESTOQUE
+// ALMOXARIFADO E ESTOQUE INDEPENDENTE (BASEADO NO SCRIPT ORIGINAL)
 // =====================================================================
-app.get("/api/tecnicos", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("tecnicos_estoque").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.get("/api/tecnicos", autenticarToken, async (req, res) => { 
+  try { res.json(await db.collection("tecnicos").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } 
 });
-app.post("/api/tecnicos", autenticarToken, async (req, res) => {
-    try { await db.collection("tecnicos_estoque").insertOne({ nome: req.body.nome, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.post("/api/tecnicos", autenticarToken, async (req, res) => { 
+  try { const nome = (req.body.nome || "").trim(); const existe = await db.collection("tecnicos").findOne({ nome, cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Já registado" }); await db.collection("tecnicos").insertOne({ cliente_id: req.usuario.cliente_id, nome, criadoEm: new Date() }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } 
 });
-app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("tecnicos_estoque").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-
-app.get("/api/estoque", autenticarToken, async (req, res) => { 
-  try { res.json(await db.collection("estoque").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } 
-});
-app.post("/api/estoque", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => { 
+  try { await db.collection("tecnicos").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } 
 });
 
-app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
-    try { 
-        let filtro = getFiltroSaaS(req);
-        filtro.tecnico = req.params.nome;
-        res.json(await db.collection("estoque_historico").find(filtro).sort({ data: -1 }).toArray()); 
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
+app.get("/api/estoque", autenticarToken, async (req, res) => { try { res.json(await db.collection("estoque").find(getFiltroSaaS(req)).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
+app.post("/api/estoque", autenticarToken, async (req, res) => { try { await db.collection("estoque").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id, preco: Number(req.body.preco) || 0, qtd: Number(req.body.qtd) || 0, criadoEm: new Date() }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+app.put("/api/estoque/:id", autenticarToken, async (req, res) => { try { await db.collection("estoque").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { ...req.body, preco: Number(req.body.preco) || 0, qtd: Number(req.body.qtd) || 0 } }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+app.delete("/api/estoque/:id", autenticarToken, async (req, res) => { try { await db.collection("estoque").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+
+app.get("/api/estoque/historico", autenticarToken, async (req, res) => { try { res.json(await db.collection("historico_estoque").find(getFiltroSaaS(req)).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
+app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => { try { res.json(await db.collection("historico_estoque").find({ tecnico: req.params.nome, ...getFiltroSaaS(req) }).sort({ data: -1 }).toArray()); } catch (erro) { res.status(500).json({ erro: "Erro" }); } });
+
 app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
-    try {
-        const { ferramentaId, quantidade, tipoAcao } = req.body;
-        if (ferramentaId) {
-            const qtdNum = Number(quantidade) || 1;
-            let mod = 0;
-            if (tipoAcao === "Entrega") mod = -qtdNum;
-            if (tipoAcao === "Devolução" || tipoAcao === "Devolucao") mod = qtdNum;
-            if (mod !== 0) {
-                await db.collection("estoque").updateOne({ _id: new ObjectId(ferramentaId), cliente_id: req.usuario.cliente_id }, { $inc: { qtd: mod } });
-            }
-        }
-        await db.collection("estoque_historico").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id });
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
+  try {
+    const { ferramentaId, quantidade, tipoAcao } = req.body;
+    if (ferramentaId && (tipoAcao === "Entrega" || tipoAcao === "Troca")) {
+      const item = await db.collection("estoque").findOne({ _id: new ObjectId(ferramentaId), cliente_id: req.usuario.cliente_id });
+      if (!item || Number(quantidade) > Number(item.qtd)) return res.status(400).json({ erro: "Estoque insuficiente." });
+    }
+    await db.collection("historico_estoque").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id });
+    if (ferramentaId) {
+      let ajuste = tipoAcao.includes("Devolu") ? Number(quantidade) : -Number(quantidade);
+      await db.collection("estoque").updateOne({ _id: new ObjectId(ferramentaId), cliente_id: req.usuario.cliente_id }, { $inc: { qtd: ajuste } });
+    }
+    res.json({ ok: true });
+  } catch (erro) { res.status(500).json({ erro: "Erro" }); }
 });
+
 app.put("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque_historico").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+  try {
+    const { tipoAcao, quantidade, observacao } = req.body;
+    const resultado = await db.collection("historico_estoque").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: { tipoAcao, quantidade: Number(quantidade), observacao } });
+    if(resultado.matchedCount > 0) res.json({ ok: true }); else res.status(404).json({ erro: "Registro não encontrado." });
+  } catch (erro) { res.status(500).json({ erro: "Erro ao atualizar histórico" }); }
 });
+
 app.delete("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque_historico").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+  try {
+    const resultado = await db.collection("historico_estoque").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) });
+    if(resultado.deletedCount > 0) res.json({ ok: true }); else res.status(404).json({ erro: "Registro não encontrado." });
+  } catch (erro) { res.status(500).json({ erro: "Erro ao excluir histórico" }); }
 });
 
 // =====================================================================
 // GESTÃO DE PEÇAS E SOLICITAÇÕES
 // =====================================================================
-app.get("/api/pecas/catalogo", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("pecas_catalogo").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.post('/api/pecas/catalogo', autenticarToken, async (req, res) => {
+    try { const { nome, codigo, quantidade_inicial } = req.body; await db.collection("catalogo_pecas").insertOne({ cliente_id: req.usuario.cliente_id, nome: nome.toUpperCase().trim(), codigo: codigo || "", estoque: Number(quantidade_inicial) || 0, criadoEm: new Date() }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro ao cadastrar peça"}); }
 });
-app.post("/api/pecas/catalogo", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_catalogo").insertOne({ nome: req.body.nome, estoque: Number(req.body.quantidade_inicial) || 0, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.get('/api/pecas/catalogo', autenticarToken, async (req, res) => {
+    try { const pecas = await db.collection("catalogo_pecas").find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray(); res.json(pecas); } catch(e) { res.status(500).json({erro: "Erro ao listar peças"}); }
 });
-app.put("/api/pecas/catalogo/:id/editar", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_catalogo").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { nome: req.body.novo_nome, estoque: Number(req.body.novo_estoque) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
+    try { await db.collection("catalogo_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
 });
-app.delete("/api/pecas/catalogo/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_catalogo").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.put('/api/pecas/catalogo/:id/editar', autenticarToken, async (req, res) => {
+    try { const { novo_nome, novo_estoque } = req.body; await db.collection("catalogo_pecas").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { nome: novo_nome, estoque: Number(novo_estoque) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro ao editar peça"}); }
 });
 
-app.get("/api/pecas/solicitacoes", autenticarToken, async (req, res) => {
-    try {
-        const data = req.query.data;
-        let filtro = getFiltroSaaS(req);
-        if (data) filtro.dataSolicitacao = { $regex: data.trim(),$options: "i" };
-        res.json(await db.collection("pecas_solicitacoes").find(filtro).sort({ dataSolicitacao: -1 }).toArray());
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
+    try { const { tecnico, peca_id, nome_peca, quantidade, observacao } = req.body; await db.collection("solicitacoes_pecas").insertOne({ cliente_id: req.usuario.cliente_id, tecnico, peca_id, nome_peca, quantidade: Number(quantidade), observacao, dataSolicitacao: new Date() }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro ao solicitar peça"}); }
 });
-app.put("/api/pecas/solicitacoes/:id/editar", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_solicitacoes").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { quantidade: Number(req.body.nova_quantidade) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
+    try { const { data } = req.query; let filtro = { cliente_id: req.usuario.cliente_id }; if (data) { let inicio = new Date(data); let fim = new Date(data); fim.setDate(fim.getDate() + 1); filtro.dataSolicitacao = { $gte: inicio,$lt: fim }; } const solicitacoes = await db.collection("solicitacoes_pecas").find(filtro).sort({ dataSolicitacao: -1 }).toArray(); res.json(solicitacoes); } catch(e) { res.status(500).json({erro: "Erro ao listar solicitações"}); }
 });
-app.delete("/api/pecas/solicitacoes/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_solicitacoes").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
+    try { const { nova_quantidade } = req.body; await db.collection("solicitacoes_pecas").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { quantidade: Number(nova_quantidade) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro ao editar solicitação"}); }
+});
+app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
+    try { await db.collection("solicitacoes_pecas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro ao excluir solicitação"}); }
 });
 
 // =====================================================================
@@ -515,7 +512,6 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
         let dataBusca = req.query.data;
         let filtro = getFiltroSaaS(req);
         
-        // Assegura que apenas a data ESPECÍFICA pedida é carregada
         if (dataBusca) {
             let variacoesData = [dataBusca];
             if (dataBusca.includes('/')) {
@@ -527,6 +523,8 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
             }
             filtro.data = { $in: variacoesData };
         }
+        
+        filtro.status = { $ne: "Finalizado" };
         
         res.json(await db.collection("fila_ponto").find(filtro).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
@@ -547,11 +545,11 @@ app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
         let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            filtro.data = { $regex: mesAno.trim(),$options: 'i' };
+            filtro.data = { $regex: mesAno,$options: 'i' };
         }
         
         if (tecnico && tecnico !== "TODOS") {
-            filtro.tecnico = { $regex: tecnico.trim(),$options: 'i' };
+            filtro.tecnico = { $regex: `^${tecnico.trim()}$`, $options: 'i' };
         }
         
         res.json(await db.collection("fila_ponto").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
