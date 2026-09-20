@@ -83,7 +83,7 @@ app.post("/login", async (req, res) => {
 
     const token = jwt.sign(
       { id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id },
-      JWT_SECRET, { expiresIn: "12h" }
+      JWT_SECRET, { expiresIn: "30d" }
     );
 
     const tipoFront = usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo;
@@ -180,6 +180,53 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
     await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: atualizacao });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
+});
+
+// =====================================================================
+// ROTA DE CHECK-IN COM BASE NA CONFIGURAÇÃO DO PAINEL (GEOFENCING)
+// =====================================================================
+app.post('/api/rotas/checkin', autenticarToken, async (req, res) => {
+  try {
+    const { tecnico, latitude, longitude } = req.body;
+    if (!tecnico || latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ erro: "Dados de localização incompletos para o check-in." });
+    }
+
+    const cliente_id = req.usuario.cliente_id;
+
+    // Busca a configuração de geofencing salva pela aba "Regras e Base GPS"
+    const configBase = await db.collection("configuracoes").findOne({ cliente_id });
+    
+    if (!configBase || !configBase.latBase || !configBase.lonBase) {
+      return res.status(400).json({ erro: "As coordenadas da Base GPS não foram configuradas no painel." });
+    }
+
+    const latBase = Number(configBase.latBase);
+    const lonBase = Number(configBase.lonBase);
+    const raioPermitido = Number(configBase.raioBase) || 30; // Padrão de metros configurado na tela
+
+    // Cálculo da distância em metros (Fórmula de Haversine)
+    const R = 6371e3; 
+    const rad = Math.PI / 180;
+    const dLat = (Number(latitude) - latBase) * rad;
+    const dLon = (Number(longitude) - lonBase) * rad;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(latBase * rad) * Math.cos(Number(latitude) * rad) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distanciaMetros = R * c;
+
+    if (distanciaMetros > raioPermitido) {
+      return res.status(403).json({ 
+        erro: `Check-in negado! Você está a ${Math.round(distanciaMetros)} metros da base. O raio máximo permitido é de ${raioPermitido} metros.` 
+      });
+    }
+
+    res.json({ ok: true, mensagem: "Check-in realizado com sucesso dentro do raio permitido!" });
+  } catch (e) {
+    console.error("Erro no check-in:", e);
+    res.status(500).json({ erro: "Erro interno ao processar a validação de localização." });
+  }
 });
 
 // =====================================================================
