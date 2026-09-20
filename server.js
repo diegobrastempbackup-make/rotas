@@ -198,7 +198,8 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
         if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
         const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
         if(empresa && empresa.cliente_id) {
-            const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_totem", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes", "alertas_totem"];
+            // Alterado fila_totem para fila_ponto na exclusão do tenant
+            const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_ponto", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes", "alertas_totem"];
             for (let c of collections) await db.collection(c).deleteMany({ cliente_id: empresa.cliente_id });
         }
         res.json({ ok: true });
@@ -337,7 +338,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR DE ROTAS E RELATÓRIOS
+// ROTEIRIZADOR DE ROTAS
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -358,18 +359,15 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       const { data, codigo } = req.query;
       let filtro = getFiltroSaaS(req);
       
-      // Fix Definitivo: Pesquisa a Data com Regex flexível 
       if (data) {
-          filtro.data = { $regex: data };
+          filtro.data = new RegExp(data, "i");
       }
       if (codigo) {
-          filtro["itinerario.codigo"] = { $regex: codigo,$options: 'i' };
+          filtro["itinerario.codigo"] = new RegExp(codigo, "i");
       }
       
       res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
-  } catch (err) { 
-      res.status(500).json({ erro: "Erro ao buscar roteiros." }); 
-  }
+  } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
 });
 
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
@@ -499,7 +497,7 @@ app.delete("/api/pecas/solicitacoes/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// FILA / TRIAGEM / TOTEM DE ENTRADA
+// FILA / TRIAGEM / TOTEM DE ENTRADA (AGORA LÊ A COLEÇÃO FILA_PONTO)
 // =====================================================================
 app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     try {
@@ -511,60 +509,66 @@ app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
         const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
         payload.atrasado = (base && base.limiteAtraso) ? (payload.horaChegada > base.limiteAtraso) : false;
 
-        await db.collection("fila_totem").insertOne(payload);
+        // Alterado de fila_totem para fila_ponto
+        await db.collection("fila_ponto").insertOne(payload);
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro interno."}); }
 });
 
-// Fix Definitivo: Fila ao Vivo blindada
 app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
     try {
         let dataBusca = req.query.data;
         let filtro = getFiltroSaaS(req);
         
         let condicoesOr = [
-            { status: { $nin: ["Finalizado"] } } // Mostra sempre o que estiver aberto
+            { status: { $nin: ["Finalizado"] } }
         ];
 
         if (dataBusca) {
-            let variacoesData = [dataBusca, dataBusca.replace('/0', '/').replace(/^0/, '')];
-            const p = dataBusca.split('/');
-            if (p.length === 3) {
-                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
+            let variacoesData = [dataBusca];
+            if (dataBusca.includes('/')) {
+                const p = dataBusca.split('/');
+                if (p.length === 3) {
+                    variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
+                    variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
+                }
             }
             condicoesOr.push({ data: { $in: variacoesData } });
         }
         
         filtro.$or = condicoesOr;
         
-        res.json(await db.collection("fila_totem").find(filtro).sort({ horaChegada: 1 }).toArray());
+        // Alterado de fila_totem para fila_ponto
+        res.json(await db.collection("fila_ponto").find(filtro).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
         res.status(500).json({erro: "Erro ao carregar fila."}); 
     }
 });
 
 app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
-    try { await db.collection("fila_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+    try { 
+        // Alterado de fila_totem para fila_ponto
+        await db.collection("fila_ponto").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); 
+        res.json({ ok: true }); 
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
 
-// Fix Definitivo: Relatório PDF da Fila seguro com $regex
 app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
     try {
         const { mesAno, tecnico } = req.query;
         let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            // Utilizamos uma pesquisa nativa segura em vez de "new RegExp"
-            filtro.data = { $regex: mesAno };
+            filtro.data = new RegExp(mesAno, "i");
         }
         
         if (tecnico && tecnico !== "TODOS") {
-            filtro.tecnico = tecnico;
+            filtro.tecnico = new RegExp(`^${tecnico.trim()}$`, "i");
         }
         
-        res.json(await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
+        // Alterado de fila_totem para fila_ponto
+        res.json(await db.collection("fila_ponto").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
     } catch(e) { 
-        console.error(e);
         res.status(500).json({erro: "Erro interno ao gerar relatório."}); 
     }
 });
