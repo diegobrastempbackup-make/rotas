@@ -238,7 +238,7 @@ app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// CADASTROS BASE E TÉCNICOS
+// CADASTROS BASE E TÉCNICOS DA FROTA
 // =====================================================================
 app.get('/api/bases', autenticarToken, async (req, res) => {
   try { res.json(await db.collection("bases_operacionais").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); }
@@ -337,7 +337,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR DE ROTAS E APLICATIVO
+// ROTEIRIZADOR DE ROTAS E APLICATIVO ANDROID (API)
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -384,14 +384,33 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
+// AQUI ESTÁ A CORREÇÃO: Rotas blindadas para a App Android
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
-        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        
+        let variacoesData = [data, data.trim()];
+        if (data && data.includes('/')) {
+            const p = data.split('/');
+            if (p.length === 3) {
+                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
+                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
+            }
+        }
+        
+        const codLimpo = String(codigoOs).trim();
+        let filterDoc = { 
+            data: { $in: variacoesData }, 
+            tecnico: { $regex: `^${tecnico.trim()}$`, $options: 'i' }, 
+            cliente_id: req.usuario.cliente_id, 
+            "itinerario.codigo": { $in: [codigoOs, codLimpo, Number(codLimpo)] } 
+        };
+        
         let atualizacao = { "itinerario.$.status": novoStatus };
         if (campoTempo && valorTempo) atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         if (latitude !== undefined && longitude !== undefined) { atualizacao["itinerario.$.latCheckin"] = latitude; atualizacao["itinerario.$.lonCheckin"] = longitude; }
         if (motivo) atualizacao["itinerario.$.motivoInsucesso"] = motivo;
+        
         const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
         if (resultado.matchedCount > 0) res.json({ ok: true });
         else res.status(400).json({ erro: "Paragem não encontrada" });
@@ -401,7 +420,24 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
 app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, lat, lon } = req.body;
-        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        
+        let variacoesData = [data, data.trim()];
+        if (data && data.includes('/')) {
+            const p = data.split('/');
+            if (p.length === 3) {
+                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
+                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
+            }
+        }
+        
+        const codLimpo = String(codigoOs).trim();
+        let filterDoc = { 
+            data: { $in: variacoesData }, 
+            tecnico: { $regex: `^${tecnico.trim()}$`, $options: 'i' }, 
+            cliente_id: req.usuario.cliente_id, 
+            "itinerario.codigo": { $in: [codigoOs, codLimpo, Number(codLimpo)] } 
+        };
+        
         let novoPonto = { lat, lon, timestamp: new Date() };
         await db.collection("planejamento_rotas").updateOne(filterDoc, { $push: { "itinerario.$.rastroReal": novoPonto } });
         res.json({ ok: true });
@@ -411,7 +447,24 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
 app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
-        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        
+        let variacoesData = [data, data.trim()];
+        if (data && data.includes('/')) {
+            const p = data.split('/');
+            if (p.length === 3) {
+                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
+                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
+            }
+        }
+        
+        const codLimpo = String(codigoOs).trim();
+        let filterDoc = { 
+            data: { $in: variacoesData }, 
+            tecnico: { $regex: `^${tecnico.trim()}$`, $options: 'i' }, 
+            cliente_id: req.usuario.cliente_id, 
+            "itinerario.codigo": { $in: [codigoOs, codLimpo, Number(codLimpo)] } 
+        };
+        
         let atualizacao = { "itinerario.$.rua": novoEndereco, "itinerario.$.lat": lat, "itinerario.$.lon": lon, "itinerario.$.precisaCorrecao": false };
         const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
         if (resultado.matchedCount > 0) res.json({ ok: true });
@@ -460,7 +513,7 @@ app.post("/registro", autenticarToken, async (req, res) => {
 app.delete("/registro/:id", autenticarToken, async (req, res) => { try { await db.collection("registros").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 
 // =====================================================================
-// ALMOXARIFADO E ESTOQUE INDEPENDENTE (BASEADO NO SCRIPT ORIGINAL)
+// ALMOXARIFADO E ESTOQUE INDEPENDENTE
 // =====================================================================
 app.get("/api/tecnicos", autenticarToken, async (req, res) => { 
   try { 
@@ -552,7 +605,7 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// FILA / TRIAGEM / TOTEM DE ENTRADA (LÊ A COLEÇÃO FILA_PONTO)
+// FILA / TRIAGEM / TOTEM DE ENTRADA
 // =====================================================================
 app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     try {
