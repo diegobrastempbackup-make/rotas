@@ -255,7 +255,7 @@ app.delete("/api/bases/:id", autenticarToken, async (req, res) => {
 
 app.get("/api/config-base", autenticarToken, async (req, res) => {
   try {
-    const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
+    const base = await db.collection("bases_operacionais").findOne(getFiltroSaaS(req));
     if (!base) return res.json({});
     res.json({ latBase: base.lat, lonBase: base.lon, nome: base.nome, endereco: base.endereco, limiteAtraso: base.limiteAtraso, raioBase: base.raioBase });
   } catch (e) { res.status(500).json({ erro: "Erro" }); }
@@ -279,11 +279,12 @@ app.delete("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => {
 
 app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) => {
   try {
-    const cliente_id = req.usuario.cliente_id;
+    let filtroGeral = getFiltroSaaS(req);
+    let filtroTecnicos = { ...filtroGeral, tipo: "tecnico", ativo: { $ne: false } };
     const [tecnicosDashboard, usuariosTecnicos, bases] = await Promise.all([
-      db.collection("tecnicos_dashboard").find({ cliente_id }).sort({ nome: 1 }).toArray(),
-      db.collection("usuarios").find({ cliente_id, tipo: "tecnico", ativo: { $ne: false } }).sort({ nome: 1 }).toArray(),
-      db.collection("bases_operacionais").find({ cliente_id }).sort({ nome: 1 }).toArray()
+      db.collection("tecnicos_dashboard").find(filtroGeral).sort({ nome: 1 }).toArray(),
+      db.collection("usuarios").find(filtroTecnicos).sort({ nome: 1 }).toArray(),
+      db.collection("bases_operacionais").find(filtroGeral).sort({ nome: 1 }).toArray()
     ]);
     const mapaBases = new Map(bases.map(b => [String(b._id), b]));
     const mapaUsuarios = new Map(usuariosTecnicos.map(u => [String(u.nome).trim().toUpperCase(), u]));
@@ -312,13 +313,12 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
 // =====================================================================
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
     try { 
-        let equipe = await db.collection("equipe_totem").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray();
-        // Se a lista de crachás estiver vazia, vai buscar os técnicos da frota automaticamente
+        let filtro = getFiltroSaaS(req);
+        let equipe = await db.collection("equipe_totem").find(filtro).sort({ nome: 1 }).toArray();
         if (equipe.length === 0) {
-            const frota = await db.collection("tecnicos_dashboard").find({ 
-                cliente_id: req.usuario.cliente_id,
-                $or: [{ status: "Ativo" }, { status: { $exists: false } }, { status: null }]
-            }).sort({ nome: 1 }).toArray();
+            let filtroFrota = getFiltroSaaS(req);
+            filtroFrota.$or = [{ status: "Ativo" }, { status: { $exists: false } }, { status: null }];
+            const frota = await db.collection("tecnicos_dashboard").find(filtroFrota).sort({ nome: 1 }).toArray();
             equipe = frota.map(t => ({ nome: t.nome, funcao: "Técnico" }));
         }
         res.json(equipe); 
@@ -326,7 +326,6 @@ app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
         res.status(500).json({ erro: "Erro ao buscar equipe do totem" }); 
     }
 });
-
 app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
     try { await db.collection("equipe_totem").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -357,7 +356,7 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
-      let filtro = { cliente_id: req.usuario.cliente_id };
+      let filtro = getFiltroSaaS(req);
       if (data) filtro.data = { $in: [data, data.includes('-') ? data.split('-').reverse().join('/') : data] };
       if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
       res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
@@ -430,7 +429,11 @@ app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
 });
 
 app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("estoque_historico").find({ tecnico: req.params.nome, cliente_id: req.usuario.cliente_id }).sort({ data: -1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+    try { 
+        let filtro = getFiltroSaaS(req);
+        filtro.tecnico = req.params.nome;
+        res.json(await db.collection("estoque_historico").find(filtro).sort({ data: -1 }).toArray()); 
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
 app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
     try {
@@ -474,7 +477,7 @@ app.delete("/api/pecas/catalogo/:id", autenticarToken, async (req, res) => {
 app.get("/api/pecas/solicitacoes", autenticarToken, async (req, res) => {
     try {
         const data = req.query.data;
-        let filtro = { cliente_id: req.usuario.cliente_id };
+        let filtro = getFiltroSaaS(req);
         if (data) filtro.dataSolicitacao = { $regex: `^${data}` };
         res.json(await db.collection("pecas_solicitacoes").find(filtro).sort({ dataSolicitacao: -1 }).toArray());
     } catch(e) { res.status(500).json({erro: "Erro."}); }
@@ -512,20 +515,19 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
         if (dataBusca) {
             variacoesData.push(dataBusca);
             const p = dataBusca.split('/');
-            // Lida com datas enviadas do frontend como "9/9/2026"
             if (p.length === 3) {
                 variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
                 variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
             }
         }
         
-        res.json(await db.collection("fila_totem").find({ 
-            cliente_id: req.usuario.cliente_id,
-            $or: [
-                { data: { $in: variacoesData } },
-                { status: { $in: ["Aguardando", "Chamando", "Em atendimento"] } }
-            ]
-        }).sort({ horaChegada: 1 }).toArray());
+        let filtro = getFiltroSaaS(req);
+        filtro.$or = [
+            { data: { $in: variacoesData } },
+            { status: { $ne: "Finalizado" } }
+        ];
+        
+        res.json(await db.collection("fila_totem").find(filtro).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
         res.status(500).json({erro: "Erro ao carregar fila."}); 
     }
@@ -538,12 +540,11 @@ app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
 app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
     try {
         const { mesAno, tecnico } = req.query;
-        let filtro = { cliente_id: req.usuario.cliente_id };
+        let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            // Utilizamos a string direta anexando "$" ao final (ex: "08/2026$")
-            // No driver Node do MongoDB, não é necessário fazer escape manual da barra (/) para strings
-            filtro.data = { $regex: mesAno + "$" };
+            // Em vez de escape com string, utiliza regex instanciada que é 100% segura com o driver Mongo
+            filtro.data = new RegExp(`${mesAno}$`);
         }
         
         if (tecnico && tecnico !== "TODOS") {
@@ -562,7 +563,11 @@ app.post("/api/totem/alerta-balcao", autenticarToken, async (req, res) => {
 });
 
 app.get("/api/totem/alertas-pendentes", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("alertas_totem").find({ status: "pendente", cliente_id: req.usuario.cliente_id }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+    try { 
+        let filtro = getFiltroSaaS(req);
+        filtro.status = "pendente";
+        res.json(await db.collection("alertas_totem").find(filtro).toArray()); 
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
 
 app.put("/api/totem/alerta-balcao/:id/concluido", autenticarToken, async (req, res) => {
