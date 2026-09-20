@@ -309,7 +309,7 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
 });
 
 // =====================================================================
-// EQUIPE TOTEM
+// EQUIPE TOTEM E FALLBACK
 // =====================================================================
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
     try { 
@@ -337,7 +337,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR DE ROTAS
+// ROTEIRIZADOR DE ROTAS E APLICATIVO
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -353,18 +353,26 @@ app.post('/api/rotas', autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao salvar roteiro." }); }
 });
 
+app.put('/api/rotas/:id', autenticarToken, async (req, res) => {
+    try {
+        const { itinerario } = req.body;
+        if (!itinerario) return res.status(400).json({ erro: "Itinerário vazio" });
+        const itinerarioFormatado = itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
+        const resultado = await db.collection("planejamento_rotas").updateOne(
+            { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
+            { $set: { itinerario: itinerarioFormatado, atualizadoEm: new Date() } }
+        );
+        if (resultado.matchedCount === 1) res.json({ ok: true });
+        else res.status(404).json({ erro: "Rota não encontrada para edição." });
+    } catch (err) { res.status(500).json({ erro: "Erro fatal ao editar roteiro." }); }
+});
+
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
       let filtro = getFiltroSaaS(req);
-      
-      if (data) {
-          filtro.data = { $regex: data.trim(),$options: "i" };
-      }
-      if (codigo) {
-          filtro["itinerario.codigo"] = { $regex: codigo.trim(),$options: "i" };
-      }
-      
+      if (data) filtro.data = { $regex: data.trim(), $options: "i" };
+      if (codigo) filtro["itinerario.codigo"] = { $regex: codigo.trim(), $options: "i" };
       res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
   } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
 });
@@ -376,43 +384,97 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
+app.put('/api/rotas/status', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        let atualizacao = { "itinerario.$.status": novoStatus };
+        if (campoTempo && valorTempo) atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
+        if (latitude !== undefined && longitude !== undefined) { atualizacao["itinerario.$.latCheckin"] = latitude; atualizacao["itinerario.$.lonCheckin"] = longitude; }
+        if (motivo) atualizacao["itinerario.$.motivoInsucesso"] = motivo;
+        const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
+        if (resultado.matchedCount > 0) res.json({ ok: true });
+        else res.status(400).json({ erro: "Paragem não encontrada" });
+    } catch (err) { res.status(500).json({ erro: "Erro ao atualizar status." }); }
+});
+
+app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, lat, lon } = req.body;
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        let novoPonto = { lat, lon, timestamp: new Date() };
+        await db.collection("planejamento_rotas").updateOne(filterDoc, { $push: { "itinerario.$.rastroReal": novoPonto } });
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ erro: "Erro ao salvar tracking." }); }
+});
+
+app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        let atualizacao = { "itinerario.$.rua": novoEndereco, "itinerario.$.lat": lat, "itinerario.$.lon": lon, "itinerario.$.precisaCorrecao": false };
+        const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
+        if (resultado.matchedCount > 0) res.json({ ok: true });
+        else res.status(400).json({ erro: "Paragem não encontrada." });
+    } catch (err) { res.status(500).json({ erro: "Erro ao salvar novo endereço." }); }
+});
+
+app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
+    try {
+        const { tecnico, mesAno } = req.query; 
+        const rotas = await db.collection("planejamento_rotas").find({ tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, data: new RegExp(mesAno, 'i') }).toArray();
+        let total = 0; let sucesso = 0; let insucesso = 0;
+        rotas.forEach(rota => {
+            if (rota.itinerario) {
+                rota.itinerario.forEach(os => {
+                    total++;
+                    if (os.status === 'sucesso') sucesso++;
+                    else if (os.status === 'insucesso') insucesso++;
+                });
+            }
+        });
+        res.json({ total, sucesso, insucesso });
+    } catch (e) { res.status(500).json({ erro: "Erro ao gerar relatório" }); }
+});
+
 // =====================================================================
 // REGISTROS (LANÇAMENTO DE DADOS DE FROTA)
 // =====================================================================
 app.get("/api/registros", autenticarToken, async (req, res) => { 
-  try { 
-    res.json(await db.collection("registros").find(getFiltroSaaS(req)).sort({ tecnico: 1, data: 1 }).toArray()); 
-  } catch (e) { res.status(500).json({ erro: "Erro ao buscar registros" }); } 
+  try { res.json(await db.collection("registros").find(getFiltroSaaS(req)).sort({ data: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } 
 });
-
 app.post("/registro", autenticarToken, async (req, res) => {
   try {
-    const { dados } = req.body;
-    if (!dados || !Array.isArray(dados)) return res.status(400).json({ erro: "Dados inválidos." });
-    for (const item of dados) {
-      if (!item.data || !item.tecnico) continue;
-      await db.collection("registros").updateOne(
-        { cliente_id: req.usuario.cliente_id, tecnico: item.tecnico, data: item.data },
-        { $set: { ...item, cliente_id: req.usuario.cliente_id, atualizadoEm: new Date() } },
-        { upsert: true }
-      );
-    }
-    res.json({ ok: true, mensagem: "Dados guardados com sucesso!" });
-  } catch (err) { res.status(500).json({ erro: "Erro ao guardar dados." }); }
-});
-
-app.delete("/registro/:id", autenticarToken, async (req, res) => {
-  try {
-    await db.collection("registros").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
+    let dados = req.body.dados || [];
+    if (dados.length === 0) return res.status(400).json({ erro: "Vazio" });
+    const mapa = new Set();
+    dados = dados.filter(item => { const chave = `${item.tecnico}_${String(item.data).split('T')[0]}`; if (mapa.has(chave)) return false; mapa.add(chave); return true; });
+    const operacoes = dados.map(item => {
+      const dataLimpa = item.data ? String(item.data).split('T')[0] : ''; if (item._id) delete item._id; item.cliente_id = req.usuario.cliente_id;
+      return { updateOne: { filter: { tecnico: item.tecnico, data: dataLimpa, cliente_id: req.usuario.cliente_id }, update: { $set: item }, upsert: true } };
+    });
+    await db.collection("registros").bulkWrite(operacoes);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: "Erro ao excluir o registro." }); }
+  } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
+app.delete("/registro/:id", autenticarToken, async (req, res) => { try { await db.collection("registros").deleteOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } });
 
 // =====================================================================
 // ALMOXARIFADO E ESTOQUE INDEPENDENTE (BASEADO NO SCRIPT ORIGINAL)
 // =====================================================================
 app.get("/api/tecnicos", autenticarToken, async (req, res) => { 
-  try { res.json(await db.collection("tecnicos").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); } 
+  try { 
+      let tecnicos = await db.collection("tecnicos").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray(); 
+      if (tecnicos.length === 0) {
+          let filtroFrota = getFiltroSaaS(req);
+          filtroFrota.$or = [{ status: "Ativo" }, { status: { $exists: false } }, { status: null }];
+          const frota = await db.collection("tecnicos_dashboard").find(filtroFrota).sort({ nome: 1 }).toArray();
+          tecnicos = frota.map(t => ({ _id: t._id, nome: t.nome }));
+      }
+      res.json(tecnicos);
+  } catch (err) { 
+      res.status(500).json({ erro: "Erro" }); 
+  } 
 });
 app.post("/api/tecnicos", autenticarToken, async (req, res) => { 
   try { const nome = (req.body.nome || "").trim(); const existe = await db.collection("tecnicos").findOne({ nome, cliente_id: req.usuario.cliente_id }); if (existe) return res.status(400).json({ erro: "Já registado" }); await db.collection("tecnicos").insertOne({ cliente_id: req.usuario.cliente_id, nome, criadoEm: new Date() }); res.json({ ok: true }); } catch (err) { res.status(500).json({ erro: "Erro" }); } 
@@ -490,7 +552,7 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// FILA / TRIAGEM / TOTEM DE ENTRADA
+// FILA / TRIAGEM / TOTEM DE ENTRADA (LÊ A COLEÇÃO FILA_PONTO)
 // =====================================================================
 app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     try {
@@ -525,7 +587,6 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
         }
         
         filtro.status = { $ne: "Finalizado" };
-        
         res.json(await db.collection("fila_ponto").find(filtro).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
         res.status(500).json({erro: "Erro ao carregar fila."}); 
