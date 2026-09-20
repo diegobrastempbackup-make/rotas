@@ -342,7 +342,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR DE ROTAS E APLICATIVO ANDROID (LÓGICA RESTAURADA E ORIGINAL)
+// ROTEIRIZADOR DE ROTAS E APLICATIVO ANDROID (LÓGICA EXTRAÍDA RIGOROSAMENTE DO SEU SERVER ANTIGO)
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -391,7 +391,6 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
-// AQUI: ROTAS DA APP ANDROID COPIADAS EXATAMENTE DO SEU SERVER QUE FUNCIONAVA
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
@@ -404,6 +403,25 @@ app.put('/api/rotas/status', autenticarToken, async (req, res) => {
         if (resultado.matchedCount > 0) res.json({ ok: true });
         else res.status(400).json({ erro: "Paragem não encontrada" });
     } catch (err) { res.status(500).json({ erro: "Erro ao atualizar status." }); }
+});
+
+app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
+    try {
+        const { tecnico, mesAno } = req.query; 
+        const regexData = new RegExp(`/${mesAno}$`); 
+        const rotas = await db.collection("planejamento_rotas").find({ tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, data: regexData }).toArray();
+        let total = 0; let sucesso = 0; let insucesso = 0;
+        rotas.forEach(rota => {
+            if (rota.itinerario) {
+                rota.itinerario.forEach(os => {
+                    total++;
+                    if (os.status === 'sucesso') sucesso++;
+                    else if (os.status === 'insucesso') insucesso++;
+                });
+            }
+        });
+        res.json({ total, sucesso, insucesso });
+    } catch (e) { res.status(500).json({ erro: "Erro ao gerar relatório" }); }
 });
 
 app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
@@ -425,25 +443,6 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
         if (resultado.matchedCount > 0) res.json({ ok: true });
         else res.status(400).json({ erro: "Paragem não encontrada." });
     } catch (err) { res.status(500).json({ erro: "Erro ao salvar novo endereço." }); }
-});
-
-app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
-    try {
-        const { tecnico, mesAno } = req.query; 
-        const regexData = new RegExp(`/${mesAno}$`); 
-        const rotas = await db.collection("planejamento_rotas").find({ tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, data: regexData }).toArray();
-        let total = 0; let sucesso = 0; let insucesso = 0;
-        rotas.forEach(rota => {
-            if (rota.itinerario) {
-                rota.itinerario.forEach(os => {
-                    total++;
-                    if (os.status === 'sucesso') sucesso++;
-                    else if (os.status === 'insucesso') insucesso++;
-                });
-            }
-        });
-        res.json({ total, sucesso, insucesso });
-    } catch (e) { res.status(500).json({ erro: "Erro ao gerar relatório" }); }
 });
 
 // =====================================================================
