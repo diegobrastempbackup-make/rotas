@@ -509,7 +509,6 @@ app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
         const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
         payload.atrasado = (base && base.limiteAtraso) ? (payload.horaChegada > base.limiteAtraso) : false;
 
-        // Alterado de fila_totem para fila_ponto
         await db.collection("fila_ponto").insertOne(payload);
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro interno."}); }
@@ -520,10 +519,7 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
         let dataBusca = req.query.data;
         let filtro = getFiltroSaaS(req);
         
-        let condicoesOr = [
-            { status: { $nin: ["Finalizado"] } }
-        ];
-
+        // Bloqueia resultados antigos exigindo que coincida APENAS com as datas de "hoje"
         if (dataBusca) {
             let variacoesData = [dataBusca];
             if (dataBusca.includes('/')) {
@@ -533,12 +529,12 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
                     variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
                 }
             }
-            condicoesOr.push({ data: { $in: variacoesData } });
+            // Filtro rígido: Tem de ser na data de hoje e não pode estar "Finalizado"
+            filtro.data = { $in: variacoesData };
         }
         
-        filtro.$or = condicoesOr;
+        filtro.status = { $ne: "Finalizado" };
         
-        // Alterado de fila_totem para fila_ponto
         res.json(await db.collection("fila_ponto").find(filtro).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
         res.status(500).json({erro: "Erro ao carregar fila."}); 
@@ -547,7 +543,6 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
 
 app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
     try { 
-        // Alterado de fila_totem para fila_ponto
         await db.collection("fila_ponto").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); 
         res.json({ ok: true }); 
     } catch(e) { res.status(500).json({erro: "Erro."}); }
@@ -559,14 +554,15 @@ app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
         let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            filtro.data = new RegExp(mesAno, "i");
+            // Remove o '$' (fim da string) para prevenir erros de formatação na base de dados
+            // Se o MongoDB tem "04/09/2026 ", a regex procura apenas se "09/2026" existe na string
+            filtro.data = { $regex: mesAno,$options: 'i' };
         }
         
         if (tecnico && tecnico !== "TODOS") {
-            filtro.tecnico = new RegExp(`^${tecnico.trim()}$`, "i");
+            filtro.tecnico = { $regex: `^${tecnico.trim()}$`, $options: 'i' };
         }
         
-        // Alterado de fila_totem para fila_ponto
         res.json(await db.collection("fila_ponto").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
     } catch(e) { 
         res.status(500).json({erro: "Erro interno ao gerar relatório."}); 
