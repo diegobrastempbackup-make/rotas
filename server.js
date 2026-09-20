@@ -337,7 +337,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR DE ROTAS
+// ROTEIRIZADOR DE ROTAS E RELATÓRIOS
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -357,10 +357,19 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
       let filtro = getFiltroSaaS(req);
-      if (data) filtro.data = { $in: [data, data.includes('-') ? data.split('-').reverse().join('/') : data] };
-      if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
+      
+      // Fix Definitivo: Pesquisa a Data com Regex flexível 
+      if (data) {
+          filtro.data = { $regex: data };
+      }
+      if (codigo) {
+          filtro["itinerario.codigo"] = { $regex: codigo,$options: 'i' };
+      }
+      
       res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
-  } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
+  } catch (err) { 
+      res.status(500).json({ erro: "Erro ao buscar roteiros." }); 
+  }
 });
 
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
@@ -507,25 +516,26 @@ app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro interno."}); }
 });
 
+// Fix Definitivo: Fila ao Vivo blindada
 app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
     try {
         let dataBusca = req.query.data;
-        let variacoesData = [];
+        let filtro = getFiltroSaaS(req);
         
+        let condicoesOr = [
+            { status: { $nin: ["Finalizado"] } } // Mostra sempre o que estiver aberto
+        ];
+
         if (dataBusca) {
-            variacoesData.push(dataBusca);
+            let variacoesData = [dataBusca, dataBusca.replace('/0', '/').replace(/^0/, '')];
             const p = dataBusca.split('/');
             if (p.length === 3) {
                 variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
-                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
             }
+            condicoesOr.push({ data: { $in: variacoesData } });
         }
         
-        let filtro = getFiltroSaaS(req);
-        filtro.$or = [
-            { data: { $in: variacoesData } },
-            { status: { $ne: "Finalizado" } }
-        ];
+        filtro.$or = condicoesOr;
         
         res.json(await db.collection("fila_totem").find(filtro).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
@@ -537,23 +547,24 @@ app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
     try { await db.collection("fila_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
 
+// Fix Definitivo: Relatório PDF da Fila seguro com $regex
 app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
     try {
         const { mesAno, tecnico } = req.query;
         let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            // Em vez de escape com string, utiliza regex instanciada que é 100% segura com o driver Mongo
-            filtro.data = new RegExp(`${mesAno}$`);
+            // Utilizamos uma pesquisa nativa segura em vez de "new RegExp"
+            filtro.data = { $regex: mesAno };
         }
         
         if (tecnico && tecnico !== "TODOS") {
             filtro.tecnico = tecnico;
         }
         
-        const dados = await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray();
-        res.json(dados);
+        res.json(await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
     } catch(e) { 
+        console.error(e);
         res.status(500).json({erro: "Erro interno ao gerar relatório."}); 
     }
 });
