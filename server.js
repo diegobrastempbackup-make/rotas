@@ -342,7 +342,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR E APLICATIVO ANDROID (BLINDADO CONTRA CÓDIGOS DE TEXTO E ESPAÇOS)
+// ROTEIRIZADOR DE ROTAS E APLICATIVO ANDROID (LÓGICA EXTRAÍDA DO SERVER_3.JS)
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -389,26 +389,19 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
-// AQUI: FIX DEFINITIVO DAS 3 ROTAS DO APLICATIVO ANDROID
+// ROTAS DO APLICATIVO ANDROID: Extraídas 100% do server antigo
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
         
-        const dataRegex = new RegExp((data || "").trim(), 'i');
-        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
-        const codLimpo = String(codigoOs).trim();
-        
-        let codigosSeguros = [codigoOs, codLimpo, String(codigoOs)];
-        const conversaoNum = Number(codLimpo);
-        if (!isNaN(conversaoNum)) {
-            codigosSeguros.push(conversaoNum);
-        }
+        let codigosParaBusca = [codigoOs, String(codigoOs)];
+        if (!isNaN(Number(codigoOs))) codigosParaBusca.push(Number(codigoOs));
 
         let filterDoc = { 
-            data: dataRegex, 
-            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
+            data: data, 
+            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: codigosSeguros } 
+            "itinerario.codigo": { $in: codigosParaBusca } 
         };
         
         let atualizacao = { "itinerario.$.status": novoStatus };
@@ -426,21 +419,14 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, lat, lon } = req.body;
         
-        const dataRegex = new RegExp((data || "").trim(), 'i');
-        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
-        const codLimpo = String(codigoOs).trim();
-        
-        let codigosSeguros = [codigoOs, codLimpo, String(codigoOs)];
-        const conversaoNum = Number(codLimpo);
-        if (!isNaN(conversaoNum)) {
-            codigosSeguros.push(conversaoNum);
-        }
+        let codigosParaBusca = [codigoOs, String(codigoOs)];
+        if (!isNaN(Number(codigoOs))) codigosParaBusca.push(Number(codigoOs));
 
         let filterDoc = { 
-            data: dataRegex, 
-            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
+            data: data, 
+            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: codigosSeguros } 
+            "itinerario.codigo": { $in: codigosParaBusca } 
         };
         
         let novoPonto = { lat, lon, timestamp: new Date() };
@@ -453,21 +439,14 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
         
-        const dataRegex = new RegExp((data || "").trim(), 'i');
-        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
-        const codLimpo = String(codigoOs).trim();
-        
-        let codigosSeguros = [codigoOs, codLimpo, String(codigoOs)];
-        const conversaoNum = Number(codLimpo);
-        if (!isNaN(conversaoNum)) {
-            codigosSeguros.push(conversaoNum);
-        }
+        let codigosParaBusca = [codigoOs, String(codigoOs)];
+        if (!isNaN(Number(codigoOs))) codigosParaBusca.push(Number(codigoOs));
 
         let filterDoc = { 
-            data: dataRegex, 
-            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
+            data: data, 
+            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: codigosSeguros } 
+            "itinerario.codigo": { $in: codigosParaBusca } 
         };
         
         let atualizacao = { "itinerario.$.rua": novoEndereco, "itinerario.$.lat": lat, "itinerario.$.lon": lon, "itinerario.$.precisaCorrecao": false };
@@ -480,12 +459,12 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
 app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
     try {
         const { tecnico, mesAno } = req.query; 
-        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regexData = new RegExp(`/${mesAno}$`); 
         
         const rotas = await db.collection("planejamento_rotas").find({ 
-            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
+            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
-            data: new RegExp((mesAno || "").trim(), 'i') 
+            data: regexData 
         }).toArray();
         
         let total = 0; let sucesso = 0; let insucesso = 0;
@@ -617,7 +596,7 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// FILA / TRIAGEM / TOTEM DE ENTRADA
+// FILA / TRIAGEM / TOTEM DE ENTRADA (LÊ A COLEÇÃO FILA_PONTO)
 // =====================================================================
 app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     try {
