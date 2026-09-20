@@ -540,18 +540,25 @@ app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro interno."}); }
 });
 app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("fila_totem").find({ data: req.query.data, cliente_id: req.usuario.cliente_id }).sort({ horaChegada: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
-    try { await db.collection("fila_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
     try {
-        const { mesAno, tecnico } = req.query;
-        let filtro = { cliente_id: req.usuario.cliente_id, data: new RegExp(`\/${mesAno}$`) };
-        if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico;
-        res.json(await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
+        let dataBusca = req.query.data;
+        
+        // Força a formatação para ter sempre 2 dígitos no dia e no mês (ex: 9/9/2026 -> 09/09/2026)
+        if (dataBusca && dataBusca.includes('/')) {
+            const partes = dataBusca.split('/');
+            if (partes.length === 3) {
+                dataBusca = `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
+            }
+        }
+
+        res.json(await db.collection("fila_totem")
+            .find({ data: dataBusca, cliente_id: req.usuario.cliente_id })
+            .sort({ horaChegada: 1 })
+            .toArray());
+            
+    } catch(e) { 
+        res.status(500).json({erro: "Erro ao carregar fila de hoje."}); 
+    }
 });
 
 app.post("/api/totem/alerta-balcao", autenticarToken, async (req, res) => {

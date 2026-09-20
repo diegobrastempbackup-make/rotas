@@ -231,28 +231,34 @@
     }
 
     async function carregarListaTecnicosParaFiltro() {
-        try {
-            const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
-            const equipe = await res.json();
-            
-            const comboManual = document.getElementById("manualTecnico");
-            const comboRelatorio = document.getElementById("filtroTecnicoPonto");
-            const comboConversa = document.getElementById("tecnicoConversa");
-            
-            comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
-            comboRelatorio.innerHTML = `<option value="TODOS">Geral (Todos os Funcionários)</option>`;
-            comboConversa.innerHTML = `<option value="">Selecione o funcionário...</option>`;
-            
-            equipe.sort((a, b) => a.nome.localeCompare(b.nome));
-            
-            equipe.forEach(p => { 
+    try {
+        // Altera a rota para buscar todos os motoristas registados no Dashboard
+        const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
+        const equipe = await res.json();
+        
+        const comboManual = document.getElementById("manualTecnico");
+        const comboRelatorio = document.getElementById("filtroTecnicoPonto");
+        const comboConversa = document.getElementById("tecnicoConversa");
+        
+        comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
+        comboRelatorio.innerHTML = `<option value="TODOS">Geral (Todos os Funcionários)</option>`;
+        comboConversa.innerHTML = `<option value="">Selecione o funcionário...</option>`;
+        
+        // Organiza a lista de A a Z
+        equipe.sort((a, b) => a.nome.localeCompare(b.nome));
+        
+        equipe.forEach(p => { 
+            // Mostra apenas os técnicos que estão ativos na empresa
+            if(p.status === "Ativo" || !p.status) {
                 comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
                 comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
                 comboConversa.innerHTML += `<option value="${p.nome}">${p.nome}</option>`;
-            });
-        } catch(e) {}
+            }
+        });
+    } catch(e) {
+        console.error("Erro ao carregar a lista de técnicos", e);
     }
-
+}
     async function registrarEntradaManual() {
         const nome = document.getElementById("manualTecnico").value;
         if (!nome) return alert("Selecione um funcionário na lista primeiro!");
