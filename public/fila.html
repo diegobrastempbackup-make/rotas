@@ -226,10 +226,10 @@
         } catch(e) {}
     }
 
-    // CORREÇÃO 1: Carrega todos os técnicos ativos do Dashboard para os dropdowns
+    // CORRIGIDO: Puxa diretamente da lista de Equipe Totem (Técnicos Lista)
     async function carregarListaTecnicosParaFiltro() {
         try {
-            const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
+            const res = await fetch("/api/equipe-totem", { headers: { "Authorization": `Bearer ${token}` } });
             const equipe = await res.json();
             
             const comboManual = document.getElementById("manualTecnico");
@@ -243,11 +243,9 @@
             equipe.sort((a, b) => a.nome.localeCompare(b.nome));
             
             equipe.forEach(p => { 
-                if(p.status === "Ativo" || !p.status) {
-                    comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
-                    comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
-                    comboConversa.innerHTML += `<option value="${p.nome}">${p.nome}</option>`;
-                }
+                comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
+                comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
+                comboConversa.innerHTML += `<option value="${p.nome}">${p.nome}</option>`;
             });
         } catch(e) {
             console.error("Erro ao carregar a lista de técnicos", e);
@@ -271,7 +269,6 @@
         } catch (err) {}
     }
 
-    // CORREÇÃO 2: Força a data de hoje estrita com dois dígitos
     async function atualizarFila() {
         const agora = new Date();
         const dataHoje = `${String(agora.getDate()).padStart(2, '0')}/${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
@@ -374,7 +371,6 @@
         atualizarFila();
     }
 
-    // CORREÇÃO 3: PDF não colapsa graças ao window.jsPDF = window.jspdf.jsPDF
     async function gerarPDFPonto() {
         const mesAnoStr = document.getElementById("filtroMesPonto").value; 
         if (!mesAnoStr) return alert("Por favor, selecione um mês.");
@@ -393,7 +389,6 @@
             if (!Array.isArray(historico)) return alert("Dados inválidos retornados pelo servidor.");
             if (historico.length === 0) return alert("Nenhum registro encontrado para este mês/técnico.");
 
-            // FIX: Religar a biblioteca ao objeto correto para usar a tabela
             window.jsPDF = window.jspdf.jsPDF; 
             const doc = new window.jsPDF();
             
