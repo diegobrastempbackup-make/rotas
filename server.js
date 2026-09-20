@@ -18,10 +18,9 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-app.use((req, res, next) => {
-  next();
-});
-
+// =====================================================================
+// MIDDLEWARES DE AUTENTICAÇÃO E SAAS
+// =====================================================================
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -88,73 +87,9 @@ const requisitarGoogle = url => new Promise((resolve, reject) => {
   }).on("error", reject);
 });
 
-
-// =====================================================================
-// VALIDACAO_FORTE_ENDERECO_V4
-// CEP + NUMERO + LOGRADOURO antes de aceitar coordenada
-// =====================================================================
-
-function normalizarTextoEndereco(valor){
-  return String(valor || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g,"")
-    .toLowerCase()
-    .trim();
-}
-
-function validarCandidatoEndereco(resultado, original){
-
-  const texto = normalizarTextoEndereco(
-    resultado.formatted_address
-  );
-
-  let score = 0;
-  let problemas = [];
-
-  if(original.rua &&
-     texto.includes(normalizarTextoEndereco(original.rua))){
-      score += 30;
-  } else {
-      problemas.push("rua");
-  }
-
-  if(original.cidade &&
-     texto.includes(normalizarTextoEndereco(original.cidade))){
-      score += 20;
-  } else {
-      problemas.push("cidade");
-  }
-
-  if(original.bairro &&
-     texto.includes(normalizarTextoEndereco(original.bairro))){
-      score += 20;
-  }
-
-  if(original.cep){
-      const cep = String(original.cep).replace(/\D/g,"");
-      if(texto.includes(cep.substring(0,5))){
-          score += 25;
-      } else {
-          problemas.push("cep");
-      }
-  }
-
-  if(resultado.geometry.location_type === "ROOFTOP"){
-      score += 20;
-  }
-
-  if(resultado.geometry.location_type === "APPROXIMATE"){
-      score -= 80;
-  }
-
-  return {score, problemas};
-}
-
 app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
   try {
-    const entrada = typeof req.body.endereco === "object"
-      ? req.body.endereco
-      : { rua: req.body.endereco };
+    const entrada = typeof req.body.endereco === "object" ? req.body.endereco : { rua: req.body.endereco };
     const rua = String(entrada.rua || entrada.endereco || "").trim();
     const numero = String(entrada.numero || "").trim();
     const bairro = String(entrada.bairro || entrada.distrito || "").trim();
@@ -167,19 +102,6 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     if(!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
 
     const enderecoCompleto = [rua, numero, bairro, cidade, uf, cep, "Brasil"].filter(Boolean).join(", ");
-
-    console.log("========================================");
-    console.log("DIAGNOSTICO GEOCODIFICACAO");
-    console.log("ENTRADA ORIGINAL:", JSON.stringify(req.body, null, 2));
-    console.log("RUA:", rua);
-    console.log("NUMERO:", numero);
-    console.log("BAIRRO:", bairro);
-    console.log("CIDADE:", cidade);
-    console.log("UF:", uf);
-    console.log("CEP:", cep);
-    console.log("ENDERECO ENVIADO GOOGLE:", enderecoCompleto);
-    console.log("========================================");
-
     const consultas = [
       { address: enderecoCompleto },
       { address: [rua, numero, cidade, uf, "Brasil"].filter(Boolean).join(", ") },
@@ -190,20 +112,8 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     for (const consulta of consultas) {
       const params = new URLSearchParams({ ...consulta, language: "pt-BR", region: "br", key: apiKey });
       const json = await requisitarGoogle(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
-      if (json.status === "REQUEST_DENIED") {
-        return res.status(502).json({ encontrado: false, erro: "Google Maps recusou a requisição. Verifique a chave e a Geocoding API." });
-      }
-      if (json.status === "OK") {
-        console.log("RETORNO GOOGLE CONSULTA:", consulta.address);
-        json.results.forEach((r, index) => {
-          console.log("CANDIDATO", index + 1, {
-            endereco: r.formatted_address,
-            precisao: r.geometry?.location_type,
-            parcial: r.partial_match || false
-          });
-        });
-        candidatos.push(...json.results);
-      }
+      if (json.status === "REQUEST_DENIED") return res.status(502).json({ encontrado: false, erro: "API Key recusada." });
+      if (json.status === "OK") candidatos.push(...json.results);
     }
 
     const avaliados = candidatos.map(resultado => {
@@ -228,26 +138,9 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
       return { resultado, score, tipo, cidadeGoogle, ufGoogle, cepGoogle, ruaGoogle, numeroGoogle };
     }).sort((a, b) => b.score - a.score);
 
-    console.log("RESULTADOS AVALIADOS:");
-    avaliados.forEach((item, index) => {
-      console.log(index + 1, {
-        endereco: item.resultado.formatted_address,
-        score: item.score,
-        tipo: item.tipo,
-        cidade: item.cidadeGoogle,
-        cep: item.cepGoogle,
-        rua: item.ruaGoogle,
-        numero: item.numeroGoogle
-      });
-    });
-
     const melhor = avaliados[0];
     if (!melhor || melhor.score < 45) {
-      return res.json({
-        encontrado: false,
-        motivo: melhor?.score === -100 ? "DIVERGENCIA_DE_LOCALIDADE" : "BAIXA_CONFIANCA",
-        enderecoConsultado: enderecoCompleto
-      });
+      return res.json({ encontrado: false, motivo: melhor?.score === -100 ? "DIVERGENCIA_DE_LOCALIDADE" : "BAIXA_CONFIANCA", enderecoConsultado: enderecoCompleto });
     }
 
     const altaPrecisao = melhor.score >= 75 && ["ROOFTOP", "RANGE_INTERPOLATED"].includes(melhor.tipo);
@@ -259,18 +152,9 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
       score: Math.min(100, melhor.score),
       precisaCorrecao: !altaPrecisao,
       enderecoFormatado: melhor.resultado.formatted_address,
-      componentes: {
-        rua: melhor.ruaGoogle,
-        numero: melhor.numeroGoogle,
-        cidade: melhor.cidadeGoogle,
-        uf: melhor.ufGoogle,
-        cep: melhor.cepGoogle
-      }
+      componentes: { rua: melhor.ruaGoogle, numero: melhor.numeroGoogle, cidade: melhor.cidadeGoogle, uf: melhor.ufGoogle, cep: melhor.cepGoogle }
     });
-  } catch(e) {
-    console.error("Erro na geocodificação:", e.message);
-    res.status(500).json({ encontrado: false, erro: "Falha ao consultar o serviço de geocodificação." });
-  }
+  } catch(e) { res.status(500).json({ encontrado: false, erro: "Falha na geocodificação." }); }
 });
 
 // =====================================================================
@@ -279,30 +163,16 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
 app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
   try {
     const { enderecosBrutos } = req.body;
-    if (!enderecosBrutos || !Array.isArray(enderecosBrutos)) {
-      return res.status(400).json({ erro: "Lista de endereços inválida." });
-    }
-
-    const prompt = `Analise a seguinte lista de endereços e dados brutos extraídos de uma planilha logística. 
-    Para cada item, corrija erros de digitação, normalize abreviações e valide informações existentes. Não invente dados faltantes. Retorne estritamente um array JSON válido onde cada objeto contenha exatamente: 
-    { "rua": "...", "numero": "...", "bairro": "...", "cidade": "...", "estado": "...", "cep": "..." }.
-    
-    Dados: ${JSON.stringify(enderecosBrutos)}`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: { responseMimeType: 'application/json' },
-    });
-
-    const enderecosTratados = JSON.parse(response.text);
-    res.json({ ok: true, resultados: enderecosTratados });
-  } catch (err) {
-    res.status(500).json({ erro: "Erro ao processar com IA." });
-  }
+    if (!enderecosBrutos || !Array.isArray(enderecosBrutos)) return res.status(400).json({ erro: "Lista inválida." });
+    const prompt = `Analise a seguinte lista de endereços e dados brutos. Corrija erros de digitação, normalize abreviações. Retorne um array JSON com: { "rua": "...", "numero": "...", "bairro": "...", "cidade": "...", "estado": "...", "cep": "..." }. Dados: ${JSON.stringify(enderecosBrutos)}`;
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json' } });
+    res.json({ ok: true, resultados: JSON.parse(response.text) });
+  } catch (err) { res.status(500).json({ erro: "Erro IA." }); }
 });
 
+// =====================================================================
 // ROTAS DE PÁGINAS FRONT-END
+// =====================================================================
 app.get("/", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
 app.get("/dados.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/dados.html"); } catch (err) { res.redirect("/login.html"); }});
@@ -312,27 +182,22 @@ app.get("/roteirizador.html", (req, res) => { if (!req.query.token) return res.r
 app.get("/diario.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/diario.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/fila.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/fila.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/totem.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/totem.html"); } catch (err) { res.redirect("/login.html"); }});
-
 app.get("/ping", (req, res) => res.status(200).send("Servidor acordado!"));
 
-// LOGIN E GESTÃO
+// =====================================================================
+// AUTENTICAÇÃO E ADMINISTRAÇÃO SAAS
+// =====================================================================
 app.post("/login", async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
-    
     if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
     if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso." });
 
     const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
     if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta" });
 
-   const token = jwt.sign(
-  { id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id },
-  JWT_SECRET,
-  { expiresIn: "30d" }
-);
-
+    const token = jwt.sign({ id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id }, JWT_SECRET, { expiresIn: "30d" });
     const tipoFront = usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo;
     res.json({ ok: true, token, nome: usuarioBanco.nome, tipo: tipoFront });
   } catch (err) { res.status(500).json({ erro: "Erro ao realizar login" }); }
@@ -352,29 +217,117 @@ app.post("/nova-empresa", autenticarToken, async (req, res) => {
 app.get("/api/empresas", autenticarToken, async (req, res) => {
   try {
     if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
-    res.json(await db.collection("usuarios").find({ tipo: "master" }).project({ senha: 0 }).toArray());
+    res.json(await db.collection("usuarios").find({ tipo: "master" }).project({ senha: 0 }).sort({ empresaNome: 1 }).toArray());
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
+});
+
+app.post("/api/acessar-empresa/:id", autenticarToken, async (req, res) => {
+    try {
+        if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
+        const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
+        if (!empresa) return res.status(404).json({ erro: "Empresa não encontrada." });
+        const token = jwt.sign({ id: req.usuario.id, tipo: "master", cliente_id: empresa.cliente_id, superadmin_original: true }, JWT_SECRET, { expiresIn: "1d" });
+        res.json({ ok: true, token, nome: empresa.empresaNome });
+    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
+});
+
+app.post("/api/voltar-admin", autenticarToken, async (req, res) => {
+    try {
+        if (!req.usuario.superadmin_original) return res.status(403).json({ erro: "Acesso negado." });
+        const token = jwt.sign({ id: req.usuario.id, tipo: "superadmin", cliente_id: "GERAL" }, JWT_SECRET, { expiresIn: "1d" });
+        res.json({ ok: true, token });
+    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
+});
+
+app.put("/api/empresas/:id/status", autenticarToken, async (req, res) => {
+    try {
+        if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
+        await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id) }, { $set: { ativo: req.body.ativo } });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
+    try {
+        if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
+        const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
+        if(empresa && empresa.cliente_id) {
+            const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_totem", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes"];
+            for (let c of collections) await db.collection(c).deleteMany({ cliente_id: empresa.cliente_id });
+        }
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
 
 app.post("/cadastro", autenticarToken, async (req, res) => {
   try {
     if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
-    const { nome, usuario, senha, tipo, cliente_id, base_id, base_nome } = req.body; 
+    const { nome, usuario, senha, tipo, base_id, base_nome } = req.body; 
     const senhaHash = await bcrypt.hash(senha, 10);
-    const tenantId = (req.usuario.tipo === "superadmin" && cliente_id) ? cliente_id : req.usuario.cliente_id;
+    const tenantId = (req.usuario.tipo === "superadmin" && req.body.cliente_id) ? req.body.cliente_id : req.usuario.cliente_id;
     await db.collection("usuarios").insertOne({ cliente_id: tenantId, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, base_id: base_id ? String(base_id) : null, base_nome: base_nome || null, ativo: true, criadoEm: new Date() });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
 app.get("/api/usuarios", autenticarToken, async (req, res) => {
-  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); }
+  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).sort({ nome: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); }
 });
 
+app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
+    try {
+        const { nome, tipo, senha, base_id, base_nome } = req.body;
+        let updateData = { nome, tipo, base_id: base_id || null, base_nome: base_nome || null };
+        if (senha && senha.trim() !== "") updateData.senha = await bcrypt.hash(senha, 10);
+        await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: updateData });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
+});
+
+app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
+    try {
+        await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
+});
+
+// =====================================================================
+// CADASTROS BASE (BASES, TÉCNICOS, EQUIPE TOTEM)
+// =====================================================================
 app.get('/api/bases', autenticarToken, async (req, res) => {
+  try { res.json(await db.collection("bases_operacionais").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); }
+});
+app.post("/api/bases", autenticarToken, async (req, res) => {
+    try { await db.collection("bases_operacionais").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/bases/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("bases_operacionais").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/bases/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("bases_operacionais").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.get("/api/config-base", autenticarToken, async (req, res) => {
   try {
-    res.json(await db.collection("bases_operacionais").find({ cliente_id: req.usuario.cliente_id }).sort({ nome: 1 }).toArray());
+    const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
+    if (!base) return res.json({});
+    res.json({ latBase: base.lat, lonBase: base.lon, nome: base.nome, endereco: base.endereco, limiteAtraso: base.limiteAtraso, raioBase: base.raioBase });
   } catch (e) { res.status(500).json({ erro: "Erro" }); }
+});
+app.post("/api/config-base", autenticarToken, async (req, res) => {
+    try { await db.collection("bases_operacionais").updateOne({ cliente_id: req.usuario.cliente_id }, { $set: req.body }, { upsert: true }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { 
+  try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } 
+});
+app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => {
+    try { await db.collection("tecnicos_dashboard").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("tecnicos_dashboard").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("tecnicos_dashboard").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
 
 app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) => {
@@ -382,8 +335,8 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
     const cliente_id = req.usuario.cliente_id;
     const [tecnicosDashboard, usuariosTecnicos, bases] = await Promise.all([
       db.collection("tecnicos_dashboard").find({ cliente_id }).sort({ nome: 1 }).toArray(),
-      db.collection("usuarios").find({ cliente_id, tipo: "tecnico", ativo: { $ne: false } }).toArray(),
-      db.collection("bases_operacionais").find({ cliente_id }).toArray()
+      db.collection("usuarios").find({ cliente_id, tipo: "tecnico", ativo: { $ne: false } }).sort({ nome: 1 }).toArray(),
+      db.collection("bases_operacionais").find({ cliente_id }).sort({ nome: 1 }).toArray()
     ]);
     const mapaBases = new Map(bases.map(b => [String(b._id), b]));
     const mapaUsuarios = new Map(usuariosTecnicos.map(u => [String(u.nome).trim().toUpperCase(), u]));
@@ -394,61 +347,35 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
       const usuario = mapaUsuarios.get(chave) || null;
       const tecnicoDashboard = mapaDashboard.get(chave) || null;
       const baseId = usuario?.base_id || tecnicoDashboard?.base_id || null;
-      const base = baseId ? (mapaBases.get(String(baseId)) || null) : null;
       resultado.push({
         ...(tecnicoDashboard || {}),
         ...(usuario ? { usuario_id: String(usuario._id), usuario: usuario.usuario, tipo: usuario.tipo } : {}),
         nome: usuario?.nome || tecnicoDashboard?.nome || chave,
         base_id: baseId,
-        base
+        base: baseId ? (mapaBases.get(String(baseId)) || null) : null
       });
     }
+    resultado.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
     res.json(resultado);
   } catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// =====================================================================
-// ROTA ADICIONADA: EQUIPE TOTEM (TÉCNICOS LISTA)
-// =====================================================================
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
-    try {
-        const equipe = await db.collection("equipe_totem").find({ cliente_id: req.usuario.cliente_id }).toArray();
-        res.json(equipe);
-    } catch(e) { res.status(500).json({ erro: "Erro ao listar equipa" }); }
+    try { res.json(await db.collection("equipe_totem").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({ erro: "Erro" }); }
 });
-
 app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
-    try {
-        const { nome, funcao, foto } = req.body;
-        await db.collection("equipe_totem").insertOne({ cliente_id: req.usuario.cliente_id, nome, funcao, foto });
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({ erro: "Erro ao cadastrar pessoa" }); }
+    try { await db.collection("equipe_totem").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({ erro: "Erro" }); }
+});
+app.put("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("equipe_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("equipe_totem").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
 
-
-// Compatibilidade com roteirizador novo
-app.get("/api/config-base", autenticarToken, async (req, res) => {
-  try {
-    const base = await db.collection("bases_operacionais")
-      .findOne({ cliente_id: req.usuario.cliente_id });
-
-    if (!base) {
-      return res.json({});
-    }
-
-    res.json({
-      latBase: base.lat,
-      lonBase: base.lon,
-      nome: base.nome,
-      endereco: base.endereco
-    });
-
-  } catch (e) {
-    res.status(500).json({ erro: "Erro ao buscar base" });
-  }
-});
-
-// ROTEIRIZADOR E PLANEJAMENTO DE ROTAS
+// =====================================================================
+// ROTEIRIZADOR DE ROTAS
+// =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, tecnico, itinerario, base_id } = req.body;
@@ -467,11 +394,9 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
       let filtro = { cliente_id: req.usuario.cliente_id };
-      if (data) {
-          filtro.data = { $in: [data, data.includes('-') ? data.split('-').reverse().join('/') : data] };
-      }
+      if (data) filtro.data = { $in: [data, data.includes('-') ? data.split('-').reverse().join('/') : data] };
       if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
-      res.json(await db.collection("planejamento_rotas").find(filtro).toArray());
+      res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
   } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
 });
 
@@ -482,10 +407,166 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
-app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } });
-app.get("/api/estoque", autenticarToken, async (req, res) => { try { res.json(await db.collection("estoque").find(getFiltroSaaS(req)).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } });
-app.get("/api/registros", autenticarToken, async (req, res) => { try { res.json(await db.collection("registros").find(getFiltroSaaS(req)).sort({ data: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } });
+// =====================================================================
+// REGISTROS (LANÇAMENTO DE DADOS DE FROTA)
+// =====================================================================
+app.get("/api/registros", autenticarToken, async (req, res) => { 
+  try { 
+    res.json(await db.collection("registros").find(getFiltroSaaS(req)).sort({ tecnico: 1, data: 1 }).toArray()); 
+  } catch (e) { res.status(500).json({ erro: "Erro ao buscar registros" }); } 
+});
 
+app.post("/registro", autenticarToken, async (req, res) => {
+  try {
+    const { dados } = req.body;
+    if (!dados || !Array.isArray(dados)) return res.status(400).json({ erro: "Dados inválidos." });
+    for (const item of dados) {
+      if (!item.data || !item.tecnico) continue;
+      await db.collection("registros").updateOne(
+        { cliente_id: req.usuario.cliente_id, tecnico: item.tecnico, data: item.data },
+        { $set: { ...item, cliente_id: req.usuario.cliente_id, atualizadoEm: new Date() } },
+        { upsert: true }
+      );
+    }
+    res.json({ ok: true, mensagem: "Dados guardados com sucesso!" });
+  } catch (err) { res.status(500).json({ erro: "Erro ao guardar dados." }); }
+});
+
+app.delete("/registro/:id", autenticarToken, async (req, res) => {
+  try {
+    await db.collection("registros").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: "Erro ao excluir o registro." }); }
+});
+
+// =====================================================================
+// ALMOXARIFADO E ESTOQUE
+// =====================================================================
+app.get("/api/tecnicos", autenticarToken, async (req, res) => {
+    try { res.json(await db.collection("tecnicos_estoque").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.post("/api/tecnicos", autenticarToken, async (req, res) => {
+    try { await db.collection("tecnicos_estoque").insertOne({ nome: req.body.nome, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("tecnicos_estoque").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+app.get("/api/estoque", autenticarToken, async (req, res) => { 
+  try { res.json(await db.collection("estoque").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } 
+});
+app.post("/api/estoque", autenticarToken, async (req, res) => {
+    try { await db.collection("estoque").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("estoque").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("estoque").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
+    try { res.json(await db.collection("estoque_historico").find({ tecnico: req.params.nome, cliente_id: req.usuario.cliente_id }).sort({ data: -1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
+    try {
+        const { ferramentaId, quantidade, tipoAcao } = req.body;
+        if (ferramentaId) {
+            const qtdNum = Number(quantidade) || 1;
+            let mod = 0;
+            if (tipoAcao === "Entrega") mod = -qtdNum;
+            if (tipoAcao === "Devolução" || tipoAcao === "Devolucao") mod = qtdNum;
+            if (mod !== 0) {
+                await db.collection("estoque").updateOne({ _id: new ObjectId(ferramentaId), cliente_id: req.usuario.cliente_id }, { $inc: { qtd: mod } });
+            }
+        }
+        await db.collection("estoque_historico").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id });
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("estoque_historico").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("estoque_historico").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+// =====================================================================
+// GESTÃO DE PEÇAS E SOLICITAÇÕES
+// =====================================================================
+app.get("/api/pecas/catalogo", autenticarToken, async (req, res) => {
+    try { res.json(await db.collection("pecas_catalogo").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.post("/api/pecas/catalogo", autenticarToken, async (req, res) => {
+    try { await db.collection("pecas_catalogo").insertOne({ nome: req.body.nome, estoque: Number(req.body.quantidade_inicial) || 0, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/pecas/catalogo/:id/editar", autenticarToken, async (req, res) => {
+    try { await db.collection("pecas_catalogo").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { nome: req.body.novo_nome, estoque: Number(req.body.novo_estoque) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/pecas/catalogo/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("pecas_catalogo").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+app.get("/api/pecas/solicitacoes", autenticarToken, async (req, res) => {
+    try {
+        const data = req.query.data;
+        let filtro = { cliente_id: req.usuario.cliente_id };
+        if (data) filtro.dataSolicitacao = { $regex: `^${data}` };
+        res.json(await db.collection("pecas_solicitacoes").find(filtro).sort({ dataSolicitacao: -1 }).toArray());
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/pecas/solicitacoes/:id/editar", autenticarToken, async (req, res) => {
+    try { await db.collection("pecas_solicitacoes").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { quantidade: Number(req.body.nova_quantidade) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.delete("/api/pecas/solicitacoes/:id", autenticarToken, async (req, res) => {
+    try { await db.collection("pecas_solicitacoes").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+// =====================================================================
+// FILA / TRIAGEM / TOTEM DE ENTRADA
+// =====================================================================
+app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
+    try {
+        const payload = { ...req.body, status: "Aguardando", cliente_id: req.usuario.cliente_id, criadoEm: new Date() };
+        payload.horaChegada = req.body.horaBatida;
+        payload.data = req.body.dataBatida;
+        payload.tecnico = req.body.codigoBarras;
+        
+        const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
+        payload.atrasado = (base && base.limiteAtraso) ? (payload.horaChegada > base.limiteAtraso) : false;
+
+        await db.collection("fila_totem").insertOne(payload);
+        res.json({ ok: true });
+    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
+});
+app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
+    try { res.json(await db.collection("fila_totem").find({ data: req.query.data, cliente_id: req.usuario.cliente_id }).sort({ horaChegada: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
+    try { await db.collection("fila_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
+    try {
+        const { mesAno, tecnico } = req.query;
+        let filtro = { cliente_id: req.usuario.cliente_id, data: new RegExp(`\/${mesAno}$`) };
+        if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico;
+        res.json(await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
+    } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+app.post("/api/totem/alerta-balcao", autenticarToken, async (req, res) => {
+    try { await db.collection("alertas_totem").insertOne({ ...req.body, status: "pendente", cliente_id: req.usuario.cliente_id, criadoEm: new Date() }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.get("/api/totem/alertas-pendentes", autenticarToken, async (req, res) => {
+    try { res.json(await db.collection("alertas_totem").find({ status: "pendente", cliente_id: req.usuario.cliente_id }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+app.put("/api/totem/alerta-balcao/:id/concluido", autenticarToken, async (req, res) => {
+    try { await db.collection("alertas_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: "concluido" } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+// =====================================================================
+// CONEXÃO COM O BANCO DE DADOS E EXPORTAÇÃO
+// =====================================================================
 app.use(express.static(__dirname + "/public", { index: false }));
 
 async function conectarBanco() {
