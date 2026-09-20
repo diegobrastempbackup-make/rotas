@@ -18,14 +18,14 @@ let db = null;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// =====================================================================
-// MIDDLEWARES DE AUTENTICAÇÃO E SAAS
-// =====================================================================
 app.use((req, res, next) => {
   if (!db) return res.status(503).json({ erro: "Banco de dados inicializando. Tente novamente em instantes." });
   next();
 });
 
+// =====================================================================
+// MIDDLEWARES DE AUTENTICAÇÃO E SAAS
+// =====================================================================
 const autenticarToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -39,13 +39,6 @@ const autenticarToken = (req, res, next) => {
 const getFiltroSaaS = (req) => {
   if (req.usuario.tipo === "superadmin") return {}; 
   return { cliente_id: req.usuario.cliente_id };
-};
-
-// Limpa pontos, espaços e protege caracteres especiais para o MongoDB
-const limparNomeElasticamente = (nome) => {
-  if (!nome) return "";
-  const limpo = nome.replace(/[\.\s]+$/, '').trim();
-  return limpo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
 // =====================================================================
@@ -349,7 +342,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR DE ROTAS E APLICATIVO ANDROID (FIX ELASTICIDADE)
+// ROTEIRIZADOR E APLICATIVO ANDROID (BLINDADO CONTRA CÓDIGOS DE TEXTO E ESPAÇOS)
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -396,33 +389,24 @@ app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
-// AQUI: FIX DEFINITIVO PARA A APP ANDROID (IMPEDE O CRASH COM NaN E LIMPA NOMES/ESPAÇOS)
+// AQUI: FIX DEFINITIVO DAS 3 ROTAS DO APLICATIVO ANDROID
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
         
-        let variacoesData = [data, data.trim()];
-        if (data && data.includes('/')) {
-            const p = data.split('/');
-            if (p.length === 3) {
-                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
-                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
-            }
-        }
-        
+        const dataRegex = new RegExp((data || "").trim(), 'i');
+        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
         const codLimpo = String(codigoOs).trim();
+        
         let codigosSeguros = [codigoOs, codLimpo, String(codigoOs)];
-        const numCodigo = Number(codLimpo);
-        if (!isNaN(numCodigo)) {
-            codigosSeguros.push(numCodigo);
-            codigosSeguros.push(String(numCodigo));
+        const conversaoNum = Number(codLimpo);
+        if (!isNaN(conversaoNum)) {
+            codigosSeguros.push(conversaoNum);
         }
 
-        const tecLimpo = limparNomeElasticamente(tecnico);
-        
         let filterDoc = { 
-            data: { $in: variacoesData }, 
-            tecnico: new RegExp(tecLimpo, 'i'), 
+            data: dataRegex, 
+            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
             "itinerario.codigo": { $in: codigosSeguros } 
         };
@@ -442,28 +426,19 @@ app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, lat, lon } = req.body;
         
-        let variacoesData = [data, data.trim()];
-        if (data && data.includes('/')) {
-            const p = data.split('/');
-            if (p.length === 3) {
-                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
-                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
-            }
-        }
-        
+        const dataRegex = new RegExp((data || "").trim(), 'i');
+        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
         const codLimpo = String(codigoOs).trim();
+        
         let codigosSeguros = [codigoOs, codLimpo, String(codigoOs)];
-        const numCodigo = Number(codLimpo);
-        if (!isNaN(numCodigo)) {
-            codigosSeguros.push(numCodigo);
-            codigosSeguros.push(String(numCodigo));
+        const conversaoNum = Number(codLimpo);
+        if (!isNaN(conversaoNum)) {
+            codigosSeguros.push(conversaoNum);
         }
 
-        const tecLimpo = limparNomeElasticamente(tecnico);
-        
         let filterDoc = { 
-            data: { $in: variacoesData }, 
-            tecnico: new RegExp(tecLimpo, 'i'), 
+            data: dataRegex, 
+            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
             "itinerario.codigo": { $in: codigosSeguros } 
         };
@@ -478,28 +453,19 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
         
-        let variacoesData = [data, data.trim()];
-        if (data && data.includes('/')) {
-            const p = data.split('/');
-            if (p.length === 3) {
-                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
-                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
-            }
-        }
-        
+        const dataRegex = new RegExp((data || "").trim(), 'i');
+        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
         const codLimpo = String(codigoOs).trim();
+        
         let codigosSeguros = [codigoOs, codLimpo, String(codigoOs)];
-        const numCodigo = Number(codLimpo);
-        if (!isNaN(numCodigo)) {
-            codigosSeguros.push(numCodigo);
-            codigosSeguros.push(String(numCodigo));
+        const conversaoNum = Number(codLimpo);
+        if (!isNaN(conversaoNum)) {
+            codigosSeguros.push(conversaoNum);
         }
 
-        const tecLimpo = limparNomeElasticamente(tecnico);
-        
         let filterDoc = { 
-            data: { $in: variacoesData }, 
-            tecnico: new RegExp(tecLimpo, 'i'), 
+            data: dataRegex, 
+            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
             "itinerario.codigo": { $in: codigosSeguros } 
         };
@@ -514,12 +480,12 @@ app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
 app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
     try {
         const { tecnico, mesAno } = req.query; 
-        const tecLimpo = limparNomeElasticamente(tecnico);
+        const tecLimpo = (tecnico || "").trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         
         const rotas = await db.collection("planejamento_rotas").find({ 
-            tecnico: new RegExp(tecLimpo, 'i'), 
+            tecnico: new RegExp(`^${tecLimpo}`, 'i'), 
             cliente_id: req.usuario.cliente_id, 
-            data: new RegExp(mesAno, 'i') 
+            data: new RegExp((mesAno || "").trim(), 'i') 
         }).toArray();
         
         let total = 0; let sucesso = 0; let insucesso = 0;
@@ -705,7 +671,7 @@ app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
         let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            filtro.data = { $regex: mesAno,$options: 'i' };
+            filtro.data = { $regex: mesAno.trim(),$options: 'i' };
         }
         
         if (tecnico && tecnico !== "TODOS") {
