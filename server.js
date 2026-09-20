@@ -342,7 +342,7 @@ app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// ROTEIRIZADOR DE ROTAS E APLICATIVO ANDROID (LÓGICA EXTRAÍDA DO SERVER_3.JS)
+// ROTEIRIZADOR DE ROTAS (BLOCO DE CÓDIGO ORIGINAL DO SEU SERVER)
 // =====================================================================
 app.post('/api/rotas', autenticarToken, async (req, res) => {
   try {
@@ -375,98 +375,41 @@ app.put('/api/rotas/:id', autenticarToken, async (req, res) => {
 app.get('/api/rotas', autenticarToken, async (req, res) => {
   try {
       const { data, codigo } = req.query;
-      let filtro = getFiltroSaaS(req);
-      if (data) filtro.data = { $regex: data.trim(), $options: "i" };
-      if (codigo) filtro["itinerario.codigo"] = { $regex: codigo.trim(), $options: "i" };
-      res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
+      let filtro = { cliente_id: req.usuario.cliente_id };
+      if (data) filtro.data = data;
+      if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
+      const rotas = await db.collection("planejamento_rotas").find(filtro).toArray();
+      res.json(rotas);
   } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
 });
 
 app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
   try {
-      await db.collection("planejamento_rotas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
-      res.json({ ok: true });
+      const resultado = await db.collection("planejamento_rotas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
+      if (resultado.deletedCount === 1) res.json({ ok: true });
+      else res.status(404).json({ erro: "Não encontrada" });
   } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
 });
 
-// ROTAS DO APLICATIVO ANDROID: Extraídas 100% do server antigo
 app.put('/api/rotas/status', autenticarToken, async (req, res) => {
     try {
         const { data, tecnico, codigoOs, novoStatus, campoTempo, valorTempo, latitude, longitude, motivo } = req.body;
-        
-        let codigosParaBusca = [codigoOs, String(codigoOs)];
-        if (!isNaN(Number(codigoOs))) codigosParaBusca.push(Number(codigoOs));
-
-        let filterDoc = { 
-            data: data, 
-            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
-            cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: codigosParaBusca } 
-        };
-        
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
         let atualizacao = { "itinerario.$.status": novoStatus };
         if (campoTempo && valorTempo) atualizacao[`itinerario.$.${campoTempo}`] = valorTempo;
         if (latitude !== undefined && longitude !== undefined) { atualizacao["itinerario.$.latCheckin"] = latitude; atualizacao["itinerario.$.lonCheckin"] = longitude; }
         if (motivo) atualizacao["itinerario.$.motivoInsucesso"] = motivo;
-        
         const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
         if (resultado.matchedCount > 0) res.json({ ok: true });
         else res.status(400).json({ erro: "Paragem não encontrada" });
     } catch (err) { res.status(500).json({ erro: "Erro ao atualizar status." }); }
 });
 
-app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
-    try {
-        const { data, tecnico, codigoOs, lat, lon } = req.body;
-        
-        let codigosParaBusca = [codigoOs, String(codigoOs)];
-        if (!isNaN(Number(codigoOs))) codigosParaBusca.push(Number(codigoOs));
-
-        let filterDoc = { 
-            data: data, 
-            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
-            cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: codigosParaBusca } 
-        };
-        
-        let novoPonto = { lat, lon, timestamp: new Date() };
-        await db.collection("planejamento_rotas").updateOne(filterDoc, { $push: { "itinerario.$.rastroReal": novoPonto } });
-        res.json({ ok: true });
-    } catch (err) { res.status(500).json({ erro: "Erro ao salvar tracking." }); }
-});
-
-app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
-    try {
-        const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
-        
-        let codigosParaBusca = [codigoOs, String(codigoOs)];
-        if (!isNaN(Number(codigoOs))) codigosParaBusca.push(Number(codigoOs));
-
-        let filterDoc = { 
-            data: data, 
-            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
-            cliente_id: req.usuario.cliente_id, 
-            "itinerario.codigo": { $in: codigosParaBusca } 
-        };
-        
-        let atualizacao = { "itinerario.$.rua": novoEndereco, "itinerario.$.lat": lat, "itinerario.$.lon": lon, "itinerario.$.precisaCorrecao": false };
-        const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
-        if (resultado.matchedCount > 0) res.json({ ok: true });
-        else res.status(400).json({ erro: "Paragem não encontrada." });
-    } catch (err) { res.status(500).json({ erro: "Erro ao salvar novo endereço." }); }
-});
-
 app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
     try {
         const { tecnico, mesAno } = req.query; 
         const regexData = new RegExp(`/${mesAno}$`); 
-        
-        const rotas = await db.collection("planejamento_rotas").find({ 
-            tecnico: new RegExp(`^${tecnico}$`, 'i'), 
-            cliente_id: req.usuario.cliente_id, 
-            data: regexData 
-        }).toArray();
-        
+        const rotas = await db.collection("planejamento_rotas").find({ tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, data: regexData }).toArray();
         let total = 0; let sucesso = 0; let insucesso = 0;
         rotas.forEach(rota => {
             if (rota.itinerario) {
@@ -479,6 +422,27 @@ app.get('/api/rotas/relatorio', autenticarToken, async (req, res) => {
         });
         res.json({ total, sucesso, insucesso });
     } catch (e) { res.status(500).json({ erro: "Erro ao gerar relatório" }); }
+});
+
+app.put('/api/rotas/tracking', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, lat, lon } = req.body;
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        let novoPonto = { lat, lon, timestamp: new Date() };
+        await db.collection("planejamento_rotas").updateOne(filterDoc, { $push: { "itinerario.$.rastroReal": novoPonto } });
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ erro: "Erro ao salvar tracking." }); }
+});
+
+app.put('/api/rotas/endereco', autenticarToken, async (req, res) => {
+    try {
+        const { data, tecnico, codigoOs, novoEndereco, lat, lon } = req.body;
+        let filterDoc = { data: data, tecnico: new RegExp(`^${tecnico}$`, 'i'), cliente_id: req.usuario.cliente_id, "itinerario.codigo": { $in: [codigoOs, String(codigoOs), Number(codigoOs)] } };
+        let atualizacao = { "itinerario.$.rua": novoEndereco, "itinerario.$.lat": lat, "itinerario.$.lon": lon, "itinerario.$.precisaCorrecao": false };
+        const resultado = await db.collection("planejamento_rotas").updateOne(filterDoc, { $set: atualizacao });
+        if (resultado.matchedCount > 0) res.json({ ok: true });
+        else res.status(400).json({ erro: "Paragem não encontrada." });
+    } catch (err) { res.status(500).json({ erro: "Erro ao salvar novo endereço." }); }
 });
 
 // =====================================================================
@@ -596,7 +560,7 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// FILA / TRIAGEM / TOTEM DE ENTRADA (LÊ A COLEÇÃO FILA_PONTO)
+// FILA / TRIAGEM / TOTEM DE ENTRADA
 // =====================================================================
 app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     try {
@@ -650,7 +614,7 @@ app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
         let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            filtro.data = { $regex: mesAno.trim(),$options: 'i' };
+            filtro.data = { $regex: mesAno,$options: 'i' };
         }
         
         if (tecnico && tecnico !== "TODOS") {
