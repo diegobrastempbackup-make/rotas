@@ -308,11 +308,12 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
 });
 
 // =====================================================================
-// EQUIPE TOTEM
+// EQUIPE TOTEM E FALLBACK
 // =====================================================================
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
     try { 
         let equipe = await db.collection("equipe_totem").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray();
+        // Se a lista de crachás estiver vazia, vai buscar os técnicos da frota automaticamente
         if (equipe.length === 0) {
             const frota = await db.collection("tecnicos_dashboard").find({ 
                 cliente_id: req.usuario.cliente_id,
@@ -325,6 +326,7 @@ app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
         res.status(500).json({ erro: "Erro ao buscar equipe do totem" }); 
     }
 });
+
 app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
     try { await db.collection("equipe_totem").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({ erro: "Erro" }); }
 });
@@ -505,10 +507,12 @@ app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
 app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
     try {
         let dataBusca = req.query.data;
-        let variacoesData = [dataBusca];
+        let variacoesData = [];
         
-        if (dataBusca && dataBusca.includes('/')) {
+        if (dataBusca) {
+            variacoesData.push(dataBusca);
             const p = dataBusca.split('/');
+            // Lida com datas enviadas do frontend como "9/9/2026"
             if (p.length === 3) {
                 variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
                 variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
@@ -519,7 +523,7 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
             cliente_id: req.usuario.cliente_id,
             $or: [
                 { data: { $in: variacoesData } },
-                { status: { $ne: "Finalizado" } }
+                { status: { $in: ["Aguardando", "Chamando", "Em atendimento"] } }
             ]
         }).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
@@ -537,13 +541,17 @@ app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
         let filtro = { cliente_id: req.usuario.cliente_id };
         
         if (mesAno) {
-            const mesAnoSeguro = mesAno.replace(/\//g, '\\/');
-            filtro.data = { $regex: mesAnoSeguro + '$' };
+            // Utilizamos a string direta anexando "$" ao final (ex: "08/2026$")
+            // No driver Node do MongoDB, não é necessário fazer escape manual da barra (/) para strings
+            filtro.data = { $regex: mesAno + "$" };
         }
         
-        if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico;
+        if (tecnico && tecnico !== "TODOS") {
+            filtro.tecnico = tecnico;
+        }
         
-        res.json(await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
+        const dados = await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray();
+        res.json(dados);
     } catch(e) { 
         res.status(500).json({erro: "Erro interno ao gerar relatório."}); 
     }
