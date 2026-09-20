@@ -198,7 +198,6 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
         if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
         const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
         if(empresa && empresa.cliente_id) {
-            // Alterado fila_totem para fila_ponto na exclusão do tenant
             const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_ponto", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes", "alertas_totem"];
             for (let c of collections) await db.collection(c).deleteMany({ cliente_id: empresa.cliente_id });
         }
@@ -359,12 +358,9 @@ app.get('/api/rotas', autenticarToken, async (req, res) => {
       const { data, codigo } = req.query;
       let filtro = getFiltroSaaS(req);
       
-      if (data) {
-          filtro.data = new RegExp(data, "i");
-      }
-      if (codigo) {
-          filtro["itinerario.codigo"] = new RegExp(codigo, "i");
-      }
+      // Pesquisa elástica sem âncoras para evitar bloqueio por espaços vazios
+      if (data) filtro.data = { $regex: data.trim(),$options: "i" };
+      if (codigo) filtro["itinerario.codigo"] = { $regex: codigo.trim(),$options: "i" };
       
       res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
   } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
@@ -485,7 +481,7 @@ app.get("/api/pecas/solicitacoes", autenticarToken, async (req, res) => {
     try {
         const data = req.query.data;
         let filtro = getFiltroSaaS(req);
-        if (data) filtro.dataSolicitacao = { $regex: `^${data}` };
+        if (data) filtro.dataSolicitacao = { $regex: data.trim(),$options: "i" };
         res.json(await db.collection("pecas_solicitacoes").find(filtro).sort({ dataSolicitacao: -1 }).toArray());
     } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
@@ -497,7 +493,7 @@ app.delete("/api/pecas/solicitacoes/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// FILA / TRIAGEM / TOTEM DE ENTRADA (AGORA LÊ A COLEÇÃO FILA_PONTO)
+// FILA / TRIAGEM / TOTEM DE ENTRADA
 // =====================================================================
 app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
     try {
@@ -519,7 +515,7 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
         let dataBusca = req.query.data;
         let filtro = getFiltroSaaS(req);
         
-        // Bloqueia resultados antigos exigindo que coincida APENAS com as datas de "hoje"
+        // Assegura que apenas a data ESPECÍFICA pedida é carregada
         if (dataBusca) {
             let variacoesData = [dataBusca];
             if (dataBusca.includes('/')) {
@@ -529,11 +525,8 @@ app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
                     variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
                 }
             }
-            // Filtro rígido: Tem de ser na data de hoje e não pode estar "Finalizado"
             filtro.data = { $in: variacoesData };
         }
-        
-        filtro.status = { $ne: "Finalizado" };
         
         res.json(await db.collection("fila_ponto").find(filtro).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
@@ -554,13 +547,11 @@ app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
         let filtro = getFiltroSaaS(req);
         
         if (mesAno) {
-            // Remove o '$' (fim da string) para prevenir erros de formatação na base de dados
-            // Se o MongoDB tem "04/09/2026 ", a regex procura apenas se "09/2026" existe na string
-            filtro.data = { $regex: mesAno,$options: 'i' };
+            filtro.data = { $regex: mesAno.trim(),$options: 'i' };
         }
         
         if (tecnico && tecnico !== "TODOS") {
-            filtro.tecnico = { $regex: `^${tecnico.trim()}$`, $options: 'i' };
+            filtro.tecnico = { $regex: tecnico.trim(),$options: 'i' };
         }
         
         res.json(await db.collection("fila_ponto").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
