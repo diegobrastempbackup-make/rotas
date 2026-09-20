@@ -37,55 +37,18 @@ const getFiltroSaaS = (req) => {
 };
 
 // =====================================================================
-// GEOCODIFICAÇÃO GOOGLE MAPS
+// GEOCODIFICAÇÃO GOOGLE MAPS E GEMINI IA
 // =====================================================================
-const removerAcentos = (valor = "") => String(valor)
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "")
-  .toUpperCase()
-  .replace(/[^A-Z0-9]+/g, " ")
-  .trim();
-
+const removerAcentos = (valor = "") => String(valor).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
 const somenteDigitos = (valor = "") => String(valor).replace(/\D/g, "");
-
 const normalizarUf = (valor = "") => {
-  const mapa = {
-    ACRE: "AC", ALAGOAS: "AL", AMAPA: "AP", AMAZONAS: "AM", BAHIA: "BA", CEARA: "CE",
-    "DISTRITO FEDERAL": "DF", "ESPIRITO SANTO": "ES", GOIAS: "GO", MARANHAO: "MA",
-    "MATO GROSSO": "MT", "MATO GROSSO DO SUL": "MS", "MINAS GERAIS": "MG", PARA: "PA",
-    PARAIBA: "PB", PARANA: "PR", PERNAMBUCO: "PE", PIAUI: "PI", "RIO DE JANEIRO": "RJ",
-    "RIO GRANDE DO NORTE": "RN", "RIO GRANDE DO SUL": "RS", RONDONIA: "RO", RORAIMA: "RR",
-    "SANTA CATARINA": "SC", "SAO PAULO": "SP", SERGIPE: "SE", TOCANTINS: "TO"
-  };
+  const mapa = { ACRE: "AC", ALAGOAS: "AL", AMAPA: "AP", AMAZONAS: "AM", BAHIA: "BA", CEARA: "CE", "DISTRITO FEDERAL": "DF", "ESPIRITO SANTO": "ES", GOIAS: "GO", MARANHAO: "MA", "MATO GROSSO": "MT", "MATO GROSSO DO SUL": "MS", "MINAS GERAIS": "MG", PARA: "PA", PARAIBA: "PB", PARANA: "PR", PERNAMBUCO: "PE", PIAUI: "PI", "RIO DE JANEIRO": "RJ", "RIO GRANDE DO NORTE": "RN", "RIO GRANDE DO SUL": "RS", RONDONIA: "RO", RORAIMA: "RR", "SANTA CATARINA": "SC", "SAO PAULO": "SP", SERGIPE: "SE", TOCANTINS: "TO" };
   const limpo = removerAcentos(valor);
   return mapa[limpo] || limpo;
 };
-
-const componenteGoogle = (resultado, tipos) => {
-  const componente = (resultado.address_components || []).find(c =>
-    tipos.some(tipo => c.types.includes(tipo))
-  );
-  return componente?.long_name || "";
-};
-
-const similaridadeTexto = (a, b) => {
-  const ignorar = new Set(["RUA", "AVENIDA", "AV", "RODOVIA", "ESTRADA", "ALAMEDA", "TRAVESSA"]);
-  const tokens = valor => new Set(removerAcentos(valor).split(" ").filter(t => t && !ignorar.has(t)));
-  const ta = tokens(a); const tb = tokens(b);
-  if (!ta.size || !tb.size) return 0;
-  const intersecao = [...ta].filter(t => tb.has(t)).length;
-  return intersecao / Math.max(ta.size, tb.size);
-};
-
-const requisitarGoogle = url => new Promise((resolve, reject) => {
-  https.get(url, response => {
-    let dados = "";
-    response.on("data", chunk => { dados += chunk; });
-    response.on("end", () => {
-      try { resolve(JSON.parse(dados)); } catch (erro) { reject(erro); }
-    });
-  }).on("error", reject);
-});
+const componenteGoogle = (resultado, tipos) => { const componente = (resultado.address_components || []).find(c => tipos.some(tipo => c.types.includes(tipo))); return componente?.long_name || ""; };
+const similaridadeTexto = (a, b) => { const ignorar = new Set(["RUA", "AVENIDA", "AV", "RODOVIA", "ESTRADA", "ALAMEDA", "TRAVESSA"]); const tokens = valor => new Set(removerAcentos(valor).split(" ").filter(t => t && !ignorar.has(t))); const ta = tokens(a); const tb = tokens(b); if (!ta.size || !tb.size) return 0; const intersecao = [...ta].filter(t => tb.has(t)).length; return intersecao / Math.max(ta.size, tb.size); };
+const requisitarGoogle = url => new Promise((resolve, reject) => { https.get(url, response => { let dados = ""; response.on("data", chunk => { dados += chunk; }); response.on("end", () => { try { resolve(JSON.parse(dados)); } catch (erro) { reject(erro); } }); }).on("error", reject); });
 
 app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
   try {
@@ -102,11 +65,7 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     if(!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
 
     const enderecoCompleto = [rua, numero, bairro, cidade, uf, cep, "Brasil"].filter(Boolean).join(", ");
-    const consultas = [
-      { address: enderecoCompleto },
-      { address: [rua, numero, cidade, uf, "Brasil"].filter(Boolean).join(", ") },
-      ...(cep ? [{ address: `${cep}, Brasil` }] : [])
-    ];
+    const consultas = [ { address: enderecoCompleto }, { address: [rua, numero, cidade, uf, "Brasil"].filter(Boolean).join(", ") }, ...(cep ? [{ address: `${cep}, Brasil` }] : []) ];
 
     const candidatos = [];
     for (const consulta of consultas) {
@@ -139,27 +98,13 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     }).sort((a, b) => b.score - a.score);
 
     const melhor = avaliados[0];
-    if (!melhor || melhor.score < 45) {
-      return res.json({ encontrado: false, motivo: melhor?.score === -100 ? "DIVERGENCIA_DE_LOCALIDADE" : "BAIXA_CONFIANCA", enderecoConsultado: enderecoCompleto });
-    }
+    if (!melhor || melhor.score < 45) return res.json({ encontrado: false, motivo: melhor?.score === -100 ? "DIVERGENCIA_DE_LOCALIDADE" : "BAIXA_CONFIANCA", enderecoConsultado: enderecoCompleto });
 
     const altaPrecisao = melhor.score >= 75 && ["ROOFTOP", "RANGE_INTERPOLATED"].includes(melhor.tipo);
-    return res.json({
-      encontrado: true,
-      lat: melhor.resultado.geometry.location.lat,
-      lon: melhor.resultado.geometry.location.lng,
-      precisao: melhor.tipo,
-      score: Math.min(100, melhor.score),
-      precisaCorrecao: !altaPrecisao,
-      enderecoFormatado: melhor.resultado.formatted_address,
-      componentes: { rua: melhor.ruaGoogle, numero: melhor.numeroGoogle, cidade: melhor.cidadeGoogle, uf: melhor.ufGoogle, cep: melhor.cepGoogle }
-    });
+    return res.json({ encontrado: true, lat: melhor.resultado.geometry.location.lat, lon: melhor.resultado.geometry.location.lng, precisao: melhor.tipo, score: Math.min(100, melhor.score), precisaCorrecao: !altaPrecisao, enderecoFormatado: melhor.resultado.formatted_address, componentes: { rua: melhor.ruaGoogle, numero: melhor.numeroGoogle, cidade: melhor.cidadeGoogle, uf: melhor.ufGoogle, cep: melhor.cepGoogle } });
   } catch(e) { res.status(500).json({ encontrado: false, erro: "Falha na geocodificação." }); }
 });
 
-// =====================================================================
-// PROCESSAMENTO COM GEMINI AI
-// =====================================================================
 app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
   try {
     const { enderecosBrutos } = req.body;
@@ -182,6 +127,7 @@ app.get("/roteirizador.html", (req, res) => { if (!req.query.token) return res.r
 app.get("/diario.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/diario.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/fila.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/fila.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/totem.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/totem.html"); } catch (err) { res.redirect("/login.html"); }});
+app.get("/tecnicos.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/tecnicos.html"); } catch (err) { res.redirect("/login.html"); }});
 app.get("/ping", (req, res) => res.status(200).send("Servidor acordado!"));
 
 // =====================================================================
@@ -252,7 +198,7 @@ app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
         if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
         const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
         if(empresa && empresa.cliente_id) {
-            const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_totem", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes"];
+            const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_totem", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes", "alertas_totem"];
             for (let c of collections) await db.collection(c).deleteMany({ cliente_id: empresa.cliente_id });
         }
         res.json({ ok: true });
@@ -292,7 +238,7 @@ app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
 });
 
 // =====================================================================
-// CADASTROS BASE (BASES, TÉCNICOS, EQUIPE TOTEM)
+// CADASTROS BASE E TÉCNICOS
 // =====================================================================
 app.get('/api/bases', autenticarToken, async (req, res) => {
   try { res.json(await db.collection("bases_operacionais").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); }
@@ -306,6 +252,7 @@ app.put("/api/bases/:id", autenticarToken, async (req, res) => {
 app.delete("/api/bases/:id", autenticarToken, async (req, res) => {
     try { await db.collection("bases_operacionais").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
+
 app.get("/api/config-base", autenticarToken, async (req, res) => {
   try {
     const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
@@ -360,8 +307,23 @@ app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) =
   } catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
+// =====================================================================
+// EQUIPE TOTEM
+// =====================================================================
 app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("equipe_totem").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({ erro: "Erro" }); }
+    try { 
+        let equipe = await db.collection("equipe_totem").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray();
+        if (equipe.length === 0) {
+            const frota = await db.collection("tecnicos_dashboard").find({ 
+                cliente_id: req.usuario.cliente_id,
+                $or: [{ status: "Ativo" }, { status: { $exists: false } }, { status: null }]
+            }).sort({ nome: 1 }).toArray();
+            equipe = frota.map(t => ({ nome: t.nome, funcao: "Técnico" }));
+        }
+        res.json(equipe); 
+    } catch(e) { 
+        res.status(500).json({ erro: "Erro ao buscar equipe do totem" }); 
+    }
 });
 app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
     try { await db.collection("equipe_totem").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({ erro: "Erro" }); }
@@ -539,34 +501,62 @@ app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
         res.json({ ok: true });
     } catch(e) { res.status(500).json({erro: "Erro interno."}); }
 });
+
 app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
     try {
         let dataBusca = req.query.data;
+        let variacoesData = [dataBusca];
         
-        // Força a formatação para ter sempre 2 dígitos no dia e no mês (ex: 9/9/2026 -> 09/09/2026)
         if (dataBusca && dataBusca.includes('/')) {
-            const partes = dataBusca.split('/');
-            if (partes.length === 3) {
-                dataBusca = `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
+            const p = dataBusca.split('/');
+            if (p.length === 3) {
+                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
+                variacoesData.push(`${parseInt(p[0], 10)}/${parseInt(p[1], 10)}/${p[2]}`);
             }
         }
-
-        res.json(await db.collection("fila_totem")
-            .find({ data: dataBusca, cliente_id: req.usuario.cliente_id })
-            .sort({ horaChegada: 1 })
-            .toArray());
-            
+        
+        res.json(await db.collection("fila_totem").find({ 
+            cliente_id: req.usuario.cliente_id,
+            $or: [
+                { data: { $in: variacoesData } },
+                { status: { $ne: "Finalizado" } }
+            ]
+        }).sort({ horaChegada: 1 }).toArray());
     } catch(e) { 
-        res.status(500).json({erro: "Erro ao carregar fila de hoje."}); 
+        res.status(500).json({erro: "Erro ao carregar fila."}); 
+    }
+});
+
+app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
+    try { await db.collection("fila_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
+});
+
+app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
+    try {
+        const { mesAno, tecnico } = req.query;
+        let filtro = { cliente_id: req.usuario.cliente_id };
+        
+        if (mesAno) {
+            const mesAnoSeguro = mesAno.replace(/\//g, '\\/');
+            filtro.data = { $regex: mesAnoSeguro + '$' };
+        }
+        
+        if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico;
+        
+        res.json(await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
+    } catch(e) { 
+        res.status(500).json({erro: "Erro interno ao gerar relatório."}); 
     }
 });
 
 app.post("/api/totem/alerta-balcao", autenticarToken, async (req, res) => {
     try { await db.collection("alertas_totem").insertOne({ ...req.body, status: "pendente", cliente_id: req.usuario.cliente_id, criadoEm: new Date() }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
+
 app.get("/api/totem/alertas-pendentes", autenticarToken, async (req, res) => {
     try { res.json(await db.collection("alertas_totem").find({ status: "pendente", cliente_id: req.usuario.cliente_id }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
 });
+
 app.put("/api/totem/alerta-balcao/:id/concluido", autenticarToken, async (req, res) => {
     try { await db.collection("alertas_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: "concluido" } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
 });

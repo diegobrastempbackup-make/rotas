@@ -1,580 +1,461 @@
-const express = require("express"); 
-const cors = require("cors");
-const { MongoClient, ObjectId } = require("mongodb"); 
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const https = require("https"); 
-const { GoogleGenAI } = require("@google/genai");
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel de Fila - NERI</title>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0F172A; color: white; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Adicionado transition, overflow e id para a animação funcionar */
+        .sidebar { width: 250px; background: #1E293B; border-right: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; padding: 20px; transition: all 0.3s ease; flex-shrink: 0; overflow: hidden; box-sizing: border-box; }
+        
+        .menu button { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94A3B8; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; transition: 0.2s; width: 100%; white-space: nowrap; }
+        .menu button:hover { background: rgba(255,255,255,0.05); color: white; }
+        .btn-sair { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; margin-top: auto; }
+        
+        .main { padding: 25px; display: flex; flex-direction: column; gap: 20px; height: 100vh; overflow-y: auto; flex: 1; box-sizing: border-box;}
+        
+        /* CSS do botão de toggle adicionado */
+        .btn-toggle-menu { background: #1E293B; color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; cursor: pointer; margin-right: 15px; font-size: 20px; transition: 0.2s; display: flex; align-items: center; justify-content: center; height: 44px; }
+        .btn-toggle-menu:hover { background: #3B82F6; }
 
-const app = express();
-const PORT = process.env.PORT || 10000;
-const JWT_SECRET = process.env.JWT_SECRET || "NERI_SECRET_2026";
-
-const ai = new GoogleGenAI();
-const uri = process.env.MONGO_URI;
-const client = new MongoClient(uri);
-let db = null;
-
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
-
-// =====================================================================
-// MIDDLEWARES DE AUTENTICAÇÃO E SAAS
-// =====================================================================
-const autenticarToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ erro: "Acesso negado." });
-  try {
-    req.usuario = jwt.verify(token, JWT_SECRET); 
-    next();
-  } catch (err) { return res.status(403).json({ erro: "Token inválido." }); }
-};
-
-const getFiltroSaaS = (req) => {
-  if (req.usuario.tipo === "superadmin") return {}; 
-  return { cliente_id: req.usuario.cliente_id };
-};
-
-// =====================================================================
-// GEOCODIFICAÇÃO GOOGLE MAPS
-// =====================================================================
-const removerAcentos = (valor = "") => String(valor).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
-const somenteDigitos = (valor = "") => String(valor).replace(/\D/g, "");
-const normalizarUf = (valor = "") => {
-  const mapa = { ACRE: "AC", ALAGOAS: "AL", AMAPA: "AP", AMAZONAS: "AM", BAHIA: "BA", CEARA: "CE", "DISTRITO FEDERAL": "DF", "ESPIRITO SANTO": "ES", GOIAS: "GO", MARANHAO: "MA", "MATO GROSSO": "MT", "MATO GROSSO DO SUL": "MS", "MINAS GERAIS": "MG", PARA: "PA", PARAIBA: "PB", PARANA: "PR", PERNAMBUCO: "PE", PIAUI: "PI", "RIO DE JANEIRO": "RJ", "RIO GRANDE DO NORTE": "RN", "RIO GRANDE DO SUL": "RS", RONDONIA: "RO", RORAIMA: "RR", "SANTA CATARINA": "SC", "SAO PAULO": "SP", SERGIPE: "SE", TOCANTINS: "TO" };
-  const limpo = removerAcentos(valor);
-  return mapa[limpo] || limpo;
-};
-const componenteGoogle = (resultado, tipos) => { const componente = (resultado.address_components || []).find(c => tipos.some(tipo => c.types.includes(tipo))); return componente?.long_name || ""; };
-const similaridadeTexto = (a, b) => { const ignorar = new Set(["RUA", "AVENIDA", "AV", "RODOVIA", "ESTRADA", "ALAMEDA", "TRAVESSA"]); const tokens = valor => new Set(removerAcentos(valor).split(" ").filter(t => t && !ignorar.has(t))); const ta = tokens(a); const tb = tokens(b); if (!ta.size || !tb.size) return 0; const intersecao = [...ta].filter(t => tb.has(t)).length; return intersecao / Math.max(ta.size, tb.size); };
-const requisitarGoogle = url => new Promise((resolve, reject) => { https.get(url, response => { let dados = ""; response.on("data", chunk => { dados += chunk; }); response.on("end", () => { try { resolve(JSON.parse(dados)); } catch (erro) { reject(erro); } }); }).on("error", reject); });
-
-app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
-  try {
-    const entrada = typeof req.body.endereco === "object" ? req.body.endereco : { rua: req.body.endereco };
-    const rua = String(entrada.rua || entrada.endereco || "").trim();
-    const numero = String(entrada.numero || "").trim();
-    const bairro = String(entrada.bairro || entrada.distrito || "").trim();
-    const cidade = String(entrada.cidade || "").trim();
-    const uf = String(entrada.uf || entrada.estado || "").trim();
-    const cep = somenteDigitos(entrada.cep).slice(0, 8);
-    if (!rua && !cep) return res.status(400).json({ encontrado: false, motivo: "ENDERECO_VAZIO" });
-
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if(!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
-
-    const enderecoCompleto = [rua, numero, bairro, cidade, uf, cep, "Brasil"].filter(Boolean).join(", ");
-    const consultas = [ { address: enderecoCompleto }, { address: [rua, numero, cidade, uf, "Brasil"].filter(Boolean).join(", ") }, ...(cep ? [{ address: `${cep}, Brasil` }] : []) ];
-
-    const candidatos = [];
-    for (const consulta of consultas) {
-      const params = new URLSearchParams({ ...consulta, language: "pt-BR", region: "br", key: apiKey });
-      const json = await requisitarGoogle(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
-      if (json.status === "REQUEST_DENIED") return res.status(502).json({ encontrado: false, erro: "API Key recusada." });
-      if (json.status === "OK") candidatos.push(...json.results);
-    }
-
-    const avaliados = candidatos.map(resultado => {
-      const cidadeGoogle = componenteGoogle(resultado, ["administrative_area_level_2", "locality"]);
-      const ufGoogle = componenteGoogle(resultado, ["administrative_area_level_1"]);
-      const cepGoogle = somenteDigitos(componenteGoogle(resultado, ["postal_code"]));
-      const ruaGoogle = componenteGoogle(resultado, ["route"]);
-      const numeroGoogle = componenteGoogle(resultado, ["street_number"]);
-      const cidadeDivergente = Boolean(cidade && cidadeGoogle && removerAcentos(cidade) !== removerAcentos(cidadeGoogle));
-      const ufDivergente = Boolean(uf && ufGoogle && normalizarUf(uf) !== normalizarUf(ufGoogle));
-      const cepDivergente = Boolean(cep && cepGoogle && cep !== cepGoogle);
-      const tipo = resultado.geometry?.location_type || "APPROXIMATE";
-      let score = ({ ROOFTOP: 45, RANGE_INTERPOLATED: 34, GEOMETRIC_CENTER: 18, APPROXIMATE: 5 })[tipo] || 0;
-      score += resultado.types.some(t => ["street_address", "premise", "subpremise"].includes(t)) ? 18 : 0;
-      score += cidade && cidadeGoogle && !cidadeDivergente ? 18 : 0;
-      score += uf && ufGoogle && !ufDivergente ? 7 : 0;
-      score += cep && cepGoogle && !cepDivergente ? 14 : 0;
-      score += Math.round(similaridadeTexto(rua, ruaGoogle) * 15);
-      if (numero) score += numeroGoogle === numero ? 12 : -8;
-      if (resultado.partial_match) score -= 20;
-      if (cidadeDivergente || ufDivergente || cepDivergente) score = -100;
-      return { resultado, score, tipo, cidadeGoogle, ufGoogle, cepGoogle, ruaGoogle, numeroGoogle };
-    }).sort((a, b) => b.score - a.score);
-
-    const melhor = avaliados[0];
-    if (!melhor || melhor.score < 45) return res.json({ encontrado: false, motivo: melhor?.score === -100 ? "DIVERGENCIA_DE_LOCALIDADE" : "BAIXA_CONFIANCA", enderecoConsultado: enderecoCompleto });
-
-    const altaPrecisao = melhor.score >= 75 && ["ROOFTOP", "RANGE_INTERPOLATED"].includes(melhor.tipo);
-    return res.json({ encontrado: true, lat: melhor.resultado.geometry.location.lat, lon: melhor.resultado.geometry.location.lng, precisao: melhor.tipo, score: Math.min(100, melhor.score), precisaCorrecao: !altaPrecisao, enderecoFormatado: melhor.resultado.formatted_address, componentes: { rua: melhor.ruaGoogle, numero: melhor.numeroGoogle, cidade: melhor.cidadeGoogle, uf: melhor.ufGoogle, cep: melhor.cepGoogle } });
-  } catch(e) { res.status(500).json({ encontrado: false, erro: "Falha na geocodificação." }); }
-});
-
-// =====================================================================
-// PROCESSAMENTO COM GEMINI AI
-// =====================================================================
-app.post('/api/rotas/processar-ia', autenticarToken, async (req, res) => {
-  try {
-    const { enderecosBrutos } = req.body;
-    if (!enderecosBrutos || !Array.isArray(enderecosBrutos)) return res.status(400).json({ erro: "Lista inválida." });
-    const prompt = `Analise a seguinte lista de endereços e dados brutos. Corrija erros de digitação, normalize abreviações. Retorne um array JSON com: { "rua": "...", "numero": "...", "bairro": "...", "cidade": "...", "estado": "...", "cep": "..." }. Dados: ${JSON.stringify(enderecosBrutos)}`;
-    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json' } });
-    res.json({ ok: true, resultados: JSON.parse(response.text) });
-  } catch (err) { res.status(500).json({ erro: "Erro IA." }); }
-});
-
-// =====================================================================
-// ROTAS DE PÁGINAS FRONT-END
-// =====================================================================
-app.get("/", (req, res) => res.sendFile(__dirname + "/public/login.html"));
-app.get("/login.html", (req, res) => res.sendFile(__dirname + "/public/login.html"));
-app.get("/dados.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/dados.html"); } catch (err) { res.redirect("/login.html"); }});
-app.get("/estoque.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/estoque.html"); } catch (err) { res.redirect("/login.html"); }});
-app.get("/index.html", (req, res) => res.sendFile(__dirname + "/public/index.html"));
-app.get("/roteirizador.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/roteirizador.html"); } catch (err) { res.redirect("/login.html"); }});
-app.get("/diario.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/diario.html"); } catch (err) { res.redirect("/login.html"); }});
-app.get("/fila.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/fila.html"); } catch (err) { res.redirect("/login.html"); }});
-app.get("/totem.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/totem.html"); } catch (err) { res.redirect("/login.html"); }});
-app.get("/tecnicos.html", (req, res) => { if (!req.query.token) return res.redirect("/login.html"); try { jwt.verify(req.query.token, JWT_SECRET); res.sendFile(__dirname + "/public/tecnicos.html"); } catch (err) { res.redirect("/login.html"); }});
-app.get("/ping", (req, res) => res.status(200).send("Servidor acordado!"));
-
-// =====================================================================
-// AUTENTICAÇÃO E ADMINISTRAÇÃO SAAS
-// =====================================================================
-app.post("/login", async (req, res) => {
-  try {
-    const { usuario, senha } = req.body;
-    const usuarioBanco = await db.collection("usuarios").findOne({ usuario: usuario.toLowerCase().trim() });
-    if (!usuarioBanco) return res.status(401).json({ erro: "Utilizador não encontrado" });
-    if (usuarioBanco.ativo === false) return res.status(403).json({ erro: "Acesso suspenso." });
-
-    const senhaValida = await bcrypt.compare(senha, usuarioBanco.senha);
-    if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta" });
-
-    const token = jwt.sign({ id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id }, JWT_SECRET, { expiresIn: "30d" });
-    const tipoFront = usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo;
-    res.json({ ok: true, token, nome: usuarioBanco.nome, tipo: tipoFront });
-  } catch (err) { res.status(500).json({ erro: "Erro ao realizar login" }); }
-});
-
-app.post("/nova-empresa", autenticarToken, async (req, res) => {
-  try {
-    if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
-    const { empresa, nome, usuario, senha } = req.body;
-    const novoClienteId = new ObjectId().toString(); 
-    const senhaHash = await bcrypt.hash(senha, 10);
-    await db.collection("usuarios").insertOne({ cliente_id: novoClienteId, empresaNome: empresa.trim(), nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo: "master", ativo: true, criadoEm: new Date() });
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: "Erro" }); }
-});
-
-app.get("/api/empresas", autenticarToken, async (req, res) => {
-  try {
-    if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado" });
-    res.json(await db.collection("usuarios").find({ tipo: "master" }).project({ senha: 0 }).sort({ empresaNome: 1 }).toArray());
-  } catch (err) { res.status(500).json({ erro: "Erro" }); }
-});
-
-app.post("/api/acessar-empresa/:id", autenticarToken, async (req, res) => {
-    try {
-        if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
-        const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
-        if (!empresa) return res.status(404).json({ erro: "Empresa não encontrada." });
-        const token = jwt.sign({ id: req.usuario.id, tipo: "master", cliente_id: empresa.cliente_id, superadmin_original: true }, JWT_SECRET, { expiresIn: "1d" });
-        res.json({ ok: true, token, nome: empresa.empresaNome });
-    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
-});
-
-app.post("/api/voltar-admin", autenticarToken, async (req, res) => {
-    try {
-        if (!req.usuario.superadmin_original) return res.status(403).json({ erro: "Acesso negado." });
-        const token = jwt.sign({ id: req.usuario.id, tipo: "superadmin", cliente_id: "GERAL" }, JWT_SECRET, { expiresIn: "1d" });
-        res.json({ ok: true, token });
-    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
-});
-
-app.put("/api/empresas/:id/status", autenticarToken, async (req, res) => {
-    try {
-        if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
-        await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id) }, { $set: { ativo: req.body.ativo } });
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-
-app.delete("/api/empresas/:id", autenticarToken, async (req, res) => {
-    try {
-        if (req.usuario.tipo !== "superadmin") return res.status(403).json({ erro: "Acesso negado." });
-        const empresa = await db.collection("usuarios").findOne({ _id: new ObjectId(req.params.id) });
-        if(empresa && empresa.cliente_id) {
-            const collections = ["usuarios", "registros", "estoque", "estoque_historico", "tecnicos_estoque", "equipe_totem", "bases_operacionais", "fila_totem", "planejamento_rotas", "tecnicos_dashboard", "pecas_catalogo", "pecas_solicitacoes"];
-            for (let c of collections) await db.collection(c).deleteMany({ cliente_id: empresa.cliente_id });
+        .abas-nav { display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; transition: 0.2s; }
+        .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+        
+        .fila-lista { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+        
+        .fila-card { 
+            background: #1E293B; border: 1px solid rgba(255,255,255,0.05); border-left: 5px solid #64748B; 
+            border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s;
+            display: flex; justify-content: space-between; align-items: center;
         }
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
+        
+        .card-info { display: flex; flex-direction: column; gap: 5px; }
+        .tec-nome { font-size: 20px; font-weight: bold; color: white; margin: 0; }
+        .tec-hora { font-size: 13px; color: #94A3B8; display: flex; align-items: center; gap: 10px; }
+        .status-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+        .status-texto { font-size: 14px; font-weight: bold; margin-top: 5px; }
+        
+        .botoes-acao { display: flex; gap: 10px; }
+        .btn-chamar { background: #3B82F6; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: 0.2s; }
+        .btn-chamar:hover { background: #2563EB; }
 
-app.post("/cadastro", autenticarToken, async (req, res) => {
-  try {
-    if (req.usuario?.tipo !== "master" && req.usuario?.tipo !== "superadmin") return res.status(403).json({ erro: "Permissão negada." });
-    const { nome, usuario, senha, tipo, base_id, base_nome } = req.body; 
-    const senhaHash = await bcrypt.hash(senha, 10);
-    const tenantId = (req.usuario.tipo === "superadmin" && req.body.cliente_id) ? req.body.cliente_id : req.usuario.cliente_id;
-    await db.collection("usuarios").insertOne({ cliente_id: tenantId, nome, usuario: usuario.toLowerCase().trim(), senha: senhaHash, tipo, base_id: base_id ? String(base_id) : null, base_nome: base_nome || null, ativo: true, criadoEm: new Date() });
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: "Erro" }); }
-});
+        .painel-controles { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
+        .box-controle { flex: 1; min-width: 300px; background: #1E293B; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-end; }
+    </style>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
+    <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
+</head>
+<body>
 
-app.get("/api/usuarios", autenticarToken, async (req, res) => {
-  try { res.json(await db.collection("usuarios").find(getFiltroSaaS(req)).project({ senha: 0 }).sort({ nome: 1 }).toArray()); } catch (err) { res.status(500).json({ erro: "Erro" }); }
-});
+<div class="sidebar" id="menuLateral">
+    <div class="logo-area"><img src="logo.svg" alt="Logo NERI" style="max-width: 100%; margin-bottom: 20px;" onerror="this.style.display='none'" /></div>
+    <div class="menu">
+        <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
+        <button onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
+        <button onclick="navegarSeguro('/roteirizador.html')">🗺️ Roteirizador</button>
+        <button style="background: #2563EB; color: white; border-color: #3B82F6;">🗣️ Triagem e Ponto</button>
+        <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+        <button onclick="navegarSeguro('/pecas.html')">🔧 Peças</button>
+        <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair" style="margin-top: 20px;">🚪 Sair</button>
+    </div>
+</div>
 
-app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
-    try {
-        const { nome, tipo, senha, base_id, base_nome } = req.body;
-        let updateData = { nome, tipo, base_id: base_id || null, base_nome: base_nome || null };
-        if (senha && senha.trim() !== "") updateData.senha = await bcrypt.hash(senha, 10);
-        await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: updateData });
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
-});
+<div class="main">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: flex-start;">
+            <!-- Botão de Toggle Inserido Aqui -->
+            <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
+            <div>
+                <h1 style="margin: 0 0 5px 0; font-size: 24px;">Controle da Base (Doca)</h1>
+                <p style="margin: 0; color: #94A3B8; font-size: 14px;">Acompanhamento de chegadas.</p>
+            </div>
+        </div>
+        <button onclick="limparTodaFila()" style="background: #EF4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;">🧹 Limpar Tela (Fim do Dia)</button>
+    </div>
 
-app.delete("/api/usuarios/:id", autenticarToken, async (req, res) => {
-    try {
-        await db.collection("usuarios").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
-});
+    <div class="abas-nav" style="margin-top: 15px;">
+        <button class="aba-btn ativa" id="btnAbaFila" onclick="mudarAba('fila')">📍 Fila ao Vivo</button>
+        <button class="aba-btn" id="btnAbaRelatorio" onclick="mudarAba('relatorio')">📄 Relatório de Ponto (PDF)</button>
+        <button class="aba-btn" id="btnAbaConfig" onclick="mudarAba('config')">⚙️ Regras e Base GPS</button>
+    </div>
 
-// =====================================================================
-// CADASTROS BASE (BASES, TÉCNICOS, EQUIPE TOTEM)
-// =====================================================================
-app.get('/api/bases', autenticarToken, async (req, res) => {
-  try { res.json(await db.collection("bases_operacionais").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); }
-});
-app.post("/api/bases", autenticarToken, async (req, res) => {
-    try { await db.collection("bases_operacionais").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/bases/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("bases_operacionais").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/bases/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("bases_operacionais").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.get("/api/config-base", autenticarToken, async (req, res) => {
-  try {
-    const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
-    if (!base) return res.json({});
-    res.json({ latBase: base.lat, lonBase: base.lon, nome: base.nome, endereco: base.endereco, limiteAtraso: base.limiteAtraso, raioBase: base.raioBase });
-  } catch (e) { res.status(500).json({ erro: "Erro" }); }
-});
-app.post("/api/config-base", autenticarToken, async (req, res) => {
-    try { await db.collection("bases_operacionais").updateOne({ cliente_id: req.usuario.cliente_id }, { $set: req.body }, { upsert: true }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
+    <!-- ABA 1: FILA AO VIVO -->
+    <div id="abaFila">
+        <div class="painel-controles">
+            <div class="box-controle" style="border: 1px dashed rgba(255,255,255,0.2);">
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Lançamento Manual (Sem Crachá)</label>
+                    <select id="manualTecnico" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                        <option value="">Selecione o funcionário...</option>
+                    </select>
+                </div>
+                <button onclick="registrarEntradaManual()" style="padding:10px 20px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">➕ Adicionar à Fila</button>
+            </div>
+            
+            <!-- CHAMADA DE COORDENADOR -->
+            <div class="box-controle" style="border: 1px dashed rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.05);">
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Coordenador</label>
+                    <input type="text" id="nomeCoordenador" placeholder="Seu nome (Ex: José Pereira)" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Chamar Técnico</label>
+                    <select id="tecnicoConversa" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                        <option value="">Selecione o funcionário...</option>
+                    </select>
+                </div>
+                <button onclick="chamarParaConversa()" style="padding:10px 20px; background:#F59E0B; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📢 Chamar no Totem</button>
+            </div>
+        </div>
 
-app.get("/api/tecnicos-dashboard", autenticarToken, async (req, res) => { 
-  try { res.json(await db.collection("tecnicos_dashboard").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } 
-});
-app.post("/api/tecnicos-dashboard", autenticarToken, async (req, res) => {
-    try { await db.collection("tecnicos_dashboard").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("tecnicos_dashboard").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/tecnicos-dashboard/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("tecnicos_dashboard").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
+        <div class="fila-lista" id="containerFila"></div>
+        
+        <div id="msgFilaVazia" style="display:none; text-align:center; padding: 40px; color: #94A3B8; background: #1E293B; border-radius: 12px; margin-top:20px;">
+            Nenhum técnico na base no momento.
+        </div>
+    </div>
 
-app.get('/api/tecnicos-dashboard/com-bases', autenticarToken, async (req, res) => {
-  try {
-    const cliente_id = req.usuario.cliente_id;
-    const [tecnicosDashboard, usuariosTecnicos, bases] = await Promise.all([
-      db.collection("tecnicos_dashboard").find({ cliente_id }).sort({ nome: 1 }).toArray(),
-      db.collection("usuarios").find({ cliente_id, tipo: "tecnico", ativo: { $ne: false } }).sort({ nome: 1 }).toArray(),
-      db.collection("bases_operacionais").find({ cliente_id }).sort({ nome: 1 }).toArray()
-    ]);
-    const mapaBases = new Map(bases.map(b => [String(b._id), b]));
-    const mapaUsuarios = new Map(usuariosTecnicos.map(u => [String(u.nome).trim().toUpperCase(), u]));
-    const mapaDashboard = new Map(tecnicosDashboard.map(t => [String(t.nome).trim().toUpperCase(), t]));
-    const nomes = new Set([...mapaUsuarios.keys(), ...mapaDashboard.keys()]);
-    const resultado = [];
-    for (const chave of nomes) {
-      const usuario = mapaUsuarios.get(chave) || null;
-      const tecnicoDashboard = mapaDashboard.get(chave) || null;
-      const baseId = usuario?.base_id || tecnicoDashboard?.base_id || null;
-      resultado.push({
-        ...(tecnicoDashboard || {}),
-        ...(usuario ? { usuario_id: String(usuario._id), usuario: usuario.usuario, tipo: usuario.tipo } : {}),
-        nome: usuario?.nome || tecnicoDashboard?.nome || chave,
-        base_id: baseId,
-        base: baseId ? (mapaBases.get(String(baseId)) || null) : null
-      });
-    }
-    resultado.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-    res.json(resultado);
-  } catch (e) { res.status(500).json({ erro: "Erro" }); }
-});
+    <!-- ABA 2: RELATÓRIO PDF -->
+    <div id="abaRelatorio" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); margin-top: 20px;">
+        <h3 style="margin-top:0; color:#60A5FA;">📅 Emitir Extrato de Horários e Atrasos</h3>
+        <p style="color: #94A3B8; font-size: 14px; margin-bottom: 20px;">Selecione o mês e o técnico (ou todos) para exportar um PDF com os dias, horários de chegada e a quantidade de atrasos no período.</p>
+        
+        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+            <div style="flex: 1;">
+                <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Mês e Ano (Período)</label>
+                <input type="month" id="filtroMesPonto" style="width:100%; padding:12px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+            </div>
+            <div style="flex: 1;">
+                <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Técnico</label>
+                <select id="filtroTecnicoPonto" style="width:100%; padding:12px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                    <option value="TODOS">Geral (Todos os Funcionários)</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: flex-end;">
+                <button onclick="gerarPDFPonto()" style="padding:12px 25px; background:#10B981; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">📄 Baixar Relatório PDF</button>
+            </div>
+        </div>
+    </div>
 
-// AQUI: FIX 1 - TÉCNICOS PARA O TOTEM E FILA (COM FALLBACK PARA FROTA GERAL)
-app.get('/api/equipe-totem', autenticarToken, async (req, res) => {
-    try { 
-        let equipe = await db.collection("equipe_totem").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray();
-        if (equipe.length === 0) {
-            const frota = await db.collection("tecnicos_dashboard").find({ 
-                cliente_id: req.usuario.cliente_id,
-                $or: [{ status: "Ativo" }, { status: { $exists: false } }, { status: null }]
-            }).sort({ nome: 1 }).toArray();
-            equipe = frota.map(t => ({ nome: t.nome, funcao: "Técnico" }));
+    <!-- ABA 3: CONFIGURAÇÕES GERAIS (GEOFENCING) -->
+    <div id="abaConfig" style="display: none; background: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); max-width: 500px; margin-top: 20px;">
+        <h3 style="margin-top:0; color:#60A5FA;">Regras Matinais</h3>
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Horário Limite (Tolerância de Atraso)</label>
+        <input type="time" id="inputLimiteAtraso" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 25px;">
+        
+        <h3 style="margin-top:0; color:#60A5FA; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">Geofencing (Check-in pelo App)</h3>
+        <p style="font-size: 13px; color: #94A3B8; margin-bottom: 15px;">Defina as coordenadas do galpão e o raio de tolerância. O técnico só consegue entrar na fila se o GPS do celular estiver dentro deste raio.</p>
+        
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Latitude da Base</label>
+        <input type="text" id="inputLatBase" placeholder="Ex: -23.550520" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
+        
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Longitude da Base</label>
+        <input type="text" id="inputLonBase" placeholder="Ex: -46.633308" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 15px;">
+        
+        <label style="font-size:12px; color:#94A3B8; display:block; margin-bottom:5px;">Raio Máximo Permitido (Em Metros)</label>
+        <input type="number" id="inputRaioBase" value="150" style="width:100%; padding:10px; background:#0F172A; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom: 25px;">
+
+        <button onclick="salvarConfigBase()" style="width: 100%; padding:12px; background:#2563EB; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">💾 Guardar Configuração</button>
+    </div>
+</div>
+
+<script>
+    // Função para recolher/expandir o menu lateral adicionada
+    function toggleMenu() {
+        const sidebar = document.getElementById('menuLateral');
+        if (sidebar.style.width === '0px' || sidebar.style.display === 'none') {
+            sidebar.style.width = '250px'; 
+            sidebar.style.padding = '20px'; 
+            sidebar.style.display = 'flex';
+        } else {
+            sidebar.style.width = '0px'; 
+            sidebar.style.padding = '0';
+            setTimeout(() => { sidebar.style.display = 'none'; }, 300); 
         }
-        res.json(equipe); 
-    } catch(e) { 
-        res.status(500).json({ erro: "Erro ao buscar equipe do totem" }); 
     }
-});
 
-app.post('/api/equipe-totem', autenticarToken, async (req, res) => {
-    try { await db.collection("equipe_totem").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({ erro: "Erro" }); }
-});
-app.put("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("equipe_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/equipe-totem/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("equipe_totem").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
+    const token = localStorage.getItem("token");
+    if (!token) window.location.replace("/login.html");
+    let filaAtual = [];
 
-// =====================================================================
-// ROTEIRIZADOR DE ROTAS
-// =====================================================================
-app.post('/api/rotas', autenticarToken, async (req, res) => {
-  try {
-      const { data, tecnico, itinerario, base_id } = req.body;
-      if (!data || !tecnico || !itinerario) return res.status(400).json({ erro: "Dados incompletos" });
-      const itinerarioFormatado = itinerario.map(item => ({ ...item, status: item.status || 'pendente' }));
-      await db.collection("planejamento_rotas").updateOne(
-          { data: data, tecnico: tecnico, cliente_id: req.usuario.cliente_id },
-          { $set: { itinerario: itinerarioFormatado, base_id: base_id || null, atualizadoEm: new Date() } },
-          { upsert: true }
-      );
-      res.json({ mensagem: "Roteiro salvo com sucesso!" });
-  } catch (err) { res.status(500).json({ erro: "Erro ao salvar roteiro." }); }
-});
+    document.addEventListener("DOMContentLoaded", async () => {
+        const agora = new Date();
+        document.getElementById("filtroMesPonto").value = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+        
+        await carregarConfigBase();
+        await carregarListaTecnicosParaFiltro();
+        atualizarFila();
+        setInterval(atualizarFila, 2500); 
+    });
 
-app.get('/api/rotas', autenticarToken, async (req, res) => {
-  try {
-      const { data, codigo } = req.query;
-      let filtro = { cliente_id: req.usuario.cliente_id };
-      if (data) filtro.data = { $in: [data, data.includes('-') ? data.split('-').reverse().join('/') : data] };
-      if (codigo) filtro["itinerario.codigo"] = new RegExp(codigo, 'i');
-      res.json(await db.collection("planejamento_rotas").find(filtro).sort({ tecnico: 1 }).toArray());
-  } catch (err) { res.status(500).json({ erro: "Erro ao buscar roteiros." }); }
-});
-
-app.delete('/api/rotas/:id', autenticarToken, async (req, res) => {
-  try {
-      await db.collection("planejamento_rotas").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
-      res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: "Erro ao excluir." }); }
-});
-
-// =====================================================================
-// REGISTROS (LANÇAMENTO DE DADOS DE FROTA)
-// =====================================================================
-app.get("/api/registros", autenticarToken, async (req, res) => { 
-  try { 
-    res.json(await db.collection("registros").find(getFiltroSaaS(req)).sort({ tecnico: 1, data: 1 }).toArray()); 
-  } catch (e) { res.status(500).json({ erro: "Erro ao buscar registros" }); } 
-});
-
-app.post("/registro", autenticarToken, async (req, res) => {
-  try {
-    const { dados } = req.body;
-    if (!dados || !Array.isArray(dados)) return res.status(400).json({ erro: "Dados inválidos." });
-    for (const item of dados) {
-      if (!item.data || !item.tecnico) continue;
-      await db.collection("registros").updateOne(
-        { cliente_id: req.usuario.cliente_id, tecnico: item.tecnico, data: item.data },
-        { $set: { ...item, cliente_id: req.usuario.cliente_id, atualizadoEm: new Date() } },
-        { upsert: true }
-      );
+    function mudarAba(aba) {
+        ['Fila', 'Relatorio', 'Config'].forEach(id => {
+            document.getElementById(`aba${id}`).style.display = 'none';
+            document.getElementById(`btnAba${id}`).classList.remove('ativa');
+        });
+        document.getElementById(`aba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).style.display = 'block';
+        document.getElementById(`btnAba${aba.charAt(0).toUpperCase() + aba.slice(1)}`).classList.add('ativa');
     }
-    res.json({ ok: true, mensagem: "Dados guardados com sucesso!" });
-  } catch (err) { res.status(500).json({ erro: "Erro ao guardar dados." }); }
-});
 
-app.delete("/registro/:id", autenticarToken, async (req, res) => {
-  try {
-    await db.collection("registros").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id });
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: "Erro ao excluir o registro." }); }
-});
-
-// =====================================================================
-// ALMOXARIFADO E ESTOQUE
-// =====================================================================
-app.get("/api/tecnicos", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("tecnicos_estoque").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.post("/api/tecnicos", autenticarToken, async (req, res) => {
-    try { await db.collection("tecnicos_estoque").insertOne({ nome: req.body.nome, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/tecnicos/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("tecnicos_estoque").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-
-app.get("/api/estoque", autenticarToken, async (req, res) => { 
-  try { res.json(await db.collection("estoque").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch (e) { res.status(500).json({ erro: "Erro" }); } 
-});
-app.post("/api/estoque", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/estoque/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/estoque/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-
-app.get("/api/estoque/historico/:nome", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("estoque_historico").find({ tecnico: req.params.nome, cliente_id: req.usuario.cliente_id }).sort({ data: -1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.post("/api/estoque/historico", autenticarToken, async (req, res) => {
-    try {
-        const { ferramentaId, quantidade, tipoAcao } = req.body;
-        if (ferramentaId) {
-            const qtdNum = Number(quantidade) || 1;
-            let mod = 0;
-            if (tipoAcao === "Entrega") mod = -qtdNum;
-            if (tipoAcao === "Devolução" || tipoAcao === "Devolucao") mod = qtdNum;
-            if (mod !== 0) {
-                await db.collection("estoque").updateOne({ _id: new ObjectId(ferramentaId), cliente_id: req.usuario.cliente_id }, { $inc: { qtd: mod } });
+    async function carregarConfigBase() {
+        try {
+            const res = await fetch("/api/config-base", { headers: { "Authorization": `Bearer ${token}` } });
+            const conf = await res.json();
+            if (conf) {
+                if(conf.limiteAtraso) document.getElementById("inputLimiteAtraso").value = conf.limiteAtraso;
+                if(conf.latBase) document.getElementById("inputLatBase").value = conf.latBase;
+                if(conf.lonBase) document.getElementById("inputLonBase").value = conf.lonBase;
+                if(conf.raioBase) document.getElementById("inputRaioBase").value = conf.raioBase;
             }
-        }
-        await db.collection("estoque_historico").insertOne({ ...req.body, cliente_id: req.usuario.cliente_id });
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque_historico").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: req.body }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/estoque/historico/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("estoque_historico").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
+        } catch(e) {}
+    }
 
-// =====================================================================
-// GESTÃO DE PEÇAS E SOLICITAÇÕES
-// =====================================================================
-app.get("/api/pecas/catalogo", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("pecas_catalogo").find(getFiltroSaaS(req)).sort({ nome: 1 }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.post("/api/pecas/catalogo", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_catalogo").insertOne({ nome: req.body.nome, estoque: Number(req.body.quantidade_inicial) || 0, cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/pecas/catalogo/:id/editar", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_catalogo").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { nome: req.body.novo_nome, estoque: Number(req.body.novo_estoque) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/pecas/catalogo/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_catalogo").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
+    async function salvarConfigBase() {
+        const limiteAtraso = document.getElementById("inputLimiteAtraso").value;
+        const latBase = document.getElementById("inputLatBase").value;
+        const lonBase = document.getElementById("inputLonBase").value;
+        const raioBase = document.getElementById("inputRaioBase").value;
+        try {
+            await fetch("/api/config-base", { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
+                body: JSON.stringify({ limiteAtraso, latBase, lonBase, raioBase }) 
+            });
+            alert("✅ Configurações da Base salvas com sucesso!");
+        } catch(e) {}
+    }
 
-app.get("/api/pecas/solicitacoes", autenticarToken, async (req, res) => {
+    async function carregarListaTecnicosParaFiltro() {
     try {
-        const data = req.query.data;
-        let filtro = { cliente_id: req.usuario.cliente_id };
-        if (data) filtro.dataSolicitacao = { $regex: `^${data}` };
-        res.json(await db.collection("pecas_solicitacoes").find(filtro).sort({ dataSolicitacao: -1 }).toArray());
-    } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/pecas/solicitacoes/:id/editar", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_solicitacoes").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { quantidade: Number(req.body.nova_quantidade) } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.delete("/api/pecas/solicitacoes/:id", autenticarToken, async (req, res) => {
-    try { await db.collection("pecas_solicitacoes").deleteOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-
-// =====================================================================
-// FILA / TRIAGEM / TOTEM DE ENTRADA
-// =====================================================================
-app.post("/api/fila/bipar", autenticarToken, async (req, res) => {
-    try {
-        const payload = { ...req.body, status: "Aguardando", cliente_id: req.usuario.cliente_id, criadoEm: new Date() };
-        payload.horaChegada = req.body.horaBatida;
-        payload.data = req.body.dataBatida;
-        payload.tecnico = req.body.codigoBarras;
+        // Altera a rota para buscar todos os motoristas registados no Dashboard
+        const res = await fetch("/api/tecnicos-dashboard", { headers: { "Authorization": `Bearer ${token}` } });
+        const equipe = await res.json();
         
-        const base = await db.collection("bases_operacionais").findOne({ cliente_id: req.usuario.cliente_id });
-        payload.atrasado = (base && base.limiteAtraso) ? (payload.horaChegada > base.limiteAtraso) : false;
-
-        await db.collection("fila_totem").insertOne(payload);
-        res.json({ ok: true });
-    } catch(e) { res.status(500).json({erro: "Erro interno."}); }
-});
-
-// AQUI: FIX 2 - FILA AO VIVO COM PREVENÇÃO DE SUMIÇO DOS TÉCNICOS
-app.get("/api/fila/hoje", autenticarToken, async (req, res) => {
-    try {
-        let dataBusca = req.query.data;
-        let variacoesData = [dataBusca];
+        const comboManual = document.getElementById("manualTecnico");
+        const comboRelatorio = document.getElementById("filtroTecnicoPonto");
+        const comboConversa = document.getElementById("tecnicoConversa");
         
-        if (dataBusca && dataBusca.includes('/')) {
-            const p = dataBusca.split('/');
-            if (p.length === 3) {
-                variacoesData.push(`${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`);
-                variacoesData.push(`${parseInt(p[0])}/${parseInt(p[1])}/${p[2]}`);
+        comboManual.innerHTML = `<option value="">Selecione o funcionário...</option>`;
+        comboRelatorio.innerHTML = `<option value="TODOS">Geral (Todos os Funcionários)</option>`;
+        comboConversa.innerHTML = `<option value="">Selecione o funcionário...</option>`;
+        
+        // Organiza a lista de A a Z
+        equipe.sort((a, b) => a.nome.localeCompare(b.nome));
+        
+        equipe.forEach(p => { 
+            // Mostra apenas os técnicos que estão ativos na empresa
+            if(p.status === "Ativo" || !p.status) {
+                comboManual.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
+                comboRelatorio.innerHTML += `<option value="${p.nome}">${p.nome}</option>`; 
+                comboConversa.innerHTML += `<option value="${p.nome}">${p.nome}</option>`;
             }
-        }
-        
-        res.json(await db.collection("fila_totem").find({ 
-            cliente_id: req.usuario.cliente_id,
-            $or: [
-                { data: { $in: variacoesData } },
-                { status: { $ne: "Finalizado" } }
-            ]
-        }).sort({ horaChegada: 1 }).toArray());
-    } catch(e) { 
-        res.status(500).json({erro: "Erro ao carregar fila."}); 
+        });
+    } catch(e) {
+        console.error("Erro ao carregar a lista de técnicos", e);
     }
-});
-
-app.put("/api/fila/:id/status", autenticarToken, async (req, res) => {
-    try { await db.collection("fila_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: req.body.status } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-
-// AQUI: FIX 3 - GERAÇÃO DO RELATÓRIO DO PONTO DE FORMA SEGURA (C/ REGEX ESCAPADA)
-app.get("/api/fila/relatorio", autenticarToken, async (req, res) => {
-    try {
-        const { mesAno, tecnico } = req.query;
-        let filtro = { cliente_id: req.usuario.cliente_id };
-        
-        if (mesAno) {
-            const mesAnoSeguro = mesAno.replace(/\//g, '\\/');
-            filtro.data = { $regex: mesAnoSeguro + '$' };
-        }
-        
-        if (tecnico && tecnico !== "TODOS") filtro.tecnico = tecnico;
-        
-        res.json(await db.collection("fila_totem").find(filtro).sort({ data: 1, horaChegada: 1 }).toArray());
-    } catch(e) { 
-        res.status(500).json({erro: "Erro interno ao gerar relatório."}); 
-    }
-});
-
-app.post("/api/totem/alerta-balcao", autenticarToken, async (req, res) => {
-    try { await db.collection("alertas_totem").insertOne({ ...req.body, status: "pendente", cliente_id: req.usuario.cliente_id, criadoEm: new Date() }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.get("/api/totem/alertas-pendentes", autenticarToken, async (req, res) => {
-    try { res.json(await db.collection("alertas_totem").find({ status: "pendente", cliente_id: req.usuario.cliente_id }).toArray()); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-app.put("/api/totem/alerta-balcao/:id/concluido", autenticarToken, async (req, res) => {
-    try { await db.collection("alertas_totem").updateOne({ _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id }, { $set: { status: "concluido" } }); res.json({ ok: true }); } catch(e) { res.status(500).json({erro: "Erro."}); }
-});
-
-// =====================================================================
-// CONEXÃO COM O BANCO DE DADOS E EXPORTAÇÃO
-// =====================================================================
-app.use(express.static(__dirname + "/public", { index: false }));
-
-async function conectarBanco() {
-  if (!db) {
-    await client.connect(); 
-    db = client.db("rotas"); 
-  }
 }
+    async function registrarEntradaManual() {
+        const nome = document.getElementById("manualTecnico").value;
+        if (!nome) return alert("Selecione um funcionário na lista primeiro!");
+        const agora = new Date();
+        const dataAtual = `${String(agora.getDate()).padStart(2, '0')}/${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`;
+        const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false }).substring(0, 5);
 
-module.exports = async (req, res) => {
-  await conectarBanco();
-  return app(req, res);
-};
+        try {
+            await fetch('/api/fila/bipar', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ codigoBarras: nome, dataBatida: dataAtual, horaBatida: horaAtual, origem: "Manual" })
+            });
+            document.getElementById("manualTecnico").value = ""; 
+            atualizarFila();
+        } catch (err) {}
+    }
+
+    async function atualizarFila() {
+        const dataHoje = new Date().toLocaleDateString('pt-BR');
+        try {
+            const res = await fetch(`/api/fila/hoje?data=${encodeURIComponent(dataHoje)}`, { headers: { "Authorization": `Bearer ${token}` } });
+            filaAtual = await res.json();
+            desenharFila();
+        } catch(e) {}
+    }
+
+    function desenharFila() {
+        const container = document.getElementById("containerFila");
+        container.innerHTML = "";
+        
+        const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
+        
+        if (filaVisivel.length === 0) { 
+            document.getElementById("msgFilaVazia").style.display = "block"; 
+            return; 
+        }
+        document.getElementById("msgFilaVazia").style.display = "none";
+
+        filaVisivel.forEach((item, index) => {
+            let statusTexto = "⏳ Aguardando ser chamado";
+            let statusCor = "#94A3B8";
+            let corBorda = item.atrasado ? "#EF4444" : "#3B82F6"; 
+            let opacity = "1";
+
+            if (item.status === "Chamando") {
+                statusTexto = "📢 Chamando no Totem...";
+                statusCor = "#F59E0B";
+                corBorda = "#F59E0B";
+            } else if (item.status === "Em atendimento") {
+                statusTexto = "🛠️ Em atendimento";
+                statusCor = "#8B5CF6"; 
+                corBorda = "#8B5CF6";
+            } else if (item.status === "Atendido") {
+                statusTexto = "✅ Atendido";
+                statusCor = "#10B981"; 
+                corBorda = "#10B981";
+                opacity = "0.5"; 
+            }
+            
+            let badgeHtml = item.atrasado 
+                ? `<span class="status-badge" style="background:rgba(239, 68, 68, 0.2); color:#F87171;">⏰ Atrasado</span>` 
+                : `<span class="status-badge" style="background:rgba(16, 185, 129, 0.2); color:#34D399;">✅ No Horário</span>`;
+
+            let origemIcon = "📠 Via Totem";
+            if (item.origem === "App") origemIcon = "📱 Via App";
+            else if (item.origem === "Manual") origemIcon = "⌨️ Manual";
+
+            let tagOrigem = `<span style="background:rgba(255,255,255,0.05); color: #CBD5E1; padding: 4px 8px; border-radius: 4px; font-size: 11px; margin-left: 5px;">${origemIcon}</span>`;
+
+            // Botão "Liberar" removido do HTML gerado abaixo:
+            container.innerHTML += `
+                <div class="fila-card" style="border-left-color: ${corBorda}; opacity: ${opacity};">
+                    <div class="card-info">
+                        <span style="color:#60A5FA; font-size:12px; font-weight:bold;">Chegada #${index + 1}</span>
+                        <h3 class="tec-nome">${item.tecnico}</h3>
+                        <div class="tec-hora">Entrou às ${item.horaChegada} ${badgeHtml} ${tagOrigem}</div>
+                        <div class="status-texto" style="color: ${statusCor};">${statusTexto}</div>
+                    </div>
+                    
+                    <div class="botoes-acao">
+                        <button class="btn-chamar" onclick="chamarCard('${item._id}')">🗣️ Chamar</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    async function chamarCard(idRegistro) {
+        try {
+            await fetch(`/api/fila/${idRegistro}/status`, { 
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                body: JSON.stringify({ status: 'Chamando' }) 
+            });
+            atualizarFila();
+
+            setTimeout(async () => {
+                await fetch(`/api/fila/${idRegistro}/status`, { 
+                    method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                    body: JSON.stringify({ status: 'Em atendimento' }) 
+                });
+                atualizarFila();
+            }, 4000);
+        } catch(e) {}
+    }
+
+    async function limparTodaFila() {
+        if (!confirm("Fim do dia? Isso vai limpar todos os cards da tela.")) return;
+        
+        const filaVisivel = filaAtual.filter(i => i.status !== "Finalizado");
+        for(let item of filaVisivel) {
+            await fetch(`/api/fila/${item._id}/status`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status: 'Finalizado' })
+            });
+        }
+        atualizarFila();
+    }
+
+    async function gerarPDFPonto() {
+        const mesAnoStr = document.getElementById("filtroMesPonto").value; 
+        if (!mesAnoStr) return alert("Por favor, selecione um mês.");
+        
+        const p = mesAnoStr.split('-'); 
+        const mesFormato = `${p[1]}/${p[0]}`; 
+        const tecnicoSel = document.getElementById("filtroTecnicoPonto").value;
+
+        try {
+            const res = await fetch(`/api/fila/relatorio?mesAno=${encodeURIComponent(mesFormato)}&tecnico=${encodeURIComponent(tecnicoSel)}`, { headers: { "Authorization": `Bearer ${token}` } });
+            const historico = await res.json();
+            
+            if (historico.length === 0) return alert("Nenhum registro encontrado para este mês/técnico.");
+
+            const { jsPDF } = window.jspdf; 
+            const doc = new jsPDF();
+            
+            doc.setFont("helvetica", "bold"); 
+            doc.setFontSize(18); 
+            doc.text("Relatório de Frequência e Horários", 14, 20);
+            
+            doc.setFontSize(11); 
+            doc.setFont("helvetica", "normal"); 
+            doc.text(`Período analisado: ${p[1]}/${p[0]}`, 14, 28); 
+            doc.text(`Colaborador: ${tecnicoSel === "TODOS" ? "Geral (Toda a Base)" : tecnicoSel}`, 14, 34);
+            
+            const totalAtrasos = historico.filter(i => i.atrasado).length;
+            doc.text(`Total de dias trabalhados: ${historico.length}`, 130, 28); 
+            doc.text(`Total de Atrasos: ${totalAtrasos}`, 130, 34);
+
+            doc.autoTable({
+                head: [["Data", "Colaborador", "Hora da Chegada", "Status do Horário"]],
+                body: historico.map(item => [ item.data, item.tecnico, item.horaChegada, item.atrasado ? "ATRASADO" : "NO HORÁRIO" ]),
+                startY: 45, 
+                theme: 'striped', 
+                headStyles: { fillColor: [30, 41, 59] },
+                didParseCell: function(data) {
+                    if (data.column.index === 3 && data.cell.raw === "ATRASADO") { 
+                        data.cell.styles.textColor = [239, 68, 68]; 
+                        data.cell.styles.fontStyle = 'bold'; 
+                    } else if (data.column.index === 3 && data.cell.raw === "NO HORÁRIO") { 
+                        data.cell.styles.textColor = [16, 185, 129]; 
+                    }
+                }
+            });
+            
+            doc.save(`Frequencia_${tecnicoSel.replace(/\s+/g, '_')}_${p[1]}_${p[0]}.pdf`);
+        } catch (e) { 
+            alert("Erro ao conectar com o banco de dados para gerar PDF."); 
+        }
+    }
+
+    async function chamarParaConversa() {
+        const coordenador = document.getElementById("nomeCoordenador").value.trim();
+        const tecnico = document.getElementById("tecnicoConversa").value;
+
+        if (!coordenador || !tecnico) {
+            return alert("⚠️ Por favor, preencha o seu nome (Coordenador) e selecione um técnico.");
+        }
+
+        const mensagem = `Atenção ${tecnico}, ${coordenador} te aguarda no balcão de atendimento.`;
+
+        try {
+            await fetch('/api/totem/alerta-balcao', {
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    tecnico: tecnico,
+                    coordenador: coordenador,
+                    mensagem: mensagem
+                })
+            });
+            
+            alert(`✅ Chamada enviada para o Totem!\n\n"${mensagem}"`);
+            document.getElementById("tecnicoConversa").value = "";
+        } catch (err) {
+            alert("❌ Erro ao enviar a chamada para o painel.");
+        }
+    }
+</script>
+</body>
+</html>
