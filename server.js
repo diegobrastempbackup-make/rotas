@@ -892,9 +892,19 @@ app.get('/api/config-base', autenticarToken, async (req, res) => {
 app.post('/api/config-base', autenticarToken, async (req, res) => {
     try {
         const { limiteAtraso, latBase, lonBase, raioBase } = req.body;
+        const latitude = Number(latBase);
+        const longitude = Number(lonBase);
+        const raio = Number(raioBase);
+
+        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+            !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+            !Number.isFinite(raio) || raio < 0) {
+            return res.status(400).json({ erro: "Informe latitude, longitude e raio válidos (o raio pode ser zero)." });
+        }
+
         await db.collection("configuracoes").updateOne(
             { cliente_id: req.usuario.cliente_id }, 
-            { $set: { limiteAtraso, latBase, lonBase, raioBase } }, 
+            { $set: { limiteAtraso, latBase: latitude, lonBase: longitude, raioBase: raio } }, 
             { upsert: true }
         );
         res.json({ ok: true });
@@ -905,7 +915,45 @@ app.post('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
-        const { codigoBarras, horaBatida, dataBatida, origem } = req.body;
+        const { codigoBarras, horaBatida, dataBatida, origem, latitude, longitude, lat, lon } = req.body;
+        const origemRegistro = String(origem || "Totem");
+
+        // O check-in do aplicativo precisa ser validado no servidor. Uma validação
+        // apenas no front-end pode ser ignorada por uma chamada direta à API.
+        if (origemRegistro.toLowerCase() === "app") {
+            const config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
+            const raioPermitido = Number(config?.raioBase);
+            const latBase = Number(config?.latBase);
+            const lonBase = Number(config?.lonBase);
+            const latTecnico = Number(latitude ?? lat);
+            const lonTecnico = Number(longitude ?? lon);
+
+            if (!Number.isFinite(raioPermitido) || raioPermitido <= 0) {
+                return res.status(403).json({ erro: "Check-in pelo aplicativo desativado para esta base." });
+            }
+            if (!Number.isFinite(latBase) || !Number.isFinite(lonBase)) {
+                return res.status(403).json({ erro: "A base ainda não possui coordenadas GPS válidas." });
+            }
+            if (!Number.isFinite(latTecnico) || !Number.isFinite(lonTecnico) ||
+                latTecnico < -90 || latTecnico > 90 || lonTecnico < -180 || lonTecnico > 180) {
+                return res.status(400).json({ erro: "Não foi possível validar a localização do aparelho." });
+            }
+
+            const paraRadianos = graus => graus * Math.PI / 180;
+            const dLat = paraRadianos(latTecnico - latBase);
+            const dLon = paraRadianos(lonTecnico - lonBase);
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(paraRadianos(latBase)) * Math.cos(paraRadianos(latTecnico)) *
+                Math.sin(dLon / 2) ** 2;
+            const distanciaMetros = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            if (distanciaMetros > raioPermitido) {
+                return res.status(403).json({
+                    erro: `Você está fora da base (${Math.round(distanciaMetros)} m; limite de ${raioPermitido} m).`
+                });
+            }
+        }
+
         const pessoa = await db.collection("equipe_totem").findOne({ 
             nome: new RegExp(`^${codigoBarras}$`, 'i'), 
             cliente_id: req.usuario.cliente_id 
@@ -932,7 +980,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
             horaChegada: horaBatida,
             status: "Aguardando", 
             atrasado: atrasado,
-            origem: origem || "Totem", 
+            origem: origemRegistro,
             timestamp: new Date()
         };
 

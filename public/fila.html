@@ -206,7 +206,7 @@
                 if(conf.limiteAtraso) document.getElementById("inputLimiteAtraso").value = conf.limiteAtraso;
                 if(conf.latBase) document.getElementById("inputLatBase").value = conf.latBase;
                 if(conf.lonBase) document.getElementById("inputLonBase").value = conf.lonBase;
-                if(conf.raioBase) document.getElementById("inputRaioBase").value = conf.raioBase;
+                if(conf.raioBase !== undefined && conf.raioBase !== null) document.getElementById("inputRaioBase").value = conf.raioBase;
             }
         } catch(e) {}
     }
@@ -217,13 +217,15 @@
         const lonBase = document.getElementById("inputLonBase").value;
         const raioBase = document.getElementById("inputRaioBase").value;
         try {
-            await fetch("/api/config-base", { 
+            const res = await fetch("/api/config-base", { 
                 method: "POST", 
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, 
                 body: JSON.stringify({ limiteAtraso, latBase, lonBase, raioBase }) 
             });
+            const resposta = await res.json();
+            if (!res.ok) return alert(`❌ ${resposta.erro || "Não foi possível guardar a configuração."}`);
             alert("✅ Configurações da Base salvas com sucesso!");
-        } catch(e) {}
+        } catch(e) { alert("❌ Erro de comunicação ao guardar a configuração."); }
     }
 
     // CORRIGIDO: Puxa diretamente da lista de Equipe Totem (Técnicos Lista)
