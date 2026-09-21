@@ -43,6 +43,277 @@ const autenticarToken = (req, res, next) => {
   } catch (err) { return res.status(403).json({ erro: "Token inválido." }); }
 };
 
+// =====================================================================
+// GOOGLE MAPS + VALIDAÇÃO INTELIGENTE DE ENDEREÇOS
+// =====================================================================
+
+function normalizarEnderecoTexto(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+
+function pontuarResultadoGoogle(resultado, enderecoOriginal) {
+
+  const texto = normalizarEnderecoTexto(
+    resultado.formatted_address
+  );
+
+  let pontos = 0;
+
+
+  const campos = [
+    enderecoOriginal.rua,
+    enderecoOriginal.bairro,
+    enderecoOriginal.distrito,
+    enderecoOriginal.cidade
+  ];
+
+
+  campos.forEach(campo => {
+
+    if (
+      campo &&
+      texto.includes(
+        normalizarEnderecoTexto(campo)
+      )
+    ) {
+      pontos += 20;
+    }
+
+  });
+
+
+  if (enderecoOriginal.cep) {
+
+    const cep =
+      String(enderecoOriginal.cep)
+      .replace(/\D/g,"")
+      .substring(0,5);
+
+
+    if(texto.includes(cep)){
+      pontos += 25;
+    }
+
+  }
+
+
+  if(
+    resultado.geometry.location_type === "ROOFTOP"
+  ){
+    pontos += 30;
+  }
+
+  else if(
+    resultado.geometry.location_type === "RANGE_INTERPOLATED"
+  ){
+    pontos += 20;
+  }
+
+
+  return pontos;
+
+}
+
+
+
+app.post(
+'/api/geocodificar-endereco',
+autenticarToken,
+async (req,res)=>{
+
+
+try{
+
+
+const {
+ endereco,
+ dadosOriginais
+}=req.body;
+
+
+
+if(!endereco){
+
+return res.status(400).json({
+erro:"Endereço vazio"
+});
+
+}
+
+
+
+const apiKey =
+process.env.GOOGLE_MAPS_API_KEY;
+
+
+
+if(!apiKey){
+
+return res.status(500).json({
+
+erro:
+"GOOGLE_MAPS_API_KEY não configurada"
+
+});
+
+}
+
+
+
+const url =
+"https://maps.googleapis.com/maps/api/geocode/json?"
++
+`address=${encodeURIComponent(
+endereco + ", Brasil"
+)}`
++
+"&language=pt-BR"
++
+`&key=${apiKey}`;
+
+
+
+https.get(
+url,
+(response)=>{
+
+
+let dados="";
+
+
+response.on(
+"data",
+(chunk)=>{
+
+dados+=chunk;
+
+});
+
+
+response.on(
+"end",
+()=>{
+
+
+const json =
+JSON.parse(dados);
+
+
+
+if(
+json.status !== "OK"
+||
+!json.results.length
+){
+
+
+return res.json({
+
+encontrado:false,
+
+status:
+json.status
+
+});
+
+
+}
+
+
+
+const candidatos =
+json.results.map(resultado=>{
+
+
+return {
+
+...resultado,
+
+score:
+pontuarResultadoGoogle(
+resultado,
+dadosOriginais || {}
+)
+
+};
+
+
+});
+
+
+
+candidatos.sort(
+(a,b)=>
+b.score-a.score
+);
+
+
+
+const melhor =
+candidatos[0];
+
+
+
+return res.json({
+
+encontrado:true,
+
+
+lat:
+melhor.geometry.location.lat,
+
+
+lon:
+melhor.geometry.location.lng,
+
+
+precisao:
+melhor.geometry.location_type,
+
+
+score:
+melhor.score,
+
+
+enderecoFormatado:
+melhor.formatted_address
+
+});
+
+
+});
+
+
+});
+
+
+}
+
+catch(e){
+
+
+console.error(e);
+
+
+res.status(500).json({
+
+erro:
+"Erro Google Maps"
+
+});
+
+
+}
+
+
+});
+
+
+
 // FILTRO SAAS (Separa os dados de cada empresa)
 const getFiltroSaaS = (req) => {
   if (req.usuario.tipo === "superadmin") return {}; 
@@ -83,7 +354,7 @@ app.post("/login", async (req, res) => {
 
     const token = jwt.sign(
       { id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id },
-      JWT_SECRET, { expiresIn: "30d" }
+      JWT_SECRET, { expiresIn: "12h" }
     );
 
     const tipoFront = usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo;
@@ -180,82 +451,6 @@ app.put("/api/usuarios/:id", autenticarToken, async (req, res) => {
     await db.collection("usuarios").updateOne({ _id: new ObjectId(req.params.id), ...getFiltroSaaS(req) }, { $set: atualizacao });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: "Erro" }); }
-});
-
-// =====================================================================
-// ROTA DE BIPAR / CHECK-IN PELO APP COM GEOFENCING BASEADO NA TELA "Regras e Base GPS"
-// =====================================================================
-app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
-    try {
-        const { codigoBarras, horaBatida, dataBatida, origem, latitude, longitude } = req.body;
-        const cliente_id = req.usuario.cliente_id;
-
-        const pessoa = await db.collection("equipe_totem").findOne({ 
-            nome: new RegExp(`^${codigoBarras}$`, 'i'), 
-            cliente_id: cliente_id 
-        });
-
-        if (!pessoa) return res.status(404).json({ erro: "Crachá não reconhecido na Base!" });
-
-        const jaEntrouHoje = await db.collection("fila_ponto").findOne({
-            cliente_id: cliente_id,
-            tecnico: pessoa.nome,
-            data: dataBatida
-        });
-
-        if (jaEntrouHoje) return res.status(400).json({ erro: "Entrada já registrada hoje." });
-
-        // LE DIRETAMENTE AS CONFIGURAÇÕES SALVAS NA ABA "Regras e Base GPS"
-        let config = await db.collection("configuracoes").findOne({ cliente_id: cliente_id });
-        
-        if (config && config.latBase && config.lonBase) {
-            if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
-                return res.status(400).json({ erro: "Localização GPS obrigatória não enviada pelo aplicativo." });
-            }
-
-            const latBase = Number(config.latBase);
-            const lonBase = Number(config.lonBase);
-            const raioPermitido = Number(config.raioBase) || 30; // Lê o raio definido no painel (ex: 10 metros)
-
-            // Cálculo matemático rigoroso de distância em metros (Fórmula de Haversine)
-            const R = 6371e3; 
-            const rad = Math.PI / 180;
-            const dLat = (Number(latitude) - latBase) * rad;
-            const dLon = (Number(longitude) - lonBase) * rad;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(latBase * rad) * Math.cos(Number(latitude) * rad) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            const distanciaMetros = R * c;
-
-            // BLOQUEIO RIGOROSO SE ESTIVER FORA DO RAIO CONFIGURADO NO PAINEL
-            if (distanciaMetros > raioPermitido) {
-                return res.status(403).json({ 
-                    erro: `Check-in negado! Você está a ${Math.round(distanciaMetros)} metros da base. O raio máximo permitido é de ${raioPermitido} metros.` 
-                });
-            }
-        }
-
-        const limite = config && config.limiteAtraso ? config.limiteAtraso : "08:00";
-        let atrasado = horaBatida > limite;
-        
-        const registro = {
-            cliente_id: cliente_id,
-            tecnico: pessoa.nome, 
-            data: dataBatida, 
-            horaChegada: horaBatida,
-            status: "Aguardando", 
-            atrasado: atrasado,
-            origem: origem || "App", 
-            timestamp: new Date()
-        };
-
-        await db.collection("fila_ponto").insertOne(registro);
-        res.json({ ok: true, tecnico: pessoa.nome, atrasado });
-    } catch(e) { 
-        console.error("Erro no check-in do app:", e);
-        res.status(500).json({ erro: "Erro interno no servidor ao processar check-in." }); 
-    }
 });
 
 // =====================================================================
