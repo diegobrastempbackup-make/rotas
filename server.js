@@ -354,7 +354,7 @@ app.post("/login", async (req, res) => {
 
     const token = jwt.sign(
       { id: usuarioBanco._id, tipo: usuarioBanco.tipo, cliente_id: usuarioBanco.cliente_id },
-      JWT_SECRET, { expiresIn: "12h" }
+      JWT_SECRET, { expiresIn: "30d" }
     );
 
     const tipoFront = usuarioBanco.tipo === "superadmin" ? "master" : usuarioBanco.tipo;
