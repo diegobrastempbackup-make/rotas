@@ -54,26 +54,6 @@ function normalizarEnderecoTexto(valor) {
     .toLowerCase();
 }
 
-function obterDataHoraSaoPaulo(agora = new Date()) {
-  const partes = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23"
-  }).formatToParts(agora).reduce((resultado, parte) => {
-    if (parte.type !== "literal") resultado[parte.type] = parte.value;
-    return resultado;
-  }, {});
-
-  return {
-    data: `${partes.day}/${partes.month}/${partes.year}`,
-    hora: `${partes.hour}:${partes.minute}`
-  };
-}
-
 
 function pontuarResultadoGoogle(resultado, enderecoOriginal) {
 
@@ -912,19 +892,9 @@ app.get('/api/config-base', autenticarToken, async (req, res) => {
 app.post('/api/config-base', autenticarToken, async (req, res) => {
     try {
         const { limiteAtraso, latBase, lonBase, raioBase } = req.body;
-        const latitude = Number(latBase);
-        const longitude = Number(lonBase);
-        const raio = Number(raioBase);
-
-        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
-            !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
-            !Number.isFinite(raio) || raio < 0) {
-            return res.status(400).json({ erro: "Informe latitude, longitude e raio válidos (o raio pode ser zero)." });
-        }
-
         await db.collection("configuracoes").updateOne(
             { cliente_id: req.usuario.cliente_id }, 
-            { $set: { limiteAtraso, latBase: latitude, lonBase: longitude, raioBase: raio } }, 
+            { $set: { limiteAtraso, latBase, lonBase, raioBase } }, 
             { upsert: true }
         );
         res.json({ ok: true });
@@ -935,16 +905,7 @@ app.post('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
-        const { codigoBarras, origem, latitude, longitude, lat, lon } = req.body;
-        const { data: dataBatida, hora: horaBatida } = obterDataHoraSaoPaulo();
-        const origemRegistro = String(origem || "Totem");
-        const solicitouEntradaManual = origemRegistro.toLowerCase() === "manual";
-        const podeRegistrarManual = req.usuario.tipo === "master" || req.usuario.tipo === "superadmin";
-
-        if (solicitouEntradaManual && !podeRegistrarManual) {
-            return res.status(403).json({ erro: "Entrada manual permitida somente pelo painel administrativo." });
-        }
-
+        const { codigoBarras, horaBatida, dataBatida, origem } = req.body;
         const pessoa = await db.collection("equipe_totem").findOne({ 
             nome: new RegExp(`^${codigoBarras}$`, 'i'), 
             cliente_id: req.usuario.cliente_id 
@@ -960,42 +921,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
 
         if (jaEntrouHoje) return res.status(400).json({ erro: "Entrada já registrada hoje." });
 
-        // App e leitura de código de barras passam pelo mesmo geofencing.
-        // Somente o lançamento Manual feito no painel administrativo não depende do GPS.
         let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
-        if (!solicitouEntradaManual) {
-            const raioPermitido = Number(config?.raioBase);
-            const latBase = Number(config?.latBase);
-            const lonBase = Number(config?.lonBase);
-            const latTecnico = Number(latitude ?? lat);
-            const lonTecnico = Number(longitude ?? lon);
-
-            if (!Number.isFinite(raioPermitido) || raioPermitido <= 0) {
-                return res.status(403).json({ erro: "Check-in desativado para esta base." });
-            }
-            if (!Number.isFinite(latBase) || !Number.isFinite(lonBase)) {
-                return res.status(403).json({ erro: "A base ainda não possui coordenadas GPS válidas." });
-            }
-            if (!Number.isFinite(latTecnico) || !Number.isFinite(lonTecnico) ||
-                latTecnico < -90 || latTecnico > 90 || lonTecnico < -180 || lonTecnico > 180) {
-                return res.status(400).json({ erro: "Localização imprecisa. Não foi possível registrar a entrada." });
-            }
-
-            const paraRadianos = graus => graus * Math.PI / 180;
-            const dLat = paraRadianos(latTecnico - latBase);
-            const dLon = paraRadianos(lonTecnico - lonBase);
-            const a = Math.sin(dLat / 2) ** 2 +
-                Math.cos(paraRadianos(latBase)) * Math.cos(paraRadianos(latTecnico)) *
-                Math.sin(dLon / 2) ** 2;
-            const distanciaMetros = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-            if (distanciaMetros > raioPermitido) {
-                return res.status(403).json({
-                    erro: `Localização imprecisa ou fora do raio da base (${Math.round(distanciaMetros)} m; limite de ${raioPermitido} m).`
-                });
-            }
-        }
-
         const limite = config && config.limiteAtraso ? config.limiteAtraso : "08:00";
         let atrasado = horaBatida > limite;
         
@@ -1006,12 +932,12 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
             horaChegada: horaBatida,
             status: "Aguardando", 
             atrasado: atrasado,
-            origem: origemRegistro,
+            origem: origem || "Totem", 
             timestamp: new Date()
         };
 
         await db.collection("fila_ponto").insertOne(registro);
-        res.json({ ok: true, tecnico: pessoa.nome, data: dataBatida, hora: horaBatida, atrasado });
+        res.json({ ok: true, tecnico: pessoa.nome, atrasado });
     } catch(e) { 
         res.status(500).json({erro: "Erro no servidor."}); 
     }
@@ -1019,7 +945,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
 
 app.get('/api/fila/hoje', autenticarToken, async (req, res) => {
     try {
-        const { data: dataHoje } = obterDataHoraSaoPaulo();
+        const dataHoje = req.query.data;
         const fila = await db.collection("fila_ponto").find({ cliente_id: req.usuario.cliente_id, data: dataHoje, status: { $ne: "Finalizado" } }).sort({ timestamp: 1 }).toArray();
         res.json(fila);
     } catch(e) { res.status(500).json({erro: "Erro"}); }
