@@ -917,41 +917,11 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
         const { codigoBarras, horaBatida, dataBatida, origem, latitude, longitude, lat, lon } = req.body;
         const origemRegistro = String(origem || "Totem");
+        const solicitouEntradaManual = origemRegistro.toLowerCase() === "manual";
+        const podeRegistrarManual = req.usuario.tipo === "master" || req.usuario.tipo === "superadmin";
 
-        // O check-in do aplicativo precisa ser validado no servidor. Uma validação
-        // apenas no front-end pode ser ignorada por uma chamada direta à API.
-        if (origemRegistro.toLowerCase() === "app") {
-            const config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
-            const raioPermitido = Number(config?.raioBase);
-            const latBase = Number(config?.latBase);
-            const lonBase = Number(config?.lonBase);
-            const latTecnico = Number(latitude ?? lat);
-            const lonTecnico = Number(longitude ?? lon);
-
-            if (!Number.isFinite(raioPermitido) || raioPermitido <= 0) {
-                return res.status(403).json({ erro: "Check-in pelo aplicativo desativado para esta base." });
-            }
-            if (!Number.isFinite(latBase) || !Number.isFinite(lonBase)) {
-                return res.status(403).json({ erro: "A base ainda não possui coordenadas GPS válidas." });
-            }
-            if (!Number.isFinite(latTecnico) || !Number.isFinite(lonTecnico) ||
-                latTecnico < -90 || latTecnico > 90 || lonTecnico < -180 || lonTecnico > 180) {
-                return res.status(400).json({ erro: "Não foi possível validar a localização do aparelho." });
-            }
-
-            const paraRadianos = graus => graus * Math.PI / 180;
-            const dLat = paraRadianos(latTecnico - latBase);
-            const dLon = paraRadianos(lonTecnico - lonBase);
-            const a = Math.sin(dLat / 2) ** 2 +
-                Math.cos(paraRadianos(latBase)) * Math.cos(paraRadianos(latTecnico)) *
-                Math.sin(dLon / 2) ** 2;
-            const distanciaMetros = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-            if (distanciaMetros > raioPermitido) {
-                return res.status(403).json({
-                    erro: `Você está fora da base (${Math.round(distanciaMetros)} m; limite de ${raioPermitido} m).`
-                });
-            }
+        if (solicitouEntradaManual && !podeRegistrarManual) {
+            return res.status(403).json({ erro: "Entrada manual permitida somente pelo painel administrativo." });
         }
 
         const pessoa = await db.collection("equipe_totem").findOne({ 
@@ -969,7 +939,42 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
 
         if (jaEntrouHoje) return res.status(400).json({ erro: "Entrada já registrada hoje." });
 
+        // App e leitura de código de barras passam pelo mesmo geofencing.
+        // Somente o lançamento Manual feito no painel administrativo não depende do GPS.
         let config = await db.collection("configuracoes").findOne({ cliente_id: req.usuario.cliente_id });
+        if (!solicitouEntradaManual) {
+            const raioPermitido = Number(config?.raioBase);
+            const latBase = Number(config?.latBase);
+            const lonBase = Number(config?.lonBase);
+            const latTecnico = Number(latitude ?? lat);
+            const lonTecnico = Number(longitude ?? lon);
+
+            if (!Number.isFinite(raioPermitido) || raioPermitido <= 0) {
+                return res.status(403).json({ erro: "Check-in desativado para esta base." });
+            }
+            if (!Number.isFinite(latBase) || !Number.isFinite(lonBase)) {
+                return res.status(403).json({ erro: "A base ainda não possui coordenadas GPS válidas." });
+            }
+            if (!Number.isFinite(latTecnico) || !Number.isFinite(lonTecnico) ||
+                latTecnico < -90 || latTecnico > 90 || lonTecnico < -180 || lonTecnico > 180) {
+                return res.status(400).json({ erro: "Localização imprecisa. Não foi possível registrar a entrada." });
+            }
+
+            const paraRadianos = graus => graus * Math.PI / 180;
+            const dLat = paraRadianos(latTecnico - latBase);
+            const dLon = paraRadianos(lonTecnico - lonBase);
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(paraRadianos(latBase)) * Math.cos(paraRadianos(latTecnico)) *
+                Math.sin(dLon / 2) ** 2;
+            const distanciaMetros = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            if (distanciaMetros > raioPermitido) {
+                return res.status(403).json({
+                    erro: `Localização imprecisa ou fora do raio da base (${Math.round(distanciaMetros)} m; limite de ${raioPermitido} m).`
+                });
+            }
+        }
+
         const limite = config && config.limiteAtraso ? config.limiteAtraso : "08:00";
         let atrasado = horaBatida > limite;
         
