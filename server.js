@@ -54,6 +54,26 @@ function normalizarEnderecoTexto(valor) {
     .toLowerCase();
 }
 
+function obterDataHoraSaoPaulo(agora = new Date()) {
+  const partes = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(agora).reduce((resultado, parte) => {
+    if (parte.type !== "literal") resultado[parte.type] = parte.value;
+    return resultado;
+  }, {});
+
+  return {
+    data: `${partes.day}/${partes.month}/${partes.year}`,
+    hora: `${partes.hour}:${partes.minute}`
+  };
+}
+
 
 function pontuarResultadoGoogle(resultado, enderecoOriginal) {
 
@@ -915,7 +935,8 @@ app.post('/api/config-base', autenticarToken, async (req, res) => {
 
 app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
     try {
-        const { codigoBarras, horaBatida, dataBatida, origem, latitude, longitude, lat, lon } = req.body;
+        const { codigoBarras, origem, latitude, longitude, lat, lon } = req.body;
+        const { data: dataBatida, hora: horaBatida } = obterDataHoraSaoPaulo();
         const origemRegistro = String(origem || "Totem");
         const solicitouEntradaManual = origemRegistro.toLowerCase() === "manual";
         const podeRegistrarManual = req.usuario.tipo === "master" || req.usuario.tipo === "superadmin";
@@ -990,7 +1011,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
         };
 
         await db.collection("fila_ponto").insertOne(registro);
-        res.json({ ok: true, tecnico: pessoa.nome, atrasado });
+        res.json({ ok: true, tecnico: pessoa.nome, data: dataBatida, hora: horaBatida, atrasado });
     } catch(e) { 
         res.status(500).json({erro: "Erro no servidor."}); 
     }
@@ -998,7 +1019,7 @@ app.post('/api/fila/bipar', autenticarToken, async (req, res) => {
 
 app.get('/api/fila/hoje', autenticarToken, async (req, res) => {
     try {
-        const dataHoje = req.query.data;
+        const { data: dataHoje } = obterDataHoraSaoPaulo();
         const fila = await db.collection("fila_ponto").find({ cliente_id: req.usuario.cliente_id, data: dataHoje, status: { $ne: "Finalizado" } }).sort({ timestamp: 1 }).toArray();
         res.json(fila);
     } catch(e) { res.status(500).json({erro: "Erro"}); }
