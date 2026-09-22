@@ -1083,149 +1083,144 @@ app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
 });
 
-// --- LISTAR SOLICITAÇÕES (Com suporte a filtro por data e compatível com o painel) ---
-app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
-    try {
-        let filtro = { cliente_id: req.usuario.cliente_id };
-
-        // Se o painel enviou uma data (YYYY-MM-DD), filtra o dia inteiro
-        if (req.query.data) {
-            const inicioDia = new Date(req.query.data + "T00:00:00.000Z");
-            const fimDia = new Date(req.query.data + "T23:59:59.999Z");
-            filtro.dataSolicitacao = { \(gte: inicioDia,\)lte: fimDia };
-        }
-
-        const solicitacoes = await db.collection("solicitacoes_pecas")
-            .find(filtro)
-            .sort({ dataSolicitacao: -1 })
-            .toArray();
-
-        // Mapeia os dados para garantir compatibilidade direta com a exibição do painel (p.nome_peca e p.quantidade)
-        const formatadas = solicitacoes.map(s => {
-            const primeiraPeca = s.pecas && s.pecas[0] ? s.pecas[0] : {};
-            return {
-                _id: s._id,
-                dataSolicitacao: s.dataSolicitacao,
-                tecnico: s.tecnico,
-                nome_peca: primeiraPeca.nome_peca || "Peça não informada",
-                quantidade: primeiraPeca.quantidade || 0,
-                observacao: s.observacao,
-                status: s.status
-            };
-        });
-
-        res.json(formatadas);
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ erro: "Erro ao buscar solicitações" });
-    }
-});
-
-// --- CRIAR SOLICITAÇÃO ---
 app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
+
     try {
+
         const { tecnico, pecas, observacao } = req.body;
 
+
         if (!tecnico || !pecas || !Array.isArray(pecas) || pecas.length === 0) {
+
             return res.status(400).json({
                 erro: "Nenhuma peça informada."
             });
+
         }
+
+
 
         const solicitacao = {
+
             cliente_id: req.usuario.cliente_id,
+
             tecnico,
+
             pecas: pecas.map(item => ({
+              
+
                 peca_id: item.peca_id,
+
                 nome_peca: item.nome_peca,
+
                 quantidade: Number(item.quantidade) || 0
+
             })),
+
             observacao: observacao || "",
+
             status: "Pendente",
+
             dataSolicitacao: new Date()
+
         };
 
-        await db.collection("solicitacoes_pecas").insertOne(solicitacao);
+
+
+        await db.collection("solicitacoes_pecas")
+            .insertOne(solicitacao);
+
+
 
         res.json({
+
             ok: true,
+
             mensagem: "Solicitação enviada com sucesso."
+
         });
+
+
 
     } catch(e) {
+
         console.error(e);
+
         res.status(500).json({
+
             erro: "Erro ao solicitar peças"
+
         });
+
     }
+
 });
 
-// --- EDITAR SOLICITAÇÃO (Compatível com edição de quantidade via painel) ---
 app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
-    try {
-        const { pecas, nova_quantidade } = req.body;
 
-        // Se veio 'nova_quantidade' do botão de editar quantidade rápido do painel
-        if (nova_quantidade !== undefined) {
-            const solicitacaoAtual = await db.collection("solicitacoes_pecas").findOne({
+    try {
+
+        const { pecas } = req.body;
+
+
+        await db.collection("solicitacoes_pecas").updateOne(
+
+            {
                 _id: new ObjectId(req.params.id),
                 cliente_id: req.usuario.cliente_id
-            });
+            },
 
-            if (!solicitacaoAtual || !solicitacaoAtual.pecas || solicitacaoAtual.pecas.length === 0) {
-                return res.status(404).json({ erro: "Solicitação não encontrada" });
+
+            {
+                $set: {
+
+                    pecas: pecas.map(item => ({
+
+                        peca_id: item.peca_id,
+
+                        nome_peca: item.nome_peca,
+
+                        quantidade: Number(item.quantidade) || 0
+
+                    }))
+
+                }
+
             }
 
-            // Atualiza a quantidade do primeiro item mantendo os dados da peça
-            solicitacaoAtual.pecas[0].quantidade = Number(nova_quantidade) || 0;
+        );
 
-            await db.collection("solicitacoes_pecas").updateOne(
-                { _id: new ObjectId(req.params.id), cliente_id: req.usuario.cliente_id },
-                { $set: { pecas: solicitacaoAtual.pecas } }
-            );
-        } else if (pecas) {
-            // Caso venha a lista completa de peças
-            await db.collection("solicitacoes_pecas").updateOne(
-                {
-                    _id: new ObjectId(req.params.id),
-                    cliente_id: req.usuario.cliente_id
-                },
-                {
-                    $set: {
-                        pecas: pecas.map(item => ({
-                            peca_id: item.peca_id,
-                            nome_peca: item.nome_peca,
-                            quantidade: Number(item.quantidade) || 0
-                        }))
-                    }
-                }
-            );
-        }
 
-        res.json({ ok: true });
+        res.json({
+            ok:true
+        });
+
+
 
     } catch(e) {
-        console.error(e);
-        res.status(500).json({
-            erro: "Erro ao editar solicitação"
-        });
-    }
-});
 
-// --- EXCLUIR SOLICITAÇÃO ---
-app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req, res) => {
+        res.status(500).json({
+            erro:"Erro ao editar solicitação"
+        });
+
+    }
+
+});
+app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req,res)=>{
     try {
+
         await db.collection("solicitacoes_pecas").deleteOne({
             _id: new ObjectId(req.params.id),
             cliente_id: req.usuario.cliente_id
         });
 
-        res.json({ ok: true });
+        res.json({ok:true});
 
-    } catch(e) {
-        console.error(e);
+    } catch(e){
+
         res.status(500).json({
-            erro: "Erro ao excluir solicitação"
+            erro:"Erro ao excluir solicitação"
         });
+
     }
 });
