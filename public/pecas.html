@@ -1,716 +1,358 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-
-<meta charset="UTF-8">
-
-<title>Gestão de Peças - NERI</title>
-
-
-<style>
-
-body {
-    margin:0;
-    font-family:'Segoe UI',sans-serif;
-    background:#0F172A;
-    color:white;
-    display:flex;
-    height:100vh;
-    overflow:hidden;
-}
-
-
-.sidebar {
-
-    width:250px;
-    background:#1E293B;
-    border-right:1px solid rgba(255,255,255,0.05);
-
-    display:flex;
-    flex-direction:column;
-
-    padding:20px;
-
-    box-sizing:border-box;
-
-}
-
-
-.menu button {
-
-    background:transparent;
-
-    border:1px solid rgba(255,255,255,0.1);
-
-    color:#94A3B8;
-
-    padding:12px;
-
-    margin-bottom:8px;
-
-    border-radius:8px;
-
-    cursor:pointer;
-
-    text-align:left;
-
-    width:100%;
-
-}
-
-
-.menu button:hover {
-
-    background:rgba(255,255,255,0.05);
-
-    color:white;
-
-}
-
-
-
-.btn-sair {
-
-    color:#EF4444 !important;
-
-}
-
-
-
-.main {
-
-    flex:1;
-
-    padding:25px;
-
-    overflow-y:auto;
-
-}
-
-
-
-.header-painel {
-
-    display:flex;
-
-    align-items:center;
-
-}
-
-
-
-.header-painel h1 {
-
-    margin:0;
-
-}
-
-
-
-.btn-toggle-menu {
-
-    background:#1E293B;
-
-    color:white;
-
-    border:1px solid rgba(255,255,255,0.1);
-
-    padding:10px 15px;
-
-    border-radius:8px;
-
-    cursor:pointer;
-
-    margin-right:15px;
-
-}
-
-
-
-.abas-nav {
-
-    display:flex;
-
-    gap:10px;
-
-    margin-top:25px;
-
-}
-
-
-
-.aba-btn {
-
-    background:transparent;
-
-    border:none;
-
-    color:#94A3B8;
-
-    padding:10px 20px;
-
-    cursor:pointer;
-
-}
-
-
-
-.aba-btn.ativa {
-
-    background:#2563EB;
-
-    color:white;
-
-    border-radius:8px;
-
-}
-
-
-
-table {
-
-    width:100%;
-
-    border-collapse:collapse;
-
-    margin-top:20px;
-
-    background:#1E293B;
-
-}
-
-
-
-th {
-
-    background:#0F172A;
-
-    color:#94A3B8;
-
-    padding:12px;
-
-    text-align:left;
-
-}
-
-
-
-td {
-
-    padding:12px;
-
-    border-bottom:1px solid rgba(255,255,255,0.05);
-
-}
-
-
-
-.btn-acao {
-
-    border:none;
-
-    padding:7px 12px;
-
-    border-radius:6px;
-
-    cursor:pointer;
-
-    color:white;
-
-}
-
-
-
-.btn-verde {
-
-    background:#10B981;
-
-}
-
-
-
-.btn-amarelo {
-
-    background:#F59E0B;
-
-    color:black;
-
-}
-
-
-
-.btn-vermelho {
-
-    background:#EF4444;
-
-}
-
-
-
-.form-group {
-
-    background:#1E293B;
-
-    padding:20px;
-
-    border-radius:8px;
-
-    margin-top:20px;
-
-}
-
-
-input,select {
-
-    background:#0F172A;
-
-    color:white;
-
-    border:1px solid rgba(255,255,255,0.1);
-
-    padding:10px;
-
-    border-radius:6px;
-
-}
-
-
-</style>
-
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-
-
+    <meta charset="UTF-8">
+    <title>Gestão de Peças - NERI</title>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0F172A; color: white; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Adicionado transition, overflow, flex-shrink e box-sizing para a animação da sidebar funcionar */
+        .sidebar { width: 250px; background: #1E293B; border-right: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; padding: 20px; transition: all 0.3s ease; flex-shrink: 0; overflow: hidden; box-sizing: border-box; }
+        
+        .menu button { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94A3B8; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 14px; width: 100%; transition: 0.2s; white-space: nowrap; }
+        .menu button:hover { background: rgba(255,255,255,0.05); color: white; }
+        .btn-sair { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; margin-top: auto; }
+        .main { padding: 25px; display: flex; flex-direction: column; gap: 20px; flex: 1; overflow-y: auto; }
+        
+        /* Estilos do cabeçalho flex e do botão toggle */
+        .header-painel { display: flex; align-items: center; }
+        .header-painel h1 { margin: 0; font-size: 24px; }
+        .btn-toggle-menu { background: #1E293B; color: white; border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; cursor: pointer; margin-right: 15px; font-size: 20px; transition: 0.2s; display: flex; align-items: center; justify-content: center; height: 44px; }
+        .btn-toggle-menu:hover { background: #3B82F6; }
+
+        .abas-nav { display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .aba-btn { background: transparent; border: none; color: #94A3B8; font-size: 16px; font-weight: bold; cursor: pointer; padding: 10px 20px; border-radius: 8px; }
+        .aba-btn.ativa { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #1E293B; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        th { background: #0F172A; color: #94A3B8; font-size: 13px; text-transform: uppercase; }
+        
+        .form-group { display: flex; gap: 10px; margin-bottom: 20px; background: #1E293B; padding: 20px; border-radius: 8px; align-items: center; flex-wrap: wrap; }
+        .form-group input, .form-group select { padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: #0F172A; color: white; }
+        .btn-acao { background: #3B82F6; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-verde { background: #10B981; }
+        .btn-vermelho { background: #EF4444; }
+        .btn-amarelo { background: #F59E0B; color: black; }
+    </style>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
+    <script>function navegarSeguro(rota) { window.location.href = `${rota}?token=${localStorage.getItem("token")}`; }</script>
 </head>
-
-
 <body>
 
-
-
 <div class="sidebar" id="menuLateral">
-
-
-<img src="logo.svg" style="max-width:100%;margin-bottom:20px;">
-
-
-<div class="menu">
-
-
-<button onclick="navegarSeguro('/index.html')">
-📊 Dashboard
-</button>
-
-
-<button onclick="navegarSeguro('/estoque.html')">
-📦 Almoxarifado
-</button>
-
-
-<button onclick="navegarSeguro('/pecas.html')" 
-style="background:#2563EB;color:white;">
-🔧 Peças
-</button>
-
-
-<button onclick="localStorage.clear();window.location.replace('/login.html')" class="btn-sair">
-🚪 Sair
-</button>
-
-
+    <div class="logo-area"><img src="logo.svg" style="max-width: 100%; margin-bottom: 20px;" onerror="this.style.display='none'" /></div>
+    <div class="menu">
+        <button onclick="navegarSeguro('/index.html')">📊 Dashboard Geral</button>
+        <button onclick="navegarSeguro('/dados.html')">📂 Lançar Dados</button>
+        <button onclick="navegarSeguro('/roteirizador.html')">🗺️ Roteirizador</button>
+        <button onclick="navegarSeguro('/fila.html')">🗣️ Triagem e Ponto</button>
+        <button onclick="navegarSeguro('/estoque.html')">📦 Almoxarifado</button>
+        <button style="background: #2563EB; color: white; border-color: #3B82F6;">🔧 Peças</button>
+        <button onclick="localStorage.clear(); window.location.replace('/login.html')" class="btn-sair">🚪 Sair</button>
+    </div>
 </div>
-
-
-</div>
-
-
-
-
 
 <div class="main">
+    <div class="header-painel">
+        <button class="btn-toggle-menu" onclick="toggleMenu()" title="Ocultar/Mostrar Menu Lateral">☰</button>
+        <h1>Gestão de Peças</h1>
+    </div>
+    
+    <div class="abas-nav">
+        <button class="aba-btn ativa" id="btnAbaSolicitacoes" onclick="mudarAba('solicitacoes')"> Solicitações por Data</button>
+        <button class="aba-btn" id="btnAbaCatalogo" onclick="mudarAba('catalogo')"> Catálogo de Peças</button>
+    </div>
 
+    <!-- ABA SOLICITAÇÕES -->
+    <div id="abaSolicitacoes">
+        <div class="form-group">
+            <label style="color: #94A3B8; font-size: 14px;">Filtrar por Data:</label>
+            <input type="date" id="filtroData" onchange="carregarSolicitacoes()">
+            <button class="btn-acao" onclick="document.getElementById('filtroData').value=''; carregarSolicitacoes();" style="background: #475569;">🔄 Limpar Data</button>
+            <div style="margin-left: auto;">
+                <button class="btn-acao btn-verde" onclick="gerarPDFSolicitacoes()">📄 Baixar Relatório PDF</button>
+            </div>
+        </div>
 
-<div class="header-painel">
+        <table id="tabelaSolicitacoes">
+            <thead>
+                <tr><th>Data/Hora</th><th>Técnico</th><th>Peça Solicitada</th><th>Quantidade</th><th>Ações</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 
-
-<button class="btn-toggle-menu" onclick="toggleMenu()">
-☰
-</button>
-
-
-<h1>
-Gestão de Peças
-</h1>
-
-
+    <!-- ABA CATÁLOGO -->
+    <div id="abaCatalogo" style="display: none;">
+        <div class="form-group">
+            <input type="text" id="novaPecaNome" placeholder="Nome da Peça (Ex: Roteador Wi-Fi 6)" style="flex: 2;">
+            <input type="number" id="novaPecaQtd" placeholder="Estoque Inicial" style="max-width: 150px;">
+            <button class="btn-acao" onclick="cadastrarPeca()">➕ Cadastrar</button>
+        </div>
+        <table id="tabelaCatalogo">
+            <thead>
+                <tr><th>Nome da Peça</th><th>Estoque Atual</th><th>Ação</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 </div>
 
-
-
-
-
-<div class="abas-nav">
-
-
-<button id="btnAbaSolicitacoes"
-class="aba-btn ativa"
-onclick="mudarAba('solicitacoes')">
-
-Solicitações
-
-</button>
-
-
-<button id="btnAbaCatalogo"
-class="aba-btn"
-onclick="mudarAba('catalogo')">
-
-Catálogo
-
-</button>
-
-
-</div>
-
-
-
-
-
-<div id="abaSolicitacoes">
-
-
-
-<div class="form-group">
-
-
-<label>
-Filtrar por Data:
-</label>
-
-
-<input type="date" id="filtroData">
-
-
-<button class="btn-acao btn-verde"
-onclick="carregarSolicitacoes()">
-
-🔄 Atualizar
-
-</button>
-
-
-<button class="btn-acao btn-verde"
-onclick="gerarPDFSolicitacoes()">
-
-📄 PDF
-
-</button>
-
-
-</div>
-
-
-
-
-
-<table id="tabelaSolicitacoes">
-
-
-<thead>
-
-
-<tr>
-
-<th>Data/Hora</th>
-
-<th>Técnico</th>
-
-<th>Peça</th>
-
-<th>Quantidade</th>
-
-<th>Ações</th>
-
-</tr>
-
-
-</thead>
-
-
-<tbody>
-
-
-</tbody>
-
-
-</table>
-
-
-
-</div>
 <script>
-
-let cacheSolicitacoes = [];
-
-function obterToken(){
-    return localStorage.getItem("token");
-}
-
-function toggleMenu(){
-    const menu = document.getElementById("menuLateral");
-    if(menu){
-        menu.style.display = menu.style.display === "none" ? "flex" : "none";
-    }
-}
-
-function mudarAba(nome){
-
-    const solicitacoes = document.getElementById("abaSolicitacoes");
-    const catalogo = document.getElementById("abaCatalogo");
-
-    const btnSolic = document.getElementById("btnAbaSolicitacoes");
-    const btnCat = document.getElementById("btnAbaCatalogo");
-
-    if(nome === "catalogo"){
-        if(solicitacoes) solicitacoes.style.display="none";
-        if(catalogo) catalogo.style.display="block";
-        if(btnSolic) btnSolic.classList.remove("ativa");
-        if(btnCat) btnCat.classList.add("ativa");
-    }else{
-        if(solicitacoes) solicitacoes.style.display="block";
-        if(catalogo) catalogo.style.display="none";
-        if(btnCat) btnCat.classList.remove("ativa");
-        if(btnSolic) btnSolic.classList.add("ativa");
-    }
-}
-
-
-async function carregarSolicitacoes(){
-
-    try{
-
-        let url="/api/pecas/solicitacoes";
-
-        const data=document.getElementById("filtroData")?.value;
-
-        if(data){
-            url += "?data=" + data;
+    // Função adicionada para Recolher/Expandir o Menu Lateral
+    function toggleMenu() {
+        const sidebar = document.getElementById('menuLateral');
+        if (sidebar.style.width === '0px' || sidebar.style.display === 'none') {
+            sidebar.style.width = '250px'; 
+            sidebar.style.padding = '20px'; 
+            sidebar.style.display = 'flex';
+        } else {
+            sidebar.style.width = '0px'; 
+            sidebar.style.padding = '0';
+            setTimeout(() => { sidebar.style.display = 'none'; }, 300); 
         }
-
-
-        const resposta = await fetch(url,{
-            headers:{
-                "Authorization":"Bearer " + obterToken()
-            }
-        });
-
-
-        const dados = await resposta.json();
-
-        cacheSolicitacoes=dados;
-
-
-        const tbody=document.querySelector("#tabelaSolicitacoes tbody");
-
-        tbody.innerHTML="";
-
-
-        dados.forEach(solicitacao=>{
-
-
-            if(!solicitacao.pecas) return;
-
-
-            solicitacao.pecas.forEach(peca=>{
-
-
-                const tr=document.createElement("tr");
-
-
-                tr.innerHTML=`
-
-<td>
-${new Date(solicitacao.dataSolicitacao).toLocaleString("pt-BR")}
-</td>
-
-<td>
-${solicitacao.tecnico || ""}
-</td>
-
-<td>
-${peca.nome_peca || "Peça não informada"}
-</td>
-
-<td>
-<strong>${peca.quantidade} un.</strong>
-</td>
-
-<td>
-
-<button class="btn-acao btn-amarelo"
-onclick="editarQuantidade('${solicitacao._id}','${peca.peca_id}',${peca.quantidade})">
-✏️ Editar
-</button>
-
-<button class="btn-acao btn-vermelho"
-onclick="excluirPeca('${solicitacao._id}','${peca.peca_id}')">
-🗑️ Excluir
-</button>
-function navegarSeguro(url){
+    }
 
     const token = localStorage.getItem("token");
+    if (!token) window.location.replace("/login.html");
 
-    if(!token){
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById("filtroData").value = hoje;
 
-        window.location.replace("/login.html");
-
-        return;
-
+    function mudarAba(aba) {
+        document.getElementById('abaSolicitacoes').style.display = aba === 'solicitacoes' ? 'block' : 'none';
+        document.getElementById('abaCatalogo').style.display = aba === 'catalogo' ? 'block' : 'none';
+        document.getElementById('btnAbaSolicitacoes').classList.toggle('ativa', aba === 'solicitacoes');
+        document.getElementById('btnAbaCatalogo').classList.toggle('ativa', aba === 'catalogo');
+        if(aba === 'catalogo') carregarCatalogo();
+        if(aba === 'solicitacoes') carregarSolicitacoes();
     }
 
+    async function carregarCatalogo() {
+        const res = await fetch('/api/pecas/catalogo', { headers: { 'Authorization': `Bearer ${token}` }});
+        let pecas = await res.json();
+        
+        // ORDENA O CATÁLOGO ALFABETICAMENTE PELO NOME DA PEÇA
+        pecas.sort((a, b) => a.nome.localeCompare(b.nome));
 
-    window.location.href = url;
+        const tbody = document.querySelector("#tabelaCatalogo tbody");
+        tbody.innerHTML = "";
+        pecas.forEach(p => {
+            tbody.innerHTML += `<tr>
+                <td>${p.nome}</td>
+                <td><strong style="color: ${p.estoque > 5 ? '#10B981' : '#EF4444'}">${p.estoque} un.</strong></td>
+                <td>
+                    <button onclick="editarPecaCatalogo('${p._id}', '${p.nome}', ${p.estoque})" class="btn-acao btn-amarelo" style="padding: 5px 10px; font-size:12px;">✏️ Editar</button>
+                    <button onclick="excluirPeca('${p._id}')" class="btn-acao btn-vermelho" style="padding: 5px 10px; font-size:12px;">Excluir</button>
+                </td>
+            </tr>`;
+        });
+    }
 
-}
+    async function cadastrarPeca() {
+        const nome = document.getElementById("novaPecaNome").value;
+        const qtd = document.getElementById("novaPecaQtd").value;
+        if(!nome) return alert("Preencha o nome da peça!");
+        await fetch('/api/pecas/catalogo', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ nome, quantidade_inicial: qtd })
+        });
+        document.getElementById("novaPecaNome").value = "";
+        document.getElementById("novaPecaQtd").value = "";
+        carregarCatalogo();
+    }
 
-</td>
+    // Função Nova para Editar Estoque e Nome do Catálogo
+    async function editarPecaCatalogo(id, nomeAtual, estoqueAtual) {
+        let novoNome = prompt("Edite o nome da peça:", nomeAtual);
+        if (novoNome === null || novoNome.trim() === "") return;
+        
+        let novoEstoque = prompt("Edite a quantidade em estoque:", estoqueAtual);
+        if (novoEstoque === null || novoEstoque.trim() === "") return;
 
-`;
+        await fetch(`/api/pecas/catalogo/${id}/editar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ novo_nome: novoNome.trim().toUpperCase(), novo_estoque: novoEstoque })
+        });
+        carregarCatalogo();
+    }
 
-                tbody.appendChild(tr);
+    async function excluirPeca(id) {
+        if(!confirm("Tem certeza que deseja excluir esta peça do catálogo?")) return;
+        await fetch(`/api/pecas/catalogo/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
+        carregarCatalogo();
+    }
 
+    let cacheSolicitacoes = [];
+
+    async function carregarSolicitacoes() {
+        const dataSelecionada = document.getElementById("filtroData").value;
+        let url = '/api/pecas/solicitacoes';
+        if (dataSelecionada) url += `?data=${dataSelecionada}`;
+
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }});
+        cacheSolicitacoes = await res.json();
+        
+        const tbody = document.querySelector("#tabelaSolicitacoes tbody");
+        tbody.innerHTML = "";
+        
+        if(cacheSolicitacoes.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94A3B8;">Nenhum pedido encontrado para a data selecionada.</td></tr>`;
+            return;
+        }
+
+        cacheSolicitacoes.forEach(solicitacao => {
+
+            const dataF = new Date(solicitacao.dataSolicitacao)
+                .toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'});
+
+
+            (solicitacao.pecas || []).forEach(peca => {
+
+                let acoesHtml = `
+                    <button class="btn-acao btn-amarelo"
+                    onclick="editarQtd('${solicitacao._id}','${peca.peca_id}',${peca.quantidade})"
+                    style="padding:5px 10px;font-size:12px;">
+                    ✏️ Editar
+                    </button>
+
+                    <button class="btn-acao btn-vermelho"
+                    onclick="excluirPeca('${solicitacao._id}','${peca.peca_id}')"
+                    style="padding:5px 10px;font-size:12px;">
+                    🗑️ Excluir
+                    </button>
+                `;
+
+
+                tbody.innerHTML += `
+                <tr>
+
+                    <td style="color:#94A3B8;font-size:13px;">
+                    ${dataF}
+                    </td>
+
+                    <td>
+                    <strong>${solicitacao.tecnico}</strong>
+                    </td>
+
+                    <td>
+                    ${peca.nome_peca}
+                    ${solicitacao.observacao ?
+                    '<br><small style="color:#93C5FD;">Obs: '+solicitacao.observacao+'</small>'
+                    : ''}
+                    </td>
+
+                    <td>
+                    <strong>${peca.quantidade} un.</strong>
+                    </td>
+
+                    <td>
+                    ${acoesHtml}
+                    </td>
+
+                </tr>`;
             });
-
         });
-
-
-    }catch(e){
-
-        console.error(e);
-
-        alert("Erro ao carregar solicitações");
 
     }
 
-}
+    async function editarQtd(id, pecaId, qtdAtual) {
+
+        let novaQtd = prompt("Informe a nova quantidade:", qtdAtual);
+
+        if(novaQtd === null || novaQtd.trim() === "") return;
 
 
+        await fetch(`/api/pecas/solicitacoes/${id}/peca/${pecaId}`, {
 
-async function editarQuantidade(id, pecaId, quantidade){
+            method:'PUT',
 
-    const nova = prompt(
-        "Informe a nova quantidade:",
-        quantidade
-    );
-
-
-    if(nova === null) return;
-
-
-    await fetch(
-        `/api/pecas/solicitacoes/${id}/peca/${pecaId}`,
-        {
-            method:"PUT",
             headers:{
-                "Content-Type":"application/json",
-                "Authorization":"Bearer " + obterToken()
+                'Content-Type':'application/json',
+                'Authorization':`Bearer ${token}`
             },
+
             body:JSON.stringify({
-                quantidade:Number(nova)
+                quantidade:Number(novaQtd)
             })
-        }
-    );
-
-
-    carregarSolicitacoes();
-
-}
-
-
-
-async function excluirPeca(id, pecaId){
-
-    if(!confirm("Excluir somente esta peça da solicitação?"))
-        return;
-
-
-    await fetch(
-        `/api/pecas/solicitacoes/${id}/peca/${pecaId}`,
-        {
-            method:"DELETE",
-            headers:{
-                "Authorization":"Bearer " + obterToken()
-            }
-        }
-    );
-
-
-    carregarSolicitacoes();
-
-}
-
-
-
-function gerarPDFSolicitacoes(){
-
-    if(!window.jspdf){
-        alert("Biblioteca PDF não carregada");
-        return;
-    }
-
-
-    const { jsPDF } = window.jspdf;
-
-    const doc = new jsPDF();
-
-
-    doc.text("Solicitações de Peças",10,10);
-
-
-    let linhas=[];
-
-
-    cacheSolicitacoes.forEach(s=>{
-
-        (s.pecas || []).forEach(p=>{
-
-            linhas.push([
-                s.tecnico,
-                p.nome_peca,
-                p.quantidade
-            ]);
 
         });
 
-    });
+
+        carregarSolicitacoes();
+
+    }
 
 
-    doc.autoTable({
+    async function excluirPeca(id, pecaId){
 
-        startY:20,
-
-        head:[
-            ["Técnico","Peça","Quantidade"]
-        ],
-
-        body:linhas
-
-    });
+        if(!confirm("Excluir somente esta peça da solicitação?"))
+            return;
 
 
-    doc.save("solicitacoes_pecas.pdf");
+        await fetch(`/api/pecas/solicitacoes/${id}/peca/${pecaId}`,{
 
-}
+            method:'DELETE',
+
+            headers:{
+                'Authorization':`Bearer ${token}`
+            }
+
+        });
 
 
+        carregarSolicitacoes();
 
-window.onload=function(){
+    }
 
+
+    async function excluirSolicitacao(id) {
+        if(!confirm("Deseja excluir esta solicitação?")) return;
+        await fetch(`/api/pecas/solicitacoes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }});
+        carregarSolicitacoes();
+    }
+
+    function gerarPDFSolicitacoes() {
+        if (cacheSolicitacoes.length === 0) return alert("Não há dados para gerar relatório.");
+
+        const { jsPDF } = window.jspdf; 
+        const doc = new jsPDF();
+        
+        doc.setFont("helvetica", "bold"); 
+        doc.setFontSize(18); 
+        doc.text("Relatório de Solicitações de Peças", 14, 20);
+        
+        doc.setFontSize(11); 
+        doc.setFont("helvetica", "normal"); 
+        const dataFiltroStr = document.getElementById("filtroData").value || "Geral";
+        doc.text(`Data do Filtro: ${dataFiltroStr}`, 14, 28); 
+
+        doc.autoTable({
+            head: [["Data/Hora", "Técnico", "Peça", "Quantidade"]],
+            body: cacheSolicitacoes.flatMap(item =>
+                (item.pecas || []).map(p => [
+                    new Date(item.dataSolicitacao).toLocaleString('pt-BR'),
+                    item.tecnico,
+                    p.nome_peca,
+                    p.quantidade + " un."
+                ])
+            ),
+            startY: 35, 
+            theme: 'striped', 
+            headStyles: { fillColor: [30, 41, 59] }
+        });
+        
+        doc.save(`Relatorio_Pecas_${dataFiltroStr}.pdf`);
+    }
+
+    // Inicialização e atualização automática em tempo real
     carregarSolicitacoes();
-
-};
-
+    setInterval(carregarSolicitacoes, 3000); 
 </script>
+</body>
+</html>
