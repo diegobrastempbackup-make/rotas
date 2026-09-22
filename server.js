@@ -1083,7 +1083,7 @@ app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
 });
 
-// --- NOVO: ROTA GET PARA LISTAR SOLICITAÇÕES COM SUPORTE A FILTRO DE DATA ---
+// --- LISTAR SOLICITAÇÕES DE PEÇAS COM FILTRO DE DATA ---
 app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
 
     try {
@@ -1093,7 +1093,6 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
         };
 
 
-        // Se o painel enviou uma data (YYYY-MM-DD), filtra o dia inteiro
         if (req.query.data) {
 
             const inicioDia = new Date(
@@ -1114,10 +1113,11 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
 
 
 
-        const solicitacoes = await db.collection("solicitacoes_pecas")
+        const solicitacoes =
+            await db.collection("solicitacoes_pecas")
             .find(filtro)
             .sort({
-                dataSolicitacao: -1
+                dataSolicitacao:-1
             })
             .toArray();
 
@@ -1127,13 +1127,16 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
 
 
 
-    } catch (e) {
+    } catch(e) {
+
 
         console.error(e);
 
+
         res.status(500).json({
-            erro: "Erro ao buscar solicitações"
+            erro:"Erro ao buscar solicitações"
         });
+
 
     }
 
@@ -1143,10 +1146,13 @@ app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
 
 
 
-// --- NOVO: RECEBE SOLICITAÇÃO COM VÁRIAS PEÇAS ---
-app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
+
+
+// --- RECEBER SOLICITAÇÃO COM VÁRIAS PEÇAS ---
+app.post('/api/pecas/solicitar', autenticarToken, async (req,res)=>{
 
     try {
+
 
         const {
             tecnico,
@@ -1156,71 +1162,83 @@ app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
 
 
 
-        if (
+        if(
             !tecnico ||
             !pecas ||
             !Array.isArray(pecas) ||
             pecas.length === 0
-        ) {
+        ){
 
             return res.status(400).json({
-                erro: "Nenhuma peça informada."
+                erro:"Nenhuma peça informada."
             });
 
         }
 
 
 
+
         const solicitacao = {
 
-            cliente_id: req.usuario.cliente_id,
+            cliente_id:req.usuario.cliente_id,
 
             tecnico,
 
-            pecas: pecas.map(item => ({
 
-                peca_id: item.peca_id,
+            pecas:pecas.map(item=>({
 
-                nome_peca: item.nome_peca,
 
-                quantidade: Number(item.quantidade) || 0
+                peca_id:item.peca_id,
+
+                nome_peca:item.nome_peca,
+
+                quantidade:Number(item.quantidade) || 0
+
 
             })),
 
-            observacao: observacao || "",
 
-            status: "Pendente",
+            observacao:observacao || "",
 
-            dataSolicitacao: new Date()
+
+            status:"Pendente",
+
+
+            dataSolicitacao:new Date()
+
 
         };
 
 
 
+
         await db.collection("solicitacoes_pecas")
-            .insertOne(solicitacao);
+        .insertOne(solicitacao);
 
 
 
         res.json({
 
-            ok: true,
+            ok:true,
 
-            mensagem: "Solicitação enviada com sucesso."
+            mensagem:"Solicitação enviada com sucesso."
 
         });
 
 
 
-    } catch(e) {
+    }catch(e){
+
 
         console.error(e);
 
+
         res.status(500).json({
 
-            erro: "Erro ao solicitar peças"
+            erro:"Erro ao solicitar peças"
 
         });
+
 
     }
 
@@ -1231,106 +1249,94 @@ app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
 
 
 
-// --- EDITAR SOLICITAÇÃO ---
-app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
-
-    try {
 
 
-        const {
-            pecas,
-            nova_quantidade
-        } = req.body;
+// --- EDITAR UMA PEÇA ESPECÍFICA DA SOLICITAÇÃO ---
+app.put('/api/pecas/solicitacoes/:id/peca/:pecaId', autenticarToken, async(req,res)=>{
 
 
-
-        // Compatibilidade com edição rápida do painel
-        if (nova_quantidade !== undefined) {
+    try{
 
 
-            const solicitacaoAtual =
-                await db.collection("solicitacoes_pecas")
-                .findOne({
-
-                    _id: new ObjectId(req.params.id),
-
-                    cliente_id: req.usuario.cliente_id
-
-                });
+        const { quantidade } = req.body;
 
 
 
-            if (
-                !solicitacaoAtual ||
-                !solicitacaoAtual.pecas ||
-                solicitacaoAtual.pecas.length === 0
-            ) {
+        const solicitacao =
+            await db.collection("solicitacoes_pecas")
+            .findOne({
 
-                return res.status(404).json({
-                    erro: "Solicitação não encontrada"
-                });
+                _id:new ObjectId(req.params.id),
+
+                cliente_id:req.usuario.cliente_id
+
+            });
+
+
+
+        if(!solicitacao){
+
+            return res.status(404).json({
+
+                erro:"Solicitação não encontrada"
+
+            });
+
+        }
+
+
+
+
+        const indice =
+            solicitacao.pecas.findIndex(
+
+                p =>
+                String(p.peca_id) === String(req.params.pecaId)
+
+            );
+
+
+
+        if(indice === -1){
+
+            return res.status(404).json({
+
+                erro:"Peça não encontrada"
+
+            });
+
+        }
+
+
+
+        solicitacao.pecas[indice].quantidade =
+            Number(quantidade) || 0;
+
+
+
+
+        await db.collection("solicitacoes_pecas")
+        .updateOne(
+
+            {
+
+                _id:new ObjectId(req.params.id),
+
+                cliente_id:req.usuario.cliente_id
+
+            },
+
+            {
+
+                $set:{
+
+                    pecas:solicitacao.pecas
+
+                }
 
             }
 
-
-
-            solicitacaoAtual.pecas[0].quantidade =
-                Number(nova_quantidade) || 0;
-
-
-
-            await db.collection("solicitacoes_pecas")
-                .updateOne(
-
-                    {
-                        _id: new ObjectId(req.params.id),
-                        cliente_id: req.usuario.cliente_id
-                    },
-
-                    {
-                        $set: {
-                            pecas: solicitacaoAtual.pecas
-                        }
-                    }
-
-                );
-
-
-
-        } else if (pecas && Array.isArray(pecas)) {
-
-
-
-            await db.collection("solicitacoes_pecas")
-                .updateOne(
-
-                    {
-                        _id: new ObjectId(req.params.id),
-                        cliente_id: req.usuario.cliente_id
-                    },
-
-                    {
-
-                        $set: {
-
-                            pecas: pecas.map(item => ({
-
-                                peca_id: item.peca_id,
-
-                                nome_peca: item.nome_peca,
-
-                                quantidade:
-                                    Number(item.quantidade) || 0
-
-                            }))
-
-                        }
-
-                    }
-
-                );
-
-        }
+        );
 
 
 
@@ -1342,9 +1348,202 @@ app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) 
 
 
 
-    } catch(e) {
+    }catch(e){
+
 
         console.error(e);
+
+
+        res.status(500).json({
+
+            erro:"Erro ao alterar quantidade"
+
+        });
+
+
+    }
+
+
+});
+
+
+
+
+
+
+
+
+
+// --- EXCLUIR UMA PEÇA ESPECÍFICA DA SOLICITAÇÃO ---
+app.delete('/api/pecas/solicitacoes/:id/peca/:pecaId', autenticarToken, async(req,res)=>{
+
+
+    try{
+
+
+        const solicitacao =
+            await db.collection("solicitacoes_pecas")
+            .findOne({
+
+                _id:new ObjectId(req.params.id),
+
+                cliente_id:req.usuario.cliente_id
+
+            });
+
+
+
+        if(!solicitacao){
+
+            return res.status(404).json({
+
+                erro:"Solicitação não encontrada"
+
+            });
+
+        }
+
+
+
+        const novasPecas =
+            solicitacao.pecas.filter(
+
+                p =>
+                String(p.peca_id) !== String(req.params.pecaId)
+
+            );
+
+
+
+        await db.collection("solicitacoes_pecas")
+        .updateOne(
+
+            {
+
+                _id:new ObjectId(req.params.id),
+
+                cliente_id:req.usuario.cliente_id
+
+            },
+
+            {
+
+                $set:{
+
+                    pecas:novasPecas
+
+                }
+
+            }
+
+        );
+
+
+
+        res.json({
+
+            ok:true
+
+        });
+
+
+
+    }catch(e){
+
+
+        console.error(e);
+
+
+        res.status(500).json({
+
+            erro:"Erro ao excluir peça"
+
+        });
+
+
+    }
+
+
+});
+
+
+
+
+
+
+
+
+// --- EDITAR SOLICITAÇÃO COMPLETA (COMPATIBILIDADE) ---
+app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async(req,res)=>{
+
+
+    try{
+
+
+        const { pecas } = req.body;
+
+
+
+        if(!pecas || !Array.isArray(pecas)){
+
+
+            return res.status(400).json({
+
+                erro:"Lista de peças inválida"
+
+            });
+
+
+        }
+
+
+
+        await db.collection("solicitacoes_pecas")
+        .updateOne(
+
+            {
+
+                _id:new ObjectId(req.params.id),
+
+                cliente_id:req.usuario.cliente_id
+
+            },
+
+            {
+
+                $set:{
+
+                    pecas:pecas.map(item=>({
+
+                        peca_id:item.peca_id,
+
+                        nome_peca:item.nome_peca,
+
+                        quantidade:Number(item.quantidade)||0
+
+                    }))
+
+                }
+
+            }
+
+        );
+
+
+
+        res.json({
+
+            ok:true
+
+        });
+
+
+
+    }catch(e){
+
+
+        console.error(e);
+
 
         res.status(500).json({
 
@@ -1352,7 +1551,9 @@ app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) 
 
         });
 
+
     }
+
 
 });
 
@@ -1361,18 +1562,22 @@ app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) 
 
 
 
-// --- EXCLUIR SOLICITAÇÃO ---
-app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req,res)=>{
 
-    try {
+
+
+// --- EXCLUIR SOLICITAÇÃO COMPLETA ---
+app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async(req,res)=>{
+
+
+    try{
 
 
         await db.collection("solicitacoes_pecas")
         .deleteOne({
 
-            _id: new ObjectId(req.params.id),
+            _id:new ObjectId(req.params.id),
 
-            cliente_id: req.usuario.cliente_id
+            cliente_id:req.usuario.cliente_id
 
         });
 
@@ -1386,7 +1591,7 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req,res)=>{
 
 
 
-    } catch(e) {
+    }catch(e){
 
 
         console.error(e);
@@ -1398,6 +1603,8 @@ app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req,res)=>{
 
         });
 
+
     }
+
 
 });
