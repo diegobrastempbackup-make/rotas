@@ -450,3 +450,250 @@ onclick="gerarPDFSolicitacoes()">
 
 
 </div>
+<script>
+
+let cacheSolicitacoes = [];
+
+function obterToken(){
+    return localStorage.getItem("token");
+}
+
+function toggleMenu(){
+    const menu = document.getElementById("menuLateral");
+    if(menu){
+        menu.style.display = menu.style.display === "none" ? "flex" : "none";
+    }
+}
+
+function mudarAba(nome){
+
+    const solicitacoes = document.getElementById("abaSolicitacoes");
+    const catalogo = document.getElementById("abaCatalogo");
+
+    const btnSolic = document.getElementById("btnAbaSolicitacoes");
+    const btnCat = document.getElementById("btnAbaCatalogo");
+
+    if(nome === "catalogo"){
+        if(solicitacoes) solicitacoes.style.display="none";
+        if(catalogo) catalogo.style.display="block";
+        if(btnSolic) btnSolic.classList.remove("ativa");
+        if(btnCat) btnCat.classList.add("ativa");
+    }else{
+        if(solicitacoes) solicitacoes.style.display="block";
+        if(catalogo) catalogo.style.display="none";
+        if(btnCat) btnCat.classList.remove("ativa");
+        if(btnSolic) btnSolic.classList.add("ativa");
+    }
+}
+
+
+async function carregarSolicitacoes(){
+
+    try{
+
+        let url="/api/pecas/solicitacoes";
+
+        const data=document.getElementById("filtroData")?.value;
+
+        if(data){
+            url += "?data=" + data;
+        }
+
+
+        const resposta = await fetch(url,{
+            headers:{
+                "Authorization":"Bearer " + obterToken()
+            }
+        });
+
+
+        const dados = await resposta.json();
+
+        cacheSolicitacoes=dados;
+
+
+        const tbody=document.querySelector("#tabelaSolicitacoes tbody");
+
+        tbody.innerHTML="";
+
+
+        dados.forEach(solicitacao=>{
+
+
+            if(!solicitacao.pecas) return;
+
+
+            solicitacao.pecas.forEach(peca=>{
+
+
+                const tr=document.createElement("tr");
+
+
+                tr.innerHTML=`
+
+<td>
+${new Date(solicitacao.dataSolicitacao).toLocaleString("pt-BR")}
+</td>
+
+<td>
+${solicitacao.tecnico || ""}
+</td>
+
+<td>
+${peca.nome_peca || "Peça não informada"}
+</td>
+
+<td>
+<strong>${peca.quantidade} un.</strong>
+</td>
+
+<td>
+
+<button class="btn-acao btn-amarelo"
+onclick="editarQuantidade('${solicitacao._id}','${peca.peca_id}',${peca.quantidade})">
+✏️ Editar
+</button>
+
+<button class="btn-acao btn-vermelho"
+onclick="excluirPeca('${solicitacao._id}','${peca.peca_id}')">
+🗑️ Excluir
+</button>
+
+</td>
+
+`;
+
+                tbody.appendChild(tr);
+
+            });
+
+        });
+
+
+    }catch(e){
+
+        console.error(e);
+
+        alert("Erro ao carregar solicitações");
+
+    }
+
+}
+
+
+
+async function editarQuantidade(id, pecaId, quantidade){
+
+    const nova = prompt(
+        "Informe a nova quantidade:",
+        quantidade
+    );
+
+
+    if(nova === null) return;
+
+
+    await fetch(
+        `/api/pecas/solicitacoes/${id}/peca/${pecaId}`,
+        {
+            method:"PUT",
+            headers:{
+                "Content-Type":"application/json",
+                "Authorization":"Bearer " + obterToken()
+            },
+            body:JSON.stringify({
+                quantidade:Number(nova)
+            })
+        }
+    );
+
+
+    carregarSolicitacoes();
+
+}
+
+
+
+async function excluirPeca(id, pecaId){
+
+    if(!confirm("Excluir somente esta peça da solicitação?"))
+        return;
+
+
+    await fetch(
+        `/api/pecas/solicitacoes/${id}/peca/${pecaId}`,
+        {
+            method:"DELETE",
+            headers:{
+                "Authorization":"Bearer " + obterToken()
+            }
+        }
+    );
+
+
+    carregarSolicitacoes();
+
+}
+
+
+
+function gerarPDFSolicitacoes(){
+
+    if(!window.jspdf){
+        alert("Biblioteca PDF não carregada");
+        return;
+    }
+
+
+    const { jsPDF } = window.jspdf;
+
+    const doc = new jsPDF();
+
+
+    doc.text("Solicitações de Peças",10,10);
+
+
+    let linhas=[];
+
+
+    cacheSolicitacoes.forEach(s=>{
+
+        (s.pecas || []).forEach(p=>{
+
+            linhas.push([
+                s.tecnico,
+                p.nome_peca,
+                p.quantidade
+            ]);
+
+        });
+
+    });
+
+
+    doc.autoTable({
+
+        startY:20,
+
+        head:[
+            ["Técnico","Peça","Quantidade"]
+        ],
+
+        body:linhas
+
+    });
+
+
+    doc.save("solicitacoes_pecas.pdf");
+
+}
+
+
+
+window.onload=function(){
+
+    carregarSolicitacoes();
+
+};
+
+</script>
