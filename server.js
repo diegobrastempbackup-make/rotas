@@ -1083,14 +1083,85 @@ app.delete('/api/pecas/catalogo/:id', autenticarToken, async (req, res) => {
     } catch(e) { res.status(500).json({erro: "Erro ao excluir peça"}); }
 });
 
+// --- NOVO: ROTA GET PARA LISTAR SOLICITAÇÕES COM SUPORTE A FILTRO DE DATA ---
+app.get('/api/pecas/solicitacoes', autenticarToken, async (req, res) => {
+
+    try {
+
+        let filtro = {
+            cliente_id: req.usuario.cliente_id
+        };
+
+
+        // Se o painel enviou uma data (YYYY-MM-DD), filtra o dia inteiro
+        if (req.query.data) {
+
+            const inicioDia = new Date(
+                req.query.data + "T00:00:00.000Z"
+            );
+
+            const fimDia = new Date(
+                req.query.data + "T23:59:59.999Z"
+            );
+
+
+            filtro.dataSolicitacao = {
+                $gte: inicioDia,
+                $lte: fimDia
+            };
+
+        }
+
+
+
+        const solicitacoes = await db.collection("solicitacoes_pecas")
+            .find(filtro)
+            .sort({
+                dataSolicitacao: -1
+            })
+            .toArray();
+
+
+
+        res.json(solicitacoes);
+
+
+
+    } catch (e) {
+
+        console.error(e);
+
+        res.status(500).json({
+            erro: "Erro ao buscar solicitações"
+        });
+
+    }
+
+});
+
+
+
+
+
+// --- NOVO: RECEBE SOLICITAÇÃO COM VÁRIAS PEÇAS ---
 app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
 
     try {
 
-        const { tecnico, pecas, observacao } = req.body;
+        const {
+            tecnico,
+            pecas,
+            observacao
+        } = req.body;
 
 
-        if (!tecnico || !pecas || !Array.isArray(pecas) || pecas.length === 0) {
+
+        if (
+            !tecnico ||
+            !pecas ||
+            !Array.isArray(pecas) ||
+            pecas.length === 0
+        ) {
 
             return res.status(400).json({
                 erro: "Nenhuma peça informada."
@@ -1107,7 +1178,6 @@ app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
             tecnico,
 
             pecas: pecas.map(item => ({
-              
 
                 peca_id: item.peca_id,
 
@@ -1156,71 +1226,178 @@ app.post('/api/pecas/solicitar', autenticarToken, async (req, res) => {
 
 });
 
+
+
+
+
+
+// --- EDITAR SOLICITAÇÃO ---
 app.put('/api/pecas/solicitacoes/:id/editar', autenticarToken, async (req, res) => {
 
     try {
 
-        const { pecas } = req.body;
+
+        const {
+            pecas,
+            nova_quantidade
+        } = req.body;
 
 
-        await db.collection("solicitacoes_pecas").updateOne(
 
-            {
-                _id: new ObjectId(req.params.id),
-                cliente_id: req.usuario.cliente_id
-            },
+        // Compatibilidade com edição rápida do painel
+        if (nova_quantidade !== undefined) {
 
 
-            {
-                $set: {
+            const solicitacaoAtual =
+                await db.collection("solicitacoes_pecas")
+                .findOne({
 
-                    pecas: pecas.map(item => ({
+                    _id: new ObjectId(req.params.id),
 
-                        peca_id: item.peca_id,
+                    cliente_id: req.usuario.cliente_id
 
-                        nome_peca: item.nome_peca,
+                });
 
-                        quantidade: Number(item.quantidade) || 0
 
-                    }))
 
-                }
+            if (
+                !solicitacaoAtual ||
+                !solicitacaoAtual.pecas ||
+                solicitacaoAtual.pecas.length === 0
+            ) {
+
+                return res.status(404).json({
+                    erro: "Solicitação não encontrada"
+                });
 
             }
 
-        );
+
+
+            solicitacaoAtual.pecas[0].quantidade =
+                Number(nova_quantidade) || 0;
+
+
+
+            await db.collection("solicitacoes_pecas")
+                .updateOne(
+
+                    {
+                        _id: new ObjectId(req.params.id),
+                        cliente_id: req.usuario.cliente_id
+                    },
+
+                    {
+                        $set: {
+                            pecas: solicitacaoAtual.pecas
+                        }
+                    }
+
+                );
+
+
+
+        } else if (pecas && Array.isArray(pecas)) {
+
+
+
+            await db.collection("solicitacoes_pecas")
+                .updateOne(
+
+                    {
+                        _id: new ObjectId(req.params.id),
+                        cliente_id: req.usuario.cliente_id
+                    },
+
+                    {
+
+                        $set: {
+
+                            pecas: pecas.map(item => ({
+
+                                peca_id: item.peca_id,
+
+                                nome_peca: item.nome_peca,
+
+                                quantidade:
+                                    Number(item.quantidade) || 0
+
+                            }))
+
+                        }
+
+                    }
+
+                );
+
+        }
+
 
 
         res.json({
+
             ok:true
+
         });
 
 
 
     } catch(e) {
 
+        console.error(e);
+
         res.status(500).json({
+
             erro:"Erro ao editar solicitação"
+
         });
 
     }
 
 });
+
+
+
+
+
+
+// --- EXCLUIR SOLICITAÇÃO ---
 app.delete('/api/pecas/solicitacoes/:id', autenticarToken, async (req,res)=>{
+
     try {
 
-        await db.collection("solicitacoes_pecas").deleteOne({
+
+        await db.collection("solicitacoes_pecas")
+        .deleteOne({
+
             _id: new ObjectId(req.params.id),
+
             cliente_id: req.usuario.cliente_id
+
         });
 
-        res.json({ok:true});
 
-    } catch(e){
+
+        res.json({
+
+            ok:true
+
+        });
+
+
+
+    } catch(e) {
+
+
+        console.error(e);
+
 
         res.status(500).json({
+
             erro:"Erro ao excluir solicitação"
+
         });
 
     }
+
 });

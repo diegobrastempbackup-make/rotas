@@ -210,15 +210,32 @@
             const dataF = new Date(p.dataSolicitacao).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});
 
             let acoesHtml = `
-                <button class="btn-acao btn-amarelo" onclick="editarQtd('${p._id}', ${p.quantidade})" style="padding: 5px 10px; font-size:12px;">✏️ Editar Qtd</button>
+                <button class="btn-acao btn-amarelo" onclick="editarQtd('${p._id}', ${p.pecas && p.pecas[0] ? p.pecas[0].quantidade : 0})" style="padding: 5px 10px; font-size:12px;">✏️ Editar Qtd</button>
                 <button class="btn-acao btn-vermelho" onclick="excluirSolicitacao('${p._id}')" style="padding: 5px 10px; font-size:12px;">🗑️ Excluir</button>
             `;
 
             tbody.innerHTML += `<tr>
                 <td style="color:#94A3B8; font-size:13px;">${dataF}</td>
                 <td><strong>${p.tecnico}</strong></td>
-                <td>${p.nome_peca} ${p.observacao ? '<br><small style="color:#93C5FD;">Obs: '+p.observacao+'</small>' : ''}</td>
-                <td><strong>${p.quantidade} un.</strong></td>
+                <td>
+                    ${
+                        p.pecas && p.pecas.length
+                        ?
+                        p.pecas.map(item => `${item.nome_peca} (${item.quantidade} un.)`).join("<br>")
+                        :
+                        "Peça não informada"
+                    }
+                    ${p.observacao ? '<br><small style="color:#93C5FD;">Obs: '+p.observacao+'</small>' : ''}
+                </td>
+                <td>
+                    <strong>${
+                        p.pecas
+                        ?
+                        p.pecas.reduce((total,item)=> total + Number(item.quantidade || 0), 0)
+                        :
+                        0
+                    } un.</strong>
+                </td>
                 <td>${acoesHtml}</td>
             </tr>`;
         });
@@ -262,8 +279,8 @@
             body: cacheSolicitacoes.map(item => [ 
                 new Date(item.dataSolicitacao).toLocaleString('pt-BR'), 
                 item.tecnico, 
-                item.nome_peca, 
-                item.quantidade + " un." 
+                item.pecas ? item.pecas.map(p => `${p.nome_peca} (${p.quantidade})`).join(", ") : "", 
+                (item.pecas ? item.pecas.reduce((total,p)=> total + Number(p.quantidade || 0), 0) : 0) + " un." 
             ]),
             startY: 35, 
             theme: 'striped', 
