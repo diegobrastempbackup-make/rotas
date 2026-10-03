@@ -117,201 +117,55 @@ function pontuarResultadoGoogle(resultado, enderecoOriginal) {
   return pontos;
 
 }
+app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
+  try {
+    const { endereco } = req.body;
+    if (!endereco) return res.status(400).json({ erro: "Endereço vazio" });
 
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
 
+    // Monta a URL codificada focando no Brasil
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=\({encodeURIComponent(endereco)}&region=br&language=pt-BR&key=\){apiKey}`;
 
-app.post(
-'/api/geocodificar-endereco',
-autenticarToken,
-async (req,res)=>{
+    https.get(url, (response) => {
+      let dados = "";
+      response.on("data", (chunk) => { dados += chunk; });
+      response.on("end", () => {
+        try {
+          const json = JSON.parse(dados);
+          if (json.status !== "OK" || !json.results.length) {
+            return res.json({ encontrado: false, status: json.status });
+          }
 
+          const melhor = json.results[0];
+          
+          // Valida se o nível de precisão é aceitável (ROOFTOP = telhado/exato, RANGE_INTERPOLATED = interpolado na rua)
+          const precisao = melhor.geometry.location_type;
+          const precisaCorrecao = precisao !== "ROOFTOP" && precisao !== "RANGE_INTERPOLATED";
 
-try{
+          return res.json({
+            encontrado: true,
+            lat: melhor.geometry.location.lat,
+            lon: melhor.geometry.location.lng,
+            precisao: precisao,
+            precisaCorrecao: precisaCorrecao,
+            score: precisaCorrecao ? 50 : 100,
+            enderecoFormatado: melhor.formatted_address
+          });
+        } catch (err) {
+          return res.status(500).json({ erro: "Erro ao parsear resposta do Google" });
+        }
+      });
+    }).on("error", (e) => {
+      res.status(500).json({ erro: "Erro de conexão com o Google Maps" });
+    });
 
-
-const {
- endereco,
- dadosOriginais
-}=req.body;
-
-
-
-if(!endereco){
-
-return res.status(400).json({
-erro:"Endereço vazio"
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ erro: "Erro interno no servidor de geocodificação" });
+  }
 });
-
-}
-
-
-
-const apiKey =
-process.env.GOOGLE_MAPS_API_KEY;
-
-
-
-if(!apiKey){
-
-return res.status(500).json({
-
-erro:
-"GOOGLE_MAPS_API_KEY não configurada"
-
-});
-
-}
-
-
-
-const url =
-"https://maps.googleapis.com/maps/api/geocode/json?"
-+
-`address=${encodeURIComponent(
-endereco + ", Brasil"
-)}`
-+
-"&language=pt-BR"
-+
-`&key=${apiKey}`;
-
-
-
-https.get(
-url,
-(response)=>{
-
-
-let dados="";
-
-
-response.on(
-"data",
-(chunk)=>{
-
-dados+=chunk;
-
-});
-
-
-response.on(
-"end",
-()=>{
-
-
-const json =
-JSON.parse(dados);
-
-
-
-if(
-json.status !== "OK"
-||
-!json.results.length
-){
-
-
-return res.json({
-
-encontrado:false,
-
-status:
-json.status
-
-});
-
-
-}
-
-
-
-const candidatos =
-json.results.map(resultado=>{
-
-
-return {
-
-...resultado,
-
-score:
-pontuarResultadoGoogle(
-resultado,
-dadosOriginais || {}
-)
-
-};
-
-
-});
-
-
-
-candidatos.sort(
-(a,b)=>
-b.score-a.score
-);
-
-
-
-const melhor =
-candidatos[0];
-
-
-
-return res.json({
-
-encontrado:true,
-
-
-lat:
-melhor.geometry.location.lat,
-
-
-lon:
-melhor.geometry.location.lng,
-
-
-precisao:
-melhor.geometry.location_type,
-
-
-score:
-melhor.score,
-
-
-enderecoFormatado:
-melhor.formatted_address
-
-});
-
-
-});
-
-
-});
-
-
-}
-
-catch(e){
-
-
-console.error(e);
-
-
-res.status(500).json({
-
-erro:
-"Erro Google Maps"
-
-});
-
-
-}
-
-
-});
-
 
 
 // FILTRO SAAS (Separa os dados de cada empresa)

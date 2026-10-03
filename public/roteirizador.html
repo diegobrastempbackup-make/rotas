@@ -402,20 +402,59 @@
     }
 
     function processarExcel(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(e) { // <-- Adicione 'async' aqui
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+            
+            // 1. Normaliza as chaves do Excel como você já faz
+            let dadosNormalizados = jsonData.map(linha => { 
+                let novaLinha = {}; 
+                for (let chave in linha) { 
+                    novaLinha[chave.trim().toUpperCase()] = linha[chave]; 
+                } 
+                return novaLinha; 
+            });
+
+            // =========================================================================
+            // 2. O PULO DO GATO: ENVIAR OS DADOS BRUTOS PARA O GEMINI LIMPAR ANTES DO GPS
+            // =========================================================================
+            document.getElementById("areaUpload").style.display = "none";
+            document.getElementById("loadingUpload").style.display = "block";
+            let lbl = document.getElementById("lblProgresso");
+            if(lbl) lbl.innerText = "🤖 A Inteligência Artificial está a limpar e padronizar os endereços...";
+
             try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
-                const dadosNormalizados = jsonData.map(linha => { let novaLinha = {}; for (let chave in linha) { novaLinha[chave.trim().toUpperCase()] = linha[chave]; } return novaLinha; });
-                agruparEGeocodificar(dadosNormalizados);
-            } catch (erro) { alert("❌ Erro: " + erro.message); }
-        };
-        reader.readAsArrayBuffer(file);
-    }
+                const resIa = await fetch('/api/rotas/processar-ia', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ enderecosBrutos: dadosNormalizados })
+                });
+                const jsonIa = await resIa.json();
+                if (jsonIa.ok && jsonIa.resultados && jsonIa.resultados.length > 0) {
+                    // Substitui pelos dados limpos e estruturados pela IA
+                    dadosNormalizados = jsonIa.resultados;
+                }
+            } catch (errIa) {
+                console.warn("⚠️ IA indisponível no momento, prosseguindo com o formato padrão.", errIa);
+            }
+            // =========================================================================
+
+            // 3. Prossegue para o agrupamento e geocodificação normal
+            agruparEGeocodificar(dadosNormalizados);
+
+        } catch (erro) { 
+            alert("❌ Erro ao ler Excel: " + erro.message); 
+            document.getElementById("areaUpload").style.display = "block";
+            document.getElementById("loadingUpload").style.display = "none";
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
 
     function expandirAbreviacoes(texto) {
         if (!texto) return "";
@@ -495,50 +534,74 @@
         return null;
     }
 
-    async function obterCoordenadasSilenciosa(cliente) {
-        const ruaOriginal = cliente.rua || cliente.endereco || "";
-        const detalhesOriginal = cliente.detalhes || "";
-        const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
-        const matchCoord = String(ruaOriginal).trim().match(coordRegex);
-        if (matchCoord) return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false, precisaoGPS: "COORDENADA_INFORMADA", scoreGPS: 100 };
+   async function obterCoordenadasSilenciosa(cliente) {
+    const ruaOriginal = cliente.rua || cliente.endereco || "";
+    const detalhesOriginal = cliente.detalhes || "";
+    
+    // Se a planilha já trouxer coordenadas limpas em formato de latitude, longitude exatas
+    const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+    const matchCoord = String(ruaOriginal).trim().match(coordRegex);
+    if (matchCoord) {
+        return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false, precisaoGPS: "COORDENADA_INFORMADA" };
+    }
 
-        const numero = extrairNumeroLimpo(ruaOriginal, detalhesOriginal);
-        const ruaSemNumero = expandirAbreviacoes(ruaOriginal)
-            .replace(/[,\s]+(?:nº|n|número)?\s*\d+\s*$/i, "")
-            .trim();
+    const numero = extrairNumeroLimpo(ruaOriginal, detalhesOriginal);
+    const ruaSemNumero = expandirAbreviacoes(ruaOriginal)
+        .replace(/[,\s]+(?:nº|n|número)?\s*\d+\s*$/i, "")
+        .trim();
 
-        try {
-            const resposta = await fetch('/api/geocodificar-endereco', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ endereco: {
-                    rua: ruaSemNumero,
-                    numero,
-                    bairro: cliente.bairro || cliente.distrito || "",
-                    cidade: cliente.cidade || "",
-                    uf: cliente.uf || "",
-                    cep: cliente.cep || ""
-                }})
-            });
-            const resultado = await resposta.json();
-            if (!resposta.ok || !resultado.encontrado) {
-                cliente.erroGeocodificacao = resultado.motivo || resultado.erro || "ENDERECO_NAO_ENCONTRADO";
-                return null;
-            }
-            cliente.qualidadeGPS = { origem: "Google Maps", score: resultado.score, nivel: resultado.precisaCorrecao ? "REVISAR" : "ALTA" };
-            cliente.enderecoGeocodificado = resultado.enderecoFormatado;
-            return {
-                lat: Number(resultado.lat),
-                lon: Number(resultado.lon),
-                precisaCorrecao: Boolean(resultado.precisaCorrecao),
-                precisaoGPS: resultado.precisao,
-                scoreGPS: resultado.score
-            };
-        } catch (erro) {
-            console.error("Falha ao geocodificar", erro);
+    // Monta o endereço estruturado combinando rua, número, bairro, cidade e CEP para dar o máximo de contexto ao Google
+    const partesEndereco = [
+        ruaSemNumero + (numero ? `, ${numero}` : ""),
+        cliente.bairro || cliente.distrito || "",
+        cliente.cidade || "São Paulo",
+        cliente.uf || "SP",
+        cliente.cep ? `CEP ${cliente.cep}` : ""
+    ].filter(Boolean).join(" - ");
+
+    try {
+        const resposta = await fetch('/api/geocodificar-endereco', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify({ 
+                endereco: partesEndereco,
+                dadosOriginais: {
+                    rua: ruaOriginal,
+                    bairro: cliente.bairro,
+                    cidade: cliente.cidade,
+                    cep: cliente.cep
+                }
+            })
+        });
+
+        const resultado = await resposta.json();
+        if (!resposta.ok || !resultado.encontrado) {
+            cliente.erroGeocodificacao = resultado.status || "ENDEREÇO_NÃO_ENCONTRADO";
             return null;
         }
+
+        cliente.qualidadeGPS = { 
+            origem: "Google Maps API", 
+            score: resultado.score, 
+            nivel: resultado.precisaCorrecao ? "REVISAR" : "ALTA" 
+        };
+        cliente.enderecoGeocodificado = resultado.enderecoFormatado;
+
+        return {
+            lat: Number(resultado.lat),
+            lon: Number(resultado.lon),
+            precisaCorrecao: Boolean(resultado.precisaCorrecao),
+            precisaoGPS: resultado.precisao
+        };
+
+    } catch (erro) {
+        console.error("Erro crítico ao geocodificar via backend", erro);
+        return null;
     }
+}
 
     async function agruparEGeocodificar(linhas) {
         document.getElementById("areaUpload").style.display = "none";
