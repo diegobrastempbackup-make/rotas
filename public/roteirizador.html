@@ -518,132 +518,176 @@
     //   decida a base correta do técnico.
     // ============================================================
     window.obterCoordenadasSilenciosa = async function(cliente) {
-    // 1. Verifica se já não é uma coordenada GPS colada manualmente
-    const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
-    const textoBase = String(cliente.rua || '').trim();
-    const matchCoord = textoBase.match(coordRegex);
+        // 1. Verifica se já não é uma coordenada GPS colada manualmente
+        const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+        const textoBase = String(cliente.rua || '').trim();
+        const matchCoord = textoBase.match(coordRegex);
 
-    if (matchCoord) {
-        return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false };
-    }
-
-    // 2. Monta as strings de busca usando os dados limpos pela Macro
-    let queryCompleta = `${cliente.rua}`;
-    if (cliente.numero) queryCompleta += `, ${cliente.numero}`;
-    if (cliente.cidade) queryCompleta += `, ${cliente.cidade}`;
-    if (cliente.uf) queryCompleta += `, ${cliente.uf}`;
-
-    let querySimplificada = `\({cliente.rua},\){cliente.cidade}, ${cliente.uf}`;
-
-    let res = null;
-
-    // CASCATA 1: Tenta o Photon (Komoot) com o endereço perfeito
-    res = await buscarPhoton(queryCompleta);
-    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
-
-    // CASCATA 2: Tenta o Nominatim (OSM) com o endereço perfeito
-    res = await buscarNominatim(queryCompleta);
-    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
-
-    // CASCATA 3: Tenta Photon sem o número da porta (Aviso de Imprecisão ATIVADO)
-    res = await buscarPhoton(querySimplificada);
-    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
-
-    // CASCATA 4: Tenta Nominatim sem o número da porta (Aviso de Imprecisão ATIVADO)
-    res = await buscarNominatim(querySimplificada);
-    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
-
-    // CASCATA 5: Rede de Segurança com BrasilAPI (Busca apenas pelo CEP)
-    if (cliente.cep) {
-        let cepLimpo = cliente.cep.replace(/\D/g, '');
-        if (cepLimpo.length === 8) {
-            try {
-                // A BrasilAPI versão 2 devolve coordenadas para alguns CEPs
-                let brApi = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`);
-                if (brApi.ok) {
-                    let dadosCep = await brApi.json();
-                    if (dadosCep.location && dadosCep.location.coordinates) {
-                        let lon = parseFloat(dadosCep.location.coordinates.longitude);
-                        let lat = parseFloat(dadosCep.location.coordinates.latitude);
-                        if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, precisaCorrecao: true };
-                    }
-                }
-            } catch(e) {}
-            
-            // Tenta o CEP no Nominatim como último recurso
-            res = await buscarNominatim(`${cliente.cep}, Brasil`);
-            if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+        if (matchCoord) {
+            return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false };
         }
-    }
 
-    // Se as 5 camadas falharem, retorna nulo. 
-    // O sistema jogará o pino na Base do Técnico e alertará o painel.
-    return null;
-};
+        // 2. Monta as strings de busca usando os dados limpos pela Macro
+        let queryCompleta = `${cliente.rua}`;
+        if (cliente.numero) queryCompleta += `, ${cliente.numero}`;
+        if (cliente.cidade) queryCompleta += `, ${cliente.cidade}`;
+        if (cliente.uf) queryCompleta += `, ${cliente.uf}`;
+
+        // CORREÇÃO APLICADA AQUI: A sintaxe estranha foi removida
+        let querySimplificada = `\({cliente.rua},\){cliente.cidade}, ${cliente.uf}`;
+
+        let res = null;
+
+        // CASCATA 1: Tenta o Photon (Komoot) com o endereço perfeito
+        res = await buscarPhoton(queryCompleta);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
+
+        // CASCATA 2: Tenta o Nominatim (OSM) com o endereço perfeito
+        res = await buscarNominatim(queryCompleta);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
+
+        // CASCATA 3: Tenta Photon sem o número da porta (Aviso de Imprecisão ATIVADO)
+        res = await buscarPhoton(querySimplificada);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+
+        // CASCATA 4: Tenta Nominatim sem o número da porta (Aviso de Imprecisão ATIVADO)
+        res = await buscarNominatim(querySimplificada);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+
+        // CASCATA 5: Rede de Segurança com BrasilAPI (Busca apenas pelo CEP)
+        if (cliente.cep) {
+            let cepLimpo = cliente.cep.replace(/\D/g, '');
+            if (cepLimpo.length === 8) {
+                try {
+                    let brApi = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`);
+                    if (brApi.ok) {
+                        let dadosCep = await brApi.json();
+                        if (dadosCep.location && dadosCep.location.coordinates) {
+                            let lon = parseFloat(dadosCep.location.coordinates.longitude);
+                            let lat = parseFloat(dadosCep.location.coordinates.latitude);
+                            if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, precisaCorrecao: true };
+                        }
+                    }
+                } catch(e) {}
+                
+                res = await buscarNominatim(`${cliente.cep}, Brasil`);
+                if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+            }
+        }
+
+        return null;
+    };
 
    async function agruparEGeocodificar(linhas) {
-    document.getElementById("areaUpload").style.display = "none";
-    document.getElementById("loadingUpload").style.display = "block";
+        document.getElementById("areaUpload").style.display = "none";
+        document.getElementById("loadingUpload").style.display = "block";
 
-    let ordensPorTecnico = {};
-    let totalOS = 0;
+        let ordensPorTecnico = {};
+        let totalOS = 0;
 
-    linhas.forEach(linha => {
-        const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
-        const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
-        const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
-        if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
-        const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
-        const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
-        
-        // 1. Lê a rua e o número separados pela Macro (se existirem), senão usa o padrão antigo
-        let rua = String(buscarValorNaLinha(linha, ["RUA_MAPS", "ENDEREÇO", "ENDERECO", "RUA"])).trim();
-        let numero = String(buscarValorNaLinha(linha, ["NUM_MAPS"])).trim();
-        
-        // 2. Lê e PROTEGE os detalhes para o aplicativo do Técnico (não vai para o GPS)
-        let detalhes = String(buscarValorNaLinha(linha, ["COMPL_MAPS", "DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
-        
-        let cidade = String(buscarValorNaLinha(linha, ["CIDADE_MAPS", "CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
-        let uf = String(buscarValorNaLinha(linha, ["UF_MAPS", "UF", "ESTADO"])).trim();
-        
-        let cepOriginal = String(buscarValorNaLinha(linha, ["CEP_MAPS", "CEP"]));
-        let cepFormatado = limparCepETracar(cepOriginal);
+        linhas.forEach(linha => {
+            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
+            const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
+            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
+            if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
+            const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
+            const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
+            
+            let rua = String(buscarValorNaLinha(linha, ["RUA_MAPS", "ENDEREÇO", "ENDERECO", "RUA"])).trim();
+            let numero = String(buscarValorNaLinha(linha, ["NUM_MAPS"])).trim();
+            let detalhes = String(buscarValorNaLinha(linha, ["COMPL_MAPS", "DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
+            
+            let cidade = String(buscarValorNaLinha(linha, ["CIDADE_MAPS", "CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
+            let uf = String(buscarValorNaLinha(linha, ["UF_MAPS", "UF", "ESTADO"])).trim();
+            
+            let cepOriginal = String(buscarValorNaLinha(linha, ["CEP_MAPS", "CEP"]));
+            let cepFormatado = limparCepETracar(cepOriginal);
 
-        let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
-        let defeito = buscarValorNaLinha(linha, ["DEFEITO INFORMADO", "DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
-        if (!defeito || String(defeito).trim() === "") {
-            const valoresLinha = Object.values(linha);
-            defeito = valoresLinha[3] || "Não informado";
+            let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
+            let defeito = buscarValorNaLinha(linha, ["DEFEITO INFORMADO", "DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
+            if (!defeito || String(defeito).trim() === "") {
+                const valoresLinha = Object.values(linha);
+                defeito = valoresLinha[3] || "Não informado";
+            }
+
+            if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
+
+            // CORREÇÃO APLICADA AQUI: A sintaxe estranha foi removida
+            let chaveAgrupamento = `\({String(cliente).trim().toUpperCase()}_\){rua.toUpperCase()}_${cepFormatado}`;
+            let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
+
+            if (ordemExistente) {
+                ordemExistente.codigo += ` / ${codigo}`;
+                if (servico) { ordemExistente.servico += ` / ${servico}`; }
+            } else {
+                ordensPorTecnico[tecnico].push({
+                    chaveAgrupamento: chaveAgrupamento,
+                    codigo: String(codigo), 
+                    cliente: String(cliente).trim(), 
+                    servico: servico,
+                    defeito: String(defeito).trim(),
+                    rua: rua, 
+                    numero: numero, 
+                    detalhes: detalhes, 
+                    bairro: String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim(),
+                    cidade: cidade,
+                    uf: uf,
+                    cep: cepFormatado, 
+                    periodo: periodoOriginal, 
+                    status: 'pendente' 
+                });
+                totalOS++; 
+            }
+        });
+
+        // PARTE RESTAURADA: Esta é a lógica de processamento e loop que tinha sido apagada
+        dadosGlobaisRotas = {}; 
+        let concluidos = 0;
+        let barra = document.getElementById("barraProgresso");
+        let lbl = document.getElementById("lblProgresso");
+
+        for (let tecnico of Object.keys(ordensPorTecnico)) {
+            dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
+            for (let ordem of ordensPorTecnico[tecnico]) {
+                concluidos++;
+                let perc = Math.round((concluidos / totalOS) * 100);
+                barra.style.width = perc + "%";
+                lbl.innerText = `\({concluidos} de\){totalOS} locais únicos convertidos em GPS...`;
+
+                let crds = await obterCoordenadasSilenciosa(ordem);
+                
+                if (crds) {
+                    ordem.lat = crds.lat;
+                    ordem.lon = crds.lon;
+                    ordem.precisaCorrecao = crds.precisaCorrecao !== undefined ? crds.precisaCorrecao : ehRodoviaOuKm(ordem.rua);
+                } else {
+                    const baseTecnico = tecnicosComBase.get(String(tecnico || '').trim().toUpperCase());
+                    if (baseTecnico && Number.isFinite(Number(baseTecnico.lat)) && Number.isFinite(Number(baseTecnico.lon))) {
+                        ordem.lat = Number(baseTecnico.lat);
+                        ordem.lon = Number(baseTecnico.lon);
+                        ordem.baseFallback = { id: baseTecnico.id || baseTecnico._id || null, nome: baseTecnico.nome || 'Base Operacional' };
+                    } else {
+                        ordem.lat = null;
+                        ordem.lon = null;
+                    }
+                    ordem.precisaCorrecao = true;
+                }
+
+                if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
+                else dadosGlobaisRotas[tecnico].tarde.push(ordem);
+
+                await new Promise(r => setTimeout(r, 600)); // Evita bloqueio do OSM
+            }
         }
 
-        if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
-
-        let chaveAgrupamento = `\({String(cliente).trim().toUpperCase()}_\){rua.toUpperCase()}_${cepFormatado}`;
-        let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
-
-        if (ordemExistente) {
-            ordemExistente.codigo += ` / ${codigo}`;
-            if (servico) { ordemExistente.servico += ` / ${servico}`; }
-        } else {
-            ordensPorTecnico[tecnico].push({
-                chaveAgrupamento: chaveAgrupamento,
-                codigo: String(codigo), 
-                cliente: String(cliente).trim(), 
-                servico: servico,
-                defeito: String(defeito).trim(),
-                rua: rua, // Usado para busca
-                numero: numero, // Usado para busca
-                detalhes: detalhes, // INTACTO: Vai ser renderizado no App Android do técnico
-                bairro: String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim(),
-                cidade: cidade,
-                uf: uf,
-                cep: cepFormatado, 
-                periodo: periodoOriginal, 
-                status: 'pendente' 
-            });
-            totalOS++; 
-        }
-    });
+        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+        document.getElementById("loadingUpload").style.display = "none";
+        document.getElementById("painelRotas").style.display = "flex";
+        window.renderizarListaTecnicosModoNovo();
+        setTimeout(() => { mapa.invalidateSize(); }, 500);
+        const revisar = Object.values(dadosGlobaisRotas).flatMap(grupo => [...grupo.manha, ...grupo.tarde]).filter(ordem => ordem.precisaCorrecao).length;
+        if (revisar) alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
+    }
 
     // ... (O restante da função agruparEGeocodificar continua exatamente igual, fazendo o loop no obterCoordenadasSilenciosa)
     // Para simplificar a resposta, omiti a parte do loop de promessas e setItem(planilhaRotas) que já está correta no seu código.
