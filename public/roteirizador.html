@@ -517,7 +517,7 @@
     // - Se o Google não localizar, retorna null para que o chamador
     //   decida a base correta do técnico.
     // ============================================================
-    window.obterCoordenadasSilenciosa = async function(cliente) {
+   window.obterCoordenadasSilenciosa = async function(cliente) {
         // 1. Verifica se já não é uma coordenada GPS colada manualmente
         const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
         const textoBase = String(cliente.rua || '').trim();
@@ -529,31 +529,27 @@
 
         let res = null;
 
-        // CASCATA 1: Tenta garantir a localização logo pelo CEP (Muito assertivo para o Brasil)
+        // CASCATA 1: Tenta a BrasilAPI usando o CEP (Gratuito, rápido e muito assertivo no Brasil)
         if (cliente.cep) {
-            let cepLimpo = cliente.cep.replace(/\D/g, '');
+            let cepLimpo = String(cliente.cep).replace(/\D/g, '');
             if (cepLimpo.length === 8) {
                 try {
-                    // API do Brasil (Retorna Lat/Lon para a rua do CEP)
                     let brApi = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`);
                     if (brApi.ok) {
                         let dadosCep = await brApi.json();
                         if (dadosCep.location && dadosCep.location.coordinates) {
                             let lon = parseFloat(dadosCep.location.coordinates.longitude);
                             let lat = parseFloat(dadosCep.location.coordinates.latitude);
-                            // Devolve com alerta de imprecisão porque o CEP atira para a rua mas não sabe o nº da porta
-                            if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, precisaCorrecao: true };
+                            if (!isNaN(lat) && !isNaN(lon)) {
+                                return { lat, lon, precisaCorrecao: false };
+                            }
                         }
                     }
                 } catch(e) {}
-                
-                // Se a BrasilAPI falhar, tenta o CEP no Nominatim
-                res = await buscarNominatim(`${cliente.cep}, Brasil`);
-                if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
             }
         }
 
-        // 2. Monta as strings de busca com "Brasil" no final para não atirar para outro país
+        // Prepara as strings com ", Brasil" para fechar o cerco geográfico corretamente
         let queryCompleta = `${cliente.rua}`;
         if (cliente.numero) queryCompleta += `, ${cliente.numero}`;
         if (cliente.cidade) queryCompleta += `, ${cliente.cidade}`;
@@ -562,25 +558,138 @@
 
         let querySimplificada = `\({cliente.rua},\){cliente.cidade}, ${cliente.uf}, Brasil`;
 
-        // CASCATA 2: Tenta o Photon (Komoot) com o endereço + Número
+        // CASCATA 2: Tenta o Photon (Komoot)
         res = await buscarPhoton(queryCompleta);
         if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
 
-        // CASCATA 3: Tenta o Nominatim (OSM) com o endereço + Número
+        // Aguarda 1 segundo para respeitar o limite de requisições do Nominatim
+        await new Promise(r => setTimeout(r, 1000));
+
+        // CASCATA 3: Tenta o Nominatim com o endereço completo
         res = await buscarNominatim(queryCompleta);
         if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
 
-        // CASCATA 4: Tenta Photon sem o número da porta (Aviso de Imprecisão ATIVADO)
+        // CASCATA 4: Tenta Photon sem o número
         res = await buscarPhoton(querySimplificada);
         if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
 
-        // CASCATA 5: Tenta Nominatim sem o número da porta (Aviso de Imprecisão ATIVADO)
+        await new Promise(r => setTimeout(r, 1000));
+
+        // CASCATA 5: Tenta Nominatim sem o número
         res = await buscarNominatim(querySimplificada);
         if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
 
-        // Se falhar tudo, atira para a base do técnico (Tratado na função agruparEGeocodificar)
         return null;
     };
+
+    async function agruparEGeocodificar(linhas) {
+        document.getElementById("areaUpload").style.display = "none";
+        document.getElementById("loadingUpload").style.display = "block";
+
+        let ordensPorTecnico = {};
+        let totalOS = 0;
+
+        linhas.forEach(linha => {
+            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
+            const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
+            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
+            if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
+            const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
+            const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
+            
+            let rua = String(buscarValorNaLinha(linha, ["RUA_MAPS", "ENDEREÇO", "ENDERECO", "RUA"])).trim();
+            let numero = String(buscarValorNaLinha(linha, ["NUM_MAPS"])).trim();
+            let detalhes = String(buscarValorNaLinha(linha, ["COMPL_MAPS", "DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
+            
+            let cidade = String(buscarValorNaLinha(linha, ["CIDADE_MAPS", "CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
+            let uf = String(buscarValorNaLinha(linha, ["UF_MAPS", "UF", "ESTADO"])).trim();
+            
+            let cepOriginal = String(buscarValorNaLinha(linha, ["CEP_MAPS", "CEP"]));
+            let cepFormatado = limparCepETracar(cepOriginal);
+
+            let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
+            let defeito = buscarValorNaLinha(linha, ["DEFEITO INFORMADO", "DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
+            if (!defeito || String(defeito).trim() === "") {
+                const valoresLinha = Object.values(linha);
+                defeito = valoresLinha[3] || "Não informado";
+            }
+
+            if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
+
+            let chaveAgrupamento = `\({String(cliente).trim().toUpperCase()}_\){rua.toUpperCase()}_${cepFormatado}`;
+            let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
+
+            if (ordemExistente) {
+                ordemExistente.codigo += ` / ${codigo}`;
+                if (servico) { ordemExistente.servico += ` / ${servico}`; }
+            } else {
+                ordensPorTecnico[tecnico].push({
+                    chaveAgrupamento: chaveAgrupamento,
+                    codigo: String(codigo), 
+                    cliente: String(cliente).trim(), 
+                    servico: servico,
+                    defeito: String(defeito).trim(),
+                    rua: rua, 
+                    numero: numero, 
+                    detalhes: detalhes, 
+                    bairro: String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim(),
+                    cidade: cidade,
+                    uf: uf,
+                    cep: cepFormatado, 
+                    periodo: periodoOriginal, 
+                    status: 'pendente' 
+                });
+                totalOS++; 
+            }
+        });
+
+        dadosGlobaisRotas = {}; 
+        let concluidos = 0;
+        let barra = document.getElementById("barraProgresso");
+        let lbl = document.getElementById("lblProgresso");
+
+        for (let tecnico of Object.keys(ordensPorTecnico)) {
+            dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
+            for (let ordem of ordensPorTecnico[tecnico]) {
+                concluidos++;
+                let perc = Math.round((concluidos / totalOS) * 100);
+                barra.style.width = perc + "%";
+                lbl.innerText = `\({concluidos} de\){totalOS} locais únicos convertidos em GPS...`;
+
+                let crds = await obterCoordenadasSilenciosa(ordem);
+                
+                if (crds) {
+                    ordem.lat = crds.lat;
+                    ordem.lon = crds.lon;
+                    ordem.precisaCorrecao = crds.precisaCorrecao !== undefined ? crds.precisaCorrecao : ehRodoviaOuKm(ordem.rua);
+                } else {
+                    const baseTecnico = tecnicosComBase.get(String(tecnico || '').trim().toUpperCase());
+                    if (baseTecnico && Number.isFinite(Number(baseTecnico.lat)) && Number.isFinite(Number(baseTecnico.lon))) {
+                        ordem.lat = Number(baseTecnico.lat);
+                        ordem.lon = Number(baseTecnico.lon);
+                        ordem.baseFallback = { id: baseTecnico.id || baseTecnico._id || null, nome: baseTecnico.nome || 'Base Operacional' };
+                    } else {
+                        ordem.lat = null;
+                        ordem.lon = null;
+                    }
+                    ordem.precisaCorrecao = true;
+                }
+
+                if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
+                else dadosGlobaisRotas[tecnico].tarde.push(ordem);
+
+                await new Promise(r => setTimeout(r, 600)); 
+            }
+        }
+
+        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
+        document.getElementById("loadingUpload").style.display = "none";
+        document.getElementById("painelRotas").style.display = "flex";
+        window.renderizarListaTecnicosModoNovo();
+        setTimeout(() => { mapa.invalidateSize(); }, 500);
+        const revisar = Object.values(dadosGlobaisRotas).flatMap(grupo => [...grupo.manha, ...grupo.tarde]).filter(ordem => ordem.precisaCorrecao).length;
+        if (revisar) alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
+    }
 
    async function agruparEGeocodificar(linhas) {
         document.getElementById("areaUpload").style.display = "none";
