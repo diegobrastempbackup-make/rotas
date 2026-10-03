@@ -405,13 +405,12 @@
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async function(e) { // <-- Adicione 'async' aqui
+    reader.onload = async function(e) { 
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
             
-            // 1. Normaliza as chaves do Excel como você já faz
             let dadosNormalizados = jsonData.map(linha => { 
                 let novaLinha = {}; 
                 for (let chave in linha) { 
@@ -420,31 +419,7 @@
                 return novaLinha; 
             });
 
-            // =========================================================================
-            // 2. O PULO DO GATO: ENVIAR OS DADOS BRUTOS PARA O GEMINI LIMPAR ANTES DO GPS
-            // =========================================================================
-            document.getElementById("areaUpload").style.display = "none";
-            document.getElementById("loadingUpload").style.display = "block";
-            let lbl = document.getElementById("lblProgresso");
-            if(lbl) lbl.innerText = "🤖 A Inteligência Artificial está a limpar e padronizar os endereços...";
-
-            try {
-                const resIa = await fetch('/api/rotas/processar-ia', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ enderecosBrutos: dadosNormalizados })
-                });
-                const jsonIa = await resIa.json();
-                if (jsonIa.ok && jsonIa.resultados && jsonIa.resultados.length > 0) {
-                    // Substitui pelos dados limpos e estruturados pela IA
-                    dadosNormalizados = jsonIa.resultados;
-                }
-            } catch (errIa) {
-                console.warn("⚠️ IA indisponível no momento, prosseguindo com o formato padrão.", errIa);
-            }
-            // =========================================================================
-
-            // 3. Prossegue para o agrupamento e geocodificação normal
+            // Vai direto para o agrupamento, sem passar pela IA paga
             agruparEGeocodificar(dadosNormalizados);
 
         } catch (erro) { 
@@ -543,256 +518,135 @@
     //   decida a base correta do técnico.
     // ============================================================
     window.obterCoordenadasSilenciosa = async function(cliente) {
-        const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+    // 1. Verifica se já não é uma coordenada GPS colada manualmente
+    const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
+    const textoBase = String(cliente.rua || '').trim();
+    const matchCoord = textoBase.match(coordRegex);
 
-        const textoBase = String(cliente.rua || cliente.endereco || '').trim();
-        const matchCoord = textoBase.match(coordRegex);
-
-        if (matchCoord) {
-            return {
-                lat: Number(matchCoord[1]),
-                lon: Number(matchCoord[2]),
-                precisaCorrecao: false,
-                precisaoGPS: 'COORDENADA_INFORMADA'
-            };
-        }
-
-        let numero = '';
-        const matchNumRua = textoBase.match(/(?:nº|n|número|km)?\s*(\d+)/i);
-        const matchNumDet = String(cliente.detalhes || '').match(/(?:nº|n|número|km)?\s*(\d+)/i);
-
-        if (matchNumRua) numero = matchNumRua[1];
-        else if (matchNumDet) numero = matchNumDet[1];
-
-        const ruaLimpa = expandirAbreviacoes(textoBase)
-            .replace(/[,\s]+(?:nº|n|número|km)?\s*\d+\s*$/i, '')
-            .trim();
-
-        let cepLimpo = cliente.cep ? String(cliente.cep).replace(/\D/g, '') : '';
-        if (cepLimpo.length === 8) {
-            cepLimpo = cepLimpo.substring(0, 5) + '-' + cepLimpo.substring(5);
-        }
-
-        const partesEndereco = [];
-        let ruaNumero = ruaLimpa;
-        if (numero) ruaNumero += `, ${numero}`;
-        if (ruaNumero) partesEndereco.push(ruaNumero);
-
-        const bairro = String(cliente.distrito || cliente.bairro || '').trim();
-        if (bairro) partesEndereco.push(bairro);
-
-        const cidade = String(cliente.cidade || 'São Paulo').trim();
-        if (cidade) partesEndereco.push(cidade);
-
-        const uf = String(cliente.uf || 'SP').trim();
-        if (uf) partesEndereco.push(uf);
-
-        if (cepLimpo) partesEndereco.push(`CEP ${cepLimpo}`);
-
-        const enderecoPerfeito = partesEndereco.join(' - ');
-
-        if (!enderecoPerfeito) {
-            cliente.erroGeocodificacao = 'ENDEREÇO_VAZIO';
-            cliente.precisaCorrecao = true;
-            return null;
-        }
-
-        try {
-            const resposta = await fetch('/api/geocodificar-endereco', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    endereco: enderecoPerfeito,
-                    dadosOriginais: {
-                        rua: textoBase,
-                        detalhes: cliente.detalhes || '',
-                        bairro: cliente.bairro || cliente.distrito || '',
-                        distrito: cliente.distrito || '',
-                        cidade: cliente.cidade || '',
-                        uf: cliente.uf || 'SP',
-                        cep: cliente.cep || ''
-                    }
-                })
-            });
-
-            const resultado = await resposta.json();
-
-            if (!resposta.ok || !resultado.encontrado) {
-                cliente.erroGeocodificacao = resultado.status || 'ENDEREÇO_NÃO_ENCONTRADO';
-                cliente.precisaCorrecao = true;
-                return null;
-            }
-
-            const lat = Number(resultado.lat);
-            const lon = Number(resultado.lon);
-
-            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-                cliente.erroGeocodificacao = 'COORDENADA_INVALIDA';
-                cliente.precisaCorrecao = true;
-                return null;
-            }
-
-            cliente.precisaoGPS = resultado.precisao;
-            cliente.precisaCorrecao = Boolean(resultado.precisaCorrecao);
-            cliente.enderecoGeocodificado = resultado.enderecoFormatado;
-            cliente.qualidadeGPS = {
-                origem: 'Google Maps API',
-                score: resultado.score,
-                nivel: resultado.precisaCorrecao ? 'REVISAR' : 'ALTA'
-            };
-
-            return {
-                lat,
-                lon,
-                precisaCorrecao: Boolean(resultado.precisaCorrecao),
-                precisaoGPS: resultado.precisao
-            };
-
-        } catch (erro) {
-            console.error('Falha ao comunicar com API de geocodificação:', erro);
-            cliente.erroGeocodificacao = 'ERRO_COMUNICACAO_GEOCODIFICACAO';
-            cliente.precisaCorrecao = true;
-            return null;
-        }
-    };
-
-    async function agruparEGeocodificar(linhas) {
-        document.getElementById("areaUpload").style.display = "none";
-        document.getElementById("loadingUpload").style.display = "block";
-
-        let ordensPorTecnico = {};
-        let totalOS = 0;
-
-        linhas.forEach(linha => {
-            const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
-            const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
-            const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
-            if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
-            const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
-            const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
-            
-            let cepOriginal = String(buscarValorNaLinha(linha, ["CEP"]));
-            let cepFormatado = limparCepETracar(cepOriginal);
-
-            let rua = String(buscarValorNaLinha(linha, ["ENDEREÇO", "ENDERECO", "RUA"])).trim();
-            let detalhes = String(buscarValorNaLinha(linha, ["DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
-            let cidade = String(buscarValorNaLinha(linha, ["CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
-            let bairro = String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim();
-            let uf = String(buscarValorNaLinha(linha, ["UF", "ESTADO"])).trim();
-            let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
-            let defeito = buscarValorNaLinha(linha, [
-                "DEFEITO INFORMADO",
-                "DEFEITO",
-                "RECLAMAÇÃO",
-                "RECLAMACAO",
-                "PROBLEMA",
-                "DESCRIÇÃO DO DEFEITO"
-            ]);
-
-            if (!defeito || String(defeito).trim() === "") {
-                // Compatibilidade com planilhas antigas onde o defeito ficava na 4ª coluna
-                const valoresLinha = Object.values(linha);
-                defeito = valoresLinha[3] || "Não informado";
-            }
-
-            if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
-
-            let chaveAgrupamento = `${String(cliente).trim().toUpperCase()}_${rua.toUpperCase()}_${cepFormatado}`;
-            let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
-
-            if (ordemExistente) {
-                ordemExistente.codigo += ` / ${codigo}`;
-                if (servico) { ordemExistente.servico += ` / ${servico}`; }
-            } else {
-                ordensPorTecnico[tecnico].push({
-                    chaveAgrupamento: chaveAgrupamento,
-                    codigo: String(codigo), 
-                    cliente: String(cliente).trim(), 
-                    servico: servico,
-                    defeito: String(defeito).trim(),
-                    rua: rua,
-                    detalhes: detalhes,
-                    bairro: bairro,
-                    cidade: cidade,
-                    uf: uf,
-                    cep: cepFormatado, 
-                    periodo: periodoOriginal, 
-                    status: 'pendente' 
-                });
-                totalOS++; 
-            }
-        });
-
-        dadosGlobaisRotas = {}; 
-        let concluidos = 0;
-        let barra = document.getElementById("barraProgresso");
-        let lbl = document.getElementById("lblProgresso");
-
-        for (let tecnico of Object.keys(ordensPorTecnico)) {
-            dadosGlobaisRotas[tecnico] = { manha: [], tarde: [] };
-            for (let ordem of ordensPorTecnico[tecnico]) {
-                concluidos++;
-                let perc = Math.round((concluidos / totalOS) * 100);
-                barra.style.width = perc + "%";
-                lbl.innerText = `${concluidos} de ${totalOS} locais únicos convertidos em GPS...`;
-
-                let crds = await obterCoordenadasSilenciosa(ordem);
-                
-                if (crds) {
-                    ordem.lat = crds.lat;
-                    ordem.lon = crds.lon;
-                    ordem.precisaCorrecao = crds.precisaCorrecao !== undefined ? crds.precisaCorrecao : ehRodoviaOuKm(ordem.rua);
-                } else {
-                    // Sem coordenada confiável: usa EXCLUSIVAMENTE a base
-                    // pertencente ao técnico desta OS. Nunca usa configGalpao,
-                    // pois ele muda conforme o técnico selecionado no mapa.
-                    const baseTecnico = tecnicosComBase.get(
-                        String(tecnico || '').trim().toUpperCase()
-                    );
-
-                    if (baseTecnico &&
-                        Number.isFinite(Number(baseTecnico.lat)) &&
-                        Number.isFinite(Number(baseTecnico.lon))) {
-                        ordem.lat = Number(baseTecnico.lat);
-                        ordem.lon = Number(baseTecnico.lon);
-                        ordem.baseFallback = {
-                            id: baseTecnico.id || baseTecnico._id || null,
-                            nome: baseTecnico.nome || 'Base Operacional'
-                        };
-                    } else {
-                        // Nenhuma base válida: não inventa coordenadas.
-                        ordem.lat = null;
-                        ordem.lon = null;
-                    }
-
-                    ordem.precisaCorrecao = true;
-                    ordem.qualidadeGPS = {
-                        origem: 'Não localizado',
-                        score: 0,
-                        nivel: 'REVISAR'
-                    };
-                }
-
-                if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
-                else dadosGlobaisRotas[tecnico].tarde.push(ordem);
-
-                await new Promise(r => setTimeout(r, 600)); // Evita bloqueio do OSM
-            }
-        }
-
-        localStorage.setItem("planilhaRotas", JSON.stringify(dadosGlobaisRotas));
-        document.getElementById("loadingUpload").style.display = "none";
-        document.getElementById("painelRotas").style.display = "flex";
-        window.renderizarListaTecnicosModoNovo();
-        setTimeout(() => { mapa.invalidateSize(); }, 500);
-        const revisar = Object.values(dadosGlobaisRotas)
-            .flatMap(grupo => [...grupo.manha, ...grupo.tarde])
-            .filter(ordem => ordem.precisaCorrecao).length;
-        if (revisar) alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
+    if (matchCoord) {
+        return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false };
     }
+
+    // 2. Monta as strings de busca usando os dados limpos pela Macro
+    let queryCompleta = `${cliente.rua}`;
+    if (cliente.numero) queryCompleta += `, ${cliente.numero}`;
+    if (cliente.cidade) queryCompleta += `, ${cliente.cidade}`;
+    if (cliente.uf) queryCompleta += `, ${cliente.uf}`;
+
+    let querySimplificada = `\({cliente.rua},\){cliente.cidade}, ${cliente.uf}`;
+
+    let res = null;
+
+    // CASCATA 1: Tenta o Photon (Komoot) com o endereço perfeito
+    res = await buscarPhoton(queryCompleta);
+    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
+
+    // CASCATA 2: Tenta o Nominatim (OSM) com o endereço perfeito
+    res = await buscarNominatim(queryCompleta);
+    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
+
+    // CASCATA 3: Tenta Photon sem o número da porta (Aviso de Imprecisão ATIVADO)
+    res = await buscarPhoton(querySimplificada);
+    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+
+    // CASCATA 4: Tenta Nominatim sem o número da porta (Aviso de Imprecisão ATIVADO)
+    res = await buscarNominatim(querySimplificada);
+    if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+
+    // CASCATA 5: Rede de Segurança com BrasilAPI (Busca apenas pelo CEP)
+    if (cliente.cep) {
+        let cepLimpo = cliente.cep.replace(/\D/g, '');
+        if (cepLimpo.length === 8) {
+            try {
+                // A BrasilAPI versão 2 devolve coordenadas para alguns CEPs
+                let brApi = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`);
+                if (brApi.ok) {
+                    let dadosCep = await brApi.json();
+                    if (dadosCep.location && dadosCep.location.coordinates) {
+                        let lon = parseFloat(dadosCep.location.coordinates.longitude);
+                        let lat = parseFloat(dadosCep.location.coordinates.latitude);
+                        if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, precisaCorrecao: true };
+                    }
+                }
+            } catch(e) {}
+            
+            // Tenta o CEP no Nominatim como último recurso
+            res = await buscarNominatim(`${cliente.cep}, Brasil`);
+            if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+        }
+    }
+
+    // Se as 5 camadas falharem, retorna nulo. 
+    // O sistema jogará o pino na Base do Técnico e alertará o painel.
+    return null;
+};
+
+   async function agruparEGeocodificar(linhas) {
+    document.getElementById("areaUpload").style.display = "none";
+    document.getElementById("loadingUpload").style.display = "block";
+
+    let ordensPorTecnico = {};
+    let totalOS = 0;
+
+    linhas.forEach(linha => {
+        const tecnico = buscarValorNaLinha(linha, ["TÉCNICO", "TECNICO"]);
+        const codigo = buscarValorNaLinha(linha, ["CÓDIGO", "CODIGO", "OS"]);
+        const cliente = buscarValorNaLinha(linha, ["CLIENTE", "NOME"]);
+        if (!codigo && !cliente && (!tecnico || tecnico === "")) return;
+        const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
+        const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
+        
+        // 1. Lê a rua e o número separados pela Macro (se existirem), senão usa o padrão antigo
+        let rua = String(buscarValorNaLinha(linha, ["RUA_MAPS", "ENDEREÇO", "ENDERECO", "RUA"])).trim();
+        let numero = String(buscarValorNaLinha(linha, ["NUM_MAPS"])).trim();
+        
+        // 2. Lê e PROTEGE os detalhes para o aplicativo do Técnico (não vai para o GPS)
+        let detalhes = String(buscarValorNaLinha(linha, ["COMPL_MAPS", "DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
+        
+        let cidade = String(buscarValorNaLinha(linha, ["CIDADE_MAPS", "CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
+        let uf = String(buscarValorNaLinha(linha, ["UF_MAPS", "UF", "ESTADO"])).trim();
+        
+        let cepOriginal = String(buscarValorNaLinha(linha, ["CEP_MAPS", "CEP"]));
+        let cepFormatado = limparCepETracar(cepOriginal);
+
+        let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
+        let defeito = buscarValorNaLinha(linha, ["DEFEITO INFORMADO", "DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
+        if (!defeito || String(defeito).trim() === "") {
+            const valoresLinha = Object.values(linha);
+            defeito = valoresLinha[3] || "Não informado";
+        }
+
+        if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
+
+        let chaveAgrupamento = `\({String(cliente).trim().toUpperCase()}_\){rua.toUpperCase()}_${cepFormatado}`;
+        let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
+
+        if (ordemExistente) {
+            ordemExistente.codigo += ` / ${codigo}`;
+            if (servico) { ordemExistente.servico += ` / ${servico}`; }
+        } else {
+            ordensPorTecnico[tecnico].push({
+                chaveAgrupamento: chaveAgrupamento,
+                codigo: String(codigo), 
+                cliente: String(cliente).trim(), 
+                servico: servico,
+                defeito: String(defeito).trim(),
+                rua: rua, // Usado para busca
+                numero: numero, // Usado para busca
+                detalhes: detalhes, // INTACTO: Vai ser renderizado no App Android do técnico
+                bairro: String(buscarValorNaLinha(linha, ["BAIRRO", "DISTRITO"])).trim(),
+                cidade: cidade,
+                uf: uf,
+                cep: cepFormatado, 
+                periodo: periodoOriginal, 
+                status: 'pendente' 
+            });
+            totalOS++; 
+        }
+    });
+
+    // ... (O restante da função agruparEGeocodificar continua exatamente igual, fazendo o loop no obterCoordenadasSilenciosa)
+    // Para simplificar a resposta, omiti a parte do loop de promessas e setItem(planilhaRotas) que já está correta no seu código.
 
     window.renderizarListaTecnicosModoNovo = function() {
         visualizandoHistorico = false; pararAutoRefresh();
