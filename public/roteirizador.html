@@ -527,54 +527,58 @@
             return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false };
         }
 
-        // 2. Monta as strings de busca usando os dados limpos pela Macro
-        let queryCompleta = `${cliente.rua}`;
-        if (cliente.numero) queryCompleta += `, ${cliente.numero}`;
-        if (cliente.cidade) queryCompleta += `, ${cliente.cidade}`;
-        if (cliente.uf) queryCompleta += `, ${cliente.uf}`;
-
-        // CORREÇÃO APLICADA AQUI: A sintaxe estranha foi removida
-        let querySimplificada = `\({cliente.rua},\){cliente.cidade}, ${cliente.uf}`;
-
         let res = null;
 
-        // CASCATA 1: Tenta o Photon (Komoot) com o endereço perfeito
-        res = await buscarPhoton(queryCompleta);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
-
-        // CASCATA 2: Tenta o Nominatim (OSM) com o endereço perfeito
-        res = await buscarNominatim(queryCompleta);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
-
-        // CASCATA 3: Tenta Photon sem o número da porta (Aviso de Imprecisão ATIVADO)
-        res = await buscarPhoton(querySimplificada);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
-
-        // CASCATA 4: Tenta Nominatim sem o número da porta (Aviso de Imprecisão ATIVADO)
-        res = await buscarNominatim(querySimplificada);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
-
-        // CASCATA 5: Rede de Segurança com BrasilAPI (Busca apenas pelo CEP)
+        // CASCATA 1: Tenta garantir a localização logo pelo CEP (Muito assertivo para o Brasil)
         if (cliente.cep) {
             let cepLimpo = cliente.cep.replace(/\D/g, '');
             if (cepLimpo.length === 8) {
                 try {
+                    // API do Brasil (Retorna Lat/Lon para a rua do CEP)
                     let brApi = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`);
                     if (brApi.ok) {
                         let dadosCep = await brApi.json();
                         if (dadosCep.location && dadosCep.location.coordinates) {
                             let lon = parseFloat(dadosCep.location.coordinates.longitude);
                             let lat = parseFloat(dadosCep.location.coordinates.latitude);
+                            // Devolve com alerta de imprecisão porque o CEP atira para a rua mas não sabe o nº da porta
                             if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, precisaCorrecao: true };
                         }
                     }
                 } catch(e) {}
                 
+                // Se a BrasilAPI falhar, tenta o CEP no Nominatim
                 res = await buscarNominatim(`${cliente.cep}, Brasil`);
                 if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
             }
         }
 
+        // 2. Monta as strings de busca com "Brasil" no final para não atirar para outro país
+        let queryCompleta = `${cliente.rua}`;
+        if (cliente.numero) queryCompleta += `, ${cliente.numero}`;
+        if (cliente.cidade) queryCompleta += `, ${cliente.cidade}`;
+        if (cliente.uf) queryCompleta += `, ${cliente.uf}`;
+        queryCompleta += `, Brasil`;
+
+        let querySimplificada = `\({cliente.rua},\){cliente.cidade}, ${cliente.uf}, Brasil`;
+
+        // CASCATA 2: Tenta o Photon (Komoot) com o endereço + Número
+        res = await buscarPhoton(queryCompleta);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
+
+        // CASCATA 3: Tenta o Nominatim (OSM) com o endereço + Número
+        res = await buscarNominatim(queryCompleta);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
+
+        // CASCATA 4: Tenta Photon sem o número da porta (Aviso de Imprecisão ATIVADO)
+        res = await buscarPhoton(querySimplificada);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+
+        // CASCATA 5: Tenta Nominatim sem o número da porta (Aviso de Imprecisão ATIVADO)
+        res = await buscarNominatim(querySimplificada);
+        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
+
+        // Se falhar tudo, atira para a base do técnico (Tratado na função agruparEGeocodificar)
         return null;
     };
 
