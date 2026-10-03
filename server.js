@@ -119,14 +119,27 @@ function pontuarResultadoGoogle(resultado, enderecoOriginal) {
 }
 app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
   try {
-    const { endereco } = req.body;
+    const { endereco, dadosOriginais } = req.body;
     if (!endereco) return res.status(400).json({ erro: "Endereço vazio" });
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return res.status(500).json({ erro: "GOOGLE_MAPS_API_KEY não configurada" });
+    if (!apiKey) return res.status(500).json({ erro: "API Key não configurada" });
 
-    // Monta a URL codificada focando no Brasil
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=\({encodeURIComponent(endereco)}&region=br&language=pt-BR&key=\){apiKey}`;
+    // Component Filtering: Ajuda o Google a restringir ao Brasil e usar o CEP como âncora se existir
+    let cep = "";
+    if (dadosOriginais && dadosOriginais.cep) {
+        cep = String(dadosOriginais.cep).replace(/\D/g, "");
+        if (cep.length === 8) cep = cep.substring(0, 5) + "-" + cep.substring(5);
+    }
+    
+    // Constrói a URL dando peso máximo ao código postal, se existir
+    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco)}`;
+    if (cep) {
+        url += `&components=postal_code:${cep}|country:BR`;
+    } else {
+        url += `&region=br`;
+    }
+    url += `&language=pt-BR&key=${apiKey}`;
 
     https.get(url, (response) => {
       let dados = "";
@@ -134,15 +147,27 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
       response.on("end", () => {
         try {
           const json = JSON.parse(dados);
+          
           if (json.status !== "OK" || !json.results.length) {
             return res.json({ encontrado: false, status: json.status });
           }
 
+          // Pega o melhor resultado do Google
           const melhor = json.results[0];
-          
-          // Valida se o nível de precisão é aceitável (ROOFTOP = telhado/exato, RANGE_INTERPOLATED = interpolado na rua)
           const precisao = melhor.geometry.location_type;
-          const precisaCorrecao = precisao !== "ROOFTOP" && precisao !== "RANGE_INTERPOLATED";
+          
+          // Lógica de Ouro para Precisão:
+          let precisaCorrecao = false;
+          
+          if (precisao !== "ROOFTOP" && precisao !== "RANGE_INTERPOLATED") {
+              precisaCorrecao = true;
+          }
+
+          // Exceções para Rodovias (onde aproximação é normal)
+          const isRodovia = String(endereco).toUpperCase().includes("RODOVIA") || String(endereco).toUpperCase().includes(" KM");
+          if (isRodovia && json.status === "OK") {
+              precisaCorrecao = false; 
+          }
 
           return res.json({
             encontrado: true,
@@ -150,20 +175,19 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
             lon: melhor.geometry.location.lng,
             precisao: precisao,
             precisaCorrecao: precisaCorrecao,
-            score: precisaCorrecao ? 50 : 100,
             enderecoFormatado: melhor.formatted_address
           });
         } catch (err) {
-          return res.status(500).json({ erro: "Erro ao parsear resposta do Google" });
+          return res.status(500).json({ erro: "Erro ao parsear Google" });
         }
       });
     }).on("error", (e) => {
-      res.status(500).json({ erro: "Erro de conexão com o Google Maps" });
+      res.status(500).json({ erro: "Erro de conexão com Google" });
     });
 
   } catch (e) {
     console.error(e);
-    res.status(500).json({ erro: "Erro interno no servidor de geocodificação" });
+    res.status(500).json({ erro: "Erro interno no servidor" });
   }
 });
 

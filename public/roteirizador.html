@@ -534,74 +534,130 @@
         return null;
     }
 
-   async function obterCoordenadasSilenciosa(cliente) {
-    const ruaOriginal = cliente.rua || cliente.endereco || "";
-    const detalhesOriginal = cliente.detalhes || "";
-    
-    // Se a planilha já trouxer coordenadas limpas em formato de latitude, longitude exatas
-    const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
-    const matchCoord = String(ruaOriginal).trim().match(coordRegex);
-    if (matchCoord) {
-        return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false, precisaoGPS: "COORDENADA_INFORMADA" };
-    }
+    // ============================================================
+    // MOTOR DE GEOCODIFICAÇÃO DEFINITIVO (GOOGLE MAPS API)
+    // IMPORTANTE:
+    // - Existe UMA única função de geocodificação no sistema.
+    // - Nunca usa configGalpao como fallback durante a geocodificação.
+    // - Se o Google não localizar, retorna null para que o chamador
+    //   decida a base correta do técnico.
+    // ============================================================
+    window.obterCoordenadasSilenciosa = async function(cliente) {
+        const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
 
-    const numero = extrairNumeroLimpo(ruaOriginal, detalhesOriginal);
-    const ruaSemNumero = expandirAbreviacoes(ruaOriginal)
-        .replace(/[,\s]+(?:nº|n|número)?\s*\d+\s*$/i, "")
-        .trim();
+        const textoBase = String(cliente.rua || cliente.endereco || '').trim();
+        const matchCoord = textoBase.match(coordRegex);
 
-    // Monta o endereço estruturado combinando rua, número, bairro, cidade e CEP para dar o máximo de contexto ao Google
-    const partesEndereco = [
-        ruaSemNumero + (numero ? `, ${numero}` : ""),
-        cliente.bairro || cliente.distrito || "",
-        cliente.cidade || "São Paulo",
-        cliente.uf || "SP",
-        cliente.cep ? `CEP ${cliente.cep}` : ""
-    ].filter(Boolean).join(" - ");
+        if (matchCoord) {
+            return {
+                lat: Number(matchCoord[1]),
+                lon: Number(matchCoord[2]),
+                precisaCorrecao: false,
+                precisaoGPS: 'COORDENADA_INFORMADA'
+            };
+        }
 
-    try {
-        const resposta = await fetch('/api/geocodificar-endereco', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json', 
-                'Authorization': `Bearer ${token}` 
-            },
-            body: JSON.stringify({ 
-                endereco: partesEndereco,
-                dadosOriginais: {
-                    rua: ruaOriginal,
-                    bairro: cliente.bairro,
-                    cidade: cliente.cidade,
-                    cep: cliente.cep
-                }
-            })
-        });
+        let numero = '';
+        const matchNumRua = textoBase.match(/(?:nº|n|número|km)?\s*(\d+)/i);
+        const matchNumDet = String(cliente.detalhes || '').match(/(?:nº|n|número|km)?\s*(\d+)/i);
 
-        const resultado = await resposta.json();
-        if (!resposta.ok || !resultado.encontrado) {
-            cliente.erroGeocodificacao = resultado.status || "ENDEREÇO_NÃO_ENCONTRADO";
+        if (matchNumRua) numero = matchNumRua[1];
+        else if (matchNumDet) numero = matchNumDet[1];
+
+        const ruaLimpa = expandirAbreviacoes(textoBase)
+            .replace(/[,\s]+(?:nº|n|número|km)?\s*\d+\s*$/i, '')
+            .trim();
+
+        let cepLimpo = cliente.cep ? String(cliente.cep).replace(/\D/g, '') : '';
+        if (cepLimpo.length === 8) {
+            cepLimpo = cepLimpo.substring(0, 5) + '-' + cepLimpo.substring(5);
+        }
+
+        const partesEndereco = [];
+        let ruaNumero = ruaLimpa;
+        if (numero) ruaNumero += `, ${numero}`;
+        if (ruaNumero) partesEndereco.push(ruaNumero);
+
+        const bairro = String(cliente.distrito || cliente.bairro || '').trim();
+        if (bairro) partesEndereco.push(bairro);
+
+        const cidade = String(cliente.cidade || 'São Paulo').trim();
+        if (cidade) partesEndereco.push(cidade);
+
+        const uf = String(cliente.uf || 'SP').trim();
+        if (uf) partesEndereco.push(uf);
+
+        if (cepLimpo) partesEndereco.push(`CEP ${cepLimpo}`);
+
+        const enderecoPerfeito = partesEndereco.join(' - ');
+
+        if (!enderecoPerfeito) {
+            cliente.erroGeocodificacao = 'ENDEREÇO_VAZIO';
+            cliente.precisaCorrecao = true;
             return null;
         }
 
-        cliente.qualidadeGPS = { 
-            origem: "Google Maps API", 
-            score: resultado.score, 
-            nivel: resultado.precisaCorrecao ? "REVISAR" : "ALTA" 
-        };
-        cliente.enderecoGeocodificado = resultado.enderecoFormatado;
+        try {
+            const resposta = await fetch('/api/geocodificar-endereco', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    endereco: enderecoPerfeito,
+                    dadosOriginais: {
+                        rua: textoBase,
+                        detalhes: cliente.detalhes || '',
+                        bairro: cliente.bairro || cliente.distrito || '',
+                        distrito: cliente.distrito || '',
+                        cidade: cliente.cidade || '',
+                        uf: cliente.uf || 'SP',
+                        cep: cliente.cep || ''
+                    }
+                })
+            });
 
-        return {
-            lat: Number(resultado.lat),
-            lon: Number(resultado.lon),
-            precisaCorrecao: Boolean(resultado.precisaCorrecao),
-            precisaoGPS: resultado.precisao
-        };
+            const resultado = await resposta.json();
 
-    } catch (erro) {
-        console.error("Erro crítico ao geocodificar via backend", erro);
-        return null;
-    }
-}
+            if (!resposta.ok || !resultado.encontrado) {
+                cliente.erroGeocodificacao = resultado.status || 'ENDEREÇO_NÃO_ENCONTRADO';
+                cliente.precisaCorrecao = true;
+                return null;
+            }
+
+            const lat = Number(resultado.lat);
+            const lon = Number(resultado.lon);
+
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                cliente.erroGeocodificacao = 'COORDENADA_INVALIDA';
+                cliente.precisaCorrecao = true;
+                return null;
+            }
+
+            cliente.precisaoGPS = resultado.precisao;
+            cliente.precisaCorrecao = Boolean(resultado.precisaCorrecao);
+            cliente.enderecoGeocodificado = resultado.enderecoFormatado;
+            cliente.qualidadeGPS = {
+                origem: 'Google Maps API',
+                score: resultado.score,
+                nivel: resultado.precisaCorrecao ? 'REVISAR' : 'ALTA'
+            };
+
+            return {
+                lat,
+                lon,
+                precisaCorrecao: Boolean(resultado.precisaCorrecao),
+                precisaoGPS: resultado.precisao
+            };
+
+        } catch (erro) {
+            console.error('Falha ao comunicar com API de geocodificação:', erro);
+            cliente.erroGeocodificacao = 'ERRO_COMUNICACAO_GEOCODIFICACAO';
+            cliente.precisaCorrecao = true;
+            return null;
+        }
+    };
 
     async function agruparEGeocodificar(linhas) {
         document.getElementById("areaUpload").style.display = "none";
@@ -690,12 +746,34 @@
                     ordem.lon = crds.lon;
                     ordem.precisaCorrecao = crds.precisaCorrecao !== undefined ? crds.precisaCorrecao : ehRodoviaOuKm(ordem.rua);
                 } else {
-                    // Sem coordenada confiável: mantém na base e sinaliza revisão.
-                    // Nunca fabrica uma posição aleatória, pois isso contamina a otimização.
-                    ordem.lat = configGalpao.lat;
-                    ordem.lon = configGalpao.lon;
+                    // Sem coordenada confiável: usa EXCLUSIVAMENTE a base
+                    // pertencente ao técnico desta OS. Nunca usa configGalpao,
+                    // pois ele muda conforme o técnico selecionado no mapa.
+                    const baseTecnico = tecnicosComBase.get(
+                        String(tecnico || '').trim().toUpperCase()
+                    );
+
+                    if (baseTecnico &&
+                        Number.isFinite(Number(baseTecnico.lat)) &&
+                        Number.isFinite(Number(baseTecnico.lon))) {
+                        ordem.lat = Number(baseTecnico.lat);
+                        ordem.lon = Number(baseTecnico.lon);
+                        ordem.baseFallback = {
+                            id: baseTecnico.id || baseTecnico._id || null,
+                            nome: baseTecnico.nome || 'Base Operacional'
+                        };
+                    } else {
+                        // Nenhuma base válida: não inventa coordenadas.
+                        ordem.lat = null;
+                        ordem.lon = null;
+                    }
+
                     ordem.precisaCorrecao = true;
-                    ordem.qualidadeGPS = { origem: "Não localizado", score: 0, nivel: "REVISAR" };
+                    ordem.qualidadeGPS = {
+                        origem: 'Não localizado',
+                        score: 0,
+                        nivel: 'REVISAR'
+                    };
                 }
 
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
@@ -1733,366 +1811,6 @@
         } catch(e) { alert("❌ Erro."); }
     }
 </script>
-
-<script>
-// ============================================================
-// MOTOR DE LOCALIZAÇÃO PROFISSIONAL v1.0
-// Mantém arquitetura atual: Leaflet, edição, histórico e UI.
-// Adiciona cache, score de precisão e geocodificação híbrida.
-// ============================================================
-
-window.cacheGPS = JSON.parse(localStorage.getItem("cacheGPS_ENDERECOS") || "{}");
-
-function salvarCacheGPS(chave, valor){
-    window.cacheGPS[chave] = valor;
-    localStorage.setItem("cacheGPS_ENDERECOS", JSON.stringify(window.cacheGPS));
-}
-
-function normalizarEnderecoCache(cliente){
-    return [
-        cliente.rua,
-        cliente.detalhes,
-        cliente.cidade,
-        cliente.cep
-    ].join("|").toUpperCase().trim();
-}
-
-function criarQualidadeGPS(origem, score, nivel){
-    return {
-        origem: origem,
-        score: score,
-        nivel: nivel
-    };
-}
-
-async function buscarNominatimProfissional(query){
-    try{
-        const r = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(query)}`,
-            {
-                headers:{
-                    "Accept-Language":"pt-BR,pt;q=0.9"
-                }
-            }
-        );
-
-        const dados = await r.json();
-
-        if(dados && dados.length){
-            return {
-                lat:Number(dados[0].lat),
-                lon:Number(dados[0].lon),
-                qualidadeGPS:
-                    criarQualidadeGPS(
-                        "Nominatim",
-                        85,
-                        "BOM"
-                    )
-            };
-        }
-    }catch(e){}
-
-    return null;
-}
-
-
-async function buscarPhotonProfissional(query){
-    try{
-        const r = await fetch(
-            `https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(query)}`
-        );
-
-        const dados = await r.json();
-
-        if(dados.features && dados.features.length){
-
-            const c = dados.features[0].geometry.coordinates;
-
-            return {
-                lat:Number(c[1]),
-                lon:Number(c[0]),
-                qualidadeGPS:
-                    criarQualidadeGPS(
-                        "Photon",
-                        75,
-                        "BOM"
-                    )
-            };
-        }
-
-    }catch(e){}
-
-    return null;
-}
-
-
-async function obterCoordenadasProfissional(cliente){
-
-    const chave = normalizarEnderecoCache(cliente);
-
-    if(window.cacheGPS[chave]){
-        return window.cacheGPS[chave];
-    }
-
-
-    let rua = expandirAbreviacoes(
-        cliente.rua || cliente.endereco || ""
-    );
-
-    let cidade = cliente.cidade || "São Paulo";
-
-    let numero = extrairNumeroLimpo(
-        rua,
-        cliente.detalhes || ""
-    );
-
-
-    let consultas = [];
-
-    if(numero){
-        consultas.push(
-            `${rua}, ${numero}, ${cidade}, Brasil`
-        );
-    }
-
-    consultas.push(
-        `${rua}, ${cidade}, Brasil`
-    );
-
-
-    for(const q of consultas){
-
-        let resultado =
-            await buscarNominatimProfissional(q);
-
-        if(resultado){
-
-            salvarCacheGPS(
-                chave,
-                resultado
-            );
-
-            return resultado;
-        }
-
-
-        resultado =
-            await buscarPhotonProfissional(q);
-
-        if(resultado){
-
-            salvarCacheGPS(
-                chave,
-                resultado
-            );
-
-            return resultado;
-        }
-
-    }
-
-
-    return null;
-}
-
-
-// substituição segura da função antiga
-window.obterCoordenadasSilenciosa =
-    async function(cliente){
-
-        const resultado =
-            await obterCoordenadasProfissional(cliente);
-
-
-        if(resultado){
-
-            cliente.qualidadeGPS =
-                resultado.qualidadeGPS;
-
-            cliente.precisaCorrecao =
-                resultado.qualidadeGPS.score < 70;
-
-            return {
-                lat:resultado.lat,
-                lon:resultado.lon,
-                precisaCorrecao:cliente.precisaCorrecao
-            };
-        }
-
-
-        return null;
-    };
-
-
-// ============================================================
-// OTIMIZAÇÃO MANTENDO REGRA MANHÃ -> TARDE
-// ============================================================
-
-window.otimizarSequenciaProfissional =
-function(pontos, inicioLat, inicioLon){
-
-    let restantes = [...pontos];
-
-    let resultado=[];
-
-    let lat=inicioLat;
-    let lon=inicioLon;
-
-
-    while(restantes.length){
-
-        let melhor=0;
-        let menor=Infinity;
-
-
-        restantes.forEach((p,i)=>{
-
-            let d =
-                calcularDistancia(
-                    lat,
-                    lon,
-                    Number(p.lat),
-                    Number(p.lon)
-                );
-
-
-            if(d < menor){
-                menor=d;
-                melhor=i;
-            }
-
-        });
-
-
-        let escolhido =
-            restantes.splice(melhor,1)[0];
-
-
-        resultado.push(escolhido);
-
-        lat=Number(escolhido.lat);
-        lon=Number(escolhido.lon);
-
-    }
-
-
-    return resultado;
-};
-
-
-// preserva manhã antes da tarde
-window.gerarRotaProfissional =
-function(dadosTecnico){
-
-    const manha =
-        dadosTecnico.manha || [];
-
-    const tarde =
-        dadosTecnico.tarde || [];
-
-
-    const rotaManha =
-        window.otimizarSequenciaProfissional(
-            manha,
-            configGalpao.lat,
-            configGalpao.lon
-        );
-
-
-    let ultimo =
-        rotaManha.length ?
-        rotaManha[rotaManha.length-1] :
-        configGalpao;
-
-
-    const rotaTarde =
-        window.otimizarSequenciaProfissional(
-            tarde,
-            Number(ultimo.lat),
-            Number(ultimo.lon)
-        );
-
-
-    return [
-        ...rotaManha,
-        ...rotaTarde
-    ];
-};
-
-</script>
-
-
-<script>
-function validarCoordenadaGPS(lat, lon){
-    lat = Number(String(lat).replace(",", ".").trim());
-    lon = Number(String(lon).replace(",", ".").trim());
-
-    if(!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-
-    if(lat < -35 || lat > 5 || lon < -75 || lon > -30) return null;
-
-    return {lat, lon};
-}
-
-function extrairCoordenadaDireta(cliente){
-    const campos = [
-        cliente.endereco,
-        cliente.rua,
-        cliente.ENDERECO,
-        cliente.RUA
-    ];
-
-    for(const campo of campos){
-        if(!campo) continue;
-
-        const texto = String(campo);
-
-        const match = texto.match(
-            /(-?\d+(?:[\.,]\d+)?)\s*[,;]\s*(-?\d+(?:[\.,]\d+)?)/g
-        );
-
-        if(match){
-            const partes = match[0].split(/[,;]/);
-            const coord = validarCoordenadaGPS(partes[0], partes[1]);
-
-            if(coord){
-                return {
-                    lat: coord.lat,
-                    lon: coord.lon,
-                    origemGPS: "COORDENADA_EXCEL",
-                    scoreGPS: 100
-                };
-            }
-        }
-    }
-
-    return null;
-}
-
-window.obterCoordenadasSilenciosaComCoordenada =
-    window.obterCoordenadasSilenciosa;
-
-window.obterCoordenadasSilenciosa =
-async function(cliente){
-
-    const coordenada = extrairCoordenadaDireta(cliente);
-
-    if(coordenada){
-        cliente.origemGPS = coordenada.origemGPS;
-        cliente.scoreGPS = coordenada.scoreGPS;
-        cliente.precisaCorrecao = false;
-
-        return {
-            lat: coordenada.lat,
-            lon: coordenada.lon,
-            precisaCorrecao:false
-        };
-    }
-
-    return await window.obterCoordenadasSilenciosaComCoordenada(cliente);
-};
-</script>
-
 
 <script>
 // ============================================================
