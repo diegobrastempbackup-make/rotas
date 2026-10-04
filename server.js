@@ -122,11 +122,9 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     const { endereco } = req.body;
     if (!endereco) return res.status(400).json({ erro: "Endereço vazio" });
 
-    // 1. Puxa a chave do Mapbox da variável de ambiente da Vercel
     const mapboxKey = process.env.MAPBOX_API_KEY;
     if (!mapboxKey) return res.status(500).json({ erro: "API Key do Mapbox não configurada" });
 
-    // 2. URL da API do Mapbox focada no Brasil e em Português
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/\({encodeURIComponent(endereco)}.json?country=br&language=pt&access_token=\){mapboxKey}`;
 
     https.get(url, (response) => {
@@ -140,27 +138,27 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
             return res.json({ encontrado: false, status: "ZERO_RESULTS" });
           }
 
-          // O Mapbox já devolve o resultado ordenado por relevância. Pegamos o melhor (índice 0).
           const melhor = json.features[0];
+          const tipoDeLugar = melhor.place_type; // Array com classificações
+          const relevancia = melhor.relevance; // Nota de 0.0 a 1.0
           
-          // O Mapbox classifica a precisão no array 'place_type':
-          // ['address'] = achou o número exato da porta
-          // ['street'] = achou a rua (mas talvez não o número)
-          const tipoDeLugar = melhor.place_type; 
-          const relevancia = melhor.relevance; // Nota nativa de 0.0 a 1.0 (ex: 0.9 = 90% de certeza)
-          
-          // Lógica de Precisão com Mapbox:
+          // Lógica de Precisão MÁXIMA para o Mapbox
           let precisaCorrecao = true;
           
-          if (tipoDeLugar.includes('address')) {
-              // 100% exato (número da porta localizado)
+          // 'address': Número exato da porta
+          // 'poi': Ponto de Interesse (Hospitais, Lojas, Condomínios)
+          if (tipoDeLugar.includes('address') || tipoDeLugar.includes('poi')) {
               precisaCorrecao = false;
-          } else if (tipoDeLugar.includes('street') && relevancia >= 0.8) {
-              // Achou a rua certa com alta confiança (relevância >= 80%), aceitamos como válido
+          } 
+          // 'street': Encontrou a rua. Se a relevância for >= 0.7, aceitamos.
+          else if (tipoDeLugar.includes('street') && relevancia >= 0.7) {
+              precisaCorrecao = false;
+          }
+          // 'postcode': No Brasil, muitos CEPs representam uma rua única. Se for 100% exato, aceitamos.
+          else if (tipoDeLugar.includes('postcode') && relevancia >= 0.9) {
               precisaCorrecao = false;
           }
 
-          // Exceções para Rodovias (onde aproximação é normal e não queremos falsos vermelhos)
           const isRodovia = String(endereco).toUpperCase().includes("RODOVIA") || String(endereco).toUpperCase().includes(" KM");
           if (isRodovia) {
               precisaCorrecao = false; 
@@ -168,14 +166,12 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
           
           return res.json({
             encontrado: true,
-            // ATENÇÃO: O Mapbox inverte as coordenadas. Ele retorna [longitude, latitude].
-            // Por isso usamos center[1] para LAT e center[0] para LON.
-            lat: melhor.center[1], 
+            lat: melhor.center[1], // Mapbox inverte longitude e latitude
             lon: melhor.center[0], 
             precisao: tipoDeLugar.join(", "),
             precisaCorrecao: precisaCorrecao,
             enderecoFormatado: melhor.place_name,
-            pontuacao: Math.round(relevancia * 100) // Converte a nota 0.9 para 90 pontos no frontend
+            pontuacao: Math.round(relevancia * 100)
           });
         } catch (err) {
           return res.status(500).json({ erro: "Erro ao processar retorno do Mapbox" });
