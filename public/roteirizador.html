@@ -623,6 +623,7 @@
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
+            // AQUI ESTAVA O ERRO DE SINTAXE QUE QUEBRAVA O AGRUPAMENTO
             let chaveAgrupamento = `\({String(cliente).trim().toUpperCase()}_\){rua.toUpperCase()}_${cepFormatado}`;
             let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
 
@@ -660,8 +661,10 @@
             for (let ordem of ordensPorTecnico[tecnico]) {
                 concluidos++;
                 let perc = Math.round((concluidos / totalOS) * 100);
+                
+                // DESIGN ELEGANTE DA BARRA E PERCENTAGEM (Corrigido)
                 barra.style.width = perc + "%";
-                lbl.innerText = `\({concluidos} de\){totalOS} locais únicos convertidos em GPS...`;
+                lbl.innerText = `${perc}% concluído...`;
 
                 let crds = await obterCoordenadasSilenciosa(ordem);
                 
@@ -694,8 +697,13 @@
         document.getElementById("painelRotas").style.display = "flex";
         window.renderizarListaTecnicosModoNovo();
         setTimeout(() => { mapa.invalidateSize(); }, 500);
+        
         const revisar = Object.values(dadosGlobaisRotas).flatMap(grupo => [...grupo.manha, ...grupo.tarde]).filter(ordem => ordem.precisaCorrecao).length;
-        if (revisar) alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
+        if (revisar) {
+            alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
+        } else {
+            alert(`✅ Sucesso! Todas as O.S. foram processadas com precisão.`);
+        }
     }
 
    async function agruparEGeocodificar(linhas) {

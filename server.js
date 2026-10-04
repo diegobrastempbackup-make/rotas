@@ -122,9 +122,11 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     const { endereco } = req.body;
     if (!endereco) return res.status(400).json({ erro: "Endereço vazio" });
 
+    // 1. Puxa a chave do Mapbox da variável de ambiente da Vercel
     const mapboxKey = process.env.MAPBOX_API_KEY;
     if (!mapboxKey) return res.status(500).json({ erro: "API Key do Mapbox não configurada" });
 
+    // AQUI ESTAVA O ERRO! A URL agora tem a formatação correta com ${}
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/\({encodeURIComponent(endereco)}.json?country=br&language=pt&access_token=\){mapboxKey}`;
 
     https.get(url, (response) => {
@@ -139,39 +141,28 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
           }
 
           const melhor = json.features[0];
-          const tipoDeLugar = melhor.place_type; // Array com classificações
-          const relevancia = melhor.relevance; // Nota de 0.0 a 1.0
+          const tipoDeLugar = melhor.place_type; 
+          const relevancia = melhor.relevance; 
           
-          // Lógica de Precisão MÁXIMA para o Mapbox
           let precisaCorrecao = true;
           
-          // 'address': Número exato da porta
-          // 'poi': Ponto de Interesse (Hospitais, Lojas, Condomínios)
           if (tipoDeLugar.includes('address') || tipoDeLugar.includes('poi')) {
               precisaCorrecao = false;
-          } 
-          // 'street': Encontrou a rua. Se a relevância for >= 0.7, aceitamos.
-          else if (tipoDeLugar.includes('street') && relevancia >= 0.7) {
-              precisaCorrecao = false;
-          }
-          // 'postcode': No Brasil, muitos CEPs representam uma rua única. Se for 100% exato, aceitamos.
-          else if (tipoDeLugar.includes('postcode') && relevancia >= 0.9) {
+          } else if (tipoDeLugar.includes('street') && relevancia >= 0.7) {
               precisaCorrecao = false;
           }
 
           const isRodovia = String(endereco).toUpperCase().includes("RODOVIA") || String(endereco).toUpperCase().includes(" KM");
-          if (isRodovia) {
-              precisaCorrecao = false; 
-          }
+          if (isRodovia) precisaCorrecao = false; 
           
           return res.json({
             encontrado: true,
-            lat: melhor.center[1], // Mapbox inverte longitude e latitude
+            lat: melhor.center[1], 
             lon: melhor.center[0], 
             precisao: tipoDeLugar.join(", "),
             precisaCorrecao: precisaCorrecao,
             enderecoFormatado: melhor.place_name,
-            pontuacao: Math.round(relevancia * 100)
+            pontuacao: Math.round(relevancia * 100) 
           });
         } catch (err) {
           return res.status(500).json({ erro: "Erro ao processar retorno do Mapbox" });
