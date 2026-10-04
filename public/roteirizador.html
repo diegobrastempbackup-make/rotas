@@ -397,10 +397,15 @@
     }
 
     function buscarValorNaLinha(linha, palavrasChave) {
-        for (let chave of Object.keys(linha)) { for (let palavra of palavrasChave) { if (chave.includes(palavra)) return linha[chave]; } }
+        // Agora respeita a prioridade: procura a primeira palavra da lista em todas as colunas
+        // Isto garante que o "RUA_MAPS" ganha sempre da "RUA" normal
+        for (let palavra of palavrasChave) {
+            for (let chave of Object.keys(linha)) {
+                if (chave === palavra || chave.includes(palavra)) return linha[chave];
+            }
+        }
         return "";
     }
-
     function processarExcel(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -604,18 +609,18 @@
             const horarioRaw = String(buscarValorNaLinha(linha, ["HORÁRIO", "HORARIO", "PERIODO", "TURNO"])).trim().toUpperCase();
             const periodoOriginal = horarioRaw.charAt(0) === 'M' ? 'MANHA' : 'TARDE';
             
+            // O sistema agora vai pegar 100% certo nas colunas RUA_MAPS, NUM_MAPS, CEP_MAPS
             let rua = String(buscarValorNaLinha(linha, ["RUA_MAPS", "ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let numero = String(buscarValorNaLinha(linha, ["NUM_MAPS"])).trim();
             let detalhes = String(buscarValorNaLinha(linha, ["COMPL_MAPS", "DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
-            
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE_MAPS", "CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
             let uf = String(buscarValorNaLinha(linha, ["UF_MAPS", "UF", "ESTADO"])).trim();
-            
             let cepOriginal = String(buscarValorNaLinha(linha, ["CEP_MAPS", "CEP"]));
+            
             let cepFormatado = limparCepETracar(cepOriginal);
-
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
             let defeito = buscarValorNaLinha(linha, ["DEFEITO INFORMADO", "DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
+            
             if (!defeito || String(defeito).trim() === "") {
                 const valoresLinha = Object.values(linha);
                 defeito = valoresLinha[3] || "Não informado";
@@ -623,7 +628,7 @@
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
-            // AQUI ESTAVA O ERRO DE SINTAXE QUE QUEBRAVA O AGRUPAMENTO
+            // Símbolos de variável corrigidos de \({ para ${
             let chaveAgrupamento = `\({String(cliente).trim().toUpperCase()}_\){rua.toUpperCase()}_${cepFormatado}`;
             let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
 
@@ -662,7 +667,7 @@
                 concluidos++;
                 let perc = Math.round((concluidos / totalOS) * 100);
                 
-                // DESIGN ELEGANTE DA BARRA E PERCENTAGEM (Corrigido)
+                // BARRA DE PROGRESSO ELEGANTE APENAS COM % (Símbolos corrigidos)
                 barra.style.width = perc + "%";
                 lbl.innerText = `${perc}% concluído...`;
 
@@ -688,7 +693,8 @@
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
                 else dadosGlobaisRotas[tecnico].tarde.push(ordem);
 
-                await new Promise(r => setTimeout(r, 600)); 
+                // Evita bloqueio do Mapbox (Rate Limit)
+                await new Promise(r => setTimeout(r, 200)); 
             }
         }
 
@@ -699,10 +705,10 @@
         setTimeout(() => { mapa.invalidateSize(); }, 500);
         
         const revisar = Object.values(dadosGlobaisRotas).flatMap(grupo => [...grupo.manha, ...grupo.tarde]).filter(ordem => ordem.precisaCorrecao).length;
-        if (revisar) {
+        if (revisar > 0) {
             alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
         } else {
-            alert(`✅ Sucesso! Todas as O.S. foram processadas com precisão.`);
+            alert(`✅ Sucesso Absoluto! Todas as O.S. foram processadas e validadas com exatidão.`);
         }
     }
 

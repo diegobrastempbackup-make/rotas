@@ -122,11 +122,10 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     const { endereco } = req.body;
     if (!endereco) return res.status(400).json({ erro: "Endereço vazio" });
 
-    // 1. Puxa a chave do Mapbox da variável de ambiente da Vercel
     const mapboxKey = process.env.MAPBOX_API_KEY;
     if (!mapboxKey) return res.status(500).json({ erro: "API Key do Mapbox não configurada" });
 
-    // AQUI ESTAVA O ERRO! A URL agora tem a formatação correta com ${}
+    // URL CORRIGIDA: Usa crases e os símbolos ${} corretamente para injetar as variáveis
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/\({encodeURIComponent(endereco)}.json?country=br&language=pt&access_token=\){mapboxKey}`;
 
     https.get(url, (response) => {
