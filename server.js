@@ -125,7 +125,7 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     const mapboxKey = process.env.MAPBOX_API_KEY;
     if (!mapboxKey) return res.status(500).json({ erro: "API Key do Mapbox não configurada" });
 
-    // CÓDIGO CORRIGIDO: Usando sinal de '+' (nunca mais vai quebrar no Copiar/Colar)
+    /* URL blindada com sinal de + para nunca quebrar */
     const url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" + encodeURIComponent(endereco) + ".json?country=br&language=pt&access_token=" + mapboxKey;
 
     https.get(url, (response) => {
@@ -148,6 +148,8 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
           if (tipoDeLugar.includes('address') || tipoDeLugar.includes('poi')) {
               precisaCorrecao = false;
           } else if (tipoDeLugar.includes('street') && relevancia >= 0.7) {
+              precisaCorrecao = false;
+          } else if (tipoDeLugar.includes('postcode') && relevancia >= 0.9) {
               precisaCorrecao = false;
           }
 
