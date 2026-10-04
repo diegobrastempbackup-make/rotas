@@ -119,15 +119,15 @@ function pontuarResultadoGoogle(resultado, enderecoOriginal) {
 }
 app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
   try {
-    const { endereco, dadosOriginais } = req.body;
+    const { endereco } = req.body;
     if (!endereco) return res.status(400).json({ erro: "Endereço vazio" });
 
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return res.status(500).json({ erro: "API Key não configurada" });
+    // 1. Puxa a chave do Mapbox da variável de ambiente da Vercel
+    const mapboxKey = process.env.MAPBOX_API_KEY;
+    if (!mapboxKey) return res.status(500).json({ erro: "API Key do Mapbox não configurada" });
 
-    // Removemos a âncora restrita de CEP da URL pois o CEP dos Correios frequentemente 
-    // conflita com o CEP base do Google e causa falhas de busca. Vamos focar no endereço textual.
-    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=\({encodeURIComponent(endereco)}&components=country:BR&language=pt-BR&key=\){apiKey}`;
+    // 2. URL da API do Mapbox focada no Brasil e em Português
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/\({encodeURIComponent(endereco)}.json?country=br&language=pt&access_token=\){mapboxKey}`;
 
     https.get(url, (response) => {
       let dados = "";
@@ -136,34 +136,31 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
         try {
           const json = JSON.parse(dados);
           
-          if (json.status !== "OK" || !json.results.length) {
-            return res.json({ encontrado: false, status: json.status });
+          if (!json.features || !json.features.length) {
+            return res.json({ encontrado: false, status: "ZERO_RESULTS" });
           }
 
-          // APLICAÇÃO DA LÓGICA DE OURO: Avaliar todos os resultados e pegar o de maior pontuação
-          let melhoresResultados = json.results.map(resultado => {
-              return {
-                  dados: resultado,
-                  pontuacao: pontuarResultadoGoogle(resultado, dadosOriginais || {})
-              };
-          });
-
-          // Ordena decrescente pela pontuação
-          melhoresResultados.sort((a, b) => b.pontuacao - a.pontuacao);
-
-          // Pega o vencedor (o que mais bate com cidade/bairro original)
-          const melhor = melhoresResultados[0].dados;
-          const precisao = melhor.geometry.location_type;
+          // O Mapbox já devolve o resultado ordenado por relevância. Pegamos o melhor (índice 0).
+          const melhor = json.features[0];
           
-          // Lógica de Ouro para Precisão Restrita:
-          // Apenas ROOFTOP (telhado exato) e RANGE_INTERPOLATED (número deduzido na rua) são precisos.
-          // APPROXIMATE ou GEOMETRIC_CENTER disparam a bandeira vermelha (precisaCorrecao = true)
+          // O Mapbox classifica a precisão no array 'place_type':
+          // ['address'] = achou o número exato da porta
+          // ['street'] = achou a rua (mas talvez não o número)
+          const tipoDeLugar = melhor.place_type; 
+          const relevancia = melhor.relevance; // Nota nativa de 0.0 a 1.0 (ex: 0.9 = 90% de certeza)
+          
+          // Lógica de Precisão com Mapbox:
           let precisaCorrecao = true;
-          if (precisao === "ROOFTOP" || precisao === "RANGE_INTERPOLATED") {
+          
+          if (tipoDeLugar.includes('address')) {
+              // 100% exato (número da porta localizado)
+              precisaCorrecao = false;
+          } else if (tipoDeLugar.includes('street') && relevancia >= 0.8) {
+              // Achou a rua certa com alta confiança (relevância >= 80%), aceitamos como válido
               precisaCorrecao = false;
           }
 
-          // Exceções para Rodovias (onde aproximação é normal e aceitável)
+          // Exceções para Rodovias (onde aproximação é normal e não queremos falsos vermelhos)
           const isRodovia = String(endereco).toUpperCase().includes("RODOVIA") || String(endereco).toUpperCase().includes(" KM");
           if (isRodovia) {
               precisaCorrecao = false; 
@@ -171,19 +168,21 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
           
           return res.json({
             encontrado: true,
-            lat: melhor.geometry.location.lat,
-            lon: melhor.geometry.location.lng,
-            precisao: precisao,
+            // ATENÇÃO: O Mapbox inverte as coordenadas. Ele retorna [longitude, latitude].
+            // Por isso usamos center[1] para LAT e center[0] para LON.
+            lat: melhor.center[1], 
+            lon: melhor.center[0], 
+            precisao: tipoDeLugar.join(", "),
             precisaCorrecao: precisaCorrecao,
-            enderecoFormatado: melhor.formatted_address,
-            pontuacaoAlcancada: melhoresResultados[0].pontuacao
+            enderecoFormatado: melhor.place_name,
+            pontuacao: Math.round(relevancia * 100) // Converte a nota 0.9 para 90 pontos no frontend
           });
         } catch (err) {
-          return res.status(500).json({ erro: "Erro ao parsear Google" });
+          return res.status(500).json({ erro: "Erro ao processar retorno do Mapbox" });
         }
       });
     }).on("error", (e) => {
-      res.status(500).json({ erro: "Erro de conexão com Google" });
+      res.status(500).json({ erro: "Erro de conexão com os servidores do Mapbox" });
     });
 
   } catch (e) {
