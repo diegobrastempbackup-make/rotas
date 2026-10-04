@@ -518,91 +518,92 @@
     //   decida a base correta do técnico.
     // ============================================================
    window.obterCoordenadasSilenciosa = async function(cliente) {
-        // 1. Verifica se já é uma coordenada GPS colada manualmente
+        // 1. Verifica se já não é uma coordenada GPS colada manualmente
         const coordRegex = /^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/;
         const textoBase = String(cliente.rua || '').trim();
         const matchCoord = textoBase.match(coordRegex);
 
         if (matchCoord) {
-            return { lat: Number(matchCoord[1]), lon: Number(matchCoord[2]), precisaCorrecao: false };
+            return {
+                lat: Number(matchCoord[1]),
+                lon: Number(matchCoord[2]),
+                precisaCorrecao: false,
+                precisaoGPS: 'COORDENADA_INFORMADA'
+            };
         }
 
-        let res = null;
-        let cidadeAlvo = String(cliente.cidade || "São Paulo").trim();
-        let ufAlvo = String(cliente.uf || "SP").trim();
+        // 2. Monta o endereço perfeito utilizando os dados limpos e separados pela Macro do Excel
+        let ruaNumero = cliente.rua || '';
+        if (cliente.numero) ruaNumero += `, ${cliente.numero}`;
 
-        // 2. Coordenadas centrais de fallback por Cidade (Garante que nunca some do mapa)
-        const centrosCidades = {
-            "SÃO PAULO": { lat: -23.5505, lon: -46.6333 },
-            "BARUERI": { lat: -23.5113, lon: -46.8763 },
-            "COTIA": { lat: -23.6039, lon: -46.9188 },
-            "OSASCO": { lat: -23.5329, lon: -46.7917 },
-            "JANDIRA": { lat: -23.5323, lon: -46.9042 },
-            "ITAPEVI": { lat: -23.5489, lon: -46.9334 },
-            "SANTANA DE PARNAÍBA": { lat: -23.4431, lon: -46.9189 },
-            "EMBU DAS ARTES": { lat: -23.6478, lon: -46.8503 },
-            "TABOÃO DA SERRA": { lat: -23.6264, lon: -46.7553 }
-        };
+        const partesEndereco = [];
+        if (ruaNumero) partesEndereco.push(ruaNumero);
+        if (cliente.bairro) partesEndereco.push(cliente.bairro);
+        const cidade = String(cliente.cidade || 'São Paulo').trim();
+        if (cidade) partesEndereco.push(cidade);
+        const uf = String(cliente.uf || 'SP').trim();
+        if (uf) partesEndereco.push(uf);
+        if (cliente.cep) partesEndereco.push(`CEP ${cliente.cep}`);
 
-        // CASCATA 1: Tenta a BrasilAPI usando o CEP (Super rápido e certeiro no Brasil)
-        if (cliente.cep) {
-            let cepLimpo = String(cliente.cep).replace(/\D/g, '');
-            if (cepLimpo.length === 8) {
-                try {
-                    let brApi = await fetch(`https://brasilapi.com.br/api/cep/v2/${cepLimpo}`);
-                    if (brApi.ok) {
-                        let dadosCep = await brApi.json();
-                        if (dadosCep.location && dadosCep.location.coordinates) {
-                            let lon = parseFloat(dadosCep.location.coordinates.longitude);
-                            let lat = parseFloat(dadosCep.location.coordinates.latitude);
-                            if (!isNaN(lat) && !isNaN(lon)) {
-                                return { lat, lon, precisaCorrecao: false };
-                            }
-                        }
+        const enderecoPerfeito = partesEndereco.join(' - ');
+
+        if (!enderecoPerfeito) {
+            cliente.erroGeocodificacao = 'ENDEREÇO_VAZIO';
+            cliente.precisaCorrecao = true;
+            return null;
+        }
+
+        // 3. Consulta a API do Google Maps através do nosso backend (server.js)
+        try {
+            const resposta = await fetch('/api/geocodificar-endereco', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    endereco: enderecoPerfeito,
+                    dadosOriginais: {
+                        rua: cliente.rua || '',
+                        numero: cliente.numero || '',
+                        bairro: cliente.bairro || '',
+                        cidade: cidade,
+                        uf: uf,
+                        cep: cliente.cep || ''
                     }
-                } catch(e) {}
+                })
+            });
+
+            const resultado = await resposta.json();
+
+            if (!resposta.ok || !resultado.encontrado) {
+                cliente.erroGeocodificacao = resultado.status || 'ENDEREÇO_NÃO_ENCONTRADO';
+                cliente.precisaCorrecao = true;
+                return null;
             }
+
+            const lat = Number(resultado.lat);
+            const lon = Number(resultado.lon);
+
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                cliente.erroGeocodificacao = 'COORDENADA_INVALIDA';
+                cliente.precisaCorrecao = true;
+                return null;
+            }
+
+            return {
+                lat,
+                lon,
+                precisaCorrecao: Boolean(resultado.precisaCorrecao),
+                precisaoGPS: resultado.precisao
+            };
+
+        } catch (erro) {
+            console.error('Falha ao comunicar com a API do Google Maps:', erro);
+            cliente.erroGeocodificacao = 'ERRO_COMUNICACAO_GEOCODIFICACAO';
+            cliente.precisaCorrecao = true;
+            return null;
         }
-
-        // Monta a query estrita para o Brasil
-        let queryCompleta = `${cliente.rua}`;
-        if (cliente.numero) queryCompleta += `, ${cliente.numero}`;
-        queryCompleta += `, \({cidadeAlvo},\){ufAlvo}, Brasil`;
-
-        let querySimplificada = `\({cliente.rua},\){cidadeAlvo}, ${ufAlvo}, Brasil`;
-
-        // CASCATA 2: Tenta o Photon (Komoot)
-        res = await buscarPhoton(queryCompleta);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
-
-        // Aguarda 1 segundo para respeitar o limite do Nominatim
-        await new Promise(r => setTimeout(r, 1000));
-
-        // CASCATA 3: Tenta o Nominatim com o endereço completo
-        res = await buscarNominatim(queryCompleta);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: false };
-
-        // CASCATA 4: Tenta Photon sem o número
-        res = await buscarPhoton(querySimplificada);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
-
-        await new Promise(r => setTimeout(r, 1000));
-
-        // CASCATA 5: Tenta Nominatim sem o número
-        res = await buscarNominatim(querySimplificada);
-        if (res) return { lat: res.lat, lon: res.lon, precisaCorrecao: true };
-
-        // FALLBACK DE SEGURANÇA: Se tudo falhar, joga no centro da cidade com um pequeno deslocamento (Jitter)
-        // Assim o balão APARECE no mapa e você pode ajustá-lo com o lápis (✏️).
-        let centroBase = centrosCidades[cidadeAlvo.toUpperCase()] || centrosCidades["SÃO PAULO"];
-        let jitterLat = (Math.random() - 0.5) * 0.01; // Pequena variação para não empilhar
-        let jitterLon = (Math.random() - 0.5) * 0.01;
-
-        return {
-            lat: centroBase.lat + jitterLat,
-            lon: centroBase.lon + jitterLon,
-            precisaCorrecao: true // Marca em vermelho para revisão
-        };
     };
 
     async function agruparEGeocodificar(linhas) {
