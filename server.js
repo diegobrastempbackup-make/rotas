@@ -125,21 +125,9 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) return res.status(500).json({ erro: "API Key não configurada" });
 
-    // Component Filtering: Ajuda o Google a restringir ao Brasil e usar o CEP como âncora se existir
-    let cep = "";
-    if (dadosOriginais && dadosOriginais.cep) {
-        cep = String(dadosOriginais.cep).replace(/\D/g, "");
-        if (cep.length === 8) cep = cep.substring(0, 5) + "-" + cep.substring(5);
-    }
-    
-    // Constrói a URL dando peso máximo ao código postal, se existir
-    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco)}`;
-    if (cep) {
-        url += `&components=postal_code:${cep}|country:BR`;
-    } else {
-        url += `&region=br`;
-    }
-    url += `&language=pt-BR&key=${apiKey}`;
+    // Removemos a âncora restrita de CEP da URL pois o CEP dos Correios frequentemente 
+    // conflita com o CEP base do Google e causa falhas de busca. Vamos focar no endereço textual.
+    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=\({encodeURIComponent(endereco)}&components=country:BR&language=pt-BR&key=\){apiKey}`;
 
     https.get(url, (response) => {
       let dados = "";
@@ -152,21 +140,32 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
             return res.json({ encontrado: false, status: json.status });
           }
 
-          // Pega o melhor resultado do Google
-          const melhor = json.results[0];
-          
+          // APLICAÇÃO DA LÓGICA DE OURO: Avaliar todos os resultados e pegar o de maior pontuação
+          let melhoresResultados = json.results.map(resultado => {
+              return {
+                  dados: resultado,
+                  pontuacao: pontuarResultadoGoogle(resultado, dadosOriginais || {})
+              };
+          });
+
+          // Ordena decrescente pela pontuação
+          melhoresResultados.sort((a, b) => b.pontuacao - a.pontuacao);
+
+          // Pega o vencedor (o que mais bate com cidade/bairro original)
+          const melhor = melhoresResultados[0].dados;
           const precisao = melhor.geometry.location_type;
           
-          // Lógica de Ouro para Precisão (Atualizada):
-          let precisaCorrecao = false;
-          
-          if (precisao !== "ROOFTOP" && precisao !== "RANGE_INTERPOLATED" && precisao !== "APPROXIMATE") {
-              precisaCorrecao = true;
+          // Lógica de Ouro para Precisão Restrita:
+          // Apenas ROOFTOP (telhado exato) e RANGE_INTERPOLATED (número deduzido na rua) são precisos.
+          // APPROXIMATE ou GEOMETRIC_CENTER disparam a bandeira vermelha (precisaCorrecao = true)
+          let precisaCorrecao = true;
+          if (precisao === "ROOFTOP" || precisao === "RANGE_INTERPOLATED") {
+              precisaCorrecao = false;
           }
 
-          // Exceções para Rodovias (onde aproximação é normal)
+          // Exceções para Rodovias (onde aproximação é normal e aceitável)
           const isRodovia = String(endereco).toUpperCase().includes("RODOVIA") || String(endereco).toUpperCase().includes(" KM");
-          if (isRodovia && json.status === "OK") {
+          if (isRodovia) {
               precisaCorrecao = false; 
           }
           
@@ -176,7 +175,8 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
             lon: melhor.geometry.location.lng,
             precisao: precisao,
             precisaCorrecao: precisaCorrecao,
-            enderecoFormatado: melhor.formatted_address
+            enderecoFormatado: melhor.formatted_address,
+            pontuacaoAlcancada: melhoresResultados[0].pontuacao
           });
         } catch (err) {
           return res.status(500).json({ erro: "Erro ao parsear Google" });
