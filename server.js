@@ -156,16 +156,16 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
           const melhor = json.results[0];
           const precisao = melhor.geometry.location_type;
           
-          // Lógica de Ouro para Precisão:
+          // CORREÇÃO: Aceita ROOFTOP, RANGE_INTERPOLATED e APPROXIMATE como endereços válidos e verdes.
+          // Só marca para revisão manual (vermelho) se for GEOMETRIC_CENTER (quando acha apenas o centro da cidade/bairro).
           let precisaCorrecao = false;
-          
-          if (precisao !== "ROOFTOP" && precisao !== "RANGE_INTERPOLATED") {
+          if (precisao === "GEOMETRIC_CENTER") {
               precisaCorrecao = true;
           }
 
           // Exceções para Rodovias (onde aproximação é normal)
           const isRodovia = String(endereco).toUpperCase().includes("RODOVIA") || String(endereco).toUpperCase().includes(" KM");
-          if (isRodovia && json.status === "OK") {
+          if (isRodovia) {
               precisaCorrecao = false; 
           }
 
