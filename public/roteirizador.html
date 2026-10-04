@@ -730,15 +730,14 @@
             let rua = String(buscarValorNaLinha(linha, ["RUA_MAPS", "ENDEREÇO", "ENDERECO", "RUA"])).trim();
             let numero = String(buscarValorNaLinha(linha, ["NUM_MAPS"])).trim();
             let detalhes = String(buscarValorNaLinha(linha, ["COMPL_MAPS", "DETALHES DO ENDEREÇO", "DETALHES", "COMPLEMENTO", "OBS"])).trim();
-            
             let cidade = String(buscarValorNaLinha(linha, ["CIDADE_MAPS", "CIDADE", "MUNICÍPIO"])).trim() || "São Paulo";
             let uf = String(buscarValorNaLinha(linha, ["UF_MAPS", "UF", "ESTADO"])).trim();
-            
             let cepOriginal = String(buscarValorNaLinha(linha, ["CEP_MAPS", "CEP"]));
+            
             let cepFormatado = limparCepETracar(cepOriginal);
-
             let servico = buscarValorNaLinha(linha, ["SERVIÇO", "SERVICO"]);
             let defeito = buscarValorNaLinha(linha, ["DEFEITO INFORMADO", "DEFEITO", "RECLAMAÇÃO", "RECLAMACAO", "PROBLEMA", "DESCRIÇÃO DO DEFEITO"]);
+            
             if (!defeito || String(defeito).trim() === "") {
                 const valoresLinha = Object.values(linha);
                 defeito = valoresLinha[3] || "Não informado";
@@ -746,13 +745,13 @@
 
             if (!ordensPorTecnico[tecnico]) ordensPorTecnico[tecnico] = [];
 
-            // CORREÇÃO APLICADA AQUI: A sintaxe estranha foi removida
-            let chaveAgrupamento = `\({String(cliente).trim().toUpperCase()}_\){rua.toUpperCase()}_${cepFormatado}`;
+            // CÓDIGO CORRIGIDO: Usando '+' em vez de símbolos que quebram
+            let chaveAgrupamento = String(cliente).trim().toUpperCase() + "_" + rua.toUpperCase() + "_" + cepFormatado;
             let ordemExistente = ordensPorTecnico[tecnico].find(o => o.chaveAgrupamento === chaveAgrupamento);
 
             if (ordemExistente) {
-                ordemExistente.codigo += ` / ${codigo}`;
-                if (servico) { ordemExistente.servico += ` / ${servico}`; }
+                ordemExistente.codigo += " / " + codigo;
+                if (servico) { ordemExistente.servico += " / " + servico; }
             } else {
                 ordensPorTecnico[tecnico].push({
                     chaveAgrupamento: chaveAgrupamento,
@@ -774,7 +773,6 @@
             }
         });
 
-        // PARTE RESTAURADA: Esta é a lógica de processamento e loop que tinha sido apagada
         dadosGlobaisRotas = {}; 
         let concluidos = 0;
         let barra = document.getElementById("barraProgresso");
@@ -785,8 +783,10 @@
             for (let ordem of ordensPorTecnico[tecnico]) {
                 concluidos++;
                 let perc = Math.round((concluidos / totalOS) * 100);
+                
+                // CÓDIGO CORRIGIDO: Visual elegante da percentagem com '+'
                 barra.style.width = perc + "%";
-                lbl.innerText = `\({concluidos} de\){totalOS} locais únicos convertidos em GPS...`;
+                lbl.innerText = perc + "% concluído (" + concluidos + " de " + totalOS + " locais)...";
 
                 let crds = await obterCoordenadasSilenciosa(ordem);
                 
@@ -810,7 +810,8 @@
                 if (ordem.periodo === 'MANHA') dadosGlobaisRotas[tecnico].manha.push(ordem);
                 else dadosGlobaisRotas[tecnico].tarde.push(ordem);
 
-                await new Promise(r => setTimeout(r, 600)); // Evita bloqueio do OSM
+                // Evita bloqueio da API do Mapbox
+                await new Promise(r => setTimeout(r, 200)); 
             }
         }
 
@@ -819,8 +820,13 @@
         document.getElementById("painelRotas").style.display = "flex";
         window.renderizarListaTecnicosModoNovo();
         setTimeout(() => { mapa.invalidateSize(); }, 500);
+        
         const revisar = Object.values(dadosGlobaisRotas).flatMap(grupo => [...grupo.manha, ...grupo.tarde]).filter(ordem => ordem.precisaCorrecao).length;
-        if (revisar) alert(`⚠️ ${revisar} endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.`);
+        if (revisar > 0) {
+            alert("⚠️ " + revisar + " endereço(s) não atingiram precisão suficiente e foram marcados em vermelho para revisão.");
+        } else {
+            alert("✅ Sucesso Absoluto! Todas as O.S. foram processadas e validadas com exatidão.");
+        }
     }
 
     // ... (O restante da função agruparEGeocodificar continua exatamente igual, fazendo o loop no obterCoordenadasSilenciosa)

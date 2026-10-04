@@ -125,8 +125,8 @@ app.post('/api/geocodificar-endereco', autenticarToken, async (req, res) => {
     const mapboxKey = process.env.MAPBOX_API_KEY;
     if (!mapboxKey) return res.status(500).json({ erro: "API Key do Mapbox não configurada" });
 
-    // URL CORRIGIDA: Usa crases e os símbolos ${} corretamente para injetar as variáveis
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/\({encodeURIComponent(endereco)}.json?country=br&language=pt&access_token=\){mapboxKey}`;
+    // CÓDIGO CORRIGIDO: Usando sinal de '+' (nunca mais vai quebrar no Copiar/Colar)
+    const url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" + encodeURIComponent(endereco) + ".json?country=br&language=pt&access_token=" + mapboxKey;
 
     https.get(url, (response) => {
       let dados = "";
